@@ -105,7 +105,7 @@
     <!-- ================= HOME ================= -->
     <section class="page show" id="p-home">
       <div class="ph">
-        <div><div class="kicker">01 // COMMAND CENTER</div><h1>Ready für die Stadt, <span class="grad" id="uname">Player</span>?</h1></div>
+        <div><div class="kicker">COMMAND CENTER</div><h1>Ready für die Stadt, <span class="grad" id="uname">Player</span>?</h1><p class="pd">Live-Status, Boost und die wichtigsten Aktionen auf einen Blick.</p></div>
         <div class="ph-r"><span class="chip a" id="lastBoost">Noch kein Boost</span></div>
       </div>
       <div class="home">
@@ -133,32 +133,7 @@
           </div>
         </div>
 
-        <div class="tele">
-          <div class="card hov metric">
-            <div class="lbl"><svg class="i"><use href="#cpu"/></svg>Prozessor</div>
-            <div class="big" id="mCpu">0<small>%</small></div>
-            <div class="sub" style="font-size:11px;margin-top:6px;max-width:62%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="mCpuName">—</div>
-            <svg class="spark" viewBox="0 0 200 60" preserveAspectRatio="none"><path id="sparkF" fill="url(#sg)"/><path id="sparkL" fill="none" stroke="var(--a)" stroke-width="2"/></svg>
-          </div>
-          <div class="card hov metric">
-            <div class="lbl"><svg class="i"><use href="#ram"/></svg>Arbeitsspeicher</div>
-            <div class="big" id="mRam">0<small>%</small></div>
-            <div class="sub" style="font-size:11px;margin-top:6px" id="mRamTxt">—</div>
-            <div class="bar"><i id="mRamBar" style="width:0"></i></div>
-          </div>
-          <div class="card hov metric">
-            <div class="lbl"><svg class="i"><use href="#monitor"/></svg>Grafikkarte</div>
-            <div style="font-family:var(--disp);font-size:17px;font-weight:700;margin-top:12px;line-height:1.2" id="mGpu">—</div>
-            <div class="sub" style="font-size:11px;margin-top:6px" id="mOs">—</div>
-          </div>
-          <div class="card hov metric">
-            <div class="lbl"><svg class="i"><use href="#wifi"/></svg>Latenz · Cfx.re</div>
-            <div class="big" id="mPing">--<small>ms</small></div>
-            <div class="sub" style="font-size:11px;margin-top:6px" id="mPingTxt">Jitter --</div>
-          </div>
-        </div>
-
-        <div class="card hov fm">
+        <div class="card fm" id="fmCard">
           <div class="fm-ico off" id="fmIco"><svg class="i"><use href="#gamepad"/></svg></div>
           <div style="min-width:0">
             <div class="row"><h2 id="fmState">FiveM offline</h2><span class="chip" id="fmChip">STANDBY</span></div>
@@ -168,12 +143,41 @@
               <div><span>Game-RAM</span><b id="fmRam">—</b></div>
               <div><span>Cache</span><b id="fmCache">—</b></div>
             </div>
-            <div class="feed" id="feed"></div>
           </div>
           <div class="fm-act">
-            <button class="btn sm" onclick="go('launcher')"><svg class="i"><use href="#rocket"/></svg>Launcher</button>
+            <button class="btn p" onclick="launch('')"><svg class="i"><use href="#play"/></svg>Starten</button>
             <button class="btn sm d" onclick="killFiveM()"><svg class="i"><use href="#power"/></svg>Force Close</button>
           </div>
+        </div>
+
+        <div class="tele">
+          <div class="card metric">
+            <div class="lbl"><svg class="i"><use href="#cpu"/></svg>CPU</div>
+            <div class="big" id="mCpu">0<small>%</small></div>
+            <div class="msub" id="mCpuName">—</div>
+            <svg class="spark" viewBox="0 0 200 60" preserveAspectRatio="none"><path id="sparkF" fill="url(#sg)"/><path id="sparkL" fill="none" stroke="var(--a)" stroke-width="2"/></svg>
+          </div>
+          <div class="card metric">
+            <div class="lbl"><svg class="i"><use href="#ram"/></svg>RAM</div>
+            <div class="big" id="mRam">0<small>%</small></div>
+            <div class="msub" id="mRamTxt">—</div>
+            <div class="bar"><i id="mRamBar" style="width:0"></i></div>
+          </div>
+          <div class="card metric">
+            <div class="lbl"><svg class="i"><use href="#wifi"/></svg>Ping</div>
+            <div class="big" id="mPing">--<small>ms</small></div>
+            <div class="msub" id="mPingTxt">zu Cfx.re</div>
+          </div>
+          <div class="card metric">
+            <div class="lbl"><svg class="i"><use href="#monitor"/></svg>GPU</div>
+            <div class="gpu" id="mGpu">—</div>
+            <div class="msub" id="mOs">—</div>
+          </div>
+        </div>
+
+        <div class="card actv">
+          <div class="lbl"><svg class="i"><use href="#activity"/></svg>Letzte Aktivität</div>
+          <div class="feed" id="feed"></div>
         </div>
       </div>
       <div class="quick">
@@ -187,7 +191,7 @@
     <!-- ================= SERVERS ================= -->
     <section class="page" id="p-servers">
       <div class="ph">
-        <div><div class="kicker">02 // SERVER HUB</div><h1>Deine <span class="grad">Server</span></h1></div>
+        <div><div class="kicker">SERVER HUB</div><h1>Deine <span class="grad">Server</span></h1><p class="pd">Speichere deine Server und joine mit einem Klick, inklusive Spielerzahl und Ping.</p></div>
         <div class="ph-r"><button class="btn" onclick="loadServers(true)"><svg class="i"><use href="#refresh"/></svg>Aktualisieren</button></div>
       </div>
       <div class="srv-wrap">
@@ -216,7 +220,7 @@
     <!-- ================= LAUNCHER ================= -->
     <section class="page" id="p-launcher">
       <div class="ph">
-        <div><div class="kicker">03 // LAUNCH CONTROL</div><h1>FiveM <span class="grad">Launcher</span></h1></div>
+        <div><div class="kicker">LAUNCH CONTROL</div><h1>FiveM <span class="grad">Launcher</span></h1><p class="pd">Lege fest, wie FiveM startet, und was vorher aufgeräumt wird.</p></div>
         <div class="ph-r"><button class="btn" onclick="api('fivem.folder')"><svg class="i"><use href="#folder"/></svg>FiveM-Ordner</button><button class="btn" onclick="pickFiveM()"><svg class="i"><use href="#file"/></svg>Pfad wählen</button></div>
       </div>
       <div class="lgrid">
@@ -241,7 +245,7 @@
     <!-- ================= GRAPHICS ================= -->
     <section class="page" id="p-gfx">
       <div class="ph">
-        <div><div class="kicker">04 // GRAFIK-TUNER</div><h1>GTA V <span class="grad">Grafik</span>-Presets</h1></div>
+        <div><div class="kicker">GRAFIK-TUNER</div><h1>GTA V <span class="grad">Grafik</span>-Presets</h1><p class="pd">Preset wählen oder einzeln anpassen und speichern. Gilt beim nächsten Spielstart.</p></div>
         <div class="ph-r"><span class="chip" id="gfxState">settings.xml</span></div>
       </div>
       <div class="presets" id="presets"></div>
@@ -259,7 +263,7 @@
     <!-- ================= INPUT LAB ================= -->
     <section class="page" id="p-input">
       <div class="ph">
-        <div><div class="kicker">05 // INPUT-LAB</div><h1>WASD & <span class="grad">Input-Delay</span></h1></div>
+        <div><div class="kicker">INPUT-LAB</div><h1>WASD & <span class="grad">Input-Delay</span></h1><p class="pd">Tweaks für Tastatur und Maus, dazu Tester, die direkt zeigen, was sich ändert.</p></div>
         <div class="ph-r"><button class="btn p" onclick="applyCat('input')"><svg class="i"><use href="#zap"/></svg>Alle Input-Tweaks an</button></div>
       </div>
       <div class="lab">
@@ -286,7 +290,7 @@
     <!-- ================= TWEAKS ================= -->
     <section class="page" id="p-tweaks">
       <div class="ph">
-        <div><div class="kicker">06 // TWEAK ENGINE</div><h1>Performance <span class="grad">Tweaks</span></h1></div>
+        <div><div class="kicker">TWEAK ENGINE</div><h1>Performance <span class="grad">Tweaks</span></h1><p class="pd">Jeder Schalter ist eine Windows-Einstellung und lässt sich einzeln zurücknehmen.</p></div>
         <div class="ph-r"><button class="btn d" onclick="revertAll()"><svg class="i"><use href="#undo"/></svg>Alles zurücksetzen</button><button class="btn p" onclick="applyCat(curTab)"><svg class="i"><use href="#zap"/></svg>Empfohlene anwenden</button></div>
       </div>
       <div class="tabs" id="tabs"></div>
@@ -296,7 +300,7 @@
     <!-- ================= CLEANER ================= -->
     <section class="page" id="p-cleaner">
       <div class="ph">
-        <div><div class="kicker">07 // CLEANER</div><h1>Speicher <span class="grad">freiräumen</span></h1></div>
+        <div><div class="kicker">CLEANER</div><h1>Speicher <span class="grad">freiräumen</span></h1><p class="pd">Caches und Reste entfernen. Die Spieldaten von FiveM bleiben unangetastet.</p></div>
         <div class="ph-r"><button class="btn" onclick="scan()"><svg class="i"><use href="#refresh"/></svg>Neu scannen</button></div>
       </div>
       <div class="cgrid">
@@ -321,7 +325,7 @@
     <!-- ================= DIAGNOSE ================= -->
     <section class="page" id="p-diag">
       <div class="ph">
-        <div><div class="kicker">08 // DIAGNOSE</div><h1>FiveM <span class="grad">Health-Check</span></h1></div>
+        <div><div class="kicker">DIAGNOSE</div><h1>FiveM <span class="grad">Health-Check</span></h1><p class="pd">Findet typische Ursachen für Ruckler, Abstürze und Ladeprobleme.</p></div>
         <div class="ph-r"><button class="btn p" onclick="runHealth()"><svg class="i"><use href="#heart"/></svg>Check starten</button></div>
       </div>
       <div class="dgrid">
@@ -346,7 +350,7 @@
 
     <!-- ================= SETTINGS ================= -->
     <section class="page" id="p-settings">
-      <div class="ph"><div><div class="kicker">09 // EINSTELLUNGEN</div><h1>Setup & <span class="grad">Style</span></h1></div></div>
+      <div class="ph"><div><div class="kicker">EINSTELLUNGEN</div><h1>Setup & <span class="grad">Style</span></h1><p class="pd">Updates, Farbe und Verhalten von OrbitTweak.</p></div></div>
       <div class="card gb" id="updCard">
         <div class="row">
           <div class="lbl"><svg class="i"><use href="#download"/></svg>Updates</div><span class="sp"></span>

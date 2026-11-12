@@ -60,7 +60,7 @@ function toast(title, text = '', ok = true) {
 function feed(text) {
   const f = $('#feed'), d = document.createElement('div');
   d.innerHTML = `<em>${new Date().toLocaleTimeString('de-DE')}</em>  ${esc(text)}`;
-  f.prepend(d); while (f.children.length > 5) f.lastChild.remove();
+  f.prepend(d); while (f.children.length > 6) f.lastChild.remove();
 }
 
 /* ======================= EVENTS ======================= */
@@ -74,7 +74,7 @@ function stats(d) {
   $('#tbCpu').textContent = d.cpu + '%'; $('#tbRam').textContent = d.ram + '%';
   $('#mCpu').innerHTML = `${d.cpu}<small>%</small>`;
   $('#mRam').innerHTML = `${d.ram}<small>%</small>`;
-  $('#mRamTxt').textContent = `${d.ramUsed.toFixed(1)} / ${d.ramTotal.toFixed(0)} GB belegt`;
+  $('#mRamTxt').textContent = `${d.ramUsed.toFixed(1)} / ${d.ramTotal.toFixed(0)} GB`;
   $('#mRamBar').style.width = d.ram + '%';
   $('#cRam').innerHTML = `${d.ram}<small>%</small>`; $('#cRamBar').style.width = d.ram + '%';
   $('#cRamTxt').textContent = `${d.ramUsed.toFixed(1)} / ${d.ramTotal.toFixed(0)} GB`;
@@ -103,7 +103,7 @@ async function ping() {
     const p = await api('ping');
     $('#tbPing').textContent = p.ms ?? '--';
     $('#mPing').innerHTML = `${p.ms ?? '--'}<small>ms</small>`;
-    $('#mPingTxt').textContent = p.ms == null ? 'Keine Verbindung' : `Jitter ${p.jitter} ms · ${p.ms < 40 ? 'Sehr gut' : p.ms < 80 ? 'Gut' : 'Hoch'}`;
+    $('#mPingTxt').textContent = p.ms == null ? 'Keine Verbindung' : `Cfx.re · ${p.ms < 40 ? 'sehr gut' : p.ms < 80 ? 'gut' : 'hoch'}`;
   } catch { }
 }
 async function refreshCache() { try { const r = await api('fivem.cacheSize'); $('#fmCache').textContent = r.found ? bytes(r.size) : '—'; } catch { } }
@@ -162,7 +162,7 @@ function renderTweaks() {
 }
 document.addEventListener('click', async e => {
   const tab = e.target.closest('.tab'); if (tab) { curTab = tab.dataset.c; renderTweaks(); return; }
-  const tg = e.target.closest('.tg[data-id]'); if (!tg) return;
+  const tg = e.target.closest('.tg[data-id]') || e.target.closest('.tcard,.tw')?.querySelector('.tg[data-id]'); if (!tg) return;
   const t = S.tweaks.find(x => x.id === tg.dataset.id); if (!t) return;
   const want = !t.applied;
   $$(`.tg[data-id="${t.id}"]`).forEach(x => { x.classList.toggle('on', want); x.classList.add('busy'); });
@@ -541,8 +541,9 @@ async function boot() {
   $('#verTxt').textContent = 'v' + d.version; $('#verCur').textContent = 'v' + d.version;
   $('#adminTxt').textContent = d.admin ? 'ADMIN ✓' : 'KEIN ADMIN';
   $('#mCpuName').textContent = d.sys.cpu;
-  $('#mGpu').textContent = d.sys.gpu;
-  $('#mOs').textContent = `${d.sys.os} · ${d.sys.ramGb} GB RAM`;
+  $('#mGpu').textContent = d.sys.gpu.replace(/^NVIDIA (GeForce )?/i, '').replace(/^AMD /i, '').replace(/^Intel\(R\) /i, '');
+  $('#mGpu').title = d.sys.gpu;
+  $('#mOs').textContent = `${d.sys.ramGb} GB RAM`;
   if (d.settings.lastBoost) $('#lastBoost').textContent = 'Letzter Boost: ' + new Date(d.settings.lastBoost).toLocaleDateString('de-DE');
   $('#launchSub').textContent = d.fivem.found ? 'mit Pre-Launch-Boost' : 'FiveM nicht gefunden';
   feed(d.fivem.found ? 'FiveM erkannt: ' + d.fivem.path : 'FiveM nicht gefunden: Pfad im Launcher wählen');
@@ -596,7 +597,7 @@ const Mock = {
       case 'clean.scan': return [['fm', 'FiveM Cache', 'cache, server-cache, server-cache-priv', 'gamepad', 3.2e9], ['logs', 'FiveM Logs & Crashes', 'Alte Logs und Crashdumps', 'file', 2.1e8], ['temp', 'Temporäre Dateien', 'Benutzer- und System-Temp', 'folder', 1.6e9], ['shader', 'Shader-Cache', 'DirectX / NVIDIA / AMD', 'monitor', 7.4e8], ['wu', 'Windows-Update Reste', 'Bereits installierte Pakete', 'download', 9.1e8], ['bin', 'Papierkorb', 'Endgültig leeren', 'trash', 2.4e8]].map(([id, name, desc, icon, size], i) => ({ id, name, desc, icon, size, sel: i < 5 }));
       case 'health': return { score: 74, items: [{ name: 'FiveM installiert', value: 'C:\\Users\\Max\\AppData\\Local\\FiveM', st: 'ok' }, { name: 'Arbeitsspeicher', value: '32 GB, perfekt für FiveM', st: 'ok' }, { name: 'Energieplan', value: 'Ausbalanciert, CPU taktet herunter', st: 'warn', fix: 'tweak:ult' }, { name: 'Xbox Game DVR', value: 'Aktiv, kostet FPS', st: 'bad', fix: 'tweak:dvr' }, { name: 'GPU-Treiber', value: 'NVIDIA 566.36 · 4 Monate alt', st: 'ok' }, { name: 'FiveM-Cache', value: '3.2 GB, leeren empfohlen', st: 'warn', fix: 'cache' }] };
       case 'logs': return { lines: ['[ 1203] Loading game build 3095', '[ 2210] Warning: texture budget exceeded', '[ 4501] Connecting to 127.0.0.1:30120', '[ 9012] SCRIPT ERROR: @core/server.lua:12 attempt to index nil', '[12001] Session started'], crashes: [] };
-      case 'update.check': return { configured: true, current: '2.2.0', latest: '2.3.0', available: true, date: '12.11.2026', notes: ['Neuer Look mit weniger Effekten', 'Server-Favoriten laden schneller', 'Fix: Launcher-Pfad wird gespeichert'] };
+      case 'update.check': return { configured: true, current: '2.2.0', latest: '2.3.0', available: new URLSearchParams(location.search).has('upd'), date: '12.11.2026', notes: ['Neuer Look mit weniger Effekten', 'Server-Favoriten laden schneller', 'Fix: Launcher-Pfad wird gespeichert'] };
       default: return { ok: true, freed: 3.4e8, count: 0, applied: true };
     }
   }
