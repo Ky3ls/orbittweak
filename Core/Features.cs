@@ -236,8 +236,14 @@ internal static class Servers
             }
             var max = Int(d, "sv_maxclients");
             if (max == 0) max = Int(d, "svMaxclients");
+            var (discord, website) = Links(vars);
+            var allTags = (Str(vars, "tags") ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct().Take(14).ToArray();
+            int resources = d.TryGetProperty("resources", out var rs) && rs.ValueKind == JsonValueKind.Array ? rs.GetArrayLength() : 0;
             return new
             {
+                discord, website, allTags, resources,
+                owner = Str(d, "ownerName"), build = Str(vars, "sv_enforceGameBuild"), onesync = Str(vars, "onesync_enabled") == "true",
+                pure = Str(vars, "sv_pureLevel"),
                 code = "cfx:" + code, connect = "cfx.re/join/" + code, name, desc, tags, locale,
                 players = Int(d, "clients"), max, online = true, ping,
                 icon = iconVer != null ? $"https://servers-live.fivem.net/servers/icon/{code}/{iconVer}.png" : null,
@@ -250,6 +256,47 @@ internal static class Servers
             return Offline("cfx:" + code, "cfx.re/join/" + code, "Server offline / nicht gefunden");
         }
         catch { return Offline("cfx:" + code, "cfx.re/join/" + code, "Keine Verbindung zur Cfx.re API"); }
+    }
+
+    /// <summary>Finds a Discord invite and a website among the server variables.</summary>
+    private static (string? discord, string? website) Links(JsonElement vars)
+    {
+        string? discord = null, web = null;
+        if (vars.ValueKind != JsonValueKind.Object) return (null, null);
+        foreach (var p in vars.EnumerateObject())
+        {
+            if (p.Value.ValueKind != JsonValueKind.String) continue;
+            var v = p.Value.GetString() ?? "";
+            var m = Regex.Match(v, @"(?:https?://)?(?:www\.)?(discord(?:app)?\.(?:gg|com/invite)/[\w\-]+)", RegexOptions.IgnoreCase);
+            if (m.Success) { discord ??= "https://" + m.Groups[1].Value; continue; }
+            if (p.Name.Contains("discord", StringComparison.OrdinalIgnoreCase) && Regex.IsMatch(v, @"^[\w\-]{4,32}$")) { discord ??= "https://discord.gg/" + v; continue; }
+            var w = Regex.Match(v, @"https?://[\w\-\.]+\.[a-z]{2,}(/[\w\-\./?=&%]*)?", RegexOptions.IgnoreCase);
+            if (w.Success && !p.Name.StartsWith("banner", StringComparison.OrdinalIgnoreCase) && !Regex.IsMatch(w.Value, @"\.(png|jpe?g|gif|webp)$", RegexOptions.IgnoreCase)) web ??= w.Value;
+        }
+        return (discord, web);
+    }
+
+    /// <summary>FiveM notes the server you connect to as "last_server_url" in data\cache\crashometry.</summary>
+    public static (string? url, DateTime at) LastServer()
+    {
+        try
+        {
+            if (FiveM.AppDir is not { } app) return (null, default);
+            var f = Path.Combine(app, "data", "cache", "crashometry");
+            if (!File.Exists(f)) return (null, default);
+            var b = File.ReadAllBytes(f);
+            string? url = null; int i = 0;
+            while (i + 8 <= b.Length)
+            {
+                int kl = BitConverter.ToInt32(b, i), vl = BitConverter.ToInt32(b, i + 4);
+                if (kl < 0 || vl < 0 || kl > 256 || vl > 4096 || i + 8 + kl + vl > b.Length) break;
+                var key = System.Text.Encoding.UTF8.GetString(b, i + 8, kl);
+                if (key == "last_server_url") url = System.Text.Encoding.UTF8.GetString(b, i + 8 + kl, vl);
+                i += 8 + kl + vl;
+            }
+            return (url, File.GetLastWriteTime(f));
+        }
+        catch { return (null, default); }
     }
 
     private static async Task<object> FetchIp(string addr)

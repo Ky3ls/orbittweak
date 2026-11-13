@@ -73,6 +73,7 @@ public partial class MainWindow : Window
         _live.Start();
 
         if (S.TimerRes) Catalog.SetTimerResolution(true);
+        Task.Run(Catalog.UndoKeyboardTurbo);
         Updater.CleanupOld();
         Background = S.Mode == "light" ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(239, 237, 231)) : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(18, 18, 17));
     }
@@ -99,6 +100,7 @@ public partial class MainWindow : Window
 #endif
             c.NewWindowRequested += (_, e) => { e.Handled = true; Proc.Open(e.Uri); };
             c.SetVirtualHostNameToFolderMapping("orbit.local", ExtractWeb(Path.Combine(data, "web")), CoreWebView2HostResourceAccessKind.Allow);
+            try { Directory.CreateDirectory(Backgrounds.Dir); c.SetVirtualHostNameToFolderMapping("bg.orbit", Backgrounds.Dir, CoreWebView2HostResourceAccessKind.Allow); } catch { }
             try { if (Directory.Exists(Clipper.VideosDir)) c.SetVirtualHostNameToFolderMapping("clips.orbit", Clipper.VideosDir, CoreWebView2HostResourceAccessKind.Allow); } catch { }
             c.WebMessageReceived += OnMessage;
             Web.ZoomFactor = _zoom;
@@ -280,6 +282,22 @@ public partial class MainWindow : Window
                 return data;
             }
             case "servers.remove": S.Favorites.Remove(Str(a, "code")); S.Save(); return null;
+            case "server.current":
+            {
+                var (url, at) = Servers.LastServer();
+                if (string.IsNullOrWhiteSpace(url)) return new { found = false };
+                string skey;
+                try { skey = Servers.Parse(url); } catch { return new { found = false }; }
+                bool connected = false;
+                try
+                {
+                    using var gp = FiveM.GameProcess();
+                    connected = gp != null && at >= gp.StartTime.AddSeconds(-5);
+                }
+                catch { }
+                var data = await Servers.Fetch(skey, Bool(a, "force"));
+                return new { found = true, connected, key = skey, url, at, fav = S.Favorites.Contains(skey), server = data };
+            }
             case "cfx.status": return await Net.CfxStatus();
             case "ping": return await Net.CfxPing();
 
@@ -378,6 +396,67 @@ public partial class MainWindow : Window
                 if (err == null) { S.ModCats.Remove(Str(a, "name")); S.Save(); Log($"🗑 Mod entfernt: {Str(a, "name")}"); }
                 return new { error = err };
             }
+            case "mods.downloads": return await Task.Run(ModDownloads.List);
+            case "mods.installDl":
+            {
+                var (files, temp, err) = await Task.Run(() => ModDownloads.Prepare(Str(a, "name")));
+                int count = 0;
+                if (err == null) (count, err) = await Task.Run(() => Mods.Install(files, Str(a, "cat"), S.ModCats));
+                if (temp != null) try { Directory.Delete(temp, true); } catch { }
+                S.Save();
+                if (count > 0) Log($"🧩 {count} Mod(s) aus Downloads installiert");
+                return new { count, error = err };
+            }
+            case "downloads.open": Proc.Open(ModDownloads.Dir); return null;
+
+            // ---------- reshade ----------
+            case "reshade.status": return await Task.Run(ReShade.Status);
+            case "reshade.install":
+                try
+                {
+                    var err = await ReShade.Install(Str(a, "preset"), (pct, text) => Emit("reshade", new { pct, text }));
+                    if (err == null) Log("🎨 ReShade installiert");
+                    return new { error = err };
+                }
+                catch (Exception ex) { return new { error = "Download fehlgeschlagen: " + ex.Message }; }
+            case "reshade.uninstall":
+            {
+                var err = await Task.Run(ReShade.Uninstall);
+                if (err == null) Log("🎨 ReShade entfernt");
+                return new { error = err };
+            }
+            case "reshade.preset":
+            {
+                var err = ReShade.SetPreset(Str(a, "id"));
+                if (err == null) Log($"🎨 ReShade-Preset: {Str(a, "id")}");
+                return new { error = err };
+            }
+
+            // ---------- thumbnails & GTA backgrounds ----------
+            case "thumb": return new { url = await Thumbs.DataUrl(Str(a, "path")) };
+            case "clip.thumb": return new { url = Clipper.Resolve(Str(a, "rel")) is { } clipFile ? await Thumbs.DataUrl(clipFile) : null };
+            case "bg.list": return await Task.Run(Backgrounds.Candidates);
+            case "bg.set":
+            {
+                var path = Str(a, "path");
+                if (Str(a, "rel") is { Length: > 0 } rel) path = Clipper.Resolve(rel) ?? "";
+                var err = await Backgrounds.Set(path);
+                if (err == null) { S.BgVersion = DateTime.Now.Ticks; S.Save(); }
+                return new { error = err, v = S.BgVersion };
+            }
+            case "bg.pick":
+            {
+                var dlg = new Microsoft.Win32.OpenFileDialog { Title = "GTA-Bild auswählen", Filter = "Bilder (*.jpg;*.jpeg;*.png)|*.jpg;*.jpeg;*.png" };
+                if (dlg.ShowDialog(this) != true) return new { cancelled = true };
+                var err = await Backgrounds.Set(dlg.FileName);
+                if (err == null) { S.BgVersion = DateTime.Now.Ticks; S.Save(); }
+                return new { error = err, v = S.BgVersion };
+            }
+            case "bg.clear":
+                try { File.Delete(Backgrounds.File_); } catch { }
+                S.BgVersion = 0; S.Save();
+                return new { v = 0 };
+
             case "mods.folder": if (Mods.Dir is { } md) { Directory.CreateDirectory(md); Proc.Open(md); } return null;
 
             // ---------- network quality ----------
@@ -533,6 +612,7 @@ public partial class MainWindow : Window
     private void LiveTick()
     {
         bool game = GameFocus.IsGame();
+        SnapTap.GameInFront = game;
         // after the game has been in front for 20 s, apply the saved F8 settings once per game session
         if (game)
         {

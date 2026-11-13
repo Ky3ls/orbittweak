@@ -584,27 +584,55 @@ internal sealed class SnapTap
     [StructLayout(LayoutKind.Sequential)] private struct KBD { public uint vk, scan, flags, time; public IntPtr extra; }
     [StructLayout(LayoutKind.Sequential)] private struct KEYBDINPUT { public ushort wVk, wScan; public uint dwFlags, time; public IntPtr dwExtraInfo; }
     [StructLayout(LayoutKind.Explicit, Size = 40)] private struct INPUT { [FieldOffset(0)] public uint type; [FieldOffset(8)] public KEYBDINPUT ki; }
+    [StructLayout(LayoutKind.Sequential)] private struct MSG { public IntPtr hwnd; public uint message; public IntPtr wParam, lParam; public uint time; public int x, y; }
     [DllImport("user32.dll")] private static extern IntPtr SetWindowsHookEx(int id, HookProc fn, IntPtr mod, uint thread);
     [DllImport("user32.dll")] private static extern bool UnhookWindowsHookEx(IntPtr h);
     [DllImport("user32.dll")] private static extern IntPtr CallNextHookEx(IntPtr h, int code, IntPtr wp, IntPtr lp);
     [DllImport("user32.dll")] private static extern uint SendInput(uint n, INPUT[] i, int size);
     [DllImport("user32.dll")] private static extern uint MapVirtualKey(uint code, uint type);
+    [DllImport("user32.dll")] private static extern int GetMessage(out MSG m, IntPtr h, uint min, uint max);
+    [DllImport("user32.dll")] private static extern bool PostThreadMessage(uint tid, uint msg, IntPtr wp, IntPtr lp);
     [DllImport("kernel32.dll")] private static extern IntPtr GetModuleHandle(string? name);
+    [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
 
     private static readonly IntPtr Marker = new(0x0B17_5A1A);
     private static readonly Dictionary<uint, uint> Opp = new() { [0x41] = 0x44, [0x44] = 0x41, [0x57] = 0x53, [0x53] = 0x57 };
     private readonly HookProc _proc;
     private IntPtr _hook;
+    private Thread? _thread;
+    private uint _tid;
     private readonly HashSet<uint> _down = new();      // physically held
     private readonly HashSet<uint> _muted = new();     // held but released by us
 
-    public SnapTap() { _proc = Hook; }
-    public bool Active => _hook != IntPtr.Zero;
+    /// <summary>Set by the UI timer – the hook itself never does any slow work.</summary>
+    public static volatile bool GameInFront;
 
+    public SnapTap() { _proc = Hook; }
+
+    // The hook runs on its own high-priority thread with its own message loop, so a busy UI
+    // can never delay keyboard input (that caused laggy WASD before).
     public void Enable(bool on)
     {
-        if (on && _hook == IntPtr.Zero) _hook = SetWindowsHookEx(13, _proc, GetModuleHandle(null), 0);
-        else if (!on && _hook != IntPtr.Zero) { UnhookWindowsHookEx(_hook); _hook = IntPtr.Zero; _down.Clear(); _muted.Clear(); }
+        if (on && _thread == null)
+        {
+            _thread = new Thread(Run) { IsBackground = true, Priority = ThreadPriority.Highest, Name = "SnapTap" };
+            _thread.Start();
+        }
+        else if (!on && _thread != null)
+        {
+            PostThreadMessage(_tid, 0x12, IntPtr.Zero, IntPtr.Zero); // WM_QUIT
+            _thread.Join(500);
+            _thread = null;
+        }
+    }
+
+    private void Run()
+    {
+        _tid = GetCurrentThreadId();
+        _hook = SetWindowsHookEx(13, _proc, GetModuleHandle(null), 0);
+        while (GetMessage(out _, IntPtr.Zero, 0, 0) > 0) { }
+        if (_hook != IntPtr.Zero) UnhookWindowsHookEx(_hook);
+        _hook = IntPtr.Zero; _down.Clear(); _muted.Clear();
     }
 
     private static void Key(uint vk, bool up)
@@ -618,15 +646,18 @@ internal sealed class SnapTap
         if (code >= 0)
         {
             var k = Marshal.PtrToStructure<KBD>(lp);
-            if (k.extra != Marker && Opp.TryGetValue(k.vk, out var opp))
+            if (k.extra != Marker && (k.flags & 0x10) == 0 && Opp.TryGetValue(k.vk, out var opp))
             {
                 int msg = wp.ToInt32();
                 bool down = msg is 0x100 or 0x104, up = msg is 0x101 or 0x105;
-                if (!GameFocus.IsGame()) { if (up) { _down.Remove(k.vk); _muted.Remove(k.vk); } else if (down) _down.Add(k.vk); }
-                else if (down && !_down.Contains(k.vk))
+                if (!GameInFront)
                 {
-                    _down.Add(k.vk);
-                    if (_down.Contains(opp) && !_muted.Contains(opp)) { _muted.Add(opp); Key(opp, true); }
+                    if (up) { _down.Remove(k.vk); _muted.Remove(k.vk); } else if (down) _down.Add(k.vk);
+                }
+                else if (down)
+                {
+                    if (_muted.Contains(k.vk)) return new IntPtr(1);              // auto-repeat of a muted key
+                    if (_down.Add(k.vk) && _down.Contains(opp) && _muted.Add(opp)) Key(opp, true);
                 }
                 else if (up)
                 {
@@ -634,7 +665,6 @@ internal sealed class SnapTap
                     if (_muted.Remove(k.vk)) return new IntPtr(1);              // already released by us
                     if (_down.Contains(opp) && _muted.Remove(opp)) Key(opp, false); // give the other direction back
                 }
-                else if (down && _muted.Contains(k.vk)) return new IntPtr(1);   // auto-repeat of a muted key
             }
         }
         return CallNextHookEx(_hook, code, wp, lp);

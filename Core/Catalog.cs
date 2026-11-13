@@ -497,25 +497,6 @@ internal static class Catalog
         },
         new Tweak
         {
-            Id = "kbresp", Cat = "input", Icon = "zap", Recommended = false, Name = "Tastatur-Turbo (Key Response)",
-            Desc = "Schnellere Wiederholrate über die Windows-Tastaturantwort. Spürbar in Chat, Menüs und beim Tippen.",
-            Check = () => Reg.Is(@"HKCU\Control Panel\Accessibility\Keyboard Response", "AutoRepeatRate", "6"),
-            Apply = () =>
-            {
-                const string k = @"HKCU\Control Panel\Accessibility\Keyboard Response";
-                Reg.SetStr(k, "AutoRepeatDelay", "200"); Reg.SetStr(k, "AutoRepeatRate", "6");
-                Reg.SetStr(k, "DelayBeforeAcceptance", "0"); Reg.SetStr(k, "BounceTime", "0"); Reg.SetStr(k, "Flags", "59");
-            },
-            Revert = () =>
-            {
-                const string k = @"HKCU\Control Panel\Accessibility\Keyboard Response";
-                Reg.SetStr(k, "AutoRepeatDelay", "1000"); Reg.SetStr(k, "AutoRepeatRate", "500");
-                Reg.SetStr(k, "DelayBeforeAcceptance", "1000"); Reg.SetStr(k, "BounceTime", "0");
-                Reg.SetStr(k, "Flags", Reg.Is(@"HKCU\Control Panel\Accessibility\StickyKeys", "Flags", "506") ? "122" : "126");
-            }
-        },
-        new Tweak
-        {
             Id = "gbbtn", Cat = "input", Icon = "gamepad", Name = "Xbox-Taste ohne Game Bar",
             Desc = "Die Guide-Taste am Controller öffnet nicht mehr die Game Bar mitten im Spiel.",
             Check = () => Reg.Is(@"HKCU\Software\Microsoft\GameBar", "UseNexusForGameBarEnabled", 0),
@@ -523,6 +504,16 @@ internal static class Catalog
             Revert = () => Reg.Set(@"HKCU\Software\Microsoft\GameBar", "UseNexusForGameBarEnabled", 1)
         },
     };
+
+    /// <summary>2.9.0: undo the FilterKeys "keyboard turbo" of 2.8.0 – it could make WASD feel off.</summary>
+    public static void UndoKeyboardTurbo()
+    {
+        const string k = @"HKCU\Control Panel\Accessibility\Keyboard Response";
+        if (!(Reg.Is(k, "AutoRepeatRate", "6") && Reg.Is(k, "Flags", "59"))) return;
+        Reg.SetStr(k, "AutoRepeatDelay", "1000"); Reg.SetStr(k, "AutoRepeatRate", "500");
+        Reg.SetStr(k, "DelayBeforeAcceptance", "1000"); Reg.SetStr(k, "BounceTime", "0");
+        Reg.SetStr(k, "Flags", Reg.Is(@"HKCU\Control Panel\Accessibility\StickyKeys", "Flags", "506") ? "122" : "126");
+    }
 
     public static string CreateRestorePoint()
     {

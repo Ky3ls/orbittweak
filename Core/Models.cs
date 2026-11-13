@@ -70,6 +70,7 @@ public class Settings
     public ClipCfg Clip { get; set; } = new();
     public Dictionary<string, string> ModCats { get; set; } = new();
     public bool ModsAck { get; set; }
+    public long BgVersion { get; set; }
     public int XhairRev { get; set; }
     public DisplayCfg Display { get; set; } = new();
 

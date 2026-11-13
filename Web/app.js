@@ -31,8 +31,16 @@ const THEMES = {
   mint: ['Mint', '#2DD4A0', '#9AF2D4'],
   gold: ['Gold', '#F5B53D', '#FFE08A'],
   mono: ['Mono', '#E8E8EC', '#A8A8B3'],
+  crimson: ['Crimson', '#FF3B4E', '#FF8A7A'],
+  sunset: ['Sunset', '#FF6B3D', '#FFC93D'],
+  magenta: ['Magenta', '#E040FB', '#F5A3FF'],
+  sky: ['Sky', '#38BDF8', '#A5F3FC'],
+  teal: ['Teal', '#14B8A6', '#5EEAD4'],
+  lime: ['Lime', '#84CC16', '#D9F99D'],
+  copper: ['Copper', '#D97745', '#F2B07E'],
+  ice: ['Ice', '#93C5FD', '#E0F2FE'],
 };
-const THEME_ALIAS = { inferno: 'ember', blood: 'rose', toxic: 'mint', ice: 'ocean', nebula: 'violet' };
+const THEME_ALIAS = { inferno: 'ember', blood: 'rose', toxic: 'mint', nebula: 'violet' };
 const themeKey = k => THEMES[k] ? k : THEMES[THEME_ALIAS[k]] ? THEME_ALIAS[k] : 'ember';
 const hexRgb = h => [1, 3, 5].map(i => parseInt(h.substr(i, 2), 16)).join(',');
 function applyTheme(k) {
@@ -93,7 +101,7 @@ function go(p) {
   $$('.nav').forEach(n => n.classList.toggle('active', n.dataset.p === p));
   $$('.page').forEach(s => s.classList.toggle('show', s.id === 'p-' + p));
   moveInd(); enterPage($('#p-' + p));
-  ({ servers: () => S.servers.length || loadServers(), gfx: () => { S.gfx || loadGfx(); gwRefresh(); }, f8: () => loadF8().then(renderF8), minimap: () => { mmRender(); modList(); }, clip: clipList, mods: () => { modCatsUI(); modList(); }, xhair: () => setTimeout(xhPlace, 30), cleaner: () => S.clean.length || scan(),
+  ({ servers: () => S.servers.length || loadServers(), gfx: () => { S.gfx || loadGfx(); gwRefresh(); }, f8: () => loadF8().then(renderF8), minimap: modsRefresh, clip: clipList, mods: modsRefresh, settings: () => setTab($('#setTabs .tab.on')?.dataset.st || 'design'), xhair: () => setTimeout(xhPlace, 30), cleaner: () => S.clean.length || scan(),
      diag: () => { S.health ? renderHealth(S.health) : runHealth(); loadLogs(); }, launcher: renderCmd, home: refreshCache })[p]?.();
 }
 window.go = go;
@@ -120,6 +128,7 @@ function onEvent(ev, d) {
   else if (ev === 'update') updProgress(d);
   else if (ev === 'xhair') { XH.on = d.on; xhState(); toast(d.on ? 'Fadenkreuz an' : 'Fadenkreuz aus', d.on ? 'per Taste · Server-Regeln beachten' : 'per Taste'); }
   else if (ev === 'display') { DP.cfg.on = d.on; dpState(); }
+  else if (ev === 'reshade') { const b = $('#rsBar i'); if (b) b.style.width = d.pct + '%'; $('#rsProg').textContent = d.text; }
   else if (ev === 'clip') { toast('Clip gespeichert', 'per Taste · ' + (CL_RECS[d.recorder]?.[1] || '')); if (curPage === 'clip') setTimeout(clipList, 4000); }
 }
 function stats(d) {
@@ -555,7 +564,9 @@ const SETS = [
 function renderSettings() {
   const cur = themeKey(S.settings.accent);
   $('#themes').innerHTML = Object.entries(THEMES).map(([k, [n, a, b]]) => `<div class="sw ${k === cur ? 'on' : ''}" data-th="${k}"><i style="background:linear-gradient(135deg,${a},${b})"></i>${n}</div>`).join('');
-  $('#setList').innerHTML = SETS.map(([k, n, d]) => `<div class="srow"><div><b>${n}</b><p>${d}</p></div><div class="tg ${S.settings[k] ? 'on' : ''}" data-set="${k}"></div></div>`).join('');
+  const row = ([k, n, d]) => `<div class="srow"><div><b>${n}</b><p>${d}</p></div><div class="tg ${S.settings[k] ? 'on' : ''}" data-set="${k}"></div></div>`;
+  $('#setList').innerHTML = SETS.filter(s => !['autoUpdate', 'autoInstall'].includes(s[0])).map(row).join('');
+  $('#updSets').innerHTML = SETS.filter(s => ['autoUpdate', 'autoInstall'].includes(s[0])).map(row).join('');
 }
 document.addEventListener('click', e => {
   const th = e.target.closest('[data-th]');
@@ -723,7 +734,7 @@ document.addEventListener('click', e => {
   const b = e.target.closest('[data-xb]'); if (b) { XH.cfg[b.dataset.xb] = !XH.cfg[b.dataset.xb]; xhUI(); xhPush(); return; }
   const k = e.target.closest('[data-xk]'); if (k) { XH.key = +k.dataset.xk; xhState(); xhPush(false); return; }
   const t = e.target.closest('[data-xt]'); if (t) { if (t.dataset.xt === 'on') return xhToggle(); XH.onlyGame = !XH.onlyGame; xhState(); xhPush(false); return; }
-  const bg = e.target.closest('#xhBg button'); if (bg) { $$('#xhBg button').forEach(x => x.classList.toggle('on', x === bg)); $('#xhScene').className = 'xscene sc-' + bg.dataset.bg; xhPlace(); }
+  const bg = e.target.closest('#xhBg button'); if (bg) { $$('#xhBg button').forEach(x => x.classList.toggle('on', x === bg)); $('#xhScene').className = 'xscene sc-' + bg.dataset.bg + (bg.dataset.bg === 'own' ? ' sc-day' : ''); xhPlace(); }
 });
 document.addEventListener('input', e => {
   const r = e.target.closest('[data-xr]');
@@ -750,7 +761,7 @@ const DP_PRESETS = {
 const DP_SL = [['vibrance', 'Farbintensität', 'NVIDIA Digital Vibrance', 0, 100], ['brightness', 'Helligkeit', 'Gesamtes Bild', -50, 50], ['contrast', 'Kontrast', 'Abstand hell zu dunkel', -50, 50], ['gamma', 'Gamma', 'Hellt Schatten auf', 50, 200]];
 const DP = { cfg: { on: false, onlyGame: true, vibrance: 0, brightness: 0, contrast: 0, gamma: 100, key: 0 }, nvidia: false, unlocked: false, gammaOk: null, vibOk: null };
 const dpFmt = (k, v) => k === 'gamma' ? (v / 100).toFixed(2) : k === 'vibrance' ? v + '%' : (v > 0 ? '+' : '') + v;
-const dpFilter = c => `saturate(${1 + c.vibrance / 70}) brightness(${1 + c.brightness / 120 + (c.gamma - 100) / 400}) contrast(${1 + c.contrast / 100})`;
+const dpFilter = c => `saturate(${1 + c.vibrance / 45}) brightness(${1 + c.brightness / 70 + (c.gamma - 100) / 220}) contrast(${1 + c.contrast / 60})`;
 function dpUI() {
   const c = DP.cfg;
   $('#dpPresets').innerHTML = Object.entries(DP_PRESETS).map(([k, [n, d, v]]) => { const on = Object.keys(v).every(x => v[x] === c[x]); return `<div class="card dpre ${on ? 'on' : ''}" data-dp="${k}"><i style="filter:${dpFilter(v)}"></i><b>${n}</b><span>${d}</span></div>`; }).join('');
@@ -762,6 +773,7 @@ function dpUI() {
   const kn = KEYS.find(k => k[1] === c.key)?.[0];
   $('#dpKeyTxt').textContent = c.key ? `${kn} schaltet das Farbprofil im Spiel an und aus` : 'Profil im Spiel schnell umschalten';
   dpState();
+  const u = bgUrl(); if (u) $$('.dpre i').forEach(i => i.style.backgroundImage = `url('${u}')`);
 }
 function dpState() {
   const c = DP.cfg;
@@ -1022,13 +1034,8 @@ document.addEventListener('input', e => {
   if (r) { const k = r.dataset.mmr, v = +r.value; if (k in MM.cfg) MM.cfg[k] = v; else MM[k] = v; r.style.setProperty('--p', (v - r.min) / (r.max - r.min) * 100 + '%'); r.nextElementSibling.textContent = v + (k === 'mask' ? '%' : ''); mmPush(); return; }
   if (e.target.id === 'mmPick') { MM.cfg.color = e.target.value.toUpperCase(); mmPush(); }
 });
-function initMinimap(s) {
-  const m = s.minimap || {}; let j = null; try { j = m.json ? JSON.parse(m.json) : null; } catch { }
-  MM.on = !!m.on; MM.fresh = !j;
-  if (j) { Object.assign(MM.cfg, { style: j.style, color: j.color, thick: j.thick, mask: j.mask, glow: j.glow }); Object.assign(MM, { x: j.x, y: j.y, w: j.w, h: j.h }); }
-  else { MM.res.h = Math.round(screen.height * devicePixelRatio) || 1080; mmDefaults(false); }
-  mmUI(); mmPush();
-}
+// 2.9.0: the frame overlay was replaced by real minimap mods – make sure an old overlay is off
+function initMinimap(s) { if (s.minimap && s.minimap.on) api('minimap.set', { on: false, x: 0, y: 0 }).catch(() => { }); }
 
 /* ======================= CLIPPER ======================= */
 const CL_RECS = {
@@ -1070,13 +1077,13 @@ async function clipList() {
   $('#clCount').textContent = clips.length;
   $('#clGrid').innerHTML = clips.length ? clips.map((c, i) => {
     const src = 'https://clips.orbit/' + c.rel.split('/').map(encodeURIComponent).join('/');
-    const vid = c.ext === '.mkv' ? `<div class="noprev">MKV · ohne Vorschau</div>` : `<video src="${src}#t=0.5" preload="metadata" muted playsinline></video>`;
+    const vid = `<img alt="" data-cth="${i}"><div class="noprev">${ico('film')}</div><div class="playi">${ico('play')}</div>`;
     return `<div class="clipc" data-clip="${i}"><div class="v">${vid}</div><div class="m"><b>${esc(c.name)}</b><span>${esc(c.folder || '')} · ${bytes(c.size)} · ${new Date(c.date).toLocaleDateString('de-DE')}</span></div></div>`;
   }).join('') : `<div class="empty">Noch keine Clips gefunden. Drück im Spiel deine Clip-Taste.</div>`;
+  $$('#clGrid img[data-cth]').forEach(img => thumb('clip.thumb', { rel: clips[+img.dataset.cth].rel }, img));
 }
 window.clipList = clipList;
-document.addEventListener('mouseover', e => { const v = e.target.closest('.clipc video'); if (v) v.play().catch(() => { }); });
-document.addEventListener('mouseout', e => { const v = e.target.closest('.clipc video'); if (v) { v.pause(); } });
+
 document.addEventListener('click', e => {
   const r = e.target.closest('[data-rec]'); if (r) { CL.recorder = r.dataset.rec; clipUI(); clipPush(); return; }
   const k = e.target.closest('[data-clk]'); if (k) { CL.key = +k.dataset.clk; clipUI(); clipPush(); return; }
@@ -1094,17 +1101,17 @@ function initClip(s) { Object.assign(CL, s.clip || {}); clipUI(); clipPush(); }
 
 /* ======================= MODS ======================= */
 const MOD_CATS = { minimap: ['Minimap', 'map', 'Eigene Karten & Farben'], kill: ['Kill-Effekte', 'crosshair', 'Effekte bei Treffern & Kills'], gfx: ['Grafik-Packs', 'sun', 'Licht, Wetter, Farben'], sound: ['Sounds', 'activity', 'Waffen & Fahrzeuge'], other: ['Sonstiges', 'puzzle', 'Alles andere'] };
-function modCatsUI() { $('#modCats').innerHTML = Object.entries(MOD_CATS).map(([k, [n, i, d]]) => `<div class="card hov mcat" onclick="modInstall('${k}')"><div class="qi">${ico(i)}</div><b>${n}</b><span>${d}</span><div class="sub" style="font-size:11.5px;margin-top:8px;color:var(--a)">+ Installieren</div></div>`).join(''); }
-async function modInstall(cat, ok) {
+function modCatsUI_unused() { $('#modCats').innerHTML = Object.entries(MOD_CATS).map(([k, [n, i, d]]) => `<div class="card hov mcat" onclick="modInstall('${k}')"><div class="qi">${ico(i)}</div><b>${n}</b><span>${d}</span><div class="sub" style="font-size:11.5px;margin-top:8px;color:var(--a)">+ Installieren</div></div>`).join(''); }
+async function modInstall(cat, ok, reshade) {
   if (!S.settings.modsAck && !ok) return modal(`<div class="kicker">Hinweis</div><h1 style="margin-top:10px">Mods auf eigene <span class="grad">Verantwortung</span></h1>
     <p>Viele FiveM-Server verbieten Mods (Pure-Mode). Mit Mods kannst du dort nicht joinen oder wirst gekickt, manche Server bannen dafür. Installiere nur Mods aus vertrauenswürdigen Quellen.</p>
-    <div class="act"><button class="btn" onclick="closeModal()">Abbrechen</button><button class="btn p lg" onclick="modAck('${cat}')">${ico('check')}Verstanden</button></div>`);
+    <div class="act"><button class="btn" onclick="closeModal()">Abbrechen</button><button class="btn p lg" onclick="modAck('${cat}',${reshade ? 'true' : 'false'})">${ico('check')}Verstanden</button></div>`);
   const r = await api('mods.install', { cat }).catch(e => ({ error: e.message }));
   if (r.cancelled) return;
   if (r.error) toast('Nicht installiert', r.error, false); else { toast(`${r.count} Mod(s) installiert`, 'Wirkt beim nächsten FiveM-Start'); passed('Mod installiert', `${MOD_CATS[cat]?.[0] || 'Mod'} · ${r.count} Datei(en)`); }
   modList();
 }
-function modAck(cat) { closeModal(); S.settings.modsAck = true; api('settings.set', { key: 'modsAck', value: true }); modInstall(cat, true); }
+function modAck(cat, reshade) { closeModal(); S.settings.modsAck = true; api('settings.set', { key: 'modsAck', value: true }); if (reshade) rsInstall(); else if (cat !== '__dl') modInstall(cat, true); }
 window.modInstall = modInstall; window.modAck = modAck;
 async function modList() {
   let r; try { r = await api('mods.list'); } catch { r = { found: false, items: [] }; }
@@ -1172,6 +1179,184 @@ async function netTest() {
 }
 window.netTest = netTest;
 
+/* ======================= THUMBNAIL QUEUE ======================= */
+// one thumbnail at a time, so big video folders never block the app
+const thumbQ = []; let thumbBusy = false;
+function thumb(cmd, args, img) {
+  thumbQ.push([cmd, args, img]); if (!thumbBusy) thumbNext();
+}
+async function thumbNext() {
+  const job = thumbQ.shift(); if (!job) { thumbBusy = false; return; }
+  thumbBusy = true; const [cmd, args, img] = job;
+  if (img.isConnected) {
+    try { const r = await api(cmd, args); if (r && r.url) { img.src = r.url; img.classList.add('ok'); } else img.classList.add('none'); } catch { img.classList.add('none'); }
+  }
+  setTimeout(thumbNext, 15);
+}
+
+/* ======================= GTA BACKGROUND ======================= */
+const bgUrl = () => S.settings.bgVersion ? `https://bg.orbit/bg.jpg?v=${S.settings.bgVersion}` : null;
+function applyBg() {
+  const u = bgUrl();
+  const own = u ? `<div class="own-bg" style="background-image:url('${u}')"></div>` : '';
+  $('#bnScene').innerHTML = own || sceneClone('B');
+  $('#spScene').innerHTML = own || sceneClone('S');
+  const sc = $('#xhScene'), ownBtn = $('#xhBg [data-bg="own"]');
+  sc.querySelector('.own-bg')?.remove();
+  ownBtn.classList.toggle('hidden', !u);
+  if (u) { sc.insertAdjacentHTML('afterbegin', own); sc.className = 'xscene sc-own sc-day'; $$('#xhBg button').forEach(b => b.classList.toggle('on', b === ownBtn)); }
+  else if (sc.classList.contains('sc-own')) { sc.className = 'xscene sc-day'; $$('#xhBg button').forEach(b => b.classList.toggle('on', b.dataset.bg === 'day')); }
+  xhPlace();
+  $$('.dpimg').forEach(d => d.style.backgroundImage = u ? `url('${u}')` : '');
+  $$('.dpre i').forEach(d => d.style.backgroundImage = u ? `url('${u}')` : '');
+  $('#bgClear').classList.toggle('hidden', !u);
+}
+async function bgGrid() {
+  const g = $('#bgGrid'); g.innerHTML = '<div class="sub" style="font-size:12px">Suche GTA-Bilder…</div>';
+  let pics = [], cl = [];
+  try { pics = await api('bg.list'); } catch { }
+  try { cl = (await api('clip.list')).slice(0, 8); } catch { }
+  const items = [...pics.map(p => ({ k: 'path', v: p.path, n: p.name, s: p.source })), ...cl.map(c => ({ k: 'rel', v: c.rel, n: c.name, s: 'Clip' }))];
+  if (!items.length) { g.innerHTML = '<div class="empty" style="grid-column:1/-1">Keine GTA-Bilder gefunden. Mach im Spiel einen Screenshot (Steam: F12, NVIDIA: Alt+F1) oder wähl ein Bild.</div>'; return; }
+  g.innerHTML = items.map((it, i) => `<button class="bgc" data-bgi="${i}"><img alt=""><span>${esc(it.s)}</span></button>`).join('');
+  g._items = items;
+  $$('#bgGrid img').forEach((img, i) => thumb(items[i].k === 'rel' ? 'clip.thumb' : 'thumb', items[i].k === 'rel' ? { rel: items[i].v } : { path: items[i].v }, img));
+}
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-bgi]'); if (!b) return;
+  const it = $('#bgGrid')._items[+b.dataset.bgi];
+  b.classList.add('busy');
+  const r = await api('bg.set', it.k === 'rel' ? { rel: it.v } : { path: it.v });
+  b.classList.remove('busy');
+  if (r.error) return toast('Bild nicht übernommen', r.error, false);
+  S.settings.bgVersion = r.v; applyBg(); toast('GTA-Hintergrund gesetzt', 'Startseite, Ladebildschirm und Vorschauen nutzen jetzt dein Bild');
+});
+async function bgPick() { const r = await api('bg.pick'); if (r.cancelled) return; if (r.error) return toast('Bild nicht übernommen', r.error, false); S.settings.bgVersion = r.v; applyBg(); toast('GTA-Hintergrund gesetzt', ''); }
+async function bgClear() { await api('bg.clear'); S.settings.bgVersion = 0; applyBg(); }
+window.bgPick = bgPick; window.bgClear = bgClear;
+
+/* ======================= SETTINGS TABS ======================= */
+function setTab(t) {
+  $$('#setTabs .tab').forEach(b => b.classList.toggle('on', b.dataset.st === t));
+  $$('.stab').forEach(s => s.classList.toggle('hidden', s.id !== 'st-' + t));
+  if (t === 'design') bgGrid();
+}
+window.setTab = setTab;
+document.addEventListener('click', e => { const t = e.target.closest('#setTabs .tab'); if (t) setTab(t.dataset.st); });
+
+/* ======================= RESHADE ======================= */
+let RS = { installed: false, presets: [], preset: null };
+async function rsLoad() {
+  try { RS = await api('reshade.status'); } catch { return; }
+  if (!RS.found) { $('#rsState').textContent = 'FiveM nicht gefunden'; return; }
+  $('#rsState').className = 'chip ' + (RS.installed ? 'g' : RS.other ? 'w' : '');
+  $('#rsState').textContent = RS.installed ? `Installiert · v${RS.version}` : RS.other ? 'Andere dxgi.dll gefunden' : 'Nicht installiert';
+  $('#rsBtn').classList.toggle('hidden', RS.installed);
+  $('#rsDel').classList.toggle('hidden', !RS.installed);
+  const sel = RS.preset || 'vivid';
+  $('#rsPresets').innerHTML = (RS.presets || []).map(p => `<button class="rsp ${RS.installed && sel === p.id ? 'on' : ''}" data-rsp="${p.id}"><i class="rsf-${p.id}"></i><b>${p.name}</b><span>${p.desc}</span></button>`).join('');
+  const u = bgUrl(); if (u) $$('.rsp i').forEach(i => i.style.backgroundImage = `url('${u}')`);
+}
+async function rsInstall() {
+  if (!S.settings.modsAck) return modInstall('gfx', false, true);
+  $('#rsBtn').disabled = true; $('#rsBar').classList.remove('hidden'); $('#rsProg').classList.remove('hidden');
+  const r = await api('reshade.install', { preset: RS.preset || 'vivid' }).catch(e => ({ error: e.message }));
+  $('#rsBtn').disabled = false;
+  if (r.error) { toast('ReShade nicht installiert', r.error, false); $('#rsProg').textContent = r.error; }
+  else { passed('ReShade installiert', 'Im Spiel mit Pos1 öffnen'); $('#rsBar').classList.add('hidden'); $('#rsProg').classList.add('hidden'); }
+  rsLoad();
+}
+async function rsUninstall() { if (!await confirmBox('ReShade entfernen?', 'ReShade, Shader und Presets werden aus FiveM gelöscht.')) return; const r = await api('reshade.uninstall'); toast(r.error ? 'Nicht entfernt' : 'ReShade entfernt', r.error || '', !r.error); rsLoad(); }
+window.rsInstall = rsInstall; window.rsUninstall = rsUninstall;
+document.addEventListener('click', async e => {
+  const p = e.target.closest('[data-rsp]'); if (!p) return;
+  RS.preset = p.dataset.rsp; $$('.rsp').forEach(x => x.classList.toggle('on', x === p));
+  if (!RS.installed) return toast('Preset gewählt', 'Wird bei der Installation gesetzt');
+  const r = await api('reshade.preset', { id: RS.preset }); toast(r.error ? 'Nicht gesetzt' : 'Preset aktiv', r.error || 'Ab dem nächsten FiveM-Start, im Spiel mit Pos1 umschaltbar', !r.error);
+});
+
+/* ======================= MOD COLLECTION ======================= */
+const COLL = [
+  ['minimap', 'Satellit-Minimap', 'Echte Satellitenbilder statt Straßenkarte', 'fivem satellite minimap rpf'],
+  ['minimap', 'Dunkle Minimap', 'Dark-Mode-Karte, schont die Augen nachts', 'fivem dark minimap rpf'],
+  ['minimap', 'Atlas-Minimap', 'Klassischer Atlas-Look mit Straßennamen', 'fivem atlas minimap rpf'],
+  ['minimap', 'Farbige Minimap', 'Kräftige Farben, Straßen gut lesbar', 'fivem colored minimap rpf'],
+  ['minimap', 'Postal-Map', 'Postleitzahlen für RP-Server', 'fivem postal map minimap rpf'],
+  ['kill', 'Kill-Effekte', 'Bildschirm-Effekte bei Kills', 'fivem kill effect rpf'],
+  ['kill', 'Blood FX', 'Realistischeres Blut bei Treffern', 'fivem blood fx rpf'],
+  ['kill', 'Tracer & Mündungsfeuer', 'Sichtbare Schüsse, mehr Feedback', 'fivem tracer muzzle flash rpf'],
+  ['gfx', 'Grafik-Packs', 'Licht, Farben, Atmosphäre', 'fivem graphics pack rpf'],
+  ['gfx', 'Wetter & Timecycle', 'Andere Tageszeiten-Stimmung', 'fivem timecycle weather mod rpf'],
+  ['sound', 'Waffen-Sounds', 'Wuchtigere Schüsse', 'fivem gunshot sounds rpf'],
+  ['sound', 'Motor-Sounds', 'Echte Motorsounds für Autos', 'fivem engine sound pack rpf'],
+];
+function collHtml(filter) {
+  return COLL.filter(c => !filter || c[0] === filter).map(([cat, n, d, q]) => `<div class="card hov ccard"><div class="qi">${ico(MOD_CATS[cat][1])}</div><b>${n}</b><span>${d}</span><div class="row" style="margin-top:12px;gap:8px"><button class="btn sm p" onclick="api('open',{target:'https://www.google.com/search?q=${encodeURIComponent(q)}'})">${ico('globe')}Mods finden</button><button class="btn sm" onclick="modInstall('${cat}')">${ico('file')}Datei</button></div></div>`).join('');
+}
+async function dlList(target, filter) {
+  let l = []; try { l = await api('mods.downloads'); } catch { }
+  if (filter) l = l.filter(x => x.cat === filter || x.cat === 'other');
+  const el = $(target); if (!el) return;
+  el.innerHTML = l.length ? l.map(f => `<div class="mod"><div class="ti" style="width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:rgba(var(--a-rgb),.1);color:var(--a)">${ico(MOD_CATS[f.cat]?.[1] || 'puzzle')}</div><div class="tx"><b>${esc(f.name)}</b><p>${bytes(f.size)} · ${new Date(f.date).toLocaleDateString('de-DE')} · ${f.rpfs > 0 ? f.rpfs + ' Mod-Datei(en)' : 'Archiv'}</p></div><select class="in sel" data-dlcat="${esc(f.name)}">${Object.entries(MOD_CATS).map(([k, [n]]) => `<option value="${k}" ${k === (filter || f.cat) ? 'selected' : ''}>${n}</option>`).join('')}</select><button class="btn p sm" data-dl="${esc(f.name)}">${ico('download')}Installieren</button></div>`).join('')
+    : '<div class="empty">Noch nichts gefunden. Lade eine Mod herunter, sie erscheint hier automatisch.</div>';
+}
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-dl]'); if (!b) return;
+  if (!S.settings.modsAck) return modInstall('__dl');
+  const name = b.dataset.dl, cat = b.parentElement.querySelector('[data-dlcat]').value;
+  b.disabled = true; b.innerHTML = `${ico('refresh', 'i spin')}Installiere…`;
+  const r = await api('mods.installDl', { name, cat }).catch(er => ({ error: er.message }));
+  if (r.error) { toast('Nicht installiert', r.error, false); b.disabled = false; b.innerHTML = `${ico('download')}Installieren`; }
+  else { passed('Mod installiert', `${MOD_CATS[cat][0]} · ${r.count} Datei(en)`); modList(); }
+});
+function modsRefresh() {
+  if (curPage === 'mods') { $('#modColl').innerHTML = collHtml(); dlList('#modDl'); modList(); rsLoad(); }
+  if (curPage === 'minimap') { $('#mmColl').innerHTML = collHtml('minimap'); dlList('#mmDl', 'minimap'); modList(); }
+}
+setInterval(() => { if (curPage === 'mods') dlList('#modDl'); if (curPage === 'minimap') dlList('#mmDl', 'minimap'); }, 6000);
+
+/* ======================= CURRENT SERVER ======================= */
+let CUR = null;
+function curHtml(c) {
+  const s = c.server || {}, initial = (s.name || '?').replace(/\^\d/g, '').trim()[0] || '?';
+  const stat = (k, v) => v == null || v === '' ? '' : `<div><span>${k}</span><b>${esc(v)}</b></div>`;
+  const tags = (s.allTags && s.allTags.length ? s.allTags : s.tags || []).slice(0, 10);
+  return `<div class="cs-bn" ${s.banner ? `style="background-image:url('${esc(s.banner)}')"` : ''}></div>
+    <div class="cs-body">
+      <div class="cs-top">
+        <div class="cs-icon" ${s.icon ? `style="background-image:url('${esc(s.icon)}')"` : ''}>${s.icon ? '' : esc(initial)}</div>
+        <div class="cs-main">
+          <div class="row" style="gap:8px">${c.connected ? '<span class="chip g live">Verbunden</span>' : '<span class="chip">Zuletzt gespielt</span>'}${s.locale ? `<span class="chip">${esc(s.locale)}</span>` : ''}${s.online === false ? '<span class="chip r">Offline</span>' : ''}</div>
+          <h2 class="cs-name">${fivemName(s.name || c.url)}</h2>
+          <p class="cs-desc">${esc(s.desc || '')}</p>
+        </div>
+      </div>
+      <div class="cs-tags">${tags.map(t => `<span class="chip">${esc(t)}</span>`).join('')}</div>
+      <div class="cs-stats">${stat('Spieler', s.max ? `${s.players}/${s.max}` : null)}${stat('Ping', s.ping != null ? s.ping + ' ms' : null)}${stat('Build', s.build ? 'b' + s.build : null)}${stat('OneSync', s.onesync ? 'An' : null)}${stat('Ressourcen', s.resources || null)}${stat('Owner', s.owner)}</div>
+      <div class="cs-act">
+        ${c.fav ? `<button class="btn sm" disabled>${ico('check')}In Favoriten</button>` : `<button class="btn p sm" onclick="curFav()">${ico('plus')}Zu Favoriten</button>`}
+        ${s.discord ? `<button class="btn sm dc" onclick="api('open',{target:'${esc(s.discord)}'})"><svg class="i" viewBox="0 0 24 24"><path d="M8 12h.01M16 12h.01M7.5 7.5c3-1.3 6-1.3 9 0M7.5 16.5c3 1.3 6 1.3 9 0M15.5 17l1.5 3c2-.7 3.5-1.7 5-3-.4-4.2-1.4-8-3.5-11-1.4-.7-2.9-1.2-4.5-1.5L13.5 6M8.5 17 7 20c-2-.7-3.5-1.7-5-3 .4-4.2 1.4-8 3.5-11C6.9 5.3 8.4 4.8 10 4.5L10.5 6"/></svg>Discord</button>` : ''}
+        ${s.website ? `<button class="btn sm" onclick="api('open',{target:'${esc(s.website)}'})">${ico('globe')}Website</button>` : ''}
+        <button class="btn sm" onclick="copyCmd('${esc(s.connect || c.url)}')">${ico('link')}Link kopieren</button>
+        ${c.connected ? '' : `<button class="btn sm" onclick="launch('${esc(s.connect || c.url)}')">${ico('play')}Joinen</button>`}
+      </div>
+    </div>`;
+}
+async function curServer(force) {
+  let c; try { c = await api('server.current', { force: !!force }); } catch { return; }
+  const show = c && c.found;
+  ['#curSrv', '#curSrv2'].forEach(id => { const el = $(id); if (!el) return; el.classList.toggle('hidden', !show); if (show && JSON.stringify(c) !== JSON.stringify(CUR)) el.innerHTML = curHtml(c); });
+  if (show && c.connected && (!CUR || CUR.key !== c.key || !CUR.connected)) feed('Verbunden mit ' + (c.server?.name || c.url).replace(/\^\d/g, ''));
+  CUR = show ? c : null;
+}
+async function curFav() {
+  if (!CUR) return;
+  try { await api('servers.add', { q: CUR.url }); toast('Zu Favoriten hinzugefügt', (CUR.server?.name || '').replace(/\^\d/g, '')); S.servers = []; CUR = null; curServer(); }
+  catch (e) { toast('Nicht hinzugefügt', e.message, false); }
+}
+window.curFav = curFav;
+setInterval(() => { if (curPage === 'home' || curPage === 'servers') curServer(); }, 15000);
+
 /* ======================= BOOT ======================= */
 async function boot() {
   const t0 = performance.now();
@@ -1200,10 +1385,10 @@ async function boot() {
   if (d.settings.lastBoost) $('#lastBoost').textContent = 'Letzter Boost: ' + new Date(d.settings.lastBoost).toLocaleDateString('de-DE');
   $('#launchSub').textContent = d.fivem.found ? 'mit Pre-Launch-Boost' : 'FiveM nicht gefunden';
   feed(d.fivem.found ? 'FiveM erkannt: ' + d.fivem.path : 'FiveM nicht gefunden: Pfad im Launcher wählen');
-  renderSettings(); renderLauncher(); initFx(d.settings); initMinimap(d.settings); initClip(d.settings);
+  renderSettings(); renderLauncher(); initFx(d.settings); initMinimap(d.settings); initClip(d.settings); applyBg();
   $('#snapTg').classList.toggle('on', !!d.settings.snapTap);
   await loadTweaks();
-  refreshCache(); ping(); setInterval(ping, 8000);
+  refreshCache(); ping(); setInterval(ping, 8000); curServer();
   api('health').then(h => { S.health = h; $('#hsHealth').textContent = h.score + '%'; }).catch(() => { });
   if (S.settings.autoUpdate !== false) setTimeout(() => checkUpdate(false), 1500);
   setInterval(() => { if (S.settings.autoUpdate !== false) checkUpdate(false); }, 2 * 3600 * 1000);
@@ -1251,6 +1436,16 @@ const Mock = {
       case 'clip.list': return ['Grand Theft Auto V 2026.11.13 - 21.14.08.02', 'FiveM 2026.11.13 - 20.51.44.01', 'Gangwar Clutch', 'Grand Theft Auto V 2026.11.12 - 23.02.10.05'].map((n, i) => ({ name: n, rel: 'Grand Theft Auto V/' + n + '.mp4', folder: i === 2 ? 'Captures' : 'Grand Theft Auto V', size: 48e6 + i * 9e6, date: new Date(Date.now() - i * 864e5).toISOString(), ext: '.mp4' }));
       case 'mods.list': return { found: true, items: [{ name: 'round_minimap_dark.rpf', on: true, size: 3.4e6, cat: 'minimap' }, { name: 'killfx_red_flash.rpf', on: true, size: 1.2e6, cat: 'kill' }, { name: 'nve_lite.rpf', on: false, size: 84e6, cat: 'gfx' }] };
       case 'mods.install': return { count: 1 };
+      case 'server.current': return { found: true, connected: true, key: 'cfx:abc123', url: 'cfx.re/join/abc123', fav: false, server: { name: '^1Nova^7City ^3| Roleplay [GER]', desc: 'Die lebendigste Stadt Deutschlands · Whitelist · Eigene Wirtschaft', allTags: ['roleplay', 'deutsch', 'economy', 'whitelist', 'jobs', 'gangs', 'custom cars'], locale: 'DE', players: 187, max: 256, ping: 22, build: '3095', onesync: true, resources: 412, owner: 'NovaTeam', discord: 'https://discord.gg/novacity', website: 'https://novacity.de', connect: 'cfx.re/join/abc123', online: true } };
+      case 'mods.downloads': return [{ name: 'satellite_minimap_v2.zip', size: 18e6, date: new Date().toISOString(), rpfs: 1, cat: 'minimap' }, { name: 'KillFX_RedPulse.rar', size: 2.4e6, date: new Date(Date.now() - 864e5).toISOString(), rpfs: -1, cat: 'kill' }];
+      case 'mods.installDl': await sleep(600); return { count: 1 };
+      case 'reshade.status': return { found: true, installed: false, presets: [{ id: 'vivid', name: 'Lebendig', desc: 'Kräftige Farben, knackig scharf' }, { id: 'pvp', name: 'Klar (PvP)', desc: 'Maximale Sichtbarkeit, scharfe Kanten' }, { id: 'cine', name: 'Cinematic', desc: 'Filmlook mit Vignette' }, { id: 'night', name: 'Nachtsicht', desc: 'Dunkle Ecken sichtbar' }, { id: 'techni', name: 'Technicolor', desc: 'Satte Retro-Farben' }] };
+      case 'reshade.install': for (let i = 1; i <= 5; i++) { onEvent('reshade', { pct: i * 20, text: 'Schritt ' + i }); await sleep(250); } return {};
+      case 'reshade.preset': case 'reshade.uninstall': return {};
+      case 'thumb': case 'clip.thumb': return { url: null };
+      case 'bg.list': return [];
+      case 'bg.set': case 'bg.pick': case 'bg.clear': return { v: 0 };
+      case 'downloads.open': return null;
       case 'mods.toggle': case 'mods.delete': case 'mods.folder': return {};
       case 'f8.send': await sleep(500); return { sent: true };
       case 'f8.values': return { cl_drawfps: 'true' };

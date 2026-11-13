@@ -132,7 +132,8 @@
           <h1><span id="greet">Guten Abend</span>, <span class="grad" id="uname">Player</span></h1>
           <p class="pd">Ready für die Stadt? Live-Status, Boost und alles Wichtige auf einen Blick.</p>
         </div>
-        <div class="bn-r"><span class="chip a" id="lastBoost">Noch kein Boost</span></div>
+        <div class="bn-r"><span class="bn-chip" id="lastBoost">Noch kein Boost</span></div>
+        <button class="bn-edit" onclick="go('settings');setTab('design')" title="Hintergrund ändern"><svg class="i"><use href="#monitor"/></svg>Bild ändern</button>
       </div>
       <div class="home">
         <div class="card gb hero">
@@ -199,6 +200,7 @@
           </div>
         </div>
 
+        <div class="card cur-srv hidden" id="curSrv"></div>
         <div class="card actv">
           <div class="lbl"><svg class="i"><use href="#activity"/></svg>Letzte Aktivität</div>
           <div class="feed" id="feed"></div>
@@ -220,6 +222,7 @@
       </div>
       <div class="srv-wrap">
         <div>
+          <div class="card cur-srv hidden" id="curSrv2" style="margin-bottom:16px"></div>
           <div class="addbar">
             <input class="in" id="srvIn" placeholder="cfx.re/join/abc123  ·  Join-Code  ·  IP:Port" onkeydown="if(event.key==='Enter')addServer()">
             <button class="btn p" onclick="addServer()"><svg class="i"><use href="#plus"/></svg>Hinzufügen</button>
@@ -310,7 +313,7 @@
       <div class="xgrid">
         <div class="col">
           <div class="card xprev-card">
-            <div class="row"><div class="lbl"><svg class="i"><use href="#eye"/></svg>Vorschau</div><span class="sp"></span><div class="seg" id="xhBg"><button class="on" data-bg="day">Tag</button><button data-bg="dusk">Abend</button><button data-bg="night">Nacht</button></div></div>
+            <div class="row"><div class="lbl"><svg class="i"><use href="#eye"/></svg>Vorschau</div><span class="sp"></span><div class="seg" id="xhBg"><button class="hidden" data-bg="own">Dein Bild</button><button class="on" data-bg="day">Tag</button><button data-bg="dusk">Abend</button><button data-bg="night">Nacht</button></div></div>
             <div class="xscene sc-day" id="xhScene"><svg class="gscene" viewBox="0 0 640 360" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
   <defs>
     <linearGradient id="gsky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--s1)"/><stop offset=".62" style="stop-color:var(--s2)"/><stop offset="1" style="stop-color:var(--s3)"/></linearGradient>
@@ -399,32 +402,19 @@
     <!-- ================= MINIMAP ================= -->
     <section class="page" id="p-minimap">
       <div class="ph">
-        <div><div class="kicker">Minimap</div><h1>Minimap <span class="grad">Style</span></h1><p class="pd">Rahmen, runde oder eckige Minimap als Overlay, live und ohne Neustart. Oder eine komplett eigene Karte als Mod.</p></div>
-        <div class="ph-r"><button class="btn p lg" id="mmMain" onclick="mmToggle()"><svg class="i"><use href="#map"/></svg><span>Einschalten</span></button></div>
+        <div><div class="kicker">Minimap</div><h1>Echte <span class="grad">Minimap-Mods</span></h1><p class="pd">Ändert die echte GTA-Karte: Satellit, dunkel, Atlas, farbig. Mod finden, herunterladen, OrbitTweak installiert sie mit einem Klick.</p></div>
+        <div class="ph-r"><button class="btn" onclick="modInstall('minimap')"><svg class="i"><use href="#file"/></svg>Datei wählen</button></div>
       </div>
-      <div class="xwarn"><svg class="i"><use href="#alert"/></svg><div><b>Server-Regeln beachten.</b> Overlays und vor allem Minimap-Mods sind auf vielen FiveM-Servern verboten (Pure-Mode). Prüfe die Regeln deines Servers, die Nutzung erfolgt auf eigene Verantwortung.</div></div>
-      <div class="xgrid">
-        <div class="col">
-          <div class="card">
-            <div class="row"><div class="lbl"><svg class="i"><use href="#eye"/></svg>Vorschau</div><span class="sp"></span><span class="chip" id="mmRes">1920×1080</span></div>
-            <div class="mmprev"><canvas id="mmCanvas"></canvas></div>
-            <div class="srow"><div><b>Ausrichten-Modus</b><p>Zeigt einen Rahmen über dem Spiel, damit du ihn genau auf die Minimap schieben kannst</p></div><div class="tg" id="mmAlign"></div></div>
-          </div>
-          <div class="card">
-            <div class="lbl"><svg class="i"><use href="#puzzle"/></svg>Eigene Minimap-Karte (Mod)</div>
-            <p class="sub" style="font-size:12.5px;margin-top:8px;line-height:1.5">Für eine komplett neue Karte (z. B. Satellit, Dunkel, Farbig) brauchst du einen Minimap-Mod als <b>.rpf</b>. OrbitTweak installiert ihn mit einem Klick in FiveM und kann ihn jederzeit wieder ausschalten.</p>
-            <div class="row mt"><button class="btn p" onclick="modInstall('minimap')"><svg class="i"><use href="#download"/></svg>Minimap-Mod installieren</button><button class="btn" onclick="go('mods')"><svg class="i"><use href="#puzzle"/></svg>Alle Mods</button></div>
-            <div id="mmMods" class="mt8"></div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="lbl"><svg class="i"><use href="#sparkle"/></svg>Stil</div>
-          <div class="xstyles" id="mmStyles"></div>
-          <div class="lbl mt"><svg class="i"><use href="#sun"/></svg>Farbe</div>
-          <div class="xcolors" id="mmColors"></div>
-          <div class="xsliders" id="mmSliders"></div>
-          <button class="btn sm mt8" onclick="mmDefaults()"><svg class="i"><use href="#undo"/></svg>Position zurücksetzen</button>
-        </div>
+      <div class="xwarn"><svg class="i"><use href="#alert"/></svg><div><b>Achtung: Viele Server verbieten Mods.</b> Server mit Pure-Mode lassen dich mit Minimap-Mods nicht joinen oder kicken dich. Die Nutzung erfolgt auf eigene Verantwortung.</div></div>
+      <div class="steps3"><div><i>1</i><span>Stil wählen und <b>Mods finden</b></span></div><div><i>2</i><span>Mod herunterladen (.rpf, .zip, .rar, .7z)</span></div><div><i>3</i><span>OrbitTweak erkennt den Download, <b>Installieren</b> klicken</span></div></div>
+      <div class="coll" id="mmColl"></div>
+      <div class="card mt">
+        <div class="row"><div class="lbl"><svg class="i"><use href="#download"/></svg>Neu in deinen Downloads</div><span class="sp"></span><button class="btn sm" onclick="api('downloads.open')"><svg class="i"><use href="#folder"/></svg>Downloads</button></div>
+        <div id="mmDl" class="mt8"></div>
+      </div>
+      <div class="card mt">
+        <div class="lbl"><svg class="i"><use href="#map"/></svg>Installierte Minimap-Mods</div>
+        <div id="mmMods" class="mt8"></div>
       </div>
     </section>
 
@@ -460,7 +450,22 @@
         <div class="ph-r"><button class="btn" onclick="api('mods.folder')"><svg class="i"><use href="#folder"/></svg>Mods-Ordner</button></div>
       </div>
       <div class="xwarn"><svg class="i"><use href="#alert"/></svg><div><b>Achtung: Viele Server verbieten Mods.</b> Server mit Pure-Mode lassen dich mit Mods nicht joinen oder kicken dich, manche bannen dafür. Installiere nur Mods aus vertrauenswürdigen Quellen. Die Nutzung erfolgt auf eigene Verantwortung.</div></div>
-      <div class="mod-cats" id="modCats"></div>
+      <div class="card gb rs" id="rsCard">
+        <div class="rs-head">
+          <div class="rs-ico"><svg class="i"><use href="#sparkle"/></svg></div>
+          <div style="flex:1"><div class="row"><h2>ReShade für FiveM</h2><span class="chip" id="rsState">Nicht installiert</span></div><p class="sub" style="font-size:12.5px;margin-top:4px">Offizielles ReShade von reshade.me plus SweetFX-Shader. OrbitTweak installiert alles in FiveM, schaltet es frei und bringt eigene Presets mit. Im Spiel mit <b>Pos1</b> öffnen.</p></div>
+          <div class="row" style="flex:none"><button class="btn d hidden" id="rsDel" onclick="rsUninstall()"><svg class="i"><use href="#trash"/></svg>Entfernen</button><button class="btn p lg" id="rsBtn" onclick="rsInstall()"><svg class="i"><use href="#download"/></svg><span>Mit 1 Klick installieren</span></button></div>
+        </div>
+        <div class="bar hidden" id="rsBar" style="margin-top:14px"><i style="width:0"></i></div><div class="sub hidden" id="rsProg" style="font-size:12px;margin-top:6px"></div>
+        <div class="rs-presets" id="rsPresets"></div>
+        <p class="warnline"><svg class="i"><use href="#alert"/></svg>FiveM gibt für ReShade keinen Support. Selten kann es abstürzen, dann hier einfach entfernen.</p>
+      </div>
+      <div class="lbl mt" style="margin-bottom:10px"><svg class="i"><use href="#puzzle"/></svg>Mod-Sammlung</div>
+      <div class="coll" id="modColl"></div>
+      <div class="card mt">
+        <div class="row"><div class="lbl"><svg class="i"><use href="#download"/></svg>Neu in deinen Downloads</div><span class="sp"></span><button class="btn sm" onclick="modInstall('other')"><svg class="i"><use href="#file"/></svg>Datei wählen</button><button class="btn sm" onclick="api('downloads.open')"><svg class="i"><use href="#folder"/></svg>Downloads</button></div>
+        <div id="modDl" class="mt8"></div>
+      </div>
       <div class="card mt">
         <div class="row"><div class="lbl"><svg class="i"><use href="#puzzle"/></svg>Installierte Mods</div><span class="chip" id="modCount">0</span><span class="sp"></span><span class="sub" style="font-size:12px">Änderungen nur bei geschlossenem FiveM</span></div>
         <div id="modList" class="mt8"></div>
@@ -587,35 +592,54 @@
 
     <!-- ================= SETTINGS ================= -->
     <section class="page" id="p-settings">
-      <div class="ph"><div><div class="kicker">Einstellungen</div><h1>Setup & <span class="grad">Style</span></h1><p class="pd">Updates, Farbe und Verhalten von OrbitTweak.</p></div></div>
-      <div class="card gb" id="updCard">
-        <div class="row">
-          <div class="lbl"><svg class="i"><use href="#download"/></svg>Updates</div><span class="sp"></span>
-          <button class="btn sm" id="updCheck" onclick="checkUpdate(true)"><svg class="i"><use href="#refresh"/></svg>Jetzt prüfen</button>
+      <div class="ph"><div><div class="kicker">Einstellungen</div><h1>Setup & <span class="grad">Style</span></h1><p class="pd">Alles an einem Ort, sortiert nach Thema.</p></div></div>
+      <div class="tabs" id="setTabs"><button class="tab on" data-st="design">Design</button><button class="tab" data-st="general">Allgemein</button><button class="tab" data-st="updates">Updates<span class="c hidden" id="setUpdC">NEU</span></button><button class="tab" data-st="safety">Sicherheit</button></div>
+
+      <div class="stab" id="st-design">
+        <div class="card">
+          <div class="lbl"><svg class="i"><use href="#sparkle"/></svg>Akzentfarbe</div>
+          <div class="themes mt" id="themes"></div>
         </div>
-        <div class="row" style="margin-top:12px;align-items:baseline"><div class="big" style="font-size:26px" id="verCur">2.1.0</div><span class="sub" id="updTxt">Noch nicht geprüft</span></div>
-        <div class="updnote hidden" id="updBox">
-          <div class="row"><b>Version <span id="updVer"></span> ist da</b><span class="chip" id="updDate"></span><span class="sp"></span>
-            <button class="btn p" id="updBtn" onclick="doUpdate()"><svg class="i"><use href="#download"/></svg><span>Herunterladen &amp; installieren</span></button></div>
-          <ul class="changes" id="updNotes"></ul>
-          <div class="bar hidden" id="updMeter" style="margin-top:12px"><i id="updBar" style="width:0"></i></div>
-          <div class="sub" style="font-size:11px;margin-top:6px" id="updProg"></div>
+        <div class="card mt">
+          <div class="row"><div class="lbl"><svg class="i"><use href="#monitor"/></svg>GTA-Hintergrund</div><span class="sp"></span><button class="btn sm" onclick="bgPick()"><svg class="i"><use href="#file"/></svg>Bild wählen</button><button class="btn sm" id="bgClear" onclick="bgClear()"><svg class="i"><use href="#undo"/></svg>Standard</button></div>
+          <p class="sub" style="font-size:12.5px;margin-top:6px">Dein eigenes GTA-Bild für Startseite, Ladebildschirm, Fadenkreuz- und Farb-Vorschau. Gefunden in Steam-Screenshots, NVIDIA/Game-Bar-Aufnahmen und deinen Clips.</p>
+          <div class="bg-grid" id="bgGrid"></div>
         </div>
       </div>
-      <div class="card mt">
-        <div class="lbl"><svg class="i"><use href="#sparkle"/></svg>Farbe</div>
-        <div class="themes mt" id="themes"></div>
+
+      <div class="stab hidden" id="st-general">
+        <div class="card"><div class="lbl"><svg class="i"><use href="#settings"/></svg>Verhalten</div><div id="setList" class="mt8"></div></div>
       </div>
-      <div class="card mt">
-        <div class="lbl"><svg class="i"><use href="#shield"/></svg>Sicherheit & Verhalten</div>
-        <div id="setList" class="mt8"></div>
-        <div class="row mt" style="flex-wrap:wrap">
-          <button class="btn" onclick="restorePoint()"><svg class="i"><use href="#shield"/></svg>Wiederherstellungspunkt erstellen</button>
-          <button class="btn" onclick="api('open',{target:'rstrui.exe'})"><svg class="i"><use href="#undo"/></svg>Systemwiederherstellung</button>
-          <button class="btn" onclick="wizard(0)"><svg class="i"><use href="#sparkle"/></svg>Setup-Assistent</button>
-          <button class="btn d" onclick="revertAll()"><svg class="i"><use href="#undo"/></svg>Alle Tweaks zurücksetzen</button>
+
+      <div class="stab hidden" id="st-updates">
+        <div class="card gb" id="updCard">
+          <div class="row">
+            <div class="lbl"><svg class="i"><use href="#download"/></svg>Updates</div><span class="sp"></span>
+            <button class="btn sm" id="updCheck" onclick="checkUpdate(true)"><svg class="i"><use href="#refresh"/></svg>Jetzt prüfen</button>
+          </div>
+          <div class="row" style="margin-top:12px;align-items:baseline"><div class="big" style="font-size:26px" id="verCur">2.1.0</div><span class="sub" id="updTxt">Noch nicht geprüft</span></div>
+          <div class="updnote hidden" id="updBox">
+            <div class="row"><b>Version <span id="updVer"></span> ist da</b><span class="chip" id="updDate"></span><span class="sp"></span>
+              <button class="btn p" id="updBtn" onclick="doUpdate()"><svg class="i"><use href="#download"/></svg><span>Herunterladen &amp; installieren</span></button></div>
+            <ul class="changes" id="updNotes"></ul>
+            <div class="bar hidden" id="updMeter" style="margin-top:12px"><i id="updBar" style="width:0"></i></div>
+            <div class="sub" style="font-size:11px;margin-top:6px" id="updProg"></div>
+          </div>
+          <div id="updSets" class="mt8"></div>
         </div>
-        <p class="sub" style="font-size:12px;line-height:1.6;margin-top:16px;max-width:760px">OrbitTweak ändert nur Windows-Einstellungen und Caches. Es injiziert nichts und verändert FiveM nur, wenn du selbst Mods installierst. Fadenkreuz-Overlays sind auf manchen Servern verboten, prüfe die Server-Regeln. Einstellungen liegen unter %AppData%\OrbitTweak.</p>
+      </div>
+
+      <div class="stab hidden" id="st-safety">
+        <div class="card">
+          <div class="lbl"><svg class="i"><use href="#shield"/></svg>Sicherheit & Wiederherstellung</div>
+          <div class="safe-grid mt">
+            <button class="card hov sa" onclick="restorePoint()"><div class="qi"><svg class="i"><use href="#shield"/></svg></div><b>Wiederherstellungspunkt</b><span>Windows-Snapshot jetzt erstellen</span></button>
+            <button class="card hov sa" onclick="api('open',{target:'rstrui.exe'})"><div class="qi"><svg class="i"><use href="#undo"/></svg></div><b>Systemwiederherstellung</b><span>Zu einem Snapshot zurück</span></button>
+            <button class="card hov sa" onclick="wizard(0)"><div class="qi"><svg class="i"><use href="#sparkle"/></svg></div><b>Setup-Assistent</b><span>Nochmal von vorne einrichten</span></button>
+            <button class="card hov sa" onclick="revertAll()"><div class="qi" style="background:rgba(248,113,113,.12);color:var(--bad)"><svg class="i"><use href="#undo"/></svg></div><b>Alle Tweaks zurücksetzen</b><span>Windows auf Standard</span></button>
+          </div>
+          <p class="sub" style="font-size:12px;line-height:1.6;margin-top:16px;max-width:760px">OrbitTweak ändert Windows-Einstellungen und Caches. Es injiziert nichts und verändert FiveM nur, wenn du selbst Mods oder ReShade installierst. Fadenkreuz-/Minimap-Overlays, Snap Tap und Mods sind auf manchen Servern verboten, prüfe die Server-Regeln. Einstellungen liegen unter %AppData%\OrbitTweak.</p>
+        </div>
       </div>
     </section>
   </main>
