@@ -477,31 +477,23 @@ public partial class MainWindow : Window
             // ---------- controller display ----------
             case "pad.set":
             {
-                var was = S.Pad.On;
+                var was = S.Pad.Mode;
                 S.Pad = a.GetProperty("cfg").Deserialize<PadCfg>(JIn) ?? new PadCfg();
                 S.Save();
-                if (a.TryGetProperty("art", out var art) && art.ValueKind == JsonValueKind.Object)
-                    foreach (var pr in art.EnumerateObject())
-                        if (pr.Value.GetString() is { Length: > 100 } b64)
-                        {
-                            var bi = new System.Windows.Media.Imaging.BitmapImage();
-                            bi.BeginInit(); bi.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad; bi.StreamSource = new MemoryStream(Convert.FromBase64String(b64)); bi.EndInit(); bi.Freeze();
-                            _pad.View.Art[pr.Name] = bi;
-                        }
-                if (a.TryGetProperty("dyn", out var dyn) && dyn.ValueKind == JsonValueKind.Object)
-                    foreach (var pr in dyn.EnumerateObject())
-                        _pad.View.Dyn[pr.Name] = pr.Value.Deserialize<List<PadDyn>>(JIn) ?? new();
+                if (a.TryGetProperty("packs", out var packs) && packs.ValueKind == JsonValueKind.Object)
+                    foreach (var pr in packs.EnumerateObject())
+                        if (pr.Value.Deserialize<PadPack>(JIn) is { } pk) { pk.Prepare(); _pad.View.Packs[pr.Name] = pk; }
                 _pad.Configure(S.Pad, S.Pad.Layout == "auto" ? (PadInput.State.T == "ps" ? "ps" : "xbox") : S.Pad.Layout);
                 var keys = RegisterKeys();
                 LiveTick();
-                if (was != S.Pad.On) Log(S.Pad.On ? "🎮 Controller-Anzeige an" : "🎮 Controller-Anzeige aus");
+                if (was != S.Pad.Mode) Log(S.Pad.Mode switch { "on" => "🎮 Controller-Anzeige: immer an", "auto" => "🎮 Controller-Anzeige: automatisch", _ => "🎮 Controller-Anzeige aus" });
                 return new { keyOk = keys.pad };
             }
             case "pad.watch":
             {
                 var on = Bool(a, "on");
                 if (on != _padWatch) { _padWatch = on; PadInput.Use(on); if (on) PadInput.Changed += PadToUi; else PadInput.Changed -= PadToUi; }
-                return new { state = PadInput.State };
+                return new { state = PadInput.State, active = PadInput.Active };
             }
 
             case "mods.folder": if (Mods.Dir is { } md) { Directory.CreateDirectory(md); Proc.Open(md); } return null;
@@ -676,7 +668,7 @@ public partial class MainWindow : Window
         _xhair.Update(S.Xhair.On && (!S.Xhair.OnlyGame || game));
         _minimap.Update(S.Minimap.On && (game || _mmPreview));
         _flash.Update(DateTime.Now < _flashUntil);
-        _pad.Update(S.Pad.On);
+        _pad.Tick();
         // re-apply when the game gets focus (fullscreen games may reset the gamma ramp)
         bool focusGained = game && !_lastGame;
         _lastGame = game;
@@ -754,8 +746,9 @@ public partial class MainWindow : Window
         }
         else if (id == HK_PAD)
         {
-            S.Pad.On = !S.Pad.On; S.Save(); LiveTick();
-            Emit("padon", new { on = S.Pad.On });
+            S.Pad.Mode = S.Pad.Mode == "off" ? "auto" : "off"; S.Save();
+            _pad.Configure(S.Pad, _pad.View.Layout); LiveTick();
+            Emit("padon", new { mode = S.Pad.Mode });
             handled = true;
         }
         else if (id == HK_CLIP)

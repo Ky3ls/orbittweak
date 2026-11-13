@@ -19,6 +19,7 @@ namespace OrbitTweak.Core;
 public class PadCfg
 {
     public bool On { get; set; }
+    public string Mode { get; set; } = "auto";      // auto (when a controller is used) | on | off
     public string Layout { get; set; } = "auto";   // auto | xbox | ps
     public string Body { get; set; } = "black";    // black | white
     public string Color { get; set; } = "orig";    // orig | theme | #RRGGBB
@@ -71,6 +72,9 @@ internal static class PadInput
     private static extern SafeFileHandle CreateFile(string path, uint access, uint share, IntPtr sec, uint disp, uint flags, IntPtr tpl);
 
     public static readonly PadState State = new();
+    public static DateTime LastUse = DateTime.MinValue;
+    /// <summary>Controller connected and touched within the last 45 seconds.</summary>
+    public static bool Active => State.C && DateTime.Now - LastUse < TimeSpan.FromSeconds(45);
     public static event Action? Changed;
     private static Thread? _thread;
     private static volatile bool _run;
@@ -98,6 +102,8 @@ internal static class PadInput
         var sig = JsonSerializer.Serialize(s);
         if (sig == _last) return;
         _last = sig;
+        if (s.C && (s.B.Values.Any(v => v) || Math.Abs(s.Lx) > .3 || Math.Abs(s.Ly) > .3 || Math.Abs(s.Rx) > .3 || Math.Abs(s.Ry) > .3 || s.Lt > .15 || s.Rt > .15))
+            LastUse = DateTime.Now;
         lock (Lock)
         {
             State.C = s.C; State.T = s.T; State.Name = s.Name; State.B = s.B;
@@ -243,83 +249,90 @@ internal static class PadInput
     }
 }
 
-public class PadDyn
+public class PadPart
 {
     public string Id { get; set; } = "";
     public string K { get; set; } = "";
-    public string? D { get; set; }
-    public double Cx { get; set; }
-    public double Cy { get; set; }
+    public double X { get; set; }
+    public double Y { get; set; }
+    public double W { get; set; }
+    public double H { get; set; }
     public double R { get; set; }
     public double Mv { get; set; }
     public string? Col { get; set; }
+    public string? Png { get; set; }
+    public string? Png2 { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore] public System.Windows.Media.Imaging.BitmapSource? Img { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore] public System.Windows.Media.Imaging.BitmapSource? Img2 { get; set; }
 }
 
-/// <summary>Draws the controller art (PNG from the app) plus the live parts on top.</summary>
+public class PadPack
+{
+    public double W { get; set; }
+    public double H { get; set; }
+    public string? Art { get; set; }
+    public List<PadPart> Parts { get; set; } = new();
+    [System.Text.Json.Serialization.JsonIgnore] public System.Windows.Media.Imaging.BitmapSource? ArtImg { get; set; }
+
+    private static System.Windows.Media.Imaging.BitmapSource? Decode(string? b64)
+    {
+        if (string.IsNullOrEmpty(b64)) return null;
+        var bi = new System.Windows.Media.Imaging.BitmapImage();
+        bi.BeginInit(); bi.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad; bi.StreamSource = new MemoryStream(Convert.FromBase64String(b64)); bi.EndInit(); bi.Freeze();
+        return bi;
+    }
+
+    public void Prepare()
+    {
+        ArtImg = Decode(Art); Art = null;
+        foreach (var p in Parts) { p.Img = Decode(p.Png); p.Img2 = Decode(p.Png2); p.Png = p.Png2 = null; }
+    }
+}
+
+/// <summary>Draws the controller picture plus the pressed / moving parts on top.</summary>
 internal sealed class PadView : FrameworkElement
 {
-    public const double W = 600, H = 400;
-    public PadCfg Cfg = new();
     public string Layout = "xbox";
-    public Dictionary<string, System.Windows.Media.Imaging.BitmapSource> Art = new();
-    public Dictionary<string, List<PadDyn>> Dyn = new();
-    private readonly Dictionary<string, Geometry> _geo = new();
+    public Dictionary<string, PadPack> Packs = new();
+    public PadPack? Pack => Packs.TryGetValue(Layout, out var p) ? p : null;
 
-    private static SolidColorBrush Br(string hex, double a = 1)
+    private static SolidColorBrush Br(string? hex, double a = 1)
     {
-        var c = (Color)ColorConverter.ConvertFromString(hex);
+        var c = (Color)ColorConverter.ConvertFromString(hex ?? "#FF7A3D");
         var b = new SolidColorBrush(Color.FromArgb((byte)(255 * a), c.R, c.G, c.B)); b.Freeze(); return b;
     }
-    private Geometry G(string d) { if (!_geo.TryGetValue(d, out var g)) { g = Geometry.Parse(d); g.Freeze(); _geo[d] = g; } return g; }
 
     protected override void OnRender(DrawingContext dc)
     {
+        var pk = Pack; if (pk == null) return;
         PadState s = PadInput.State;
-        if (Art.TryGetValue(Layout, out var art)) dc.DrawImage(art, new Rect(0, 0, W, H));
-        if (!Dyn.TryGetValue(Layout, out var dyn)) return;
-        bool white = Cfg.Body == "white";
-        var acc = Br(Cfg.Accent is { Length: 7 } a ? a : "#FF7A3D");
         var b = s.B;
         bool On(string id) => b.TryGetValue(id, out var v) && v;
-        foreach (var p in dyn)
+        if (pk.ArtImg != null) dc.DrawImage(pk.ArtImg, new Rect(0, 0, pk.W, pk.H));
+        foreach (var p in pk.Parts)
         {
-            var col = Cfg.Color == "orig" && p.Col != null ? Br(p.Col, .9) : Br(Cfg.Accent is { Length: 7 } a2 ? a2 : "#FF7A3D", .9);
+            var rect = new Rect(p.X, p.Y, p.W, p.H);
             switch (p.K)
             {
                 case "trig":
                 {
                     double v = Math.Clamp(p.Id == "lt" ? s.Lt : s.Rt, 0, 1);
-                    if (v < 0.02 || p.D == null) break;
-                    var g = G(p.D); var bb = g.Bounds;
-                    dc.PushClip(g); dc.PushOpacity(.88);
-                    dc.DrawRectangle(acc, null, new Rect(bb.X, bb.Bottom - bb.Height * v, bb.Width, bb.Height * v));
-                    dc.Pop(); dc.Pop();
+                    if (v > 0.02 && p.Img != null) { dc.PushOpacity(v); dc.DrawImage(p.Img, rect); dc.Pop(); }
                     break;
                 }
-                case "btn":
-                    if (On(p.Id) && p.D != null) { var g = G(p.D); dc.DrawGeometry(null, new Pen(Br(Cfg.Color == "orig" && p.Col != null ? p.Col : Cfg.Accent, .35), 6), g); dc.DrawGeometry(col, null, g); }
-                    break;
-                case "circle":
-                    if (On(p.Id)) { var c = new Point(p.Cx, p.Cy); dc.DrawEllipse(null, new Pen(col.Clone().Also(x => x.Opacity = .4), 6), c, p.R, p.R); dc.DrawEllipse(col, null, c, p.R, p.R); }
-                    break;
+                case "img": if (On(p.Id) && p.Img != null) dc.DrawImage(p.Img, rect); break;
+                case "dot": if (On(p.Id)) dc.DrawEllipse(Br(p.Col, .75), null, new Point(p.X + p.W / 2, p.Y + p.H / 2), p.W / 2, p.H / 2); break;
+                case "rect": if (On(p.Id)) dc.DrawRoundedRectangle(Br(p.Col, .5), null, rect, p.R, p.R); break;
                 case "stick":
                 {
                     double ax = p.Id == "ls" ? s.Lx : s.Rx, ay = p.Id == "ls" ? s.Ly : s.Ry;
-                    var c = new Point(p.Cx + ax * p.Mv, p.Cy + ay * p.Mv);
-                    dc.DrawEllipse(Br("#000000", .5), null, new Point(c.X, c.Y + 3), p.R + 2, p.R + 2);
-                    dc.DrawEllipse(Br(white ? "#4A4C53" : "#44464E"), new Pen(Br(white ? "#AEB0B7" : "#08080A"), 2), c, p.R, p.R);
-                    dc.DrawEllipse(Br(white ? "#2A2B30" : "#26272C"), new Pen(Br("#FFFFFF", .08), 2), c, p.R - 8, p.R - 8);
-                    if (On(p.Id)) dc.DrawEllipse(null, new Pen(acc, 4), c, p.R - 1, p.R - 1);
+                    var img = On(p.Id) ? p.Img2 : p.Img;
+                    if (img != null) dc.DrawImage(img, new Rect(p.X + ax * p.Mv, p.Y + ay * p.Mv, p.W, p.H));
                     break;
                 }
             }
         }
     }
-}
-
-internal static class BrushExt
-{
-    public static T Also<T>(this T o, Action<T> a) { a(o); return o; }
 }
 
 internal sealed class PadOverlay
@@ -337,7 +350,7 @@ internal sealed class PadOverlay
     private Window? _w;
     private IntPtr _h;
     private bool _shown, _subscribed;
-    private readonly PadView _view = new() { Width = PadView.W, Height = PadView.H };
+    private readonly PadView _view = new() { Width = 750, Height = 630 };
     private PadCfg _cfg = new();
     private DateTime _lastDraw;
 
@@ -345,7 +358,8 @@ internal sealed class PadOverlay
 
     public void Configure(PadCfg cfg, string layout)
     {
-        _cfg = cfg; _view.Cfg = cfg; _view.Layout = layout;
+        _cfg = cfg; _view.Layout = layout;
+        if (_view.Pack is { } pk) { _view.Width = pk.W; _view.Height = pk.H; }
         if (_w != null) _w.Opacity = Math.Clamp(cfg.Opacity, 20, 100) / 100.0;
         _view.InvalidateVisual();
     }
@@ -373,22 +387,36 @@ internal sealed class PadOverlay
 
     private void OnInput()
     {
-        if (_cfg.Layout == "auto") _view.Layout = PadInput.State.T == "ps" ? "ps" : "xbox";
+        if (_cfg.Layout == "auto")
+        {
+            var l = PadInput.State.T == "ps" ? "ps" : "xbox";
+            if (l != _view.Layout) _w?.Dispatcher.BeginInvoke(() => { _view.Layout = l; if (_view.Pack is { } pk) { _view.Width = pk.W; _view.Height = pk.H; } });
+        }
         // redraw at most ~60 fps, on the UI thread
         if (DateTime.Now - _lastDraw < TimeSpan.FromMilliseconds(15)) return;
         _lastDraw = DateTime.Now;
         _w?.Dispatcher.BeginInvoke(() => _view.InvalidateVisual());
     }
 
+    /// <summary>Called by the UI timer. In "auto" mode the input reader keeps running to notice a controller.</summary>
+    public void Tick()
+    {
+        bool listen = _cfg.Mode != "off";
+        if (listen && !_subscribed) { PadInput.Use(true); PadInput.Changed += OnInput; _subscribed = true; }
+        if (!listen && _subscribed) { PadInput.Changed -= OnInput; PadInput.Use(false); _subscribed = false; }
+        Update(_cfg.Mode == "on" || (_cfg.Mode == "auto" && PadInput.Active));
+    }
+
+    public bool Visible => _shown;
+
     public void Update(bool visible)
     {
-        if (visible && !_subscribed) { PadInput.Use(true); PadInput.Changed += OnInput; _subscribed = true; }
-        if (!visible && _subscribed) { PadInput.Changed -= OnInput; PadInput.Use(false); _subscribed = false; }
         if (!visible) { if (_shown) { ShowWindow(_h, 0); _shown = false; } return; }
         Ensure();
         if (_h == IntPtr.Zero) return;
         var (l, t, r, b) = GameFocus.Client();
-        int w = (int)(PadView.W * 0.6 * _cfg.Size / 100.0), h = (int)(PadView.H * 0.6 * _cfg.Size / 100.0), m = 24;
+        var pk = _view.Pack; double bw = pk?.W ?? 750, bh = pk?.H ?? 630;
+        int w = (int)(bw * 0.42 * _cfg.Size / 100.0), h = (int)(bh * 0.42 * _cfg.Size / 100.0), m = 24;
         int x = _cfg.Corner.EndsWith("l") ? l + m : r - w - m;
         int y = _cfg.Corner.StartsWith("t") ? t + m : b - h - m;
         bool moved = !GetWindowRect(_h, out var rc) || rc.L != x || rc.T != y || rc.R - rc.L != w || rc.B - rc.T != h;
@@ -399,6 +427,7 @@ internal sealed class PadOverlay
 
     public void Close()
     {
+        if (_subscribed) { PadInput.Changed -= OnInput; PadInput.Use(false); _subscribed = false; }
         Update(false);
         try { _w?.Close(); } catch { }
         _w = null; _h = IntPtr.Zero; _shown = false;

@@ -21,4 +21,5 @@ Benötigt das .NET 8 SDK. Die Oberfläche liegt in `Web/` und wird per WebView2 
 3. Zeilen im Release-Text, die mit `- ` beginnen, zeigt die App als Änderungen an.
 
 ## Bildnachweise
-Standard-Hintergründe: Fotos von Los Angeles via Wikimedia Commons – Michael Chusid (CC0), Josh Rose (CC0), Kevin Stanchfield (CC BY 2.0), FairbanksMike (CC BY 2.0), Stephen Friday (CC BY 2.0).
+- Hintergründe: Screenshots aus Grand Theft Auto V. GTA V © Rockstar Games.
+- Controller-Grafiken: Gamepad Viewer Skin „Dracula“ (https://github.com/dracula/gamepad-viewer), MIT-Lizenz, Copyright (c) 2021 Dracula Theme. Lizenztext liegt unter `Web/pad/LICENSE.txt`.

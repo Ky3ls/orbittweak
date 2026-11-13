@@ -781,3 +781,6 @@ input[type=range]::-webkit-slider-thumb:hover{box-shadow:0 0 0 7px rgba(var(--a-
 .mbs:hover{border-color:rgba(var(--a-rgb),.6);transform:translateY(-2px)}
 .mbs b{display:block;font-size:14px}
 .mbs span{font-size:12px;color:var(--sub)}
+
+.pmode button{height:36px;padding:0 16px;font-size:13px}
+.padhost{width:78% !important}

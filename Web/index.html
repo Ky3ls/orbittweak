@@ -314,7 +314,7 @@
       <div class="xgrid">
         <div class="col">
           <div class="card xprev-card">
-            <div class="row"><div class="lbl"><svg class="i"><use href="#eye"/></svg>Vorschau</div><span class="sp"></span><div class="seg" id="xhBg"><button class="on" data-bg="day">Tag</button><button data-bg="dusk">Abend</button><button data-bg="night">Nacht</button></div></div>
+            <div class="row"><div class="lbl"><svg class="i"><use href="#eye"/></svg>Vorschau</div><span class="sp"></span><div class="seg" id="xhBg"><button class="on" data-bg="day">Stadt</button><button data-bg="dusk">Hafen</button></div></div>
             <div class="xscene sc-day" id="xhScene"><svg class="gscene" viewBox="0 0 640 360" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
   <defs>
     <linearGradient id="gsky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--s1)"/><stop offset=".62" style="stop-color:var(--s2)"/><stop offset="1" style="stop-color:var(--s3)"/></linearGradient>
@@ -494,14 +494,15 @@
     <section class="page" id="p-pad">
       <div class="ph">
         <div><div class="kicker">Controller</div><h1>Controller-<span class="grad">Anzeige</span></h1><p class="pd">Zeigt deinen Controller und jede gedrückte Taste live, als Overlay im Spiel. Xbox, PS4 und PS5 werden automatisch erkannt.</p></div>
-        <div class="ph-r"><button class="btn p lg" id="padMain" onclick="padToggle()"><svg class="i"><use href="#gamepad"/></svg><span>Overlay einschalten</span></button></div>
+        <div class="ph-r"><div class="seg pmode" id="padMode"><button data-v="auto">Automatisch</button><button data-v="on">Immer an</button><button data-v="off">Aus</button></div></div>
       </div>
       <div class="xgrid">
         <div class="col">
           <div class="card">
             <div class="row"><div class="lbl"><svg class="i"><use href="#eye"/></svg>Live-Vorschau</div><span class="sp"></span><span class="chip" id="padName">Kein Controller</span></div>
             <div class="padprev" id="padStage"><div class="padbg" id="padBg"></div><div class="padhost" id="padPrev"></div></div>
-            <p class="sub" style="font-size:12px;margin-top:10px;line-height:1.5">Drück Tasten oder beweg die Sticks, die Vorschau reagiert sofort. PlayStation-Controller per USB oder Bluetooth, Xbox per USB, Funk oder Bluetooth.</p>
+            <p class="sub" id="padHint" style="font-size:12px;margin-top:10px;line-height:1.5">Automatisch: Das Overlay erscheint, sobald ein Controller angeschlossen ist und benutzt wird, und verschwindet nach 45 Sekunden ohne Eingabe oder wenn er getrennt wird.</p>
+            <p class="muted" style="font-size:11px;margin-top:8px">Controller-Grafiken: Gamepad Viewer Skin „Dracula“ (MIT-Lizenz).</p>
           </div>
         </div>
         <div class="card">
@@ -643,10 +644,10 @@
           <div class="themes mt" id="themes"></div>
         </div>
         <div class="card mt">
-          <div class="row"><div class="lbl"><svg class="i"><use href="#monitor"/></svg>Hintergrund (Los Santos)</div></div>
-          <p class="sub" style="font-size:12.5px;margin-top:6px">Für Startseite, Ladebildschirm und Vorschauen. „Tageszeit“ wechselt automatisch zwischen Tag, Abend und Nacht.</p>
+          <div class="row"><div class="lbl"><svg class="i"><use href="#monitor"/></svg>Hintergrund (GTA V)</div></div>
+          <p class="sub" style="font-size:12.5px;margin-top:6px">Für Startseite, Ladebildschirm und Vorschauen.</p>
           <div class="bg-grid" id="bgGrid"></div>
-          <p class="muted" style="font-size:11px;margin-top:12px;line-height:1.5">Standard-Hintergründe: Fotos von Los Angeles, dem Vorbild für Los Santos. Michael Chusid (CC0), Josh Rose (CC0), Kevin Stanchfield (CC BY 2.0), FairbanksMike (CC BY 2.0), Stephen Friday (CC BY 2.0), via Wikimedia Commons.</p>
+          <p class="muted" style="font-size:11px;margin-top:12px;line-height:1.5">Screenshots aus Grand Theft Auto V. GTA V © Rockstar Games.</p>
         </div>
       </div>
 

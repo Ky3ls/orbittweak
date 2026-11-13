@@ -97,7 +97,7 @@ function smoothPath(pts) {
 let curPage = 'home';
 function go(p) {
   if ((p === 'display') !== (curPage === 'display')) api('display.preview', { on: p === 'display' }).catch(() => { });
-  if ((p === 'pad') !== (curPage === 'pad')) api('pad.watch', { on: p === 'pad' }).then(r => r && padState(r.state)).catch(() => { });
+  if ((p === 'pad') !== (curPage === 'pad')) api('pad.watch', { on: p === 'pad' }).then(r => r && padState(r.state, r.active)).catch(() => { });
   curPage = p;
   $$('.nav').forEach(n => n.classList.toggle('active', n.dataset.p === p));
   $$('.page').forEach(s => s.classList.toggle('show', s.id === 'p-' + p));
@@ -130,7 +130,7 @@ function onEvent(ev, d) {
   else if (ev === 'xhair') { XH.on = d.on; xhState(); toast(d.on ? 'Fadenkreuz an' : 'Fadenkreuz aus', d.on ? 'per Taste · Server-Regeln beachten' : 'per Taste'); }
   else if (ev === 'display') { DP.cfg.on = d.on; dpState(); }
   else if (ev === 'pad') padState(d);
-  else if (ev === 'padon') { PAD.cfg.on = d.on; padUI(); toast(d.on ? 'Controller-Overlay an' : 'Controller-Overlay aus', 'per Taste'); }
+  else if (ev === 'padon') { PAD.cfg.mode = d.mode; padUI(); toast(d.mode === 'off' ? 'Controller-Anzeige aus' : 'Controller-Anzeige automatisch', 'per Taste'); }
   else if (ev === 'modInstalled') { passed('Mod installiert', `${MOD_CATS[d.cat]?.[0] || 'Mod'} · ${d.name}`); modList(); }
   else if (ev === 'reshade') { const b = $('#rsBar i'); if (b) b.style.width = d.pct + '%'; $('#rsProg').textContent = d.text; }
   else if (ev === 'clip') { toast('Clip gespeichert', 'per Taste · ' + (CL_RECS[d.recorder]?.[1] || '')); if (curPage === 'clip') setTimeout(clipList, 4000); }
@@ -941,8 +941,8 @@ function banner() {
   $('#bnTime').textContent = `Los Santos · ${d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`;
 }
 function initLook() {
-  $('#bnScene').innerHTML = `<div class="own-bg" style="background-image:url('${LA[timeOfDay()]}')"></div>`; $('#spScene').innerHTML = $('#bnScene').innerHTML;
-  banner(); setInterval(() => { banner(); if (!ownUrl() && !S.settings.bgPreset) applyBg(); }, 30000);
+  $('#bnScene').innerHTML = `<div class="own-bg" style="background-image:url('${LA.day}')"></div>`; $('#spScene').innerHTML = $('#bnScene').innerHTML;
+  banner(); setInterval(banner, 30000);
 }
 function passed(title, sub) {
   const p = $('#passed'); $('#paT').textContent = title; $('#paS').textContent = sub || '';
@@ -1198,16 +1198,16 @@ async function thumbNext() {
 }
 
 /* ======================= GTA BACKGROUND ======================= */
-const LA = { day: 'img/la-day.jpg', dusk: 'img/la-sunset.jpg', night: 'img/la-night.jpg' };
-const LA_ALL = [['auto', 'Tageszeit', null], ['la-day', 'Tag', 'img/la-day.jpg'], ['la-sunset', 'Abendsonne', 'img/la-sunset.jpg'], ['la-dusk', 'Sonnenuntergang', 'img/la-dusk.jpg'], ['la-night', 'Nacht', 'img/la-night.jpg'], ['la-night2', 'Downtown', 'img/la-night2.jpg']];
+const LA = { day: 'img/gta-1.jpg', dusk: 'img/gta-2.jpg', night: 'img/gta-1.jpg' };
+const LA_ALL = [['gta-1', 'Downtown', 'img/gta-1.jpg'], ['gta-2', 'Hafen', 'img/gta-2.jpg']];
 const ownUrl = () => null;
-const bgUrl = () => ownUrl() || (LA_ALL.find(x => x[0] === S.settings.bgPreset)?.[2]) || LA[timeOfDay()];
+const bgUrl = () => (LA_ALL.find(x => x[0] === S.settings.bgPreset)?.[2]) || LA.day;
 function applyBg() {
   const u = bgUrl();
   const own = `<div class="own-bg" style="background-image:url('${u}')"></div>`;
   $('#bnScene').innerHTML = own;
   $('#spScene').innerHTML = own;
-  xhScene(timeOfDay());
+  xhScene('day');
   $$('.dpimg').forEach(d => d.style.backgroundImage = u ? `url('${u}')` : '');
   $$('.dpre i').forEach(d => d.style.backgroundImage = u ? `url('${u}')` : '');
   $$('.rsp i').forEach(i => i.style.backgroundImage = `url('${u}')`);
@@ -1220,13 +1220,13 @@ function xhScene(k) {
   xhPlace();
 }
 async function bgGrid() {
-  const g = $('#bgGrid'), cur = S.settings.bgPreset || 'auto';
+  const g = $('#bgGrid'), cur = LA_ALL.some(x => x[0] === S.settings.bgPreset) ? S.settings.bgPreset : 'gta-1';
   g.innerHTML = LA_ALL.map(([k, n, src]) => `<button class="bgc ${cur === k ? 'on' : ''}" data-bgp="${k}"><img alt="" class="ok" src="${src || LA[timeOfDay()]}"><span>${n}</span></button>`).join('');
 }
 document.addEventListener('click', async e => {
   const pr = e.target.closest('[data-bgp]');
   if (pr) {
-    S.settings.bgPreset = pr.dataset.bgp === 'auto' ? null : pr.dataset.bgp; api('settings.set', { key: 'bgPreset', value: S.settings.bgPreset || '' });
+    S.settings.bgPreset = pr.dataset.bgp; api('settings.set', { key: 'bgPreset', value: S.settings.bgPreset });
     applyBg(); bgGrid(); return;
   }
   const b = e.target.closest('[data-bgi]'); if (!b) return;
@@ -1370,21 +1370,21 @@ window.curFav = curFav;
 setInterval(() => { if (curPage === 'home' || curPage === 'servers') curServer(); }, 15000);
 
 /* ======================= CONTROLLER DISPLAY ======================= */
-const PAD = { cfg: { on: false, layout: 'auto', body: 'black', color: 'orig', corner: 'br', size: 75, opacity: 90, key: 0, accent: '#FF7A3D' }, r: null, state: null };
+const PAD = { cfg: { mode: 'auto', layout: 'auto', body: 'black', color: 'theme', corner: 'br', size: 75, opacity: 90, key: 0, accent: '#FF7A3D' }, r: null, state: null, active: false };
 const PAD_COLORS = ['#FF3B4E', '#FF7A18', '#F5C451', '#3DDC6B', '#3D8BFF', '#8B5CF6', '#F472B6', '#FFFFFF', '#18181B'];
 const accHex = () => getComputedStyle(document.documentElement).getPropertyValue('--a').trim();
-function padDraw() { if (PAD.r) PAD.r.draw(PAD.state, { ...PAD.cfg, accent: PAD.cfg.color === 'theme' || PAD.cfg.color === 'orig' ? accHex() : PAD.cfg.color }); }
+const padAcc = () => PAD.cfg.color.startsWith('#') ? PAD.cfg.color : accHex();
+function padDraw() { if (PAD.r) PAD.r.draw(PAD.state, { ...PAD.cfg, accent: padAcc() }); }
 function padUI() {
   const c = PAD.cfg;
-  [['#padLayout', c.layout], ['#padBody', c.body], ['#padOpacity', String(c.opacity)]].forEach(([s, v]) => $$(s + ' button').forEach(b => b.classList.toggle('on', b.dataset.v === v)));
+  [['#padMode', c.mode], ['#padLayout', c.layout], ['#padBody', c.body], ['#padOpacity', String(c.opacity)]].forEach(([s, v]) => $$(s + ' button').forEach(b => b.classList.toggle('on', b.dataset.v === v)));
   $$('#padCorner button').forEach(b => b.classList.toggle('on', b.dataset.v === c.corner));
-  $('#padColors').innerHTML = `<button class="btn sm ${c.color === 'orig' ? 'p' : ''}" data-pc="orig">Original</button><button class="btn sm ${c.color === 'theme' ? 'p' : ''}" data-pc="theme">Theme</button>` +
+  $('#padColors').innerHTML = `<button class="btn sm ${!c.color.startsWith('#') ? 'p' : ''}" data-pc="theme">Theme</button>` +
     PAD_COLORS.map(x => `<button class="xcol ${c.color.toUpperCase() === x ? 'on' : ''}" data-pc="${x}" style="background:${x}"></button>`).join('') + `<label class="xcustom" title="Eigene Farbe"><input type="color" id="padPick" value="${c.color.startsWith('#') ? c.color : '#FF7A3D'}"></label>`;
   $('#padSize').value = c.size; $('#padSize').style.setProperty('--p', (c.size - 40) / 120 * 100 + '%'); $('#padSizeV').textContent = c.size + '%';
   $('#padKey').innerHTML = KEYS.map(([n, v]) => `<button class="${c.key === v ? 'on' : ''}" data-pk="${v}">${n}</button>`).join('');
-  $('#padMain').querySelector('span').textContent = c.on ? 'Overlay ausschalten' : 'Overlay einschalten';
-  $('#padMain').classList.toggle('p', !c.on);
-  $('#navPad').classList.toggle('hidden', !c.on);
+  $('#navPad').classList.toggle('hidden', c.mode === 'off');
+  $('#navPad').textContent = c.mode === 'on' ? 'AN' : 'AUTO';
   $('#padBg').style.backgroundImage = `url('${bgUrl()}')`;
   padDraw();
 }
@@ -1392,21 +1392,22 @@ let padT = 0, padArtKey = null;
 function padPush() {
   clearTimeout(padT);
   padT = setTimeout(async () => {
-    const args = { cfg: { ...PAD.cfg, accent: PAD.cfg.color === 'orig' || PAD.cfg.color === 'theme' ? accHex() : PAD.cfg.color } };
-    if (padArtKey !== PAD.cfg.body) {   // art only changes with the body colour
-      padArtKey = PAD.cfg.body;
-      args.art = { xbox: await PadArt.png('xbox', PAD.cfg.body), ps: await PadArt.png('ps', PAD.cfg.body) };
-      args.dyn = { xbox: PadArt.dyn('xbox'), ps: PadArt.dyn('ps') };
+    const args = { cfg: { ...PAD.cfg, accent: padAcc() } };
+    const key = PAD.cfg.body + padAcc();
+    if (padArtKey !== key && PAD.cfg.mode !== 'off') {   // pictures only change with body / colour
+      padArtKey = key;
+      args.packs = { xbox: await PadArt.overlayPack('xbox', PAD.cfg.body, padAcc()), ps: await PadArt.overlayPack('ps', PAD.cfg.body, padAcc()) };
     }
     const r = await api('pad.set', args).catch(() => null);
     if (r && r.keyOk === false) toast('Taste belegt', 'Andere Taste wählen', false);
   }, 80);
 }
-function padToggle() { PAD.cfg.on = !PAD.cfg.on; padUI(); padPush(); toast(PAD.cfg.on ? 'Controller-Overlay an' : 'Controller-Overlay aus', PAD.cfg.on ? 'Sichtbar in der gewählten Bildschirmecke' : ''); }
-window.padToggle = padToggle;
+
 document.addEventListener('click', e => {
-  const s = e.target.closest('#padLayout button,#padBody button,#padOpacity button,#padCorner button');
-  if (s) { const k = { padLayout: 'layout', padBody: 'body', padOpacity: 'opacity', padCorner: 'corner' }[s.parentElement.id]; PAD.cfg[k] = k === 'opacity' ? +s.dataset.v : s.dataset.v; padUI(); padPush(); return; }
+  const s = e.target.closest('#padMode button,#padLayout button,#padBody button,#padOpacity button,#padCorner button');
+  if (s) {
+    const k = { padMode: 'mode', padLayout: 'layout', padBody: 'body', padOpacity: 'opacity', padCorner: 'corner' }[s.parentElement.id];
+    if (k === 'mode') toast({ auto: 'Controller-Anzeige automatisch', on: 'Controller-Anzeige immer an', off: 'Controller-Anzeige aus' }[s.dataset.v], s.dataset.v === 'auto' ? 'Erscheint, sobald du den Controller benutzt' : ''); PAD.cfg[k] = k === 'opacity' ? +s.dataset.v : s.dataset.v; padUI(); padPush(); return; }
   const c = e.target.closest('[data-pc]'); if (c) { PAD.cfg.color = c.dataset.pc; padUI(); padPush(); return; }
   const k = e.target.closest('[data-pk]'); if (k) { PAD.cfg.key = +k.dataset.pk; padUI(); padPush(); }
 });
@@ -1415,13 +1416,15 @@ document.addEventListener('input', e => {
   if (e.target.id === 'padPick') { PAD.cfg.color = e.target.value.toUpperCase(); padDraw(); padPush(); }
 });
 document.addEventListener('change', e => { if (e.target.id === 'padPick') padUI(); });
-function padState(d) {
+function padState(d, active) {
   PAD.state = d;
   const n = $('#padName'); if (n) { n.textContent = d && d.c ? d.name : 'Kein Controller'; n.className = 'chip ' + (d && d.c ? 'g' : ''); }
   padDraw();
 }
 async function initPad(s) {
   Object.assign(PAD.cfg, s.pad || {});
+  if (!['auto', 'on', 'off'].includes(PAD.cfg.mode)) PAD.cfg.mode = 'auto';
+  if (PAD.cfg.color === 'orig') PAD.cfg.color = 'theme';
   PAD.r = new PadArt.Pad($('#padPrev'));
   padUI(); padPush();
 }
@@ -1505,7 +1508,7 @@ const Mock = {
       case 'clip.list': return ['Grand Theft Auto V 2026.11.13 - 21.14.08.02', 'FiveM 2026.11.13 - 20.51.44.01', 'Gangwar Clutch', 'Grand Theft Auto V 2026.11.12 - 23.02.10.05'].map((n, i) => ({ name: n, rel: 'Grand Theft Auto V/' + n + '.mp4', folder: i === 2 ? 'Captures' : 'Grand Theft Auto V', size: 48e6 + i * 9e6, date: new Date(Date.now() - i * 864e5).toISOString(), ext: '.mp4' }));
       case 'mods.list': return { found: true, items: [{ name: 'round_minimap_dark.rpf', on: true, size: 3.4e6, cat: 'minimap' }, { name: 'killfx_red_flash.rpf', on: true, size: 1.2e6, cat: 'kill' }, { name: 'nve_lite.rpf', on: false, size: 84e6, cat: 'gfx' }] };
       case 'pad.set': return { keyOk: true };
-      case 'pad.watch': return { state: { c: true, t: 'ps', name: 'PlayStation 5 DualSense', b: { a: true, rb: true, up: true }, lx: .5, ly: -.3, rx: 0, ry: .6, lt: .4, rt: 1 } };
+      case 'pad.watch': return { active: true, state: { c: true, t: 'ps', name: 'PlayStation 4 DualShock', b: { a: true, rb: true, up: true }, lx: .5, ly: -.3, rx: 0, ry: .6, lt: .4, rt: 1 } };
       case 'mods.browse': return null;
       case 'mods.install': return { count: 1 };
       case 'server.current': return { found: true, connected: true, key: 'cfx:abc123', url: 'cfx.re/join/abc123', fav: false, server: { name: '^1Nova^7City ^3| Roleplay [GER]', desc: 'Die lebendigste Stadt Deutschlands · Whitelist · Eigene Wirtschaft', allTags: ['roleplay', 'deutsch', 'economy', 'whitelist', 'jobs', 'gangs', 'custom cars'], locale: 'DE', players: 187, max: 256, ping: 22, build: '3095', onesync: true, resources: 412, owner: 'NovaTeam', discord: 'https://discord.gg/novacity', website: 'https://novacity.de', connect: 'cfx.re/join/abc123', online: true } };
