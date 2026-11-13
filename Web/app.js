@@ -88,6 +88,7 @@ function smoothPath(pts) {
 /* ======================= NAV ======================= */
 let curPage = 'home';
 function go(p) {
+  if ((p === 'display') !== (curPage === 'display')) api('display.preview', { on: p === 'display' }).catch(() => { });
   curPage = p;
   $$('.nav').forEach(n => n.classList.toggle('active', n.dataset.p === p));
   $$('.page').forEach(s => s.classList.toggle('show', s.id === 'p-' + p));
@@ -117,6 +118,8 @@ function onEvent(ev, d) {
   else if (ev === 'log') feed(d.text);
   else if (ev === 'boost') boostProgress(d.pct, d.text);
   else if (ev === 'update') updProgress(d);
+  else if (ev === 'xhair') { XH.on = d.on; xhState(); toast(d.on ? 'Fadenkreuz an' : 'Fadenkreuz aus', 'per Taste'); }
+  else if (ev === 'display') { DP.cfg.on = d.on; dpState(); }
 }
 function stats(d) {
   $('#tbCpu').textContent = d.cpu + '%'; $('#tbRam').textContent = d.ram + '%';
@@ -342,6 +345,7 @@ async function loadCfx() {
 /* ======================= GRAPHICS ======================= */
 const Q4 = [['Normal', 0], ['Hoch', 1], ['Sehr hoch', 2], ['Ultra', 3]], Q3 = Q4.slice(0, 3);
 const GFX = [
+  { k: 'Windowed', n: 'Anzeigemodus', d: 'Randlos für Fadenkreuz-Overlay', o: [['Vollbild', 0], ['Fenster', 1], ['Randlos', 2]] },
   { k: 'TextureQuality', n: 'Texturen', d: 'Abhängig vom VRAM', o: Q3 },
   { k: 'ShadowQuality', n: 'Schatten', d: 'Großer FPS-Faktor', o: [['Normal', 1], ['Hoch', 2], ['Sehr hoch', 3]] },
   { k: 'ReflectionQuality', n: 'Reflexionen', d: 'Autos und Wasser', o: Q4 },
@@ -586,6 +590,202 @@ async function wizard(step) {
 }
 function finishWizard() { closeModal(); api('settings.set', { key: 'firstRun', value: false }); S.settings.firstRun = false; }
 
+/* ======================= CROSSHAIR ======================= */
+const KEYS = [['Aus', 0], ['F6', 0x75], ['F7', 0x76], ['F9', 0x78], ['F10', 0x79], ['F11', 0x7A], ['Einfg', 0x2D], ['Pos1', 0x24], ['Bild↑', 0x21]];
+const XH_DEF = { style: 'cross', color: '#3DFF8B', size: 8, thick: 2, gap: 4, alpha: 100, outline: true, oThick: 1, dot: false, dotSize: 2 };
+const XH_PRESETS = {
+  classic: ['Classic', { style: 'cross', color: '#3DFF8B', size: 8, thick: 2, gap: 4, alpha: 100, outline: true, oThick: 1, dot: false, dotSize: 2 }],
+  dot: ['Dot', { style: 'dot', color: '#FF3B5C', size: 8, thick: 2, gap: 4, alpha: 100, outline: true, oThick: 1, dot: true, dotSize: 4 }],
+  circle: ['Kreis', { style: 'circle', color: '#3DE0FF', size: 10, thick: 2, gap: 4, alpha: 100, outline: true, oThick: 1, dot: true, dotSize: 2 }],
+  sniper: ['Sniper', { style: 'cross', color: '#FFE03D', size: 16, thick: 1, gap: 7, alpha: 100, outline: true, oThick: 1, dot: true, dotSize: 2 }],
+  tshape: ['T-Form', { style: 't', color: '#FFFFFF', size: 9, thick: 2, gap: 3, alpha: 100, outline: true, oThick: 1, dot: false, dotSize: 2 }],
+};
+const XH_STYLES = [
+  ['cross', 'Kreuz', '<path d="M12 3v6M12 15v6M3 12h6M15 12h6"/>'],
+  ['t', 'T-Form', '<path d="M12 15v6M3 12h6M15 12h6"/>'],
+  ['dot', 'Punkt', '<circle cx="12" cy="12" r="3" fill="currentColor"/>'],
+  ['circle', 'Kreis', '<circle cx="12" cy="12" r="7"/>'],
+  ['plus', 'Plus', '<path d="M12 4v16M4 12h16"/>'],
+];
+const XH_COLORS = ['#3DFF8B', '#FFFFFF', '#3DE0FF', '#FFE03D', '#FF3B5C', '#FF4DF0', '#FF8A3D'];
+const XH_SLIDERS = [['size', 'Länge', 1, 40], ['thick', 'Dicke', 1, 8], ['gap', 'Lücke', 0, 20], ['alpha', 'Deckkraft', 20, 100, '%'], ['oThick', 'Kontur', 0, 3], ['dotSize', 'Punkt', 1, 8], ['offsetX', 'Versatz X', -60, 60], ['offsetY', 'Versatz Y', -60, 60]];
+const XH = { cfg: { ...XH_DEF }, on: false, onlyGame: true, key: 0x79, offsetX: 0, offsetY: 0 };
+
+function xhDraw(c) {
+  const o = c.outline ? c.oThick : 0, t = c.thick, g = c.style === 'plus' ? 0 : c.gap, L = c.size;
+  const R = Math.ceil(Math.max(c.style === 'dot' ? 0 : L + g + t, c.dot || c.style === 'dot' ? c.dotSize : 0) + o + 3);
+  const N = 2 * R + 1, cv = document.createElement('canvas'); cv.width = cv.height = N;
+  const x = cv.getContext('2d'), m = R, t0 = m - Math.floor((t - 1) / 2);
+  const shapes = [];
+  if (c.style === 'cross' || c.style === 't' || c.style === 'plus') {
+    shapes.push([m + 1 + g, t0, L, t], [m - g - L, t0, L, t]);
+    shapes.push([t0, m + 1 + g, t, L]);
+    if (c.style !== 't') shapes.push([t0, m - g - L, t, L]);
+    if (g === 0) shapes.push([t0, t0, t, t]);
+  }
+  const dot = c.dot || c.style === 'dot', ds = c.style === 'dot' ? c.dotSize : c.dotSize;
+  const paint = (col, e) => {
+    x.fillStyle = col; x.strokeStyle = col;
+    shapes.forEach(([a, b, w, h]) => x.fillRect(a - e, b - e, w + 2 * e, h + 2 * e));
+    if (c.style === 'circle') { x.lineWidth = t + 2 * e; x.beginPath(); x.arc(m + .5, m + .5, L, 0, Math.PI * 2); x.stroke(); }
+    if (dot) {
+      if (ds <= 2) { const d0 = m - Math.floor((ds - 1) / 2); x.fillRect(d0 - e, d0 - e, ds + 2 * e, ds + 2 * e); }
+      else { x.beginPath(); x.arc(m + .5, m + .5, ds / 2 + e, 0, Math.PI * 2); x.fill(); }
+    }
+  };
+  if (o > 0) paint('#000', o);
+  paint(c.color, 0);
+  if (c.alpha >= 100) return cv;
+  const out = document.createElement('canvas'); out.width = out.height = N;
+  const ox = out.getContext('2d'); ox.globalAlpha = c.alpha / 100; ox.drawImage(cv, 0, 0); return out;
+}
+function xhRender(bump) {
+  const src = xhDraw(XH.cfg), cv = $('#xhCanvas'), z = $('#xhZoom');
+  cv.width = src.width; cv.height = src.height; cv.getContext('2d').drawImage(src, 0, 0);
+  cv.style.marginLeft = XH.offsetX * 2 + 'px'; cv.style.marginTop = XH.offsetY * 2 + 'px';
+  const zx = z.getContext('2d'); zx.clearRect(0, 0, 96, 96); zx.imageSmoothingEnabled = false;
+  const s = Math.max(24, Math.min(src.width, 48)), sx = (src.width - s) / 2; zx.drawImage(src, sx, sx, s, s, 0, 0, 96, 96);
+  if (bump) { const sc = $('#xhScene'); sc.classList.remove('bump'); void sc.offsetWidth; sc.classList.add('bump'); }
+  return src;
+}
+let xhT = 0;
+function xhPush(img = true) {
+  clearTimeout(xhT);
+  xhT = setTimeout(async () => {
+    const src = img ? xhDraw(XH.cfg) : null;
+    const r = await api('xhair.set', { png: src ? src.toDataURL('image/png').split(',')[1] : '', json: JSON.stringify(XH.cfg), on: XH.on, onlyGame: XH.onlyGame, key: XH.key, offsetX: XH.offsetX, offsetY: XH.offsetY }).catch(() => null);
+    if (r && r.keyOk === false) toast('Taste belegt', 'Eine andere App nutzt diese Taste schon', false);
+  }, 90);
+}
+function xhUI() {
+  $('#xhPresets').innerHTML = Object.entries(XH_PRESETS).map(([k, [n, c]]) => { const on = JSON.stringify(c) === JSON.stringify(XH.cfg); return `<button class="xpre ${on ? 'on' : ''}" data-xp="${k}"><canvas data-pv="${k}"></canvas>${n}</button>`; }).join('');
+  $$('[data-pv]').forEach(cv => { const s = xhDraw(XH_PRESETS[cv.dataset.pv][1]); cv.width = s.width; cv.height = s.height; cv.getContext('2d').drawImage(s, 0, 0); });
+  $('#xhStyles').innerHTML = XH_STYLES.map(([k, n, svg]) => `<button class="xst ${XH.cfg.style === k ? 'on' : ''}" data-xs="${k}"><svg viewBox="0 0 24 24">${svg}</svg>${n}</button>`).join('');
+  const custom = !XH_COLORS.includes(XH.cfg.color.toUpperCase());
+  $('#xhColors').innerHTML = XH_COLORS.map(c => `<button class="xcol ${XH.cfg.color.toUpperCase() === c ? 'on' : ''}" data-xc="${c}" style="background:${c}"></button>`).join('') +
+    `<label class="xcustom ${custom ? 'on' : ''}" title="Eigene Farbe"><input type="color" id="xhPick" value="${XH.cfg.color}"></label>`;
+  const val = k => k === 'offsetX' || k === 'offsetY' ? XH[k] : XH.cfg[k];
+  $('#xhSliders').innerHTML = `<div class="xs tgl"><span>Schwarze Kontur</span><div class="tg ${XH.cfg.outline ? 'on' : ''}" data-xb="outline"></div></div><div class="xs tgl"><span>Mittelpunkt</span><div class="tg ${XH.cfg.dot ? 'on' : ''}" data-xb="dot"></div></div>` +
+    XH_SLIDERS.map(([k, n, mi, ma, u = '']) => { const v = val(k), p = (v - mi) / (ma - mi) * 100; return `<div class="xs"><span>${n}</span><input type="range" min="${mi}" max="${ma}" value="${v}" style="--p:${p}%" data-xr="${k}"><b>${v}${u}</b></div>`; }).join('');
+  xhState();
+  xhRender();
+}
+function xhState() {
+  $('#xhOn').classList.toggle('on', XH.on); $('#xhOnly').classList.toggle('on', XH.onlyGame);
+  $('#xhMain').querySelector('span').textContent = XH.on ? 'Ausschalten' : 'Einschalten';
+  $('#xhMain').classList.toggle('p', !XH.on);
+  $('#navXh').classList.toggle('hidden', !XH.on);
+  $('#xhKey').innerHTML = KEYS.map(([n, v]) => `<button class="${XH.key === v ? 'on' : ''}" data-xk="${v}">${n}</button>`).join('');
+  const kn = KEYS.find(k => k[1] === XH.key)?.[0];
+  $('#xhKeyTxt').textContent = XH.key ? `${kn} schaltet das Fadenkreuz im Spiel an und aus` : 'Keine Taste, nur hier umschaltbar';
+}
+function xhToggle() { XH.on = !XH.on; xhState(); xhPush(false); toast(XH.on ? 'Fadenkreuz an' : 'Fadenkreuz aus', XH.on ? (XH.onlyGame ? 'Erscheint, sobald FiveM im Vordergrund ist' : 'Liegt jetzt über allen Fenstern') : ''); }
+async function setBorderless() {
+  const r = await api('gfx.save', { values: { Windowed: 2 } });
+  if (r.error) return toast('Nicht gespeichert', r.error, false);
+  if (S.gfx) { S.gfx.values.Windowed = 2; S.gfxEdit.Windowed = 2; }
+  toast('Randlos eingestellt', 'Gilt ab dem nächsten FiveM-Start');
+}
+document.addEventListener('click', e => {
+  const p = e.target.closest('[data-xp]'); if (p) { XH.cfg = { ...XH_PRESETS[p.dataset.xp][1] }; xhUI(); xhRender(true); xhPush(); return; }
+  const s = e.target.closest('[data-xs]'); if (s) { XH.cfg.style = s.dataset.xs; xhUI(); xhRender(true); xhPush(); return; }
+  const c = e.target.closest('[data-xc]'); if (c) { XH.cfg.color = c.dataset.xc; xhUI(); xhPush(); return; }
+  const b = e.target.closest('[data-xb]'); if (b) { XH.cfg[b.dataset.xb] = !XH.cfg[b.dataset.xb]; xhUI(); xhPush(); return; }
+  const k = e.target.closest('[data-xk]'); if (k) { XH.key = +k.dataset.xk; xhState(); xhPush(false); return; }
+  const t = e.target.closest('[data-xt]'); if (t) { if (t.dataset.xt === 'on') return xhToggle(); XH.onlyGame = !XH.onlyGame; xhState(); xhPush(false); return; }
+  const bg = e.target.closest('#xhBg button'); if (bg) { $$('#xhBg button').forEach(x => x.classList.toggle('on', x === bg)); $('#xhScene').className = 'xscene bg-' + bg.dataset.bg; }
+});
+document.addEventListener('input', e => {
+  const r = e.target.closest('[data-xr]');
+  if (r) {
+    const k = r.dataset.xr, v = +r.value, u = k === 'alpha' ? '%' : '';
+    if (k === 'offsetX' || k === 'offsetY') XH[k] = v; else XH.cfg[k] = v;
+    r.style.setProperty('--p', (v - r.min) / (r.max - r.min) * 100 + '%'); r.nextElementSibling.textContent = v + u;
+    $$('.xpre').forEach(x => x.classList.toggle('on', JSON.stringify(XH_PRESETS[x.dataset.xp][1]) === JSON.stringify(XH.cfg)));
+    xhRender(); xhPush(); return;
+  }
+  if (e.target.id === 'xhPick') { XH.cfg.color = e.target.value.toUpperCase(); xhRender(); xhPush(); }
+});
+document.addEventListener('change', e => { if (e.target.id === 'xhPick') xhUI(); });
+
+/* ======================= SCREEN COLOR ======================= */
+const DP_PRESETS = {
+  std: ['Standard', 'Original', { vibrance: 0, brightness: 0, contrast: 0, gamma: 100 }],
+  vivid: ['Lebendig', 'Kräftige Farben', { vibrance: 45, brightness: 0, contrast: 8, gamma: 100 }],
+  night: ['Nachtsicht', 'Dunkles sichtbar', { vibrance: 20, brightness: 10, contrast: -4, gamma: 140 }],
+  sharp: ['Kontrast', 'Klare Kanten', { vibrance: 25, brightness: -3, contrast: 20, gamma: 95 }],
+  cine: ['Kino', 'Satt und warm', { vibrance: 12, brightness: -3, contrast: 12, gamma: 90 }],
+};
+const DP_SL = [['vibrance', 'Farbintensität', 'NVIDIA Digital Vibrance', 0, 100], ['brightness', 'Helligkeit', 'Gesamtes Bild', -50, 50], ['contrast', 'Kontrast', 'Abstand hell zu dunkel', -50, 50], ['gamma', 'Gamma', 'Hellt Schatten auf', 50, 200]];
+const DP = { cfg: { on: false, onlyGame: true, vibrance: 0, brightness: 0, contrast: 0, gamma: 100, key: 0 }, nvidia: false, unlocked: false, gammaOk: null, vibOk: null };
+const dpFmt = (k, v) => k === 'gamma' ? (v / 100).toFixed(2) : k === 'vibrance' ? v + '%' : (v > 0 ? '+' : '') + v;
+const dpFilter = c => `saturate(${1 + c.vibrance / 70}) brightness(${1 + c.brightness / 120 + (c.gamma - 100) / 400}) contrast(${1 + c.contrast / 100})`;
+function dpUI() {
+  const c = DP.cfg;
+  $('#dpPresets').innerHTML = Object.entries(DP_PRESETS).map(([k, [n, d, v]]) => { const on = Object.keys(v).every(x => v[x] === c[x]); return `<div class="card dpre ${on ? 'on' : ''}" data-dp="${k}"><i style="filter:${dpFilter(v)}"></i><b>${n}</b><span>${d}</span></div>`; }).join('');
+  $('#dpSliders').innerHTML = DP_SL.map(([k, n, d, mi, ma]) => {
+    const v = c[k], p = (v - mi) / (ma - mi) * 100, off = k === 'vibrance' && !DP.nvidia;
+    return `<div class="dps ${off ? 'off' : ''}"><div class="n"><b>${n}${k === 'vibrance' ? `<span class="chip ${DP.nvidia ? 'g' : ''}" style="height:20px;font-size:10.5px">${DP.nvidia ? 'NVIDIA' : 'nur NVIDIA'}</span>` : ''}</b><span>${d}</span></div><input type="range" min="${mi}" max="${ma}" value="${v}" style="--p:${p}%" data-dr="${k}" ${off ? 'disabled' : ''}><b>${dpFmt(k, v)}</b></div>`;
+  }).join('');
+  $('#dpKey').innerHTML = KEYS.map(([n, v]) => `<button class="${c.key === v ? 'on' : ''}" data-dk="${v}">${n}</button>`).join('');
+  const kn = KEYS.find(k => k[1] === c.key)?.[0];
+  $('#dpKeyTxt').textContent = c.key ? `${kn} schaltet das Farbprofil im Spiel an und aus` : 'Profil im Spiel schnell umschalten';
+  dpState();
+}
+function dpState() {
+  const c = DP.cfg;
+  $('#dpOnly').classList.toggle('on', c.onlyGame);
+  $('#dpMain').querySelector('span').textContent = c.on ? 'Ausschalten' : 'Einschalten';
+  $('#dpMain').classList.toggle('p', !c.on);
+  $('#navDp').classList.toggle('hidden', !c.on);
+  $('#dpLive').className = 'chip ' + (c.on ? 'g' : ''); $('#dpLive').textContent = c.on ? (c.onlyGame ? 'An · nur im Spiel' : 'An') : 'Aus';
+  $('#dpAfter').style.filter = dpFilter(c.on ? c : DP_PRESETS.std[2]);
+  const st = [];
+  st.push(DP.nvidia ? `<div class="dstat ok">${ico('check')}<div><b>NVIDIA erkannt.</b> Farbintensität wird direkt im Treiber gesetzt.</div></div>`
+    : `<div class="dstat warn">${ico('alert')}<div><b>Farbintensität nur mit NVIDIA.</b> Bei AMD: Radeon Software → Anzeige → Sättigung. Helligkeit, Kontrast und Gamma funktionieren überall.</div></div>`);
+  if (DP.gammaOk === false && !DP.unlocked) st.push(`<div class="dstat warn">${ico('alert')}<div><b>Windows begrenzt die Stärke.</b> Schalte den vollen Gamma-Bereich frei, danach einmal neu starten.<br><button class="btn sm" onclick="dpUnlock()">${ico('zap')}Freischalten</button></div></div>`);
+  else if (DP.gammaOk === false) st.push(`<div class="dstat warn">${ico('alert')}<div><b>Wert zu stark.</b> Starte den PC neu, falls du den Bereich gerade freigeschaltet hast, oder nimm etwas zurück.</div></div>`);
+  st.push(`<div class="dstat">${ico('monitor')}<div>Wirkt sofort, ohne FiveM-Neustart. HDR oder der Windows-Nachtmodus können die Werte überschreiben.</div></div>`);
+  $('#dpStatus').innerHTML = st.join('');
+}
+let dpT = 0, dpBusy = false, dpAgain = false;
+function dpPush() {
+  clearTimeout(dpT);
+  dpT = setTimeout(async () => {
+    if (dpBusy) { dpAgain = true; return; }
+    dpBusy = true;
+    try { const r = await api('display.set', { cfg: DP.cfg }); DP.gammaOk = r.gammaOk; DP.vibOk = r.vibOk; if (r.keyOk === false) toast('Taste belegt', 'Andere Taste wählen', false); dpState(); }
+    catch { }
+    dpBusy = false; if (dpAgain) { dpAgain = false; dpPush(); }
+  }, 70);
+}
+function dpToggle() { DP.cfg.on = !DP.cfg.on; dpState(); dpPush(); toast(DP.cfg.on ? 'Farbprofil an' : 'Farbprofil aus', DP.cfg.on && DP.cfg.onlyGame ? 'Wirkt, sobald FiveM im Vordergrund ist' : ''); }
+function dpReset() { Object.assign(DP.cfg, DP_PRESETS.std[2]); dpUI(); dpPush(); }
+async function dpUnlock() { const r = await api('display.unlock'); DP.unlocked = !!r.ok; dpState(); toast('Gamma-Bereich freigeschaltet', 'Starte den PC einmal neu'); }
+document.addEventListener('click', e => {
+  const p = e.target.closest('[data-dp]'); if (p) { Object.assign(DP.cfg, DP_PRESETS[p.dataset.dp][2]); if (p.dataset.dp !== 'std') DP.cfg.on = true; dpUI(); dpPush(); return; }
+  const k = e.target.closest('[data-dk]'); if (k) { DP.cfg.key = +k.dataset.dk; dpUI(); dpPush(); return; }
+  if (e.target.closest('#dpOnly')) { DP.cfg.onlyGame = !DP.cfg.onlyGame; dpState(); dpPush(); }
+});
+document.addEventListener('input', e => {
+  const r = e.target.closest('[data-dr]'); if (!r) return;
+  const k = r.dataset.dr, v = +r.value; DP.cfg[k] = v; DP.cfg.on = true;
+  r.style.setProperty('--p', (v - r.min) / (r.max - r.min) * 100 + '%'); r.nextElementSibling.textContent = dpFmt(k, v);
+  $$('.dpre').forEach(x => { const pv = DP_PRESETS[x.dataset.dp][2]; x.classList.toggle('on', Object.keys(pv).every(q => pv[q] === DP.cfg[q])); });
+  dpState(); dpPush();
+});
+async function initFx(s) {
+  const x = s.xhair || {};
+  try { if (x.json) XH.cfg = { ...XH_DEF, ...JSON.parse(x.json) }; } catch { }
+  Object.assign(XH, { on: !!x.on, onlyGame: x.onlyGame !== false, key: x.key ?? 0x79, offsetX: x.offsetX || 0, offsetY: x.offsetY || 0 });
+  xhUI(); xhPush();
+  try {
+    const d = await api('display.get');
+    Object.assign(DP.cfg, d.cfg); DP.nvidia = d.nvidia; DP.unlocked = d.unlocked; DP.gammaOk = d.gammaOk;
+  } catch { }
+  dpUI();
+}
+
 /* ======================= BOOT ======================= */
 async function boot() {
   $('#side').onclick = e => { const n = e.target.closest('.nav'); if (n) go(n.dataset.p); };
@@ -610,7 +810,7 @@ async function boot() {
   if (d.settings.lastBoost) $('#lastBoost').textContent = 'Letzter Boost: ' + new Date(d.settings.lastBoost).toLocaleDateString('de-DE');
   $('#launchSub').textContent = d.fivem.found ? 'mit Pre-Launch-Boost' : 'FiveM nicht gefunden';
   feed(d.fivem.found ? 'FiveM erkannt: ' + d.fivem.path : 'FiveM nicht gefunden: Pfad im Launcher wählen');
-  renderSettings(); renderLauncher();
+  renderSettings(); renderLauncher(); initFx(d.settings);
   await loadTweaks();
   refreshCache(); ping(); setInterval(ping, 8000);
   api('health').then(h => { S.health = h; $('#hsHealth').textContent = h.score + '%'; }).catch(() => { });
@@ -621,7 +821,7 @@ async function boot() {
 
 /* ======================= MOCK BACKEND (browser preview) ======================= */
 const Mock = {
-  settings: { accent: 'inferno', autoInstall: false, restoreBeforeBoost: true, purgeStandby: true, autoPriority: true, autoRamClean: false, autoUpdate: true, firstRun: false, lastBoost: null },
+  settings: { accent: 'inferno', autoInstall: false, restoreBeforeBoost: true, purgeStandby: true, autoPriority: true, autoRamClean: false, autoUpdate: true, firstRun: false, lastBoost: null, xhair: { on: true, onlyGame: true, key: 0x79, offsetX: 0, offsetY: 0, json: null }, display: { on: false, onlyGame: true, vibrance: 0, brightness: 0, contrast: 0, gamma: 100, key: 0 } },
   tweaks: [
     ['gpu', 'fivem', 'Hochleistungs-GPU erzwingen', 'FiveM läuft immer auf der dedizierten Grafikkarte statt der iGPU.', 'monitor', null, 1],
     ['fso', 'fivem', 'Vollbild-Optimierung für FiveM aus', 'Echter Exclusive-Fullscreen, weniger Input-Lag.', 'max', null, 1],
@@ -648,6 +848,11 @@ const Mock = {
       case 'tweaks.list': return M.tweaks;
       case 'tweak.set': { const t = M.tweaks.find(x => x.id === a.id); t.applied = a.on; return { applied: a.on }; }
       case 'boost': for (let i = 0; i <= 10; i++) { onEvent('boost', { pct: i * 10, text: 'Schritt ' + i }); await sleep(220); } M.tweaks.forEach(t => t.rec && (t.applied = true)); return { freed: 1.4e9, restart: true, applied: 9 };
+      case 'xhair.set': return { keyOk: true };
+      case 'display.get': return { cfg: M.settings.display, nvidia: true, unlocked: false, gammaOk: null };
+      case 'display.set': M.settings.display = a.cfg; return { active: a.cfg.on, gammaOk: true, vibOk: true, keyOk: true };
+      case 'display.preview': return { active: false };
+      case 'display.unlock': return { ok: true };
       case 'ping': return { ms: 18 + Math.round(Math.random() * 6), jitter: 2 };
       case 'fivem.cacheSize': return { found: true, size: 3.2e9 };
       case 'servers.list': return [

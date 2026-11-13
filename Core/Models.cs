@@ -59,6 +59,8 @@ public class Settings
     public DateTime? LastBoost { get; set; }
     public LaunchCfg Launch { get; set; } = new();
     public List<string> Favorites { get; set; } = new();
+    public CrosshairCfg Xhair { get; set; } = new();
+    public DisplayCfg Display { get; set; } = new();
 
     private static string Dir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "OrbitTweak");
     private static string FilePath => Path.Combine(Dir, "settings.v2.json");

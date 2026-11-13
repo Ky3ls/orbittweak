@@ -24,6 +24,14 @@ public partial class MainWindow : Window
     private int _tick;
     private DateTime _lastAutoClean = DateTime.MinValue;
     private double _zoom = 1;
+    private readonly CrosshairOverlay _xhair = new();
+    private readonly DispatcherTimer _live = new() { Interval = TimeSpan.FromMilliseconds(400) };
+    private bool _dispActive, _preview, _lastGame;
+    private bool? _gammaOk, _vibOk;
+    private const int HK_XHAIR = 0xB00, HK_DISPLAY = 0xB01;
+
+    [DllImport("user32.dll")] private static extern bool RegisterHotKey(IntPtr h, int id, uint mod, uint vk);
+    [DllImport("user32.dll")] private static extern bool UnregisterHotKey(IntPtr h, int id);
 
     [DllImport("user32.dll")] private static extern bool ReleaseCapture();
     [DllImport("user32.dll")] private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wp, IntPtr lp);
@@ -48,10 +56,16 @@ public partial class MainWindow : Window
             DwmSetWindowAttribute(h, 33, ref round, sizeof(int));
             int dark = 1;
             DwmSetWindowAttribute(h, 20, ref dark, sizeof(int));
+            HwndSource.FromHwnd(h)?.AddHook(WndProc);
+            RegisterKeys();
         };
         StateChanged += (_, _) => Root.Margin = WindowState == WindowState.Maximized ? SystemParameters.WindowResizeBorderThickness : new Thickness(0);
         Loaded += async (_, _) => await InitWeb();
-        Closing += (_, _) => { S.Save(); Catalog.SetTimerResolution(false); };
+        Closing += (_, _) => { S.Save(); Catalog.SetTimerResolution(false); StopLive(); };
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => { ScreenColor.Restore(); NvVibrance.Restore(); };
+        Application.Current.ShutdownMode = ShutdownMode.OnMainWindowClose;
+        _live.Tick += (_, _) => LiveTick();
+        _live.Start();
 
         if (S.TimerRes) Catalog.SetTimerResolution(true);
         Updater.CleanupOld();
@@ -143,6 +157,7 @@ public partial class MainWindow : Window
 
     private static string Str(JsonElement a, string k) => a.ValueKind == JsonValueKind.Object && a.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
     private static bool Bool(JsonElement a, string k) => a.ValueKind == JsonValueKind.Object && a.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.True;
+    private static int Int(JsonElement a, string k) => a.ValueKind == JsonValueKind.Object && a.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.Number ? (int)Math.Round(v.GetDouble()) : 0;
 
     // =====================================================================
     //  COMMANDS
@@ -262,6 +277,43 @@ public partial class MainWindow : Window
                 try { Gfx.Restore(); Log("↺ Grafik-Backup wiederhergestellt"); return new { ok = true }; }
                 catch (Exception ex) { return new { error = ex.Message }; }
 
+            // ---------- crosshair ----------
+            case "xhair.set":
+            {
+                var x = S.Xhair;
+                x.On = Bool(a, "on"); x.OnlyGame = Bool(a, "onlyGame"); x.Key = Int(a, "key");
+                x.OffsetX = Math.Clamp(Int(a, "offsetX"), -400, 400); x.OffsetY = Math.Clamp(Int(a, "offsetY"), -400, 400);
+                var json = Str(a, "json"); if (json.Length > 0) x.Json = json;
+                var png = Str(a, "png");
+                if (png.Length > 0) _xhair.SetImage(Convert.FromBase64String(png), x.OffsetX, x.OffsetY);
+                S.Save();
+                var keys = RegisterKeys();
+                LiveTick();
+                return new { keyOk = keys.xhair };
+            }
+
+            // ---------- screen color ----------
+            case "display.get":
+                return new { cfg = S.Display, nvidia = await Task.Run(() => NvVibrance.Available), unlocked = ScreenColor.RangeUnlocked, active = _dispActive, gammaOk = _gammaOk };
+            case "display.set":
+            {
+                var before = S.Display.On;
+                S.Display = a.GetProperty("cfg").Deserialize<DisplayCfg>(JIn) ?? new DisplayCfg();
+                S.Save();
+                var keys = RegisterKeys();
+                SyncDisplay(GameFocus.IsGame(), true);
+                if (before != S.Display.On) Log(S.Display.On ? "🎨 Farbprofil aktiviert" : "🎨 Farbprofil aus");
+                return new { active = _dispActive, gammaOk = _gammaOk, vibOk = _vibOk, keyOk = keys.display };
+            }
+            case "display.preview":
+                _preview = Bool(a, "on");
+                SyncDisplay(GameFocus.IsGame(), true);
+                return new { active = _dispActive, gammaOk = _gammaOk, vibOk = _vibOk };
+            case "display.unlock":
+                ScreenColor.UnlockRange();
+                Log("🎨 Erweiterter Gamma-Bereich freigeschaltet (nach Neustart aktiv)");
+                return new { ok = ScreenColor.RangeUnlocked };
+
             // ---------- cleaner ----------
             case "clean.scan":
                 return await Task.Run(() => Cleaner.Targets().Select(t => new { id = t.Id, name = t.Name, desc = t.Desc, icon = t.Icon, size = Cleaner.Measure(t), sel = t.Selected }).ToList());
@@ -331,6 +383,76 @@ public partial class MainWindow : Window
             }
         }
         throw new InvalidOperationException("Unbekannter Befehl: " + cmd);
+    }
+
+    // =====================================================================
+    //  LIVE: crosshair overlay, screen color, hotkeys
+    // =====================================================================
+    private void LiveTick()
+    {
+        bool game = GameFocus.IsGame();
+        _xhair.Update(S.Xhair.On && (!S.Xhair.OnlyGame || game));
+        // re-apply when the game gets focus (fullscreen games may reset the gamma ramp)
+        bool focusGained = game && !_lastGame;
+        _lastGame = game;
+        SyncDisplay(game, focusGained);
+    }
+
+    private void SyncDisplay(bool game, bool force)
+    {
+        var d = S.Display;
+        bool want = d.On && (!d.OnlyGame || game || _preview);
+        if (want && (force || !_dispActive))
+        {
+            if (d.GammaNeutral) { ScreenColor.Restore(); _gammaOk = true; }
+            else _gammaOk = ScreenColor.Apply(d);
+            if (d.Vibrance > 0) _vibOk = NvVibrance.Set(d.Vibrance);
+            else { NvVibrance.Restore(); _vibOk = null; }
+            _dispActive = true;
+        }
+        else if (!want && _dispActive)
+        {
+            ScreenColor.Restore(); NvVibrance.Restore();
+            _dispActive = false;
+        }
+    }
+
+    private void StopLive()
+    {
+        _live.Stop();
+        _xhair.Close();
+        ScreenColor.Restore(); NvVibrance.Restore();
+        var h = new WindowInteropHelper(this).Handle;
+        if (h != IntPtr.Zero) { UnregisterHotKey(h, HK_XHAIR); UnregisterHotKey(h, HK_DISPLAY); }
+    }
+
+    private (bool xhair, bool display) RegisterKeys()
+    {
+        var h = new WindowInteropHelper(this).Handle;
+        if (h == IntPtr.Zero) return (true, true);
+        UnregisterHotKey(h, HK_XHAIR); UnregisterHotKey(h, HK_DISPLAY);
+        bool x = S.Xhair.Key <= 0 || RegisterHotKey(h, HK_XHAIR, 0x4000, (uint)S.Xhair.Key);
+        bool d = S.Display.Key <= 0 || (S.Display.Key != S.Xhair.Key && RegisterHotKey(h, HK_DISPLAY, 0x4000, (uint)S.Display.Key));
+        return (x, d);
+    }
+
+    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wp, IntPtr lp, ref bool handled)
+    {
+        if (msg != 0x0312) return IntPtr.Zero; // WM_HOTKEY
+        var id = wp.ToInt32();
+        if (id == HK_XHAIR)
+        {
+            S.Xhair.On = !S.Xhair.On; S.Save(); LiveTick();
+            Emit("xhair", new { on = S.Xhair.On });
+            handled = true;
+        }
+        else if (id == HK_DISPLAY)
+        {
+            S.Display.On = !S.Display.On; S.Save(); SyncDisplay(GameFocus.IsGame(), true);
+            Emit("display", new { on = S.Display.On, active = _dispActive });
+            handled = true;
+        }
+        return IntPtr.Zero;
     }
 
     private static CleanTarget Target(string id) => Cleaner.Targets().First(t => t.Id == id);

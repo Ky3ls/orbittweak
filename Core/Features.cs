@@ -21,6 +21,9 @@ internal static class Gfx
     private static readonly HashSet<string> Floats = new(StringComparer.OrdinalIgnoreCase)
     { "LodScale", "CityDensity", "MotionBlurStrength", "PedLodBias", "VehicleLodBias", "Shadow_Distance", "PedVarietyMultiplier", "VehicleVarietyMultiplier", "MaxLodScale" };
 
+    // live in <video> instead of <graphics>; Windowed: 0 fullscreen, 1 window, 2 borderless
+    private static readonly HashSet<string> VideoKeys = new(StringComparer.OrdinalIgnoreCase) { "Windowed" };
+
     public static object Get()
     {
         if (!File.Exists(FilePath)) return new { found = false, path = FilePath, values = new Dictionary<string, string>(), hasBackup = false };
@@ -28,6 +31,7 @@ internal static class Gfx
         var g = doc.Root?.Element("graphics");
         var values = g?.Elements().Where(e => e.Attribute("value") != null)
                       .ToDictionary(e => e.Name.LocalName, e => e.Attribute("value")!.Value) ?? new();
+        if (doc.Root?.Element("video")?.Element("Windowed")?.Attribute("value")?.Value is { } win) values["Windowed"] = win;
         return new { found = true, path = FilePath, values, hasBackup = File.Exists(Backup) };
     }
 
@@ -54,8 +58,14 @@ internal static class Gfx
             };
             if (Floats.Contains(p.Name) && double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out var d))
                 v = d.ToString("0.000000", CultureInfo.InvariantCulture);
-            var el = g.Element(p.Name);
-            if (el == null) g.Add(new XElement(p.Name, new XAttribute("value", v)));
+            var sec = g;
+            if (VideoKeys.Contains(p.Name))
+            {
+                sec = doc.Root.Element("video") ?? new XElement("video");
+                if (sec.Parent == null) doc.Root.Add(sec);
+            }
+            var el = sec.Element(p.Name);
+            if (el == null) sec.Add(new XElement(p.Name, new XAttribute("value", v)));
             else el.SetAttributeValue("value", v);
         }
         doc.Save(FilePath);
