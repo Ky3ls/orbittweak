@@ -829,3 +829,27 @@ input[type=range]::-webkit-slider-thumb:hover{box-shadow:0 0 0 7px rgba(var(--a-
 .rs-grid .seg button{height:26px;padding:0 9px;font-size:11.5px}
 
 .padprev{aspect-ratio:auto !important;padding:18px 0}
+
+/* ============ 2.14.0 account / admin ============ */
+.hwid{font-family:var(--mono);font-size:11.5px;padding:2px 8px;border-radius:7px;background:rgba(255,255,255,.06)}
+.mono{font-family:var(--mono);letter-spacing:.06em}
+.acc-login{display:flex;gap:10px;max-width:520px}
+.acc-login .in{font-size:15px;height:46px;text-transform:uppercase}
+.acc-login .btn{height:46px}
+.acc-ok{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:14px;background:rgba(74,222,154,.08);border:1px solid rgba(74,222,154,.3)}
+.acc-ok>svg.i{color:var(--good)}
+.acc-ok b{font-size:14px}
+.acc-ok p{font-size:12.5px;color:var(--sub)}
+.adm-new{display:flex;gap:10px;align-items:center}
+.adm-new .in{flex:1}
+.adm-code{display:flex;align-items:center;gap:16px;justify-content:space-between;margin-top:14px;padding:14px 16px;border-radius:14px;background:rgba(var(--a-rgb),.08);border:1px solid rgba(var(--a-rgb),.35)}
+.adm-code code{display:block;font-family:var(--mono);font-size:22px;font-weight:700;letter-spacing:.08em;margin-top:4px;user-select:text}
+.crow2{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.crow2:last-child{border:0}
+.crow2.off{opacity:.55}
+.cc{font-family:var(--mono);font-size:12.5px;user-select:text}
+.cn{flex:1;min-width:80px;font-size:13px}
+.cs{font-size:12px}
+.form{display:flex;flex-direction:column;gap:12px;text-align:left}
+.form label{display:flex;flex-direction:column;gap:6px;font-size:12.5px;font-weight:600;color:var(--sub)}
+.form2{display:grid;grid-template-columns:1fr 1fr;gap:12px}

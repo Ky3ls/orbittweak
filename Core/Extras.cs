@@ -690,3 +690,47 @@ internal static class ModDownloads
         return (rpfs, temp, null);
     }
 }
+
+// =====================================================================
+//  ACCOUNT – access codes bound to this PC (HWID) via the OrbitTweak API
+// =====================================================================
+internal static class Account
+{
+    private static string? _hwid;
+
+    /// <summary>Anonymous PC fingerprint: SHA-256 of Windows MachineGuid + CPU + board. Never sent in clear.</summary>
+    public static string Hwid
+    {
+        get
+        {
+            if (_hwid != null) return _hwid;
+            var guid = Reg.Get(@"HKLM\SOFTWARE\Microsoft\Cryptography", "MachineGuid") as string ?? "";
+            var cpu = Reg.Get(@"HKLM\HARDWARE\DESCRIPTION\System\CentralProcessor\0", "ProcessorNameString") as string ?? "";
+            var board = Reg.Get(@"HKLM\HARDWARE\DESCRIPTION\System\BIOS", "BaseBoardProduct") as string ?? "";
+            var bytes = System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes($"OrbitTweak|{guid}|{cpu.Trim()}|{board.Trim()}"));
+            return _hwid = Convert.ToHexString(bytes).ToLowerInvariant();
+        }
+    }
+
+    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(5) };
+
+    /// <summary>Calls the API (base URL comes from the library file) with this PC's token.</summary>
+    public static async Task<object> Call(string baseUrl, string method, string path, System.Text.Json.JsonElement? body, string? token)
+    {
+        if (!Regex.IsMatch(baseUrl, @"^https://[\w\.\-]+(/[\w\.\-/]*)?$")) return new { error = "Server ist noch nicht eingerichtet" };
+        if (!Regex.IsMatch(path, @"^/api/[\w/]+$")) return new { error = "Ungültiger Pfad" };
+        using var req = new HttpRequestMessage(method == "POST" ? HttpMethod.Post : HttpMethod.Get, baseUrl.TrimEnd('/') + path);
+        req.Headers.UserAgent.ParseAdd("OrbitTweak");
+        req.Headers.Add("X-HWID", Hwid);
+        if (!string.IsNullOrEmpty(token)) req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        if (method == "POST") req.Content = new StringContent(body?.GetRawText() ?? "{}", Encoding.UTF8, "application/json");
+        try
+        {
+            using var r = await Http.SendAsync(req);
+            var text = await r.Content.ReadAsStringAsync();
+            try { return System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(text); }
+            catch { return new { error = $"Server antwortet nicht richtig (HTTP {(int)r.StatusCode})" }; }
+        }
+        catch (Exception ex) { return new { error = "Server nicht erreichbar: " + ex.Message }; }
+    }
+}

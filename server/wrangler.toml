@@ -1,0 +1,11 @@
+name = "orbittweak-api"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+workers_dev = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "orbittweak"
+database_id = "REPLACE_WITH_D1_ID"
+
+# secret: TOKEN_SECRET  (wrangler secret put TOKEN_SECRET)

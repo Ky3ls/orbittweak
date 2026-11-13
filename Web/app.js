@@ -102,7 +102,7 @@ function go(p) {
   $$('.nav').forEach(n => n.classList.toggle('active', n.dataset.p === p));
   $$('.page').forEach(s => s.classList.toggle('show', s.id === 'p-' + p));
   moveInd(); enterPage($('#p-' + p));
-  ({ servers: () => S.servers.length || loadServers(), gfx: () => { S.gfx || loadGfx(); gwRefresh(); }, f8: () => loadF8().then(renderF8), minimap: modsRefresh, clip: clipList, mods: modsRefresh, settings: () => setTab($('#setTabs .tab.on')?.dataset.st || 'design'), xhair: () => setTimeout(xhPlace, 30), cleaner: () => S.clean.length || scan(),
+  ({ servers: () => S.servers.length || loadServers(), gfx: () => { S.gfx || loadGfx(); gwRefresh(); }, f8: () => loadF8().then(renderF8), admin: () => admShow(admTab), minimap: modsRefresh, clip: clipList, mods: modsRefresh, settings: () => setTab($('#setTabs .tab.on')?.dataset.st || 'design'), xhair: () => setTimeout(xhPlace, 30), cleaner: () => S.clean.length || scan(),
      diag: () => { S.health ? renderHealth(S.health) : runHealth(); loadLogs(); }, launcher: renderCmd, home: refreshCache })[p]?.();
 }
 window.go = go;
@@ -1247,6 +1247,7 @@ function setTab(t) {
   $$('#setTabs .tab').forEach(b => b.classList.toggle('on', b.dataset.st === t));
   $$('.stab').forEach(s => s.classList.toggle('hidden', s.id !== 'st-' + t));
   if (t === 'design') bgGrid();
+  if (t === 'account') accLoad();
 }
 window.setTab = setTab;
 document.addEventListener('click', e => { const t = e.target.closest('#setTabs .tab'); if (t) setTab(t.dataset.st); });
@@ -1407,12 +1408,16 @@ async function initPad(s) {
 /* ======================= MOD LIBRARY ======================= */
 const LIB_URL = 'https://raw.githubusercontent.com/Ky3ls/orbittweak/main/mods.json';
 const LIB_CATS = [['all', 'Alle', 'layers'], ['reshade', 'ReShade-Looks', 'sparkle'], ['kill', 'Kill-Effekte', 'crosshair'], ['minimap', 'Minimap', 'map'], ['gfx', 'Grafik-Packs', 'sun'], ['sound', 'Sounds', 'activity'], ['other', 'Sonstiges', 'puzzle']];
-const LIB = { items: [], installed: new Set(), cat: 'all', q: '', sort: 'pop', busy: {} };
+const LIB = { items: [], installed: new Set(), cat: 'all', q: '', sort: 'pop', busy: {}, api: '' };
 async function libLoad() {
   let data = null;
   try { const c = new AbortController(); setTimeout(() => c.abort(), 4000); data = await (await fetch(LIB_URL + '?t=' + Math.floor(Date.now() / 3e5), { signal: c.signal })).json(); } catch { }
   if (!data || !Array.isArray(data.mods)) try { data = await (await fetch('mods.json')).json(); } catch { data = { mods: [] }; }
-  LIB.items = data.mods.filter(m => m && m.id && m.name && (m.type === 'reshade' || (m.type === 'file' && /^https:\/\//.test(m.url || ''))));
+  LIB.api = typeof data.api === 'string' ? data.api : '';
+  let srvMods = [];
+  if (LIB.api) try { const r = await api('srv', { api: LIB.api, method: 'GET', path: '/api/mods' }); srvMods = (r && r.mods) || []; } catch { }
+  const seen = new Set();
+  LIB.items = [...data.mods, ...srvMods].filter(m => m && m.id && m.name && !seen.has(m.id) && seen.add(m.id) && (m.type === 'reshade' || (m.type === 'file' && /^https:\/\//.test(m.url || ''))));
   try { LIB.installed = new Set((await api('mods.lib')).installed || []); } catch { }
   try { RS = await api('reshade.status'); } catch { }
 }
@@ -1429,7 +1434,7 @@ function libCard(m) {
   return `<div class="lcard ${st === 'active' || st === 'installed' ? 'on' : ''}">
     <div class="lthumb ${m.type === 'reshade' && !m.img ? 'rsf-' + esc(m.preset) : ''}" ${thumb}></div>
     <div class="ltop"><span class="lcat">${ico(cat[2])}${cat[1]}</span>${m.popular >= 85 ? '<span class="lhot">Beliebt</span>' : ''}</div>
-    <div class="lbody"><b>${esc(m.name)}</b><span class="lby">von ${esc(m.author || 'unbekannt')}</span><p>${esc(m.desc || '')}</p>
+    <div class="lbody"><b>${esc(m.name)}</b><span class="lby">von ${esc(m.author || 'unbekannt')}${m.addedBy ? ' · eingereicht' : ''}</span><p>${esc(m.desc || '')}</p>
       <div class="ltags">${(m.tags || []).slice(0, 4).map(t => `<span>#${esc(t)}</span>`).join('')}</div>
       <div class="lact"><span class="lsize">${m.type === 'reshade' ? 'ReShade-Look' : m.size ? bytes(m.size) : 'Mod-Datei'}</span>${btn}</div></div></div>`;
 }
@@ -1510,6 +1515,135 @@ document.addEventListener('click', e => {
   if (e.target.closest('#rsPerf') && RSC) rsSave({ perf: !RSC.perf });
 });
 
+/* ======================= ACCOUNT / ADMIN ======================= */
+const ACC = { role: null, loggedIn: false, hwid: '' };
+const srv = (method, path, body) => api('srv', { api: LIB.api, method, path, body });
+async function accLoad() {
+  try { Object.assign(ACC, await api('auth.info')); } catch { }
+  if (!LIB.api) try { await libLoad(); } catch { }
+  accUI();
+  if (ACC.loggedIn && LIB.api) {
+    const me = await srv('GET', '/api/me').catch(() => null);
+    if (!me || me.error) { ACC.loggedIn = false; ACC.role = null; } else ACC.role = me.role;
+    accUI();
+    if (ACC.role === 'admin') admPendingCount();
+  }
+}
+function accUI() {
+  const r = ACC.loggedIn ? ACC.role : null;
+  $('#accHwid').textContent = ACC.hwid || '…';
+  $('#accRole').className = 'chip ' + (r === 'admin' ? 'a' : r ? 'g' : '');
+  $('#accRole').textContent = r === 'admin' ? 'Admin' : r ? 'Editor' : 'Nicht angemeldet';
+  $('#accLogin').classList.toggle('hidden', !!r); $('#accIn').classList.toggle('hidden', !r);
+  $('#accTitle').textContent = r === 'admin' ? 'Angemeldet als Admin' : 'Angemeldet als Editor';
+  $('#accText').textContent = r === 'admin' ? 'Du kannst Codes erzeugen, Mods direkt live stellen und Einreichungen freigeben.' : 'Du kannst Mods einreichen. Ein Admin gibt sie frei.';
+  $('#accNoSrv').classList.toggle('hidden', !!LIB.api);
+  $('#navAdmin').classList.toggle('hidden', r !== 'admin');
+  $('#libAdd').classList.toggle('hidden', !r);
+}
+async function accRedeem() {
+  const code = $('#accCode').value.trim().toUpperCase();
+  if (!/^ORB-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(code)) return toast('Code prüfen', 'Format: ORB-XXXX-XXXX-XXXX', false);
+  if (!LIB.api) return toast('Server noch nicht online', 'Bitte später nochmal versuchen', false);
+  const r = await api('auth.redeem', { api: LIB.api, code });
+  if (r.error) return toast('Code nicht angenommen', r.error, false);
+  ACC.loggedIn = true; ACC.role = r.role; $('#accCode').value = ''; accUI();
+  passed(r.role === 'admin' ? 'Admin freigeschaltet' : 'Zugang freigeschaltet', 'Code ist jetzt an diesen PC gebunden');
+}
+async function accLogout() { await api('auth.logout'); ACC.loggedIn = false; ACC.role = null; accUI(); toast('Abgemeldet', 'Mit deinem Code kannst du dich auf diesem PC jederzeit wieder anmelden'); }
+window.accRedeem = accRedeem; window.accLogout = accLogout;
+document.addEventListener('input', e => { if (e.target.id === 'accCode') { let v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); if (v.startsWith('ORB')) v = v.slice(3); v = v.slice(0, 12); e.target.value = v ? 'ORB-' + v.match(/.{1,4}/g).join('-') : ''; } });
+
+/* ---- add mod ---- */
+function libAddForm() {
+  const cats = LIB_CATS.filter(c => c[0] !== 'all' && c[0] !== 'reshade');
+  modal(`<div class="kicker">Bibliothek</div><h1 style="margin-top:8px;font-size:24px">Mod <span class="grad">hinzufügen</span></h1>
+    <p style="font-size:12.5px">${ACC.role === 'admin' ? 'Als Admin ist die Mod sofort für alle sichtbar.' : 'Ein Admin prüft die Mod, bevor sie für alle sichtbar wird.'} Nur Mods eintragen, die geteilt werden dürfen.</p>
+    <div class="form mt">
+      <label>Name<input class="in" id="fmName" maxlength="60" placeholder="z. B. Red Flash Kill-Effekt"></label>
+      <label>Kategorie<div class="seg" id="fmCat">${cats.map(([k, n], i) => `<button class="${i === 0 ? 'on' : ''}" data-v="${k}">${n}</button>`).join('')}</div></label>
+      <label>Direkter Download-Link (https)<input class="in" id="fmUrl" placeholder="https://…/mod.zip  (.rpf, .zip, .rar, .7z)"></label>
+      <label>Vorschaubild-Link (optional)<input class="in" id="fmImg" placeholder="https://…/vorschau.jpg"></label>
+      <label>Beschreibung<input class="in" id="fmDesc" maxlength="240" placeholder="Was macht die Mod?"></label>
+      <div class="form2"><label>Autor<input class="in" id="fmAuthor" maxlength="40" placeholder="Ersteller der Mod"></label><label>Tags<input class="in" id="fmTags" placeholder="pvp, rot, clean"></label></div>
+    </div>
+    <div class="act"><button class="btn" onclick="closeModal()">Abbrechen</button><button class="btn p lg" id="fmGo" onclick="libAddSend()">${ico('check')}Hinzufügen</button></div>`);
+  $('#mbox').style.width = '640px';
+}
+document.addEventListener('click', e => { const b = e.target.closest('#fmCat button'); if (b) $$('#fmCat button').forEach(x => x.classList.toggle('on', x === b)); });
+async function libAddSend() {
+  const body = { name: $('#fmName').value, cat: $('#fmCat .on')?.dataset.v || 'other', url: $('#fmUrl').value.trim(), img: $('#fmImg').value.trim(), desc: $('#fmDesc').value, author: $('#fmAuthor').value, tags: $('#fmTags').value };
+  if (body.name.trim().length < 3) return toast('Name fehlt', '', false);
+  if (!/^https:\/\//.test(body.url)) return toast('Link prüfen', 'Der Download-Link muss mit https:// beginnen', false);
+  const b = $('#fmGo'); b.disabled = true; b.innerHTML = `${ico('refresh', 'i spin')}Prüfe Datei…`;
+  const r = await srv('POST', '/api/mods', body).catch(e => ({ error: e.message }));
+  b.disabled = false; b.innerHTML = `${ico('check')}Hinzufügen`;
+  if (r.error) return toast('Nicht hinzugefügt', r.error, false);
+  closeModal(); $('#mbox').style.width = '';
+  passed(r.status === 'live' ? 'Mod ist live' : 'Mod eingereicht', r.status === 'live' ? 'Für alle in der Bibliothek sichtbar' : 'Wartet auf Freigabe durch einen Admin');
+  modsRefresh();
+}
+window.libAddForm = libAddForm; window.libAddSend = libAddSend;
+
+/* ---- admin panel ---- */
+let admTab = 'codes';
+function admShow(t) { admTab = t; $$('#admTabs .tab').forEach(b => b.classList.toggle('on', b.dataset.at === t)); ['codes', 'pending', 'mods'].forEach(x => $('#adm-' + x).classList.toggle('hidden', x !== t)); admLoad(); }
+document.addEventListener('click', e => { const t = e.target.closest('#admTabs .tab'); if (t) admShow(t.dataset.at); const r = e.target.closest('#admRole button'); if (r) $$('#admRole button').forEach(x => x.classList.toggle('on', x === r)); });
+const ago = s => { if (!s) return '—'; const d = Date.now() / 1000 - s; return d < 120 ? 'gerade eben' : d < 7200 ? Math.round(d / 60) + ' Min.' : d < 172800 ? Math.round(d / 3600) + ' Std.' : Math.round(d / 86400) + ' Tagen'; };
+async function admPendingCount() {
+  const r = await srv('GET', '/api/mods/pending').catch(() => null); const n = (r && r.mods || []).length;
+  $('#navPend').textContent = n; $('#navPend').classList.toggle('hidden', !n); $('#admPendC').textContent = n;
+}
+async function admLoad() {
+  if (ACC.role !== 'admin') return;
+  if (admTab === 'codes') {
+    const r = await srv('GET', '/api/codes'); if (r.error) return toast('Fehler', r.error, false);
+    $('#admCount').textContent = r.codes.length;
+    $('#admCodes').innerHTML = r.codes.length ? r.codes.map(c => `<div class="crow2 ${c.revoked ? 'off' : ''}">
+      <code class="cc">${esc(c.code)}</code><button class="ib" title="Kopieren" onclick="copyCmd('${esc(c.code)}')">${ico('copy')}</button>
+      <span class="chip ${c.role === 'admin' ? 'a' : ''}">${c.role === 'admin' ? 'Admin' : 'Editor'}</span>
+      <span class="cn">${esc(c.note || '')}${c.self ? ' <span class="muted">(du)</span>' : ''}</span>
+      <span class="cs">${c.revoked ? '<span class="chip r">Gesperrt</span>' : c.hwid ? `<span class="chip g">Gebunden</span><span class="muted"> PC ${esc(c.hwid)} · aktiv vor ${ago(c.last_seen || c.bound_at)}</span>` : '<span class="chip w">Noch frei</span>'}</span>
+      ${c.self ? '' : `${c.hwid ? `<button class="btn sm" onclick="admAct('unbind','${esc(c.code)}')">PC lösen</button>` : ''}<button class="btn sm ${c.revoked ? '' : 'd'}" onclick="admAct('revoke','${esc(c.code)}',${c.revoked ? 1 : 0})">${c.revoked ? 'Entsperren' : 'Sperren'}</button>`}
+    </div>`).join('') : '<div class="empty">Noch keine Codes.</div>';
+  } else if (admTab === 'pending') {
+    const r = await srv('GET', '/api/mods/pending'); if (r.error) return toast('Fehler', r.error, false);
+    $('#admPendC').textContent = r.mods.length;
+    $('#admPending').innerHTML = r.mods.length ? r.mods.map(m => `<div class="lcard"><div class="lthumb" style="background-image:url('${esc(m.img || bgUrl())}')"></div>
+      <div class="lbody"><b>${esc(m.name)}</b><span class="lby">${esc((LIB_CATS.find(c => c[0] === m.cat) || [0, 'Sonstiges'])[1])} · ${bytes(m.size)} · von ${esc(m.author)}</span><p>${esc(m.desc || '')}</p>
+      <code class="cc" style="font-size:10.5px;word-break:break-all">${esc(m.url)}</code>
+      <div class="lact"><button class="btn sm d" onclick="admMod('delete','${esc(m.id)}')">${ico('trash')}Ablehnen</button><button class="btn p sm" onclick="admMod('approve','${esc(m.id)}')">${ico('check')}Freigeben</button></div></div></div>`).join('')
+      : '<div class="empty">Keine offenen Einreichungen.</div>';
+  } else {
+    const r = await srv('GET', '/api/mods'); if (r.error) return toast('Fehler', r.error, false);
+    $('#admMods').innerHTML = r.mods.length ? r.mods.map(m => `<div class="mod"><div class="tx"><b>${esc(m.name)}</b><p>${esc(m.cat)} · ${bytes(m.size)} · ${esc(m.url)}</p></div><button class="btn sm d" onclick="admMod('delete','${esc(m.id)}')">${ico('trash')}Löschen</button></div>`).join('') : '<div class="empty">Noch keine Server-Mods.</div>';
+  }
+}
+async function admCreate() {
+  const role = $('#admRole .on')?.dataset.v || 'editor';
+  const r = await srv('POST', '/api/codes', { role, note: $('#admNote').value });
+  if (r.error) return toast('Fehler', r.error, false);
+  $('#admNote').value = '';
+  $('#admNewCode').classList.remove('hidden');
+  $('#admNewCode').innerHTML = `<div><span class="sub" style="font-size:12px">Neuer ${role === 'admin' ? 'Admin' : 'Editor'}-Code, nur einmal an einen PC bindbar:</span><code>${esc(r.code)}</code></div><button class="btn p" onclick="copyCmd('${esc(r.code)}')">${ico('copy')}Kopieren</button>`;
+  admLoad();
+}
+async function admAct(kind, code, undo) {
+  if (kind === 'revoke' && !undo && !await confirmBox('Code sperren?', code + ' funktioniert danach nicht mehr.')) return;
+  const r = await srv('POST', '/api/codes/' + kind, { code, undo: !!undo });
+  if (r.error) return toast('Fehler', r.error, false);
+  toast(kind === 'unbind' ? 'PC gelöst' : undo ? 'Code entsperrt' : 'Code gesperrt', kind === 'unbind' ? 'Der Code kann jetzt auf einem neuen PC eingelöst werden' : code);
+  admLoad();
+}
+async function admMod(kind, id) {
+  if (kind === 'delete' && !await confirmBox('Mod löschen?', 'Der Eintrag wird aus der Bibliothek entfernt.')) return;
+  const r = await srv('POST', '/api/mods/' + kind, { id });
+  if (r.error) return toast('Fehler', r.error, false);
+  toast(kind === 'approve' ? 'Freigegeben' : 'Gelöscht', kind === 'approve' ? 'Die Mod ist jetzt für alle sichtbar' : '');
+  admLoad(); admPendingCount(); libLoad().then(libRender);
+}
+window.admCreate = admCreate; window.admAct = admAct; window.admMod = admMod; window.admLoad = admLoad;
+
 /* ======================= BOOT ======================= */
 async function boot() {
   const t0 = performance.now();
@@ -1538,7 +1672,7 @@ async function boot() {
   if (d.settings.lastBoost) $('#lastBoost').textContent = 'Letzter Boost: ' + new Date(d.settings.lastBoost).toLocaleDateString('de-DE');
   $('#launchSub').textContent = d.fivem.found ? 'mit Pre-Launch-Boost' : 'FiveM nicht gefunden';
   feed(d.fivem.found ? 'FiveM erkannt: ' + d.fivem.path : 'FiveM nicht gefunden: Pfad im Launcher wählen');
-  renderSettings(); renderLauncher(); initFx(d.settings); initMinimap(d.settings); initClip(d.settings); if (d.settings.bgVersion) { api('bg.clear').catch(() => { }); S.settings.bgVersion = 0; } applyBg(); initPad(d.settings);
+  renderSettings(); renderLauncher(); initFx(d.settings); initMinimap(d.settings); initClip(d.settings); libLoad().then(accLoad); if (d.settings.bgVersion) { api('bg.clear').catch(() => { }); S.settings.bgVersion = 0; } applyBg(); initPad(d.settings);
   $('#snapTg').classList.toggle('on', !!d.settings.snapTap);
   await loadTweaks();
   refreshCache(); ping(); setInterval(ping, 8000); curServer();
@@ -1593,6 +1727,10 @@ const Mock = {
       case 'mods.browse': return null;
       case 'mods.install': return { count: 1 };
       case 'mods.lib': return { installed: [] };
+      case 'auth.info': return { hwid: '3fa9c1e07b2d', role: 'admin', loggedIn: true };
+      case 'auth.redeem': return { ok: true, role: 'editor' };
+      case 'auth.logout': return { ok: true };
+      case 'srv': return MOCKSRV(a);
       case 'reshade.cfg.get': return { found: true, keyOverlay: 36, keyEffects: 145, keyScreenshot: 44, keyNext: 0, showFps: false, perf: true };
       case 'reshade.cfg.set': case 'reshade.shots': return {};
       case 'server.current': return { found: true, connected: true, key: 'cfx:abc123', url: 'cfx.re/join/abc123', fav: false, server: { name: '^1Nova^7City ^3| Roleplay [GER]', desc: 'Die lebendigste Stadt Deutschlands · Whitelist · Eigene Wirtschaft', allTags: ['roleplay', 'deutsch', 'economy', 'whitelist', 'jobs', 'gangs', 'custom cars'], locale: 'DE', players: 187, max: 256, ping: 22, build: '3095', onesync: true, resources: 412, owner: 'NovaTeam', discord: 'https://discord.gg/novacity', website: 'https://novacity.de', connect: 'cfx.re/join/abc123', online: true } };
@@ -1634,3 +1772,13 @@ const Mock = {
 
 boot();
 
+
+function MOCKSRV(a) {
+  const p = a.path;
+  if (p === '/api/me') return { role: 'admin' };
+  if (p === '/api/mods' && a.method === 'GET') return { mods: [{ id: 'm-demo1', type: 'file', name: 'Red Flash Kill-Effekt', cat: 'kill', url: 'https://example.com/redflash.zip', size: 2.1e6, author: 'Community', desc: 'Kurzer roter Blitz bei jedem Kill.', tags: ['pvp', 'kill'], popular: 90, added: '2026-11-14', status: 'live' }] };
+  if (p === '/api/mods/pending') return { mods: [{ id: 'm-p1', name: 'Dark Satellite Minimap', cat: 'minimap', url: 'https://example.com/darksat.zip', size: 18e6, author: 'MapMaker', desc: 'Satellitenkarte in dunkel.', status: 'pending' }] };
+  if (p === '/api/codes' && a.method === 'GET') return { codes: [{ code: 'ORB-7K2D-QX9M-4HTP', role: 'admin', note: 'Ky3ls', hwid: '3fa9c1e07b', last_seen: Date.now() / 1000 - 30, self: true }, { code: 'ORB-M8VN-2CKE-W7RJ', role: 'editor', note: 'Max', hwid: '9b1e44a2c0', last_seen: Date.now() / 1000 - 7200 }, { code: 'ORB-T4QH-8ZPA-3NXD', role: 'editor', note: 'Lena', hwid: null }] };
+  if (p === '/api/codes' && a.method === 'POST') return { code: 'ORB-N3WC-0D3X-YZ12', role: a.body.role };
+  return { ok: true, status: 'pending' };
+}

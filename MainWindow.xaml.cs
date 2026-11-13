@@ -433,6 +433,31 @@ public partial class MainWindow : Window
                 if (err == null) Log("🎨 ReShade entfernt");
                 return new { error = err };
             }
+            // ---------- account (access code + HWID) ----------
+            case "auth.info": return new { hwid = Account.Hwid[..12], role = S.AuthRole, loggedIn = !string.IsNullOrEmpty(S.AuthToken) };
+            case "auth.redeem":
+            {
+                var payload = JsonSerializer.SerializeToElement(new { code = Str(a, "code").Trim().ToUpperInvariant(), hwid = Account.Hwid });
+                var res = await Account.Call(Str(a, "api"), "POST", "/api/redeem", payload, null);
+                if (res is JsonElement je && je.TryGetProperty("token", out var tk))
+                {
+                    S.AuthToken = tk.GetString(); S.AuthRole = je.TryGetProperty("role", out var rl) ? rl.GetString() : "editor"; S.Save();
+                    Log($"🔑 Angemeldet als {(S.AuthRole == "admin" ? "Admin" : "Editor")}");
+                    return new { ok = true, role = S.AuthRole };
+                }
+                return res;
+            }
+            case "auth.logout": S.AuthToken = null; S.AuthRole = null; S.Save(); return new { ok = true };
+            case "srv":
+            {
+                var res = await Account.Call(Str(a, "api"), Str(a, "method") == "POST" ? "POST" : "GET", Str(a, "path"),
+                    a.TryGetProperty("body", out var bd) ? bd : null, S.AuthToken);
+                // token no longer valid (revoked / other PC) -> sign out locally
+                if (res is JsonElement e2 && e2.TryGetProperty("error", out var er) && er.GetString() == "Nicht angemeldet" && S.AuthToken != null)
+                { S.AuthToken = null; S.AuthRole = null; S.Save(); }
+                return res;
+            }
+
             case "reshade.cfg.get": return await Task.Run(ReShade.GetCfg);
             case "reshade.cfg.set":
             {

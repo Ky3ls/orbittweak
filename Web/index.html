@@ -111,6 +111,7 @@
     <button class="nav" data-p="tweaks"><svg class="i"><use href="#zap"/></svg>Tweaks</button>
     <button class="nav" data-p="cleaner"><svg class="i"><use href="#trash"/></svg>Cleaner</button>
     <button class="nav" data-p="diag"><svg class="i"><use href="#heart"/></svg>Diagnose</button>
+    <button class="nav hidden" data-p="admin" id="navAdmin"><svg class="i"><use href="#shield"/></svg>Admin<span class="badge hidden" id="navPend">0</span></button>
     <button class="nav" data-p="settings"><svg class="i"><use href="#settings"/></svg>Einstellungen<span class="badge hidden" id="navUpd">NEU</span></button>
     </div>
     <div class="side-cta">
@@ -448,7 +449,7 @@
     <section class="page" id="p-mods">
       <div class="ph">
         <div><div class="kicker">Mods</div><h1>Mod-<span class="grad">Bibliothek</span></h1><p class="pd">Mods aussuchen und mit einem Klick installieren, aktivieren oder wieder entfernen. Direkt hier, ohne Website.</p></div>
-        <div class="ph-r"><button class="btn" onclick="modInstall('other')"><svg class="i"><use href="#file"/></svg>Datei installieren</button><button class="btn" onclick="api('mods.folder')"><svg class="i"><use href="#folder"/></svg>Mods-Ordner</button></div>
+        <div class="ph-r"><button class="btn p hidden" id="libAdd" onclick="libAddForm()"><svg class="i"><use href="#plus"/></svg>Mod hinzufügen</button><button class="btn" onclick="modInstall('other')"><svg class="i"><use href="#file"/></svg>Datei installieren</button><button class="btn" onclick="api('mods.folder')"><svg class="i"><use href="#folder"/></svg>Mods-Ordner</button></div>
       </div>
       <div class="xwarn"><svg class="i"><use href="#alert"/></svg><div><b>Achtung: Viele Server verbieten Mods.</b> Server mit Pure-Mode lassen dich mit Mods nicht joinen oder kicken dich, manche bannen dafür. ReShade-Looks sind meist erlaubt. Die Nutzung erfolgt auf eigene Verantwortung.</div></div>
       <div class="lib-bar">
@@ -477,6 +478,25 @@
         <div class="row"><div class="lbl"><svg class="i"><use href="#download"/></svg>Neu in deinen Downloads</div><span class="sp"></span><button class="btn sm" onclick="api('downloads.open')"><svg class="i"><use href="#folder"/></svg>Downloads</button></div>
         <div id="modDl" class="mt8"></div>
       </div>
+    </section>
+
+    <!-- ================= ADMIN ================= -->
+    <section class="page" id="p-admin">
+      <div class="ph">
+        <div><div class="kicker">Admin</div><h1>Zugänge & <span class="grad">Freigaben</span></h1><p class="pd">Zugangscodes erzeugen, gebundene PCs verwalten und eingereichte Mods freigeben.</p></div>
+      </div>
+      <div class="tabs" id="admTabs"><button class="tab on" data-at="codes">Codes</button><button class="tab" data-at="pending">Freigaben<span class="c" id="admPendC">0</span></button><button class="tab" data-at="mods">Mods</button></div>
+      <div id="adm-codes">
+        <div class="card">
+          <div class="lbl"><svg class="i"><use href="#plus"/></svg>Neuen Code erzeugen</div>
+          <div class="adm-new mt8"><div class="seg" id="admRole"><button class="on" data-v="editor">Editor</button><button data-v="admin">Admin</button></div><input class="in" id="admNote" placeholder="Notiz, z. B. Name des Nutzers" maxlength="60"><button class="btn p" onclick="admCreate()"><svg class="i"><use href="#zap"/></svg>Erzeugen</button></div>
+          <p class="sub" style="font-size:12px;margin-top:8px">Editor: darf Mods einreichen (müssen freigegeben werden). Admin: darf alles, Mods sind sofort live.</p>
+          <div class="adm-code hidden" id="admNewCode"></div>
+        </div>
+        <div class="card mt"><div class="row"><div class="lbl"><svg class="i"><use href="#users"/></svg>Alle Codes</div><span class="chip" id="admCount">0</span><span class="sp"></span><button class="ib" onclick="admLoad()"><svg class="i"><use href="#refresh"/></svg></button></div><div id="admCodes" class="mt8"></div></div>
+      </div>
+      <div id="adm-pending" class="hidden"><div class="lib-grid" id="admPending"></div></div>
+      <div id="adm-mods" class="hidden"><div class="card"><div id="admMods"></div></div></div>
     </section>
 
     <!-- ================= F8 ================= -->
@@ -634,7 +654,7 @@
     <!-- ================= SETTINGS ================= -->
     <section class="page" id="p-settings">
       <div class="ph"><div><div class="kicker">Einstellungen</div><h1>Setup & <span class="grad">Style</span></h1><p class="pd">Alles an einem Ort, sortiert nach Thema.</p></div></div>
-      <div class="tabs" id="setTabs"><button class="tab on" data-st="design">Design</button><button class="tab" data-st="general">Allgemein</button><button class="tab" data-st="updates">Updates<span class="c hidden" id="setUpdC">NEU</span></button><button class="tab" data-st="safety">Sicherheit</button></div>
+      <div class="tabs" id="setTabs"><button class="tab on" data-st="design">Design</button><button class="tab" data-st="general">Allgemein</button><button class="tab" data-st="updates">Updates<span class="c hidden" id="setUpdC">NEU</span></button><button class="tab" data-st="safety">Sicherheit</button><button class="tab" data-st="account">Konto</button></div>
 
       <div class="stab" id="st-design">
         <div class="card">
@@ -668,6 +688,16 @@
             <div class="sub" style="font-size:11px;margin-top:6px" id="updProg"></div>
           </div>
           <div id="updSets" class="mt8"></div>
+        </div>
+      </div>
+
+      <div class="stab hidden" id="st-account">
+        <div class="card">
+          <div class="row"><div class="lbl"><svg class="i"><use href="#shield"/></svg>Zugang</div><span class="chip" id="accRole">Nicht angemeldet</span><span class="sp"></span><span class="sub" style="font-size:12px">PC-ID <code id="accHwid" class="hwid">…</code></span></div>
+          <p class="sub" style="font-size:12.5px;margin-top:8px;line-height:1.5">Kein Passwort nötig: Gib deinen Zugangscode ein, den du von einem Admin bekommen hast. Der Code wird beim ersten Einlösen fest an diesen PC gebunden und funktioniert danach nur noch hier.</p>
+          <div id="accLogin" class="acc-login mt"><input class="in mono" id="accCode" placeholder="ORB-XXXX-XXXX-XXXX" maxlength="18"><button class="btn p" onclick="accRedeem()"><svg class="i"><use href="#check"/></svg>Code einlösen</button></div>
+          <div id="accIn" class="hidden mt"><div class="acc-ok"><svg class="i"><use href="#check"/></svg><div><b id="accTitle">Angemeldet</b><p id="accText">Du kannst Mods zur Bibliothek hinzufügen.</p></div><span class="sp"></span><button class="btn sm" onclick="accLogout()">Abmelden</button></div></div>
+          <p class="warnline hidden" id="accNoSrv"><svg class="i"><use href="#alert"/></svg>Der OrbitTweak-Server wird gerade eingerichtet. Codes funktionieren, sobald er online ist.</p>
         </div>
       </div>
 
