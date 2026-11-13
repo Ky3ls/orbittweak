@@ -24,18 +24,65 @@ const S = { tweaks: [], settings: {}, fivem: {}, freed: 0, cpuHist: [], boosting
 
 /* ======================= THEMES ======================= */
 const THEMES = {
-  inferno: ['Inferno', '#FF7A18', '#FF2E63'],
-  blood: ['Blood', '#FF3B3B', '#C2185B'],
-  gold: ['Gold', '#FFB224', '#FF6A1A'],
-  toxic: ['Toxic', '#9BE836', '#22C55E'],
-  ice: ['Ice', '#3BB4FF', '#5B6CFF'],
-  nebula: ['Nebula', '#9D6BFF', '#E14BFF'],
+  ember: ['Ember', '#FF7A3D', '#FFB067'],
+  rose: ['Rosé', '#FF5C8A', '#FFA3BD'],
+  violet: ['Violet', '#8B7BFF', '#C9B8FF'],
+  ocean: ['Ocean', '#3D9BFF', '#7FD4FF'],
+  mint: ['Mint', '#2DD4A0', '#9AF2D4'],
+  gold: ['Gold', '#F5B53D', '#FFE08A'],
+  mono: ['Mono', '#E8E8EC', '#A8A8B3'],
 };
+const THEME_ALIAS = { inferno: 'ember', blood: 'rose', toxic: 'mint', ice: 'ocean', nebula: 'violet' };
+const themeKey = k => THEMES[k] ? k : THEMES[THEME_ALIAS[k]] ? THEME_ALIAS[k] : 'ember';
 const hexRgb = h => [1, 3, 5].map(i => parseInt(h.substr(i, 2), 16)).join(',');
 function applyTheme(k) {
-  const t = THEMES[k] || THEMES.inferno, r = document.documentElement.style;
+  const t = THEMES[themeKey(k)], r = document.documentElement.style;
   r.setProperty('--a', t[1]); r.setProperty('--b', t[2]);
   r.setProperty('--a-rgb', hexRgb(t[1])); r.setProperty('--b-rgb', hexRgb(t[2]));
+}
+
+/* ======================= MOTION ======================= */
+function countTo(el, to, suffix = '', dur = 700) {
+  if (!el) return;
+  const from = el._v ?? 0; el._v = to;
+  cancelAnimationFrame(el._raf);
+  if (from === to) { el.innerHTML = Math.round(to) + suffix; return; }
+  const t0 = performance.now();
+  const step = now => {
+    const k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    el.innerHTML = Math.round(from + (to - from) * e) + suffix;
+    if (k < 1) el._raf = requestAnimationFrame(step);
+  };
+  el._raf = requestAnimationFrame(step);
+}
+function moveInd() {
+  const a = $('.nav.active'), ind = $('#navInd'); if (!a || !ind) return;
+  ind.style.transform = `translateY(${a.offsetTop}px)`; ind.style.opacity = 1;
+}
+function enterPage(el) {
+  el.classList.remove('enter'); void el.offsetWidth;
+  el.querySelectorAll('.card,.tabs,.addbar,.savebar,.empty').forEach((c, i) => c.style.setProperty('--i', Math.min(i, 12)));
+  el.classList.add('enter');
+  clearTimeout(el._et); el._et = setTimeout(() => el.classList.remove('enter'), 1400);
+}
+let spotRaf = 0;
+document.addEventListener('pointermove', e => {
+  if (spotRaf) return;
+  spotRaf = requestAnimationFrame(() => {
+    spotRaf = 0;
+    const c = e.target.closest && e.target.closest('.card'); if (!c) return;
+    const r = c.getBoundingClientRect();
+    c.style.setProperty('--mx', (e.clientX - r.left) + 'px'); c.style.setProperty('--my', (e.clientY - r.top) + 'px');
+  });
+});
+function smoothPath(pts) {
+  let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+    const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6], c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+    d += ` C${c1.map(v => v.toFixed(1))} ${c2.map(v => v.toFixed(1))} ${p2.map(v => v.toFixed(1))}`;
+  }
+  return d;
 }
 
 /* ======================= NAV ======================= */
@@ -44,6 +91,7 @@ function go(p) {
   curPage = p;
   $$('.nav').forEach(n => n.classList.toggle('active', n.dataset.p === p));
   $$('.page').forEach(s => s.classList.toggle('show', s.id === 'p-' + p));
+  moveInd(); enterPage($('#p-' + p));
   ({ servers: () => S.servers.length || loadServers(), gfx: () => S.gfx || loadGfx(), cleaner: () => S.clean.length || scan(),
      diag: () => { S.health ? renderHealth(S.health) : runHealth(); loadLogs(); }, launcher: renderCmd, home: refreshCache })[p]?.();
 }
@@ -72,28 +120,28 @@ function onEvent(ev, d) {
 }
 function stats(d) {
   $('#tbCpu').textContent = d.cpu + '%'; $('#tbRam').textContent = d.ram + '%';
-  $('#mCpu').innerHTML = `${d.cpu}<small>%</small>`;
-  $('#mRam').innerHTML = `${d.ram}<small>%</small>`;
+  countTo($('#mCpu'), d.cpu, '<small>%</small>');
+  countTo($('#mRam'), d.ram, '<small>%</small>');
   $('#mRamTxt').textContent = `${d.ramUsed.toFixed(1)} / ${d.ramTotal.toFixed(0)} GB`;
   $('#mRamBar').style.width = d.ram + '%';
-  $('#cRam').innerHTML = `${d.ram}<small>%</small>`; $('#cRamBar').style.width = d.ram + '%';
+  countTo($('#cRam'), d.ram, '<small>%</small>'); $('#cRamBar').style.width = d.ram + '%';
   $('#cRamTxt').textContent = `${d.ramUsed.toFixed(1)} / ${d.ramTotal.toFixed(0)} GB`;
   S.cpuHist.push(d.cpu); if (S.cpuHist.length > 40) S.cpuHist.shift();
   const n = S.cpuHist.length, pts = S.cpuHist.map((v, i) => [(i + 40 - n) * 200 / 39, 58 - v / 100 * 52]);
-  const line = 'M' + pts.map(p => p.map(x => x.toFixed(1)).join(',')).join(' L');
+  const line = pts.length > 1 ? smoothPath(pts) : `M0,${pts[0][1]} L200,${pts[0][1]}`;
   $('#sparkL').setAttribute('d', line);
-  $('#sparkF').setAttribute('d', line + ` L200,60 L${pts[0][0].toFixed(1)},60 Z`);
+  $('#sparkF').setAttribute('d', line + ` L200,60 L${pts.length > 1 ? pts[0][0].toFixed(1) : 0},60 Z`);
   fmState(d.fm);
 }
 function fmState(f) {
   const on = f.running;
   $('#tbDot').classList.toggle('on', on);
-  $('#tbFm').textContent = f.game ? 'FIVEM · IM SPIEL' : on ? 'FIVEM · LAUNCHER' : 'FIVEM OFFLINE';
+  $('#tbFm').textContent = f.game ? 'FiveM · im Spiel' : on ? 'FiveM · Launcher' : 'FiveM offline';
   $('#fmIco').classList.toggle('off', !on);
   $('#fmState').textContent = f.game ? 'Im Spiel' : on ? 'Launcher offen' : 'FiveM offline';
   const chip = $('#fmChip');
   chip.className = 'chip ' + (f.game ? 'g' : on ? 'w' : '');
-  chip.textContent = f.game ? 'LIVE' : on ? 'LÄDT' : 'STANDBY';
+  chip.textContent = f.game ? 'Live' : on ? 'Lädt' : 'Standby';
   $('#fmBuild').textContent = f.build || '—';
   $('#fmPrio').textContent = f.prio || '—';
   $('#fmRam').textContent = f.game ? bytes(f.gameRam) : '—';
@@ -112,26 +160,36 @@ async function refreshCache() { try { const r = await api('fivem.cacheSize'); $(
 function score() {
   const t = S.tweaks, on = t.filter(x => x.applied).length, pct = t.length ? Math.round(on * 100 / t.length) : 0;
   $('#hsTweaks').textContent = `${on}/${t.length}`;
-  $('#scoreChip').textContent = 'SCORE ' + pct;
-  if (!S.boosting) { setRing(pct); $('#boostSub').textContent = `SCORE ${pct}%`; }
+  if (!S.boosting) { setRing(pct); $('#scoreChip').textContent = pct >= 90 ? 'Optimal' : 'Bereit'; $('#scoreChip').className = 'chip ' + (pct >= 90 ? 'g' : ''); }
 }
-function setRing(p) { $('#scoreRing').style.strokeDashoffset = 703.7 * (1 - Math.min(p, 100) / 100); }
+function setRing(p) {
+  p = Math.max(0, Math.min(p, 100));
+  $('#scoreRing').style.strokeDashoffset = 678.6 * (1 - p / 100);
+  countTo($('#ringNum'), p, '<small>%</small>', 1200);
+}
 function addFreed(b) { S.freed += b || 0; $('#hsFreed').textContent = bytes(S.freed); }
 function boostProgress(pct, text) {
-  setRing(pct); $('#boostSub').textContent = pct + '%'; $('#heroText').textContent = text;
+  setRing(pct); $('#heroText').textContent = text;
   const w = $('#wizProg'); if (w) { w.style.width = pct + '%'; $('#wizTxt').textContent = text; }
 }
 async function boost(fromWizard) {
   if (S.boosting) return;
   S.boosting = true;
-  const core = $('#boostBtn'); core.classList.add('run');
-  $('#heroTitle').textContent = 'Boost läuft…';
+  const btn = $('#boostBtn'), g = $('#gauge');
+  btn.classList.remove('done'); btn.classList.add('run'); g.classList.add('run');
+  $('#scoreChip').textContent = 'Läuft'; $('#scoreChip').className = 'chip a';
+  $('#heroTitle').textContent = 'Boost läuft…'; $('#boostSub').textContent = 'wird optimiert';
+  $('#boostTxt').textContent = 'Optimiere…';
   $('#boostIco').innerHTML = '<use href="#refresh"/>'; $('#boostIco').classList.add('spin');
+  setRing(0);
   feed('Boost gestartet');
   try {
     const r = await api('boost');
     addFreed(r.freed); await loadTweaks(); setRing(100);
-    $('#boostTxt').textContent = 'DONE';
+    g.classList.remove('pop'); void g.offsetWidth; g.classList.add('pop');
+    btn.classList.add('done'); $('#boostTxt').textContent = 'Fertig'; $('#boostSub').textContent = 'optimiert';
+    $('#boostIco').classList.remove('spin'); $('#boostIco').innerHTML = '<use href="#check"/>';
+    $('#scoreChip').textContent = 'Fertig'; $('#scoreChip').className = 'chip g';
     $('#heroTitle').textContent = 'Boost abgeschlossen';
     $('#heroText').textContent = r.restart ? 'Fertig. Starte den PC neu, damit alle Tweaks greifen.' : 'Fertig. Dein System ist bereit für FiveM.';
     $('#lastBoost').textContent = 'Letzter Boost: gerade eben';
@@ -140,9 +198,14 @@ async function boost(fromWizard) {
     return r;
   } catch (e) { toast('Boost fehlgeschlagen', e.message, false); }
   finally {
-    core.classList.remove('run'); $('#boostIco').classList.remove('spin'); $('#boostIco').innerHTML = '<use href="#zap"/>';
+    btn.classList.remove('run'); g.classList.remove('run');
+    $('#boostIco').classList.remove('spin');
     S.boosting = false;
-    setTimeout(() => { $('#boostTxt').textContent = 'BOOST'; $('#heroTitle').textContent = 'FiveM Full Boost'; score(); }, 2600);
+    setTimeout(() => {
+      if (S.boosting) return;
+      btn.classList.remove('done'); $('#boostTxt').textContent = 'Boost starten'; $('#boostIco').innerHTML = '<use href="#zap"/>';
+      $('#heroTitle').textContent = 'FiveM Full Boost'; $('#boostSub').textContent = 'optimiert'; score();
+    }, 2800);
   }
 }
 
@@ -243,7 +306,7 @@ function srvCard(s) {
     <div class="bd">
       <div class="top"><div class="icon" ${s.icon ? `style="background-image:url('${esc(s.icon)}')"` : ''}>${s.icon ? '' : esc(initial)}</div><div style="min-width:0"><div class="nm">${fivemName(s.name)}</div></div></div>
       <div class="ds">${esc(s.desc || s.addr || '')}</div>
-      <div class="tags">${s.online ? '<span class="chip g">ONLINE</span>' : '<span class="chip r">OFFLINE</span>'}${s.locale ? `<span class="chip">${esc(s.locale)}</span>` : ''}${(s.tags || []).slice(0, 3).map(t => `<span class="chip">${esc(t)}</span>`).join('')}</div>
+      <div class="tags">${s.online ? '<span class="chip g">Online</span>' : '<span class="chip r">Offline</span>'}${s.locale ? `<span class="chip">${esc(s.locale)}</span>` : ''}${(s.tags || []).slice(0, 3).map(t => `<span class="chip">${esc(t)}</span>`).join('')}</div>
       <div class="row">
         <div class="pl"><div><span>Spieler</span><b>${s.players ?? 0}/${s.max ?? 0}</b></div><div class="bar"><i style="width:${pct}%"></i></div></div>
         <span class="chip ${s.ping == null ? '' : s.ping < 50 ? 'g' : s.ping < 100 ? 'w' : 'r'}">${s.ping == null ? '-- ms' : s.ping + ' ms'}</span>
@@ -298,11 +361,11 @@ const GFX = [
   { k: 'MotionBlurStrength', n: 'Bewegungsunschärfe', d: 'Für PvP auf 0', r: 1 },
 ];
 const PRESETS = {
-  comp: { n: 'COMPETITIVE', d: 'Maximale FPS und klare Sicht. Für PvP, Gangwar und schwächere PCs.', fps: 5, q: 1,
+  comp: { n: 'Competitive', d: 'Maximale FPS und klare Sicht. Für PvP, Gangwar und schwächere PCs.', fps: 5, q: 1,
     v: { TextureQuality: 1, ShadowQuality: 1, ReflectionQuality: 0, GrassQuality: 0, WaterQuality: 0, ParticleQuality: 0, ShaderQuality: 0, PostFX: 0, SSAO: 0, Tessellation: 0, MSAA: 0, FXAA_Enabled: 'true', AnisotropicFiltering: 4, Shadow_SoftShadows: 0, LodScale: 0.6, CityDensity: 0.3, MotionBlurStrength: 0 } },
-  bal: { n: 'BALANCED', d: 'Gute Optik bei stabilen FPS. Für Roleplay im Alltag.', fps: 3, q: 3,
+  bal: { n: 'Balanced', d: 'Gute Optik bei stabilen FPS. Für Roleplay im Alltag.', fps: 3, q: 3,
     v: { TextureQuality: 2, ShadowQuality: 2, ReflectionQuality: 1, GrassQuality: 1, WaterQuality: 1, ParticleQuality: 1, ShaderQuality: 1, PostFX: 1, SSAO: 1, Tessellation: 1, MSAA: 0, FXAA_Enabled: 'true', AnisotropicFiltering: 16, Shadow_SoftShadows: 1, LodScale: 0.8, CityDensity: 0.6, MotionBlurStrength: 0 } },
-  cine: { n: 'CINEMATIC', d: 'Maximale Qualität für Screenshots, Clips und High-End-PCs.', fps: 1, q: 5,
+  cine: { n: 'Cinematic', d: 'Maximale Qualität für Screenshots, Clips und High-End-PCs.', fps: 1, q: 5,
     v: { TextureQuality: 2, ShadowQuality: 3, ReflectionQuality: 3, GrassQuality: 2, WaterQuality: 2, ParticleQuality: 3, ShaderQuality: 2, PostFX: 3, SSAO: 2, Tessellation: 3, MSAA: 2, FXAA_Enabled: 'true', AnisotropicFiltering: 16, Shadow_SoftShadows: 3, LodScale: 1, CityDensity: 1, MotionBlurStrength: 0 } },
 };
 const pips = n => Array.from({ length: 5 }, (_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('');
@@ -311,9 +374,9 @@ async function loadGfx() {
   try { S.gfx = await api('gfx.get'); } catch { S.gfx = { found: false, values: {} }; }
   S.gfxEdit = { ...S.gfx.values };
   $('#gfxState').className = 'chip ' + (S.gfx.found ? 'g' : 'r');
-  $('#gfxState').textContent = S.gfx.found ? 'SETTINGS.XML GEFUNDEN' : 'SETTINGS.XML FEHLT';
+  $('#gfxState').textContent = S.gfx.found ? 'settings.xml gefunden' : 'settings.xml fehlt';
   $('#gfxPath').textContent = S.gfx.found ? S.gfx.path : 'GTA V settings.xml nicht gefunden. Starte GTA V oder FiveM einmal.';
-  $('#presets').innerHTML = Object.entries(PRESETS).map(([k, p]) => `<div class="card hov preset" data-pr="${k}"><div class="ck chip a">AKTIV</div><div class="pt">${p.n}</div><p>${p.d}</p><div class="meter"><span>FPS</span><div class="pips">${pips(p.fps)}</div><span>OPTIK</span><div class="pips">${pips(p.q)}</div></div></div>`).join('');
+  $('#presets').innerHTML = Object.entries(PRESETS).map(([k, p]) => `<div class="card hov preset" data-pr="${k}"><div class="ck chip a">Aktiv</div><div class="pt">${p.n}</div><p>${p.d}</p><div class="meter"><span>FPS</span><div class="pips">${pips(p.fps)}</div><span>Optik</span><div class="pips">${pips(p.q)}</div></div></div>`).join('');
   $('#presets').onclick = e => { const c = e.target.closest('[data-pr]'); if (!c) return; Object.assign(S.gfxEdit, PRESETS[c.dataset.pr].v); renderGfx(true); };
   renderGfx(false);
 }
@@ -436,7 +499,7 @@ async function checkUpdate(manual) {
       $('#updVer').textContent = u.latest; $('#updDate').textContent = u.date || '';
       $('#updNotes').innerHTML = (u.notes || []).map(n => `<li>${esc(n)}</li>`).join('');
       $('#updBox').classList.remove('hidden');
-      $('#updPill').classList.add('show'); $('#updPillTxt').textContent = 'UPDATE ' + u.latest;
+      $('#updPill').classList.add('show'); $('#updPillTxt').textContent = 'Update ' + u.latest;
       $('#navUpd').classList.remove('hidden');
       if (!manual && S.prompted !== u.latest) {
         S.prompted = u.latest;
@@ -448,7 +511,7 @@ async function checkUpdate(manual) {
   $('#updCheck').disabled = false;
 }
 function updatePrompt(u) {
-  modal(`<div class="kicker" style="justify-content:center">UPDATE VERFÜGBAR</div><h1 style="margin-top:10px">Version <span class="grad">${esc(u.latest)}</span> ist da</h1>
+  modal(`<div class="kicker" style="justify-content:center">Update verfügbar</div><h1 style="margin-top:10px">Version <span class="grad">${esc(u.latest)}</span> ist da</h1>
     <p>Du nutzt Version ${esc(u.current)}. Soll OrbitTweak jetzt aktualisieren? Die App startet danach automatisch neu.</p>
     ${(u.notes || []).length ? `<ul class="changes" style="text-align:left;max-width:400px;margin:14px auto 0">${u.notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
     <div class="bar hidden" id="mUpdMeter" style="margin-top:18px"><i id="mUpdBar" style="width:0"></i></div><div class="sub" id="mUpdProg" style="font-size:11px;margin-top:6px"></div>
@@ -484,7 +547,7 @@ const SETS = [
   ['autoPriority', 'Auto-Priorität „Hoch“', 'GTA-Prozess bekommt automatisch mehr CPU-Zeit'],
 ];
 function renderSettings() {
-  const cur = THEMES[S.settings.accent] ? S.settings.accent : 'inferno';
+  const cur = themeKey(S.settings.accent);
   $('#themes').innerHTML = Object.entries(THEMES).map(([k, [n, a, b]]) => `<div class="sw ${k === cur ? 'on' : ''}" data-th="${k}"><i style="background:linear-gradient(135deg,${a},${b})"></i>${n}</div>`).join('');
   $('#setList').innerHTML = SETS.map(([k, n, d]) => `<div class="srow"><div><b>${n}</b><p>${d}</p></div><div class="tg ${S.settings[k] ? 'on' : ''}" data-set="${k}"></div></div>`).join('');
 }
@@ -507,7 +570,7 @@ function confirmBox(title, text) {
 }
 const steps = n => `<div class="steps">${[0, 1, 2, 3].map(i => `<i class="${i <= n ? 'on' : ''}"></i>`).join('')}</div>`;
 async function wizard(step) {
-  if (step === 0) modal(`${steps(0)}<div class="kicker" style="justify-content:center">SETUP-ASSISTENT</div><h1 style="margin-top:10px">Willkommen bei <span class="grad">OrbitTweak</span></h1><p>In einer Minute ist dein PC bereit für FiveM: Wir prüfen dein System, zeigen dir die Optimierungen und wenden sie mit Wiederherstellungspunkt an. Alles bleibt umkehrbar.</p><div class="act"><button class="btn" onclick="finishWizard()">Überspringen</button><button class="btn p lg" onclick="wizard(1)">${ico('zap')}Los geht's</button></div>`);
+  if (step === 0) modal(`${steps(0)}<div class="kicker" style="justify-content:center">Setup-Assistent</div><h1 style="margin-top:10px">Willkommen bei <span class="grad">OrbitTweak</span></h1><p>In einer Minute ist dein PC bereit für FiveM: Wir prüfen dein System, zeigen dir die Optimierungen und wenden sie mit Wiederherstellungspunkt an. Alles bleibt umkehrbar.</p><div class="act"><button class="btn" onclick="finishWizard()">Überspringen</button><button class="btn p lg" onclick="wizard(1)">${ico('zap')}Los geht's</button></div>`);
   if (step === 1) {
     modal(`${steps(1)}<h1>System-<span class="grad">Scan</span></h1><p>Analysiere Hardware, Windows und FiveM…</p><div class="bar mt" style="height:8px"><i style="width:30%" id="scanBar"></i></div>`);
     const [h] = await Promise.all([runHealth(), sleep(1000)]);
@@ -525,7 +588,6 @@ function finishWizard() { closeModal(); api('settings.set', { key: 'firstRun', v
 
 /* ======================= BOOT ======================= */
 async function boot() {
-  $('#ticks').innerHTML = Array.from({ length: 72 }, (_, i) => { const a = i * 5 * Math.PI / 180, m = i % 6 === 0, r1 = 146, r2 = m ? 136 : 140; return `<line class="${m ? 'm' : ''}" x1="${150 + r1 * Math.sin(a)}" y1="${150 - r1 * Math.cos(a)}" x2="${150 + r2 * Math.sin(a)}" y2="${150 - r2 * Math.cos(a)}"/>`; }).join('');
   $('#side').onclick = e => { const n = e.target.closest('.nav'); if (n) go(n.dataset.p); };
   document.addEventListener('mousedown', e => {
     if (e.button !== 0 || !e.target.closest('[data-drag]') || e.target.closest('button,.pill')) return;
@@ -537,9 +599,10 @@ async function boot() {
   const d = await api('init');
   S.settings = d.settings; S.fivem = d.fivem;
   applyTheme(S.settings.accent);
+  moveInd(); enterPage($('#p-home')); if (document.fonts) document.fonts.ready.then(moveInd);
   $('#uname').textContent = d.user;
   $('#verTxt').textContent = 'v' + d.version; $('#verCur').textContent = 'v' + d.version;
-  $('#adminTxt').textContent = d.admin ? 'ADMIN ✓' : 'KEIN ADMIN';
+  $('#adminTxt').textContent = d.admin ? 'Admin ✓' : 'Kein Admin';
   $('#mCpuName').textContent = d.sys.cpu;
   $('#mGpu').textContent = d.sys.gpu.replace(/^NVIDIA (GeForce )?/i, '').replace(/^AMD /i, '').replace(/^Intel\(R\) /i, '');
   $('#mGpu').title = d.sys.gpu;

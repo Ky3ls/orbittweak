@@ -45,7 +45,7 @@ public class LaunchCfg
 
 public class Settings
 {
-    public string Accent { get; set; } = "inferno";
+    public string Accent { get; set; } = "ember";
     public string Mode { get; set; } = "dark";
     public bool AutoUpdate { get; set; } = true;
     public bool AutoInstall { get; set; }
