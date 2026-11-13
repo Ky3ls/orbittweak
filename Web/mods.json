@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "api": "",
+  "api": "https://orbittweak-api.orbittweak.workers.dev",
   "info": "OrbitTweak Mod-Bibliothek. type 'reshade' = ReShade-Look (preset-id), type 'file' = Mod-Datei (.rpf/.zip/.rar/.7z) per https-Direktlink. Felder: id, name, cat (reshade|kill|minimap|gfx|sound|other), author, desc, tags, popular (0-100), added (YYYY-MM-DD), img (optional https-Bild), url + sha256 + size (nur bei file).",
   "mods": [
     {

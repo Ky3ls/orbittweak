@@ -6,6 +6,6 @@ workers_dev = true
 [[d1_databases]]
 binding = "DB"
 database_name = "orbittweak"
-database_id = "REPLACE_WITH_D1_ID"
+database_id = "5f18335b-24fc-4583-ad71-fe7eff85e42e"
 
 # secret: TOKEN_SECRET  (wrangler secret put TOKEN_SECRET)
