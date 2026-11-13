@@ -24,6 +24,23 @@ public class CrosshairCfg
     public string? Json { get; set; }
 }
 
+public class MinimapCfg
+{
+    public bool On { get; set; }
+    public string? Json { get; set; }
+    public int X { get; set; }   // px from the left edge of the game picture
+    public int Y { get; set; }   // px from the bottom edge
+}
+
+public class ClipCfg
+{
+    public int Key { get; set; } = 0x78;              // F9
+    public string Recorder { get; set; } = "nvidia";  // nvidia | gamebar | amd | obs
+    public bool Flash { get; set; } = true;
+}
+
+public enum Anchor { Center, BottomLeft, TopCenter }
+
 public class DisplayCfg
 {
     public bool On { get; set; }
@@ -78,6 +95,19 @@ internal static class GameFocus
     /// Exact center (physical pixels) of the game picture: the client area of the game window
     /// (works for borderless, windowed and other monitors). Falls back to the primary screen.
     /// </summary>
+    /// <summary>Game picture rectangle in screen pixels (or the primary screen).</summary>
+    public static (int l, int t, int r, int b) Client()
+    {
+        var h = _gameWnd;
+        if (h != IntPtr.Zero && IsWindow(h) && IsWindowVisible(h) && !IsIconic(h) && GetClientRect(h, out var r) && r.R > 200 && r.B > 200)
+        {
+            var p = new POINT();
+            ClientToScreen(h, ref p);
+            return (p.X, p.Y, p.X + r.R, p.Y + r.B);
+        }
+        return (0, 0, GetSystemMetrics(0), GetSystemMetrics(1));
+    }
+
     public static (int x, int y) Center()
     {
         var h = _gameWnd;
@@ -113,6 +143,7 @@ internal sealed class CrosshairOverlay
     private readonly Image _img = new() { Stretch = Stretch.Fill, SnapsToDevicePixels = true };
     private int _pw, _ph, _ox, _oy;
     private bool _shown;
+    public Anchor Anchor { get; set; } = Anchor.Center;
 
     public bool HasImage => _pw > 0;
 
@@ -168,8 +199,14 @@ internal sealed class CrosshairOverlay
         }
         Ensure();
         if (_h == IntPtr.Zero) return;
-        var (cx, cy) = GameFocus.Center();
-        int x = cx - _pw / 2 + _ox, y = cy - _ph / 2 + _oy;
+        int x, y;
+        if (Anchor == Anchor.Center) { var (cx, cy) = GameFocus.Center(); x = cx - _pw / 2 + _ox; y = cy - _ph / 2 + _oy; }
+        else
+        {
+            var (l, t, r0, b) = GameFocus.Client();
+            if (Anchor == Anchor.BottomLeft) { x = l + _ox; y = b - _ph - _oy; }
+            else { x = (l + r0) / 2 - _pw / 2 + _ox; y = t + _oy; }
+        }
         bool moved = !GetWindowRect(_h, out var r) || r.L != x || r.T != y || r.R - r.L != _pw || r.B - r.T != _ph;
         if (!_shown || moved) SetWindowPos(_h, HWND_TOPMOST, x, y, _pw, _ph, SWP_NOACTIVATE | SWP_SHOWWINDOW);
         else SetWindowPos(_h, HWND_TOPMOST, 0, 0, 0, 0, 0x1 | 0x2 | SWP_NOACTIVATE);
@@ -533,5 +570,150 @@ internal static class ConsoleSender
             return null;
         }
         finally { Lock.Release(); }
+    }
+}
+
+// =====================================================================
+//  SNAP TAP (SOCD) – when A and D (or W and S) are held together, the last
+//  pressed key wins and the other is released, like on "Snap Tap" keyboards.
+//  Low-level keyboard hook, only active while the game is in front.
+// =====================================================================
+internal sealed class SnapTap
+{
+    private delegate IntPtr HookProc(int code, IntPtr wp, IntPtr lp);
+    [StructLayout(LayoutKind.Sequential)] private struct KBD { public uint vk, scan, flags, time; public IntPtr extra; }
+    [StructLayout(LayoutKind.Sequential)] private struct KEYBDINPUT { public ushort wVk, wScan; public uint dwFlags, time; public IntPtr dwExtraInfo; }
+    [StructLayout(LayoutKind.Explicit, Size = 40)] private struct INPUT { [FieldOffset(0)] public uint type; [FieldOffset(8)] public KEYBDINPUT ki; }
+    [DllImport("user32.dll")] private static extern IntPtr SetWindowsHookEx(int id, HookProc fn, IntPtr mod, uint thread);
+    [DllImport("user32.dll")] private static extern bool UnhookWindowsHookEx(IntPtr h);
+    [DllImport("user32.dll")] private static extern IntPtr CallNextHookEx(IntPtr h, int code, IntPtr wp, IntPtr lp);
+    [DllImport("user32.dll")] private static extern uint SendInput(uint n, INPUT[] i, int size);
+    [DllImport("user32.dll")] private static extern uint MapVirtualKey(uint code, uint type);
+    [DllImport("kernel32.dll")] private static extern IntPtr GetModuleHandle(string? name);
+
+    private static readonly IntPtr Marker = new(0x0B17_5A1A);
+    private static readonly Dictionary<uint, uint> Opp = new() { [0x41] = 0x44, [0x44] = 0x41, [0x57] = 0x53, [0x53] = 0x57 };
+    private readonly HookProc _proc;
+    private IntPtr _hook;
+    private readonly HashSet<uint> _down = new();      // physically held
+    private readonly HashSet<uint> _muted = new();     // held but released by us
+
+    public SnapTap() { _proc = Hook; }
+    public bool Active => _hook != IntPtr.Zero;
+
+    public void Enable(bool on)
+    {
+        if (on && _hook == IntPtr.Zero) _hook = SetWindowsHookEx(13, _proc, GetModuleHandle(null), 0);
+        else if (!on && _hook != IntPtr.Zero) { UnhookWindowsHookEx(_hook); _hook = IntPtr.Zero; _down.Clear(); _muted.Clear(); }
+    }
+
+    private static void Key(uint vk, bool up)
+    {
+        var i = new[] { new INPUT { type = 1, ki = new KEYBDINPUT { wVk = (ushort)vk, wScan = (ushort)MapVirtualKey(vk, 0), dwFlags = up ? 2u : 0u, dwExtraInfo = Marker } } };
+        SendInput(1, i, Marshal.SizeOf<INPUT>());
+    }
+
+    private IntPtr Hook(int code, IntPtr wp, IntPtr lp)
+    {
+        if (code >= 0)
+        {
+            var k = Marshal.PtrToStructure<KBD>(lp);
+            if (k.extra != Marker && Opp.TryGetValue(k.vk, out var opp))
+            {
+                int msg = wp.ToInt32();
+                bool down = msg is 0x100 or 0x104, up = msg is 0x101 or 0x105;
+                if (!GameFocus.IsGame()) { if (up) { _down.Remove(k.vk); _muted.Remove(k.vk); } else if (down) _down.Add(k.vk); }
+                else if (down && !_down.Contains(k.vk))
+                {
+                    _down.Add(k.vk);
+                    if (_down.Contains(opp) && !_muted.Contains(opp)) { _muted.Add(opp); Key(opp, true); }
+                }
+                else if (up)
+                {
+                    _down.Remove(k.vk);
+                    if (_muted.Remove(k.vk)) return new IntPtr(1);              // already released by us
+                    if (_down.Contains(opp) && _muted.Remove(opp)) Key(opp, false); // give the other direction back
+                }
+                else if (down && _muted.Contains(k.vk)) return new IntPtr(1);   // auto-repeat of a muted key
+            }
+        }
+        return CallNextHookEx(_hook, code, wp, lp);
+    }
+}
+
+// =====================================================================
+//  CLIPPER – presses the save-replay shortcut of the user's recorder
+//  (NVIDIA Instant Replay, Xbox Game Bar, AMD ReLive, OBS replay buffer)
+// =====================================================================
+internal static class Clipper
+{
+    [StructLayout(LayoutKind.Sequential)] private struct KEYBDINPUT { public ushort wVk, wScan; public uint dwFlags, time; public IntPtr dwExtraInfo; }
+    [StructLayout(LayoutKind.Explicit, Size = 40)] private struct INPUT { [FieldOffset(0)] public uint type; [FieldOffset(8)] public KEYBDINPUT ki; }
+    [DllImport("user32.dll")] private static extern uint SendInput(uint n, INPUT[] i, int size);
+    [DllImport("user32.dll")] private static extern uint MapVirtualKey(uint code, uint type);
+
+    // VK lists; the last key is the "main" key
+    public static readonly Dictionary<string, (string label, ushort[] keys)> Recorders = new()
+    {
+        ["nvidia"] = ("Alt+F10", new ushort[] { 0x12, 0x79 }),
+        ["gamebar"] = ("Win+Alt+G", new ushort[] { 0x5B, 0x12, 0x47 }),
+        ["amd"] = ("Strg+Shift+S", new ushort[] { 0x11, 0x10, 0x53 }),
+        ["obs"] = ("Strg+Alt+F12", new ushort[] { 0x11, 0x12, 0x7B }),
+    };
+
+    private static INPUT K(ushort vk, bool up)
+    {
+        uint flags = up ? 2u : 0u;
+        if (vk is 0x5B or 0x2D or 0x24 or 0x21) flags |= 1; // extended key
+        return new INPUT { type = 1, ki = new KEYBDINPUT { wVk = vk, wScan = (ushort)MapVirtualKey(vk, 0), dwFlags = flags } };
+    }
+
+    public static async Task Save(string recorder)
+    {
+        if (!Recorders.TryGetValue(recorder, out var r)) r = Recorders["nvidia"];
+        await Task.Delay(120); // let the user release the clip key first
+        var down = r.keys.Select(k => K(k, false)).ToArray();
+        var up = r.keys.Reverse().Select(k => K(k, true)).ToArray();
+        SendInput((uint)down.Length, down, Marshal.SizeOf<INPUT>());
+        await Task.Delay(60);
+        SendInput((uint)up.Length, up, Marshal.SizeOf<INPUT>());
+    }
+
+    public static string VideosDir => Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
+
+    public static List<object> List()
+    {
+        var root = VideosDir;
+        var files = new List<FileInfo>();
+        try
+        {
+            var opts = new EnumerationOptions { RecurseSubdirectories = true, MaxRecursionDepth = 3, IgnoreInaccessible = true };
+            foreach (var ext in new[] { "*.mp4", "*.mkv", "*.mov" })
+                files.AddRange(new DirectoryInfo(root).EnumerateFiles(ext, opts));
+        }
+        catch { }
+        return files.OrderByDescending(f => f.LastWriteTime).Take(40).Select(f => (object)new
+        {
+            name = Path.GetFileNameWithoutExtension(f.Name),
+            rel = Path.GetRelativePath(root, f.FullName).Replace('\\', '/'),
+            folder = Path.GetFileName(Path.GetDirectoryName(f.FullName)),
+            size = f.Length,
+            date = f.LastWriteTime,
+            ext = f.Extension.ToLowerInvariant()
+        }).ToList();
+    }
+
+    public static string? Resolve(string rel)
+    {
+        var full = Path.GetFullPath(Path.Combine(VideosDir, rel));
+        return full.StartsWith(Path.GetFullPath(VideosDir), StringComparison.OrdinalIgnoreCase) && File.Exists(full) ? full : null;
+    }
+
+    public static void EnableGameBarCapture()
+    {
+        const string k = @"HKCU\Software\Microsoft\Windows\CurrentVersion\GameDVR";
+        Reg.Set(k, "AppCaptureEnabled", 1);
+        Reg.Set(k, "HistoricalCaptureEnabled", 1);
+        Reg.Set(@"HKCU\System\GameConfigStore", "GameDVR_Enabled", 1);
     }
 }

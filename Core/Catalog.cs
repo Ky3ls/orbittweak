@@ -23,6 +23,34 @@ internal static class Catalog
     private const string USB_SUB = "2a737441-1930-4402-8d77-b2bebba308a3";
     private const string USB_SUSPEND = "48e6b7a6-50f5-4782-a5d4-53bb8f07e226";
 
+    private const string NICCLASS = @"HKLM\SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}";
+    private const string PROC_SUB = "54533251-82be-4824-96c1-47b60b740d00";
+    private const string CPMINCORES = "0cc5b647-c1df-4637-891a-dec35c318583";
+    // latency-relevant adapter settings → value for "off"
+    private static readonly (string name, string off)[] NicVals =
+    {
+        ("*InterruptModeration", "0"), ("*EEE", "0"), ("EnableGreenEthernet", "0"), ("PowerSavingMode", "0"),
+        ("GigaLite", "0"), ("AdvancedEEE", "0"), ("EEELinkAdvertisement", "0"), ("*SelectiveSuspend", "0"), ("ULPMode", "0"),
+    };
+
+    private static IEnumerable<string> Nics()
+    {
+        foreach (var k in Reg.SubKeys(NICCLASS))
+        {
+            if (!k.All(char.IsDigit)) continue;
+            var p = $@"{NICCLASS}\{k}";
+            var t = Reg.Get(p, "*IfType")?.ToString();
+            if (t is "6" or "71") yield return p;
+        }
+    }
+
+    private static int PowerIndex(string sub, string setting)
+    {
+        var o = Proc.Run("powercfg", $"/q SCHEME_CURRENT {sub} {setting}");
+        var m = Regex.Matches(o, @"0x([0-9a-fA-F]{8})");
+        return m.Count >= 2 ? Convert.ToInt32(m[^2].Groups[1].Value, 16) : -1;
+    }
+
     private static readonly Regex Guid = new(@"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
 
     [DllImport("ntdll.dll")]
@@ -239,6 +267,44 @@ internal static class Catalog
             Revert = () => Reg.Del(@"HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection", "AllowTelemetry")
         },
 
+        new Tweak
+        {
+            Id = "cpark", Cat = "system", Icon = "cpu", Name = "Core Parking aus",
+            Desc = "Alle CPU-Kerne bleiben wach, keine Mikroruckler, wenn FiveM plötzlich mehr Kerne braucht.",
+            Check = () => Reg.Is(OWN, "CoreParkOff", 1),
+            Apply = () =>
+            {
+                var cur = PowerIndex(PROC_SUB, CPMINCORES);
+                if (cur >= 0 && Reg.Get(OWN, "CoreParkOrig") == null) Reg.Set(OWN, "CoreParkOrig", cur);
+                Proc.Run("powercfg", $"/setacvalueindex SCHEME_CURRENT {PROC_SUB} {CPMINCORES} 100");
+                Proc.Run("powercfg", "/setactive SCHEME_CURRENT");
+                Reg.Set(OWN, "CoreParkOff", 1);
+            },
+            Revert = () =>
+            {
+                var orig = Reg.Get(OWN, "CoreParkOrig") is int o ? o : 10;
+                Proc.Run("powercfg", $"/setacvalueindex SCHEME_CURRENT {PROC_SUB} {CPMINCORES} {orig}");
+                Proc.Run("powercfg", "/setactive SCHEME_CURRENT");
+                Reg.Set(OWN, "CoreParkOff", 0);
+            }
+        },
+        new Tweak
+        {
+            Id = "dyntick", Cat = "system", Icon = "timer", Badge = "NEUSTART", Name = "Dynamic Tick aus",
+            Desc = "Gleichmäßiger System-Takt statt Energiespar-Ticks: stabilere Frametimes.",
+            Check = () => Reg.Is(OWN, "DynTickOff", 1),
+            Apply = () => { Proc.Run("bcdedit", "/set disabledynamictick yes"); Reg.Set(OWN, "DynTickOff", 1); },
+            Revert = () => { Proc.Run("bcdedit", "/deletevalue disabledynamictick"); Reg.Set(OWN, "DynTickOff", 0); }
+        },
+        new Tweak
+        {
+            Id = "sysmain", Cat = "system", Icon = "ram", Recommended = false, Name = "SysMain (Superfetch) aus",
+            Desc = "Kein Vorladen von Programmen im Hintergrund: weniger Festplatten- und RAM-Last beim Spielen.",
+            Check = () => Reg.Is(@"HKLM\SYSTEM\CurrentControlSet\Services\SysMain", "Start", 4),
+            Apply = () => { Proc.Run("sc", "stop SysMain"); Proc.Run("sc", "config SysMain start= disabled"); },
+            Revert = () => { Proc.Run("sc", "config SysMain start= auto"); Proc.Run("sc", "start SysMain"); }
+        },
+
         // ============================== NETWORK ==============================
         new Tweak
         {
@@ -288,6 +354,57 @@ internal static class Catalog
                 Proc.Run("netsh", "int tcp set heuristics default");
                 Proc.Run("netsh", "int tcp set global ecncapability=default");
                 Reg.Set(OWN, "TcpOptimized", 0);
+            }
+        },
+
+        new Tweak
+        {
+            Id = "nic", Cat = "network", Icon = "wifi", Badge = "NEUSTART", Name = "Netzwerkkarte auf Latenz (Hitreg)",
+            Desc = "Interrupt-Moderation und Energiespar-Funktionen (EEE, Green Ethernet) der Netzwerkkarte aus: Pakete gehen ohne Verzögerung raus und rein.",
+            Check = () => Reg.Is(OWN, "NicTuned", 1),
+            Apply = () =>
+            {
+                int n = 0;
+                foreach (var p in Nics())
+                {
+                    var id = p[(p.LastIndexOf('\\') + 1)..];
+                    foreach (var (name, off) in NicVals)
+                    {
+                        if (Reg.Get(p, name) is not string cur) continue;
+                        if (Reg.Get($@"{OWN}\Nic\{id}", name) == null) Reg.SetStr($@"{OWN}\Nic\{id}", name, cur);
+                        Reg.SetStr(p, name, off); n++;
+                    }
+                    if (Reg.Get($@"{OWN}\Nic\{id}", "PnPCapabilities") == null) Reg.Set($@"{OWN}\Nic\{id}", "PnPCapabilities", Reg.Get(p, "PnPCapabilities") is int pc ? pc : -1);
+                    Reg.Set(p, "PnPCapabilities", 24); // Windows may not switch the adapter off to save power
+                }
+                Reg.Set(OWN, "NicTuned", 1);
+            },
+            Revert = () =>
+            {
+                foreach (var p in Nics())
+                {
+                    var id = p[(p.LastIndexOf('\\') + 1)..];
+                    var bk = $@"{OWN}\Nic\{id}";
+                    foreach (var (name, _) in NicVals) if (Reg.Get(bk, name) is string orig) Reg.SetStr(p, name, orig);
+                    if (Reg.Get(bk, "PnPCapabilities") is int pc) { if (pc < 0) Reg.Del(p, "PnPCapabilities"); else Reg.Set(p, "PnPCapabilities", pc); }
+                }
+                Reg.Set(OWN, "NicTuned", 0);
+            }
+        },
+        new Tweak
+        {
+            Id = "netprio", Cat = "network", Icon = "globe", Name = "Namensauflösung priorisieren",
+            Desc = "Lokale Auflösung, Hosts und DNS werden vor NetBIOS abgefragt: schnelleres Verbinden zu Servern.",
+            Check = () => Reg.Is(@"HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\ServiceProvider", "DnsPriority", 6),
+            Apply = () =>
+            {
+                const string k = @"HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\ServiceProvider";
+                Reg.Set(k, "LocalPriority", 4); Reg.Set(k, "HostsPriority", 5); Reg.Set(k, "DnsPriority", 6); Reg.Set(k, "NetbtPriority", 7);
+            },
+            Revert = () =>
+            {
+                const string k = @"HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\ServiceProvider";
+                Reg.Set(k, "LocalPriority", 499); Reg.Set(k, "HostsPriority", 500); Reg.Set(k, "DnsPriority", 2000); Reg.Set(k, "NetbtPriority", 2001);
             }
         },
 
@@ -361,6 +478,49 @@ internal static class Catalog
                 Reg.SetStr(@"HKCU\Control Panel\Accessibility\ToggleKeys", "Flags", "62");
                 Reg.SetStr(@"HKCU\Control Panel\Accessibility\Keyboard Response", "Flags", "126");
             }
+        },
+        new Tweak
+        {
+            Id = "inprio", Cat = "input", Icon = "keyboard", Badge = "NEUSTART", Name = "Input-Thread-Priorität",
+            Desc = "Maus- und Tastaturtreiber laufen mit höchster Priorität: WASD und Klicks werden auch bei voller CPU sofort verarbeitet.",
+            Check = () => Reg.Is(@"HKLM\SYSTEM\CurrentControlSet\Services\kbdclass\Parameters", "ThreadPriority", 31),
+            Apply = () =>
+            {
+                Reg.Set(@"HKLM\SYSTEM\CurrentControlSet\Services\kbdclass\Parameters", "ThreadPriority", 31);
+                Reg.Set(@"HKLM\SYSTEM\CurrentControlSet\Services\mouclass\Parameters", "ThreadPriority", 31);
+            },
+            Revert = () =>
+            {
+                Reg.Del(@"HKLM\SYSTEM\CurrentControlSet\Services\kbdclass\Parameters", "ThreadPriority");
+                Reg.Del(@"HKLM\SYSTEM\CurrentControlSet\Services\mouclass\Parameters", "ThreadPriority");
+            }
+        },
+        new Tweak
+        {
+            Id = "kbresp", Cat = "input", Icon = "zap", Recommended = false, Name = "Tastatur-Turbo (Key Response)",
+            Desc = "Schnellere Wiederholrate über die Windows-Tastaturantwort. Spürbar in Chat, Menüs und beim Tippen.",
+            Check = () => Reg.Is(@"HKCU\Control Panel\Accessibility\Keyboard Response", "AutoRepeatRate", "6"),
+            Apply = () =>
+            {
+                const string k = @"HKCU\Control Panel\Accessibility\Keyboard Response";
+                Reg.SetStr(k, "AutoRepeatDelay", "200"); Reg.SetStr(k, "AutoRepeatRate", "6");
+                Reg.SetStr(k, "DelayBeforeAcceptance", "0"); Reg.SetStr(k, "BounceTime", "0"); Reg.SetStr(k, "Flags", "59");
+            },
+            Revert = () =>
+            {
+                const string k = @"HKCU\Control Panel\Accessibility\Keyboard Response";
+                Reg.SetStr(k, "AutoRepeatDelay", "1000"); Reg.SetStr(k, "AutoRepeatRate", "500");
+                Reg.SetStr(k, "DelayBeforeAcceptance", "1000"); Reg.SetStr(k, "BounceTime", "0");
+                Reg.SetStr(k, "Flags", Reg.Is(@"HKCU\Control Panel\Accessibility\StickyKeys", "Flags", "506") ? "122" : "126");
+            }
+        },
+        new Tweak
+        {
+            Id = "gbbtn", Cat = "input", Icon = "gamepad", Name = "Xbox-Taste ohne Game Bar",
+            Desc = "Die Guide-Taste am Controller öffnet nicht mehr die Game Bar mitten im Spiel.",
+            Check = () => Reg.Is(@"HKCU\Software\Microsoft\GameBar", "UseNexusForGameBarEnabled", 0),
+            Apply = () => Reg.Set(@"HKCU\Software\Microsoft\GameBar", "UseNexusForGameBarEnabled", 0),
+            Revert = () => Reg.Set(@"HKCU\Software\Microsoft\GameBar", "UseNexusForGameBarEnabled", 1)
         },
     };
 

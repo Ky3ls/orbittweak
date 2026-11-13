@@ -57,6 +57,10 @@
     <symbol id="eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></symbol>
     <symbol id="terminal" viewBox="0 0 24 24"><path d="m4 17 6-6-6-6M12 19h8"/></symbol>
     <symbol id="copy" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+    <symbol id="map" viewBox="0 0 24 24"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></symbol>
+    <symbol id="film" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 4v16M17 4v16M2 9h5M2 15h5M17 9h5M17 15h5"/></symbol>
+    <symbol id="puzzle" viewBox="0 0 24 24"><path d="M19.4 13.5a2 2 0 1 0 0-3H18V7a1 1 0 0 0-1-1h-3.5V4.6a2 2 0 1 0-3 0V6H7a1 1 0 0 0-1 1v3.5H4.6a2 2 0 1 0 0 3H6V17a1 1 0 0 0 1 1h3.5v1.4a2 2 0 1 0 3 0V18H17a1 1 0 0 0 1-1v-3.5z"/></symbol>
+    <symbol id="rec" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4" fill="currentColor"/></symbol>
     <symbol id="usb" viewBox="0 0 24 24"><circle cx="10" cy="7" r="1"/><circle cx="4" cy="20" r="1"/><path d="M4.7 19.3 19 5M21 3l-3 1 2 2ZM9.26 7.68 5 12l2 5M10 14l5 2 3.5-3.5M18 12l1-1 1 1-1 1Z"/></symbol>
   </defs>
 </svg>
@@ -87,21 +91,27 @@
   </header>
 
   <nav class="side" id="side">
+    <div class="side-nav">
     <div class="nav-ind" id="navInd"></div>
     <div class="nav-h">FiveM</div>
-    <button class="nav active" data-p="home"><svg class="i"><use href="#home"/></svg>Command Center<span class="n">01</span></button>
-    <button class="nav" data-p="servers"><svg class="i"><use href="#server"/></svg>Server<span class="n">02</span></button>
-    <button class="nav" data-p="launcher"><svg class="i"><use href="#rocket"/></svg>Launcher<span class="n">03</span></button>
-    <button class="nav" data-p="gfx"><svg class="i"><use href="#monitor"/></svg>Grafik-Tuner<span class="n">04</span></button>
-    <button class="nav" data-p="xhair"><svg class="i"><use href="#crosshair"/></svg>Fadenkreuz<span class="badge hidden" id="navXh">AN</span></button>
-    <button class="nav" data-p="display"><svg class="i"><use href="#sun"/></svg>Bildschirm<span class="badge hidden" id="navDp">AN</span></button>
+    <button class="nav active" data-p="home"><svg class="i"><use href="#home"/></svg>Command Center</button>
+    <button class="nav" data-p="servers"><svg class="i"><use href="#server"/></svg>Server</button>
+    <button class="nav" data-p="launcher"><svg class="i"><use href="#rocket"/></svg>Launcher</button>
     <button class="nav" data-p="f8"><svg class="i"><use href="#terminal"/></svg>F8-Befehle</button>
-    <button class="nav" data-p="input"><svg class="i"><use href="#keyboard"/></svg>Input-Lab<span class="n">05</span></button>
-    <div class="nav-h" style="margin-top:10px">System</div>
-    <button class="nav" data-p="tweaks"><svg class="i"><use href="#zap"/></svg>Tweaks<span class="n">06</span></button>
-    <button class="nav" data-p="cleaner"><svg class="i"><use href="#trash"/></svg>Cleaner<span class="n">07</span></button>
-    <button class="nav" data-p="diag"><svg class="i"><use href="#heart"/></svg>Diagnose<span class="n">08</span></button>
-    <button class="nav" data-p="settings"><svg class="i"><use href="#settings"/></svg>Einstellungen<span class="badge hidden" id="navUpd">NEU</span><span class="n">09</span></button>
+    <div class="nav-h">Visuals</div>
+    <button class="nav" data-p="gfx"><svg class="i"><use href="#monitor"/></svg>Grafik-Tuner</button>
+    <button class="nav" data-p="xhair"><svg class="i"><use href="#crosshair"/></svg>Fadenkreuz<span class="badge hidden" id="navXh">AN</span></button>
+    <button class="nav" data-p="minimap"><svg class="i"><use href="#map"/></svg>Minimap<span class="badge hidden" id="navMm">AN</span></button>
+    <button class="nav" data-p="display"><svg class="i"><use href="#sun"/></svg>Bildschirm<span class="badge hidden" id="navDp">AN</span></button>
+    <button class="nav" data-p="mods"><svg class="i"><use href="#puzzle"/></svg>Mods</button>
+    <div class="nav-h">Tools</div>
+    <button class="nav" data-p="clip"><svg class="i"><use href="#film"/></svg>Clipper</button>
+    <button class="nav" data-p="input"><svg class="i"><use href="#keyboard"/></svg>Input-Lab</button>
+    <button class="nav" data-p="tweaks"><svg class="i"><use href="#zap"/></svg>Tweaks</button>
+    <button class="nav" data-p="cleaner"><svg class="i"><use href="#trash"/></svg>Cleaner</button>
+    <button class="nav" data-p="diag"><svg class="i"><use href="#heart"/></svg>Diagnose</button>
+    <button class="nav" data-p="settings"><svg class="i"><use href="#settings"/></svg>Einstellungen<span class="badge hidden" id="navUpd">NEU</span></button>
+    </div>
     <div class="side-cta">
       <button class="launch" onclick="launch('')">
         <span class="pi"><svg class="i"><use href="#play"/></svg></span>
@@ -114,9 +124,15 @@
   <main id="main">
     <!-- ================= HOME ================= -->
     <section class="page show" id="p-home">
-      <div class="ph">
-        <div><div class="kicker">Command Center</div><h1>Ready für die Stadt, <span class="grad" id="uname">Player</span>?</h1><p class="pd">Live-Status, Boost und die wichtigsten Aktionen auf einen Blick.</p></div>
-        <div class="ph-r"><span class="chip a" id="lastBoost">Noch kein Boost</span></div>
+      <div class="banner" id="banner">
+        <div class="bn-scene" id="bnScene"></div>
+        <div class="bn-shade"></div>
+        <div class="bn-txt">
+          <div class="kicker" id="bnTime">Los Santos · 20:14</div>
+          <h1><span id="greet">Guten Abend</span>, <span class="grad" id="uname">Player</span></h1>
+          <p class="pd">Ready für die Stadt? Live-Status, Boost und alles Wichtige auf einen Blick.</p>
+        </div>
+        <div class="bn-r"><span class="chip a" id="lastBoost">Noch kein Boost</span></div>
       </div>
       <div class="home">
         <div class="card gb hero">
@@ -380,6 +396,77 @@
       </div>
     </section>
 
+    <!-- ================= MINIMAP ================= -->
+    <section class="page" id="p-minimap">
+      <div class="ph">
+        <div><div class="kicker">Minimap</div><h1>Minimap <span class="grad">Style</span></h1><p class="pd">Rahmen, runde oder eckige Minimap als Overlay, live und ohne Neustart. Oder eine komplett eigene Karte als Mod.</p></div>
+        <div class="ph-r"><button class="btn p lg" id="mmMain" onclick="mmToggle()"><svg class="i"><use href="#map"/></svg><span>Einschalten</span></button></div>
+      </div>
+      <div class="xwarn"><svg class="i"><use href="#alert"/></svg><div><b>Server-Regeln beachten.</b> Overlays und vor allem Minimap-Mods sind auf vielen FiveM-Servern verboten (Pure-Mode). Prüfe die Regeln deines Servers, die Nutzung erfolgt auf eigene Verantwortung.</div></div>
+      <div class="xgrid">
+        <div class="col">
+          <div class="card">
+            <div class="row"><div class="lbl"><svg class="i"><use href="#eye"/></svg>Vorschau</div><span class="sp"></span><span class="chip" id="mmRes">1920×1080</span></div>
+            <div class="mmprev"><canvas id="mmCanvas"></canvas></div>
+            <div class="srow"><div><b>Ausrichten-Modus</b><p>Zeigt einen Rahmen über dem Spiel, damit du ihn genau auf die Minimap schieben kannst</p></div><div class="tg" id="mmAlign"></div></div>
+          </div>
+          <div class="card">
+            <div class="lbl"><svg class="i"><use href="#puzzle"/></svg>Eigene Minimap-Karte (Mod)</div>
+            <p class="sub" style="font-size:12.5px;margin-top:8px;line-height:1.5">Für eine komplett neue Karte (z. B. Satellit, Dunkel, Farbig) brauchst du einen Minimap-Mod als <b>.rpf</b>. OrbitTweak installiert ihn mit einem Klick in FiveM und kann ihn jederzeit wieder ausschalten.</p>
+            <div class="row mt"><button class="btn p" onclick="modInstall('minimap')"><svg class="i"><use href="#download"/></svg>Minimap-Mod installieren</button><button class="btn" onclick="go('mods')"><svg class="i"><use href="#puzzle"/></svg>Alle Mods</button></div>
+            <div id="mmMods" class="mt8"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="lbl"><svg class="i"><use href="#sparkle"/></svg>Stil</div>
+          <div class="xstyles" id="mmStyles"></div>
+          <div class="lbl mt"><svg class="i"><use href="#sun"/></svg>Farbe</div>
+          <div class="xcolors" id="mmColors"></div>
+          <div class="xsliders" id="mmSliders"></div>
+          <button class="btn sm mt8" onclick="mmDefaults()"><svg class="i"><use href="#undo"/></svg>Position zurücksetzen</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= CLIPPER ================= -->
+    <section class="page" id="p-clip">
+      <div class="ph">
+        <div><div class="kicker">Clipper</div><h1>Clips mit <span class="grad">einer Taste</span></h1><p class="pd">Taste drücken, die letzten Sekunden landen als Clip auf der Platte. Mit Einblendung im Spiel und Galerie.</p></div>
+        <div class="ph-r"><button class="btn" onclick="clipOpen('')"><svg class="i"><use href="#folder"/></svg>Videos-Ordner</button><button class="btn p" onclick="clipTest()"><svg class="i"><use href="#rec"/></svg>Clip jetzt speichern</button></div>
+      </div>
+      <div class="cl-top">
+        <div class="card">
+          <div class="lbl"><svg class="i"><use href="#film"/></svg>Aufnahme-Programm</div>
+          <div class="cl-recs" id="clRecs"></div>
+          <p class="sub" id="clRecTxt" style="font-size:12.5px;margin-top:12px;line-height:1.5"></p>
+        </div>
+        <div class="card">
+          <div class="lbl"><svg class="i"><use href="#keyboard"/></svg>Clip-Taste</div>
+          <div class="seg keyseg mt8" id="clKey"></div>
+          <div class="srow"><div><b>Einblendung im Spiel</b><p>Kurzes „Clip gespeichert“ oben im Bild</p></div><div class="tg" id="clFlash"></div></div>
+          <div class="xnote" style="margin-top:8px"><svg class="i"><use href="#alert"/></svg><div><b>Auto-Clip bei Kills</b> würde das Auslesen des Spiels erfordern. Das erkennen Anti-Cheats als Cheat, deshalb setzt OrbitTweak auf die Clip-Taste.</div></div>
+        </div>
+      </div>
+      <div class="card mt">
+        <div class="row"><div class="lbl"><svg class="i"><use href="#play"/></svg>Deine Clips</div><span class="chip" id="clCount">0</span><span class="sp"></span><button class="ib" onclick="clipList()"><svg class="i"><use href="#refresh"/></svg></button></div>
+        <div class="cl-grid" id="clGrid"></div>
+      </div>
+    </section>
+
+    <!-- ================= MODS ================= -->
+    <section class="page" id="p-mods">
+      <div class="ph">
+        <div><div class="kicker">Mods</div><h1>Mod-<span class="grad">Manager</span></h1><p class="pd">Kill-Effekte, Minimap, Grafik- und Sound-Packs per Klick installieren, an- und ausschalten.</p></div>
+        <div class="ph-r"><button class="btn" onclick="api('mods.folder')"><svg class="i"><use href="#folder"/></svg>Mods-Ordner</button></div>
+      </div>
+      <div class="xwarn"><svg class="i"><use href="#alert"/></svg><div><b>Achtung: Viele Server verbieten Mods.</b> Server mit Pure-Mode lassen dich mit Mods nicht joinen oder kicken dich, manche bannen dafür. Installiere nur Mods aus vertrauenswürdigen Quellen. Die Nutzung erfolgt auf eigene Verantwortung.</div></div>
+      <div class="mod-cats" id="modCats"></div>
+      <div class="card mt">
+        <div class="row"><div class="lbl"><svg class="i"><use href="#puzzle"/></svg>Installierte Mods</div><span class="chip" id="modCount">0</span><span class="sp"></span><span class="sub" style="font-size:12px">Änderungen nur bei geschlossenem FiveM</span></div>
+        <div id="modList" class="mt8"></div>
+      </div>
+    </section>
+
     <!-- ================= F8 ================= -->
     <section class="page" id="p-f8">
       <div class="ph">
@@ -396,7 +483,12 @@
         <div class="ph-r"><button class="btn p" onclick="applyCat('input')"><svg class="i"><use href="#zap"/></svg>Alle Input-Tweaks an</button></div>
       </div>
       <div class="lab">
-        <div class="card"><div class="lbl"><svg class="i"><use href="#keyboard"/></svg>Input-Tweaks</div><div class="mt8" id="inputTweaks"></div></div>
+        <div class="col">
+          <div class="card snap"><div class="row"><div class="lbl"><svg class="i"><use href="#zap"/></svg>Snap Tap (A/D, W/S)</div><span class="sp"></span><div class="tg" id="snapTg"></div></div>
+            <p class="sub" style="font-size:12.5px;margin-top:8px;line-height:1.5">Drückst du A und D gleichzeitig, gewinnt immer die zuletzt gedrückte Taste. Schnellere Strafe-Wechsel wie bei Snap-Tap-Tastaturen, nur aktiv solange FiveM vorne ist.</p>
+            <p class="warnline"><svg class="i"><use href="#alert"/></svg>Auf manchen Servern als unfair verboten. Regeln beachten.</p></div>
+          <div class="card"><div class="lbl"><svg class="i"><use href="#keyboard"/></svg>Input-Tweaks</div><div class="mt8" id="inputTweaks"></div></div>
+        </div>
         <div class="col">
           <div class="card">
             <div class="row"><div class="lbl"><svg class="i"><use href="#keyboard"/></svg>WASD-Tester</div><span class="sp"></span><button class="btn sm" onclick="resetWasd()">Reset</button></div>
@@ -408,8 +500,17 @@
             </div>
           </div>
           <div class="card">
-            <div class="seg" id="labTabs"><button class="on" data-t="poll">Maus-Polling</button><button data-t="react">Reaktion</button></div>
+            <div class="seg" id="labTabs"><button class="on" data-t="poll">Maus-Polling</button><button data-t="react">Reaktion</button><button data-t="pad">Controller</button></div>
             <div class="pad" id="pollPad"><div><div class="big" id="pollHz">0<small>Hz</small></div><div class="sub" id="pollTxt">Maus hier schnell im Kreis bewegen</div></div></div>
+            <div class="gpad hidden" id="padPad">
+              <div class="gp-none" id="gpNone">Controller anschließen und eine Taste drücken</div>
+              <div class="gp-live hidden" id="gpLive">
+                <div class="gp-sticks"><div class="stick"><i id="gpL"></i><span>L</span></div><div class="stick"><i id="gpR"></i><span>R</span></div></div>
+                <div class="gp-trig"><div><span>LT</span><div class="bar"><i id="gpLT" style="width:0"></i></div></div><div><span>RT</span><div class="bar"><i id="gpRT" style="width:0"></i></div></div></div>
+                <div class="gp-btns" id="gpBtns"></div>
+                <div class="row" style="margin-top:10px"><span class="sub" id="gpDrift" style="font-size:12px">Drift: --</span><span class="sp"></span><button class="btn sm" onclick="gpRumble()"><svg class="i"><use href="#activity"/></svg>Vibration testen</button></div>
+              </div>
+            </div>
             <div class="react hidden" id="reactPad"><div><div class="big" id="reactMs">Klicken</div><div class="sub" id="reactTxt">Klicken, auf Grün warten, dann so schnell wie möglich klicken</div></div></div>
           </div>
         </div>
@@ -464,6 +565,13 @@
         </div>
         <div class="col">
           <div class="card">
+            <div class="row"><div class="lbl"><svg class="i"><use href="#wifi"/></svg>Verbindungstest (Hitreg)</div><span class="sp"></span><div class="seg" id="ntTarget"><button class="on" data-nt="cfx">Cfx.re</button><button data-nt="cloudflare">Internet</button><button data-nt="custom">Server</button></div></div>
+            <input class="in mt8 hidden" id="ntHost" placeholder="IP:Port deines Servers, z. B. 123.45.67.89:30120">
+            <div class="nt-res" id="ntRes"><div><b id="ntAvg">--</b><span>Ping</span></div><div><b id="ntJit">--</b><span>Jitter</span></div><div><b id="ntLoss">--</b><span>Verlust</span></div></div>
+            <div class="nt-bars" id="ntBars"></div>
+            <div class="row mt8"><span class="sub" id="ntTxt" style="font-size:12px">20 Messungen, dauert ca. 3 Sekunden</span><span class="sp"></span><button class="btn p sm" id="ntBtn" onclick="netTest()"><svg class="i"><use href="#activity"/></svg>Test starten</button></div>
+          </div>
+          <div class="card">
             <div class="row"><div class="lbl"><svg class="i"><use href="#file"/></svg>FiveM-Log</div><span class="sp"></span>
               <div class="seg" id="logSeg"><button class="on" data-f="all">Alles</button><button data-f="err">Nur Fehler</button></div>
               <button class="ib" onclick="loadLogs()"><svg class="i"><use href="#refresh"/></svg></button></div>
@@ -507,13 +615,15 @@
           <button class="btn" onclick="wizard(0)"><svg class="i"><use href="#sparkle"/></svg>Setup-Assistent</button>
           <button class="btn d" onclick="revertAll()"><svg class="i"><use href="#undo"/></svg>Alle Tweaks zurücksetzen</button>
         </div>
-        <p class="sub" style="font-size:12px;line-height:1.6;margin-top:16px;max-width:760px">OrbitTweak ändert nur Windows-Einstellungen und Caches. Es injiziert nichts und verändert keine FiveM-Dateien. Fadenkreuz-Overlays sind auf manchen Servern verboten, prüfe die Server-Regeln. Einstellungen liegen unter %AppData%\OrbitTweak.</p>
+        <p class="sub" style="font-size:12px;line-height:1.6;margin-top:16px;max-width:760px">OrbitTweak ändert nur Windows-Einstellungen und Caches. Es injiziert nichts und verändert FiveM nur, wenn du selbst Mods installierst. Fadenkreuz-Overlays sind auf manchen Servern verboten, prüfe die Server-Regeln. Einstellungen liegen unter %AppData%\OrbitTweak.</p>
       </div>
     </section>
   </main>
 </div>
 
 <div id="toasts"></div>
+<div class="splash" id="splash"><div class="sp-scene" id="spScene"></div><div class="sp-shade"></div><div class="sp-box"><svg class="sp-logo" viewBox="0 0 64 64"><circle cx="32" cy="32" r="17" fill="none" stroke="url(#rg)" stroke-width="6"/><ellipse cx="32" cy="32" rx="29" ry="10" fill="none" stroke="url(#rg)" stroke-width="3.2" transform="rotate(-28 32 32)"/><circle cx="52" cy="13" r="4" fill="#fff"/></svg><div class="sp-name">Orbit<span>Tweak</span></div><div class="sp-sub" id="spSub">Lade Los Santos…</div><div class="sp-bar"><i></i></div></div></div>
+<div class="passed" id="passed"><div class="pa-band"><div class="pa-t" id="paT">Boost abgeschlossen</div><div class="pa-s" id="paS"></div></div></div>
 <div class="modal" id="modal"><div class="card gb mbox" id="mbox"></div></div>
 
 <script src="app.js"></script>

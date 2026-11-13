@@ -25,10 +25,14 @@ public partial class MainWindow : Window
     private DateTime _lastAutoClean = DateTime.MinValue;
     private double _zoom = 1;
     private readonly CrosshairOverlay _xhair = new();
+    private readonly CrosshairOverlay _minimap = new() { Anchor = Anchor.BottomLeft };
+    private readonly SnapTap _snap = new();
     private readonly DispatcherTimer _live = new() { Interval = TimeSpan.FromMilliseconds(400) };
     private bool _dispActive, _preview, _lastGame;
     private bool? _gammaOk, _vibOk;
-    private const int HK_XHAIR = 0xB00, HK_DISPLAY = 0xB01;
+    private const int HK_XHAIR = 0xB00, HK_DISPLAY = 0xB01, HK_CLIP = 0xB02;
+    private readonly CrosshairOverlay _flash = new() { Anchor = Anchor.TopCenter };
+    private DateTime _flashUntil;
 
     [DllImport("user32.dll")] private static extern bool RegisterHotKey(IntPtr h, int id, uint mod, uint vk);
     [DllImport("user32.dll")] private static extern bool UnregisterHotKey(IntPtr h, int id);
@@ -65,6 +69,7 @@ public partial class MainWindow : Window
         AppDomain.CurrentDomain.ProcessExit += (_, _) => { ScreenColor.Restore(); NvVibrance.Restore(); };
         Application.Current.ShutdownMode = ShutdownMode.OnMainWindowClose;
         _live.Tick += (_, _) => LiveTick();
+        if (S.SnapTap) _snap.Enable(true);
         _live.Start();
 
         if (S.TimerRes) Catalog.SetTimerResolution(true);
@@ -94,6 +99,7 @@ public partial class MainWindow : Window
 #endif
             c.NewWindowRequested += (_, e) => { e.Handled = true; Proc.Open(e.Uri); };
             c.SetVirtualHostNameToFolderMapping("orbit.local", ExtractWeb(Path.Combine(data, "web")), CoreWebView2HostResourceAccessKind.Allow);
+            try { if (Directory.Exists(Clipper.VideosDir)) c.SetVirtualHostNameToFolderMapping("clips.orbit", Clipper.VideosDir, CoreWebView2HostResourceAccessKind.Allow); } catch { }
             c.WebMessageReceived += OnMessage;
             Web.ZoomFactor = _zoom;
             c.Navigate("https://orbit.local/index.html");
@@ -204,6 +210,8 @@ public partial class MainWindow : Window
                     case "autoBorderless": S.AutoBorderless = val.GetBoolean(); break;
                     case "f8Auto": S.F8Auto = val.GetBoolean(); break;
                     case "xhairShrink": S.XhairShrink = val.GetBoolean(); break;
+                    case "modsAck": S.ModsAck = val.GetBoolean(); break;
+                    case "snapTap": S.SnapTap = val.GetBoolean(); _snap.Enable(S.SnapTap); Log(S.SnapTap ? "⌨ Snap Tap aktiv (nur im Spiel)" : "⌨ Snap Tap aus"); break;
                     case "launch": S.Launch = val.Deserialize<LaunchCfg>(JIn) ?? new LaunchCfg(); break;
                 }
                 S.Save();
@@ -300,6 +308,86 @@ public partial class MainWindow : Window
                 LiveTick();
                 if (!wasOn && x.On) ShrinkReticle();
                 return new { keyOk = keys.xhair };
+            }
+
+            // ---------- minimap frame ----------
+            case "minimap.preview": _mmPreview = Bool(a, "on"); LiveTick(); return null;
+            case "minimap.set":
+            {
+                var m = S.Minimap;
+                m.On = Bool(a, "on"); m.X = Int(a, "x"); m.Y = Int(a, "y");
+                var json = Str(a, "json"); if (json.Length > 0) m.Json = json;
+                var png = Str(a, "png");
+                if (png.Length > 0) _minimap.SetImage(Convert.FromBase64String(png), m.X, m.Y); else _minimap.SetOffset(m.X, m.Y);
+                S.Save(); LiveTick();
+                return new { ok = true, client = GameFocus.Client() is var c ? new { w = c.r - c.l, h = c.b - c.t } : null };
+            }
+
+            // ---------- clipper ----------
+            case "clip.cfg":
+            {
+                S.Clip.Key = Int(a, "key"); S.Clip.Flash = Bool(a, "flash");
+                var rec = Str(a, "recorder"); if (Clipper.Recorders.ContainsKey(rec)) S.Clip.Recorder = rec;
+                var png = Str(a, "png"); if (png.Length > 0) _flash.SetImage(Convert.FromBase64String(png), 0, 40);
+                S.Save();
+                var keys = RegisterKeys();
+                return new { keyOk = keys.clip, combo = Clipper.Recorders[S.Clip.Recorder].label };
+            }
+            case "clip.save": await SaveClip(); return new { ok = true };
+            case "clip.list": return await Task.Run(Clipper.List);
+            case "clip.open":
+            {
+                var f = Clipper.Resolve(Str(a, "rel"));
+                if (f != null) Process.Start("explorer.exe", $"/select,\"{f}\"");
+                else Proc.Open(Clipper.VideosDir);
+                return null;
+            }
+            case "clip.delete":
+            {
+                var f = Clipper.Resolve(Str(a, "rel"));
+                if (f == null) return new { ok = false };
+                try { File.Delete(f); Log("🗑 Clip gelöscht: " + Path.GetFileName(f)); return new { ok = true }; }
+                catch (Exception ex) { return new { ok = false, error = ex.Message }; }
+            }
+            case "clip.gamebar":
+                Clipper.EnableGameBarCapture();
+                Log("🎬 Game-Bar-Aufnahme im Hintergrund aktiviert");
+                return new { ok = true };
+
+            // ---------- mods ----------
+            case "mods.list": return await Task.Run(() => Mods.List(S.ModCats));
+            case "mods.install":
+            {
+                var dlg = new Microsoft.Win32.OpenFileDialog { Title = "Mod auswählen (.rpf oder .zip)", Filter = "FiveM-Mods (*.rpf;*.zip)|*.rpf;*.zip", Multiselect = true };
+                if (dlg.ShowDialog(this) != true) return new { count = 0, cancelled = true };
+                var cat = Str(a, "cat");
+                var (count, error) = await Task.Run(() => Mods.Install(dlg.FileNames, cat, S.ModCats));
+                S.Save();
+                if (count > 0) Log($"🧩 {count} Mod(s) installiert");
+                return new { count, error };
+            }
+            case "mods.toggle":
+            {
+                var err = Mods.Toggle(Str(a, "name"), Bool(a, "on"));
+                if (err == null) Log($"🧩 {Str(a, "name")} {(Bool(a, "on") ? "aktiviert" : "deaktiviert")}");
+                return new { error = err };
+            }
+            case "mods.delete":
+            {
+                var err = Mods.Delete(Str(a, "name"));
+                if (err == null) { S.ModCats.Remove(Str(a, "name")); S.Save(); Log($"🗑 Mod entfernt: {Str(a, "name")}"); }
+                return new { error = err };
+            }
+            case "mods.folder": if (Mods.Dir is { } md) { Directory.CreateDirectory(md); Proc.Open(md); } return null;
+
+            // ---------- network quality ----------
+            case "net.test":
+            {
+                var target = Str(a, "target");
+                string host = "servers-frontend.fivem.net"; int port = 443;
+                if (target == "cloudflare") host = "1.1.1.1";
+                else if (target.Contains(':') && System.Text.RegularExpressions.Regex.IsMatch(target, @"^[\w\.\-]+:\d{1,5}$")) { var i = target.LastIndexOf(':'); host = target[..i]; port = int.Parse(target[(i + 1)..]); }
+                return await Net.Quality(host, port);
             }
 
             // ---------- F8 console ----------
@@ -427,6 +515,7 @@ public partial class MainWindow : Window
     //  LIVE: crosshair overlay, screen color, hotkeys
     // =====================================================================
     private DateTime? _gameFgSince;
+    private bool _mmPreview;
     private uint _f8Pid, _reticlePid;
 
     private void ShrinkReticle()
@@ -458,6 +547,8 @@ public partial class MainWindow : Window
         }
         else _gameFgSince = null;
         _xhair.Update(S.Xhair.On && (!S.Xhair.OnlyGame || game));
+        _minimap.Update(S.Minimap.On && (game || _mmPreview));
+        _flash.Update(DateTime.Now < _flashUntil);
         // re-apply when the game gets focus (fullscreen games may reset the gamma ramp)
         bool focusGained = game && !_lastGame;
         _lastGame = game;
@@ -486,20 +577,32 @@ public partial class MainWindow : Window
     private void StopLive()
     {
         _live.Stop();
-        _xhair.Close();
+        _xhair.Close(); _minimap.Close(); _snap.Enable(false);
         ScreenColor.Restore(); NvVibrance.Restore();
         var h = new WindowInteropHelper(this).Handle;
-        if (h != IntPtr.Zero) { UnregisterHotKey(h, HK_XHAIR); UnregisterHotKey(h, HK_DISPLAY); }
+        if (h != IntPtr.Zero) { UnregisterHotKey(h, HK_XHAIR); UnregisterHotKey(h, HK_DISPLAY); UnregisterHotKey(h, HK_CLIP); }
+        _flash.Close();
     }
 
-    private (bool xhair, bool display) RegisterKeys()
+    private (bool xhair, bool display, bool clip) RegisterKeys()
     {
         var h = new WindowInteropHelper(this).Handle;
-        if (h == IntPtr.Zero) return (true, true);
+        if (h == IntPtr.Zero) return (true, true, true);
         UnregisterHotKey(h, HK_XHAIR); UnregisterHotKey(h, HK_DISPLAY);
         bool x = S.Xhair.Key <= 0 || RegisterHotKey(h, HK_XHAIR, 0x4000, (uint)S.Xhair.Key);
         bool d = S.Display.Key <= 0 || (S.Display.Key != S.Xhair.Key && RegisterHotKey(h, HK_DISPLAY, 0x4000, (uint)S.Display.Key));
-        return (x, d);
+        UnregisterHotKey(h, HK_CLIP);
+        bool c = S.Clip.Key <= 0 || (S.Clip.Key != S.Xhair.Key && S.Clip.Key != S.Display.Key && RegisterHotKey(h, HK_CLIP, 0x4000, (uint)S.Clip.Key));
+        return (x, d, c);
+    }
+
+    private async Task SaveClip()
+    {
+        await Clipper.Save(S.Clip.Recorder);
+        Log($"🎬 Clip gespeichert ({Clipper.Recorders[S.Clip.Recorder].label})");
+        Emit("clip", new { recorder = S.Clip.Recorder });
+        if (S.Clip.Flash) _flashUntil = DateTime.Now.AddSeconds(1.8);
+        LiveTick();
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wp, IntPtr lp, ref bool handled)
@@ -511,6 +614,11 @@ public partial class MainWindow : Window
             S.Xhair.On = !S.Xhair.On; S.Save(); LiveTick();
             if (S.Xhair.On) ShrinkReticle();
             Emit("xhair", new { on = S.Xhair.On });
+            handled = true;
+        }
+        else if (id == HK_CLIP)
+        {
+            _ = SaveClip();
             handled = true;
         }
         else if (id == HK_DISPLAY)

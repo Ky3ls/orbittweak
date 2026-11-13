@@ -136,6 +136,20 @@ internal static class Net
         catch { return null; }
     }
 
+    /// <summary>Connection quality for hitreg: 20 TCP handshakes → average, jitter, loss.</summary>
+    public static async Task<object> Quality(string host, int port)
+    {
+        var list = new List<int>(); int lost = 0;
+        for (int i = 0; i < 20; i++)
+        {
+            if (await TcpPing(host, port, 1500) is int ms) list.Add(ms); else lost++;
+            await Task.Delay(60);
+        }
+        if (list.Count == 0) return new { host, ok = false, loss = 100 };
+        double jitter = list.Count > 1 ? list.Zip(list.Skip(1), (a, b) => Math.Abs(a - b)).Average() : 0;
+        return new { host, ok = true, avg = (int)Math.Round(list.Average()), min = list.Min(), max = list.Max(), jitter = Math.Round(jitter, 1), loss = lost * 5, samples = list };
+    }
+
     public static async Task<object> CfxPing()
     {
         var list = new List<int>();

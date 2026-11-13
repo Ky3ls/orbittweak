@@ -65,6 +65,11 @@ public class Settings
     public Dictionary<string, string> F8 { get; set; } = new();
     public bool F8Auto { get; set; } = true;
     public bool XhairShrink { get; set; } = true;
+    public bool SnapTap { get; set; }
+    public MinimapCfg Minimap { get; set; } = new();
+    public ClipCfg Clip { get; set; } = new();
+    public Dictionary<string, string> ModCats { get; set; } = new();
+    public bool ModsAck { get; set; }
     public int XhairRev { get; set; }
     public DisplayCfg Display { get; set; } = new();
 

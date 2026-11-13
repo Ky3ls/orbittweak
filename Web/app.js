@@ -93,7 +93,7 @@ function go(p) {
   $$('.nav').forEach(n => n.classList.toggle('active', n.dataset.p === p));
   $$('.page').forEach(s => s.classList.toggle('show', s.id === 'p-' + p));
   moveInd(); enterPage($('#p-' + p));
-  ({ servers: () => S.servers.length || loadServers(), gfx: () => { S.gfx || loadGfx(); gwRefresh(); }, f8: () => loadF8().then(renderF8), xhair: () => setTimeout(xhPlace, 30), cleaner: () => S.clean.length || scan(),
+  ({ servers: () => S.servers.length || loadServers(), gfx: () => { S.gfx || loadGfx(); gwRefresh(); }, f8: () => loadF8().then(renderF8), minimap: () => { mmRender(); modList(); }, clip: clipList, mods: () => { modCatsUI(); modList(); }, xhair: () => setTimeout(xhPlace, 30), cleaner: () => S.clean.length || scan(),
      diag: () => { S.health ? renderHealth(S.health) : runHealth(); loadLogs(); }, launcher: renderCmd, home: refreshCache })[p]?.();
 }
 window.go = go;
@@ -120,6 +120,7 @@ function onEvent(ev, d) {
   else if (ev === 'update') updProgress(d);
   else if (ev === 'xhair') { XH.on = d.on; xhState(); toast(d.on ? 'Fadenkreuz an' : 'Fadenkreuz aus', d.on ? 'per Taste · Server-Regeln beachten' : 'per Taste'); }
   else if (ev === 'display') { DP.cfg.on = d.on; dpState(); }
+  else if (ev === 'clip') { toast('Clip gespeichert', 'per Taste · ' + (CL_RECS[d.recorder]?.[1] || '')); if (curPage === 'clip') setTimeout(clipList, 4000); }
 }
 function stats(d) {
   $('#tbCpu').textContent = d.cpu + '%'; $('#tbRam').textContent = d.ram + '%';
@@ -196,6 +197,7 @@ async function boost(fromWizard) {
     $('#heroTitle').textContent = 'Boost abgeschlossen';
     $('#heroText').textContent = r.restart ? 'Fertig. Starte den PC neu, damit alle Tweaks greifen.' : 'Fertig. Dein System ist bereit für FiveM.';
     $('#lastBoost').textContent = 'Letzter Boost: gerade eben';
+    if (!fromWizard) passed('Boost abgeschlossen', `${r.applied} Tweaks · ${bytes(r.freed)} frei${r.restart ? ' · Neustart empfohlen' : ''}`);
     if (!fromWizard) toast('Boost abgeschlossen', `${r.applied} Tweaks · ${bytes(r.freed)} freigegeben${r.restart ? ' · Neustart empfohlen' : ''}`);
     feed(`Boost fertig: ${r.applied} Tweaks, ${bytes(r.freed)} frei`);
     return r;
@@ -213,7 +215,7 @@ async function boost(fromWizard) {
 }
 
 /* ======================= TWEAKS ======================= */
-const CATS = { fivem: ['FiveM', 'gamepad'], system: ['System', 'cpu'], network: ['Netzwerk', 'wifi'], input: ['Input', 'keyboard'] };
+const CATS = { fivem: ['FiveM', 'gamepad'], system: ['System', 'cpu'], network: ['Netzwerk & Hitreg', 'wifi'], input: ['Input', 'keyboard'] };
 let curTab = 'fivem';
 async function loadTweaks() { S.tweaks = await api('tweaks.list'); renderTweaks(); score(); }
 function tweakHtml(t, compact) {
@@ -427,7 +429,7 @@ function initLab() {
     $('#pollHz').innerHTML = `${hz}<small>Hz</small>`;
     $('#pollTxt').textContent = `Spitze ${P.max} Hz · ` + (P.max >= 900 ? '1000-Hz-Maus' : P.max >= 450 ? '500-Hz-Maus' : 'Polling-Rate im Maus-Tool erhöhen');
   }, 250);
-  $('#labTabs').onclick = e => { const b = e.target.closest('button'); if (!b) return; $$('#labTabs button').forEach(x => x.classList.toggle('on', x === b)); pad.classList.toggle('hidden', b.dataset.t !== 'poll'); $('#reactPad').classList.toggle('hidden', b.dataset.t !== 'react'); };
+  $('#labTabs').onclick = e => { const b = e.target.closest('button'); if (!b) return; $$('#labTabs button').forEach(x => x.classList.toggle('on', x === b)); pad.classList.toggle('hidden', b.dataset.t !== 'poll'); $('#reactPad').classList.toggle('hidden', b.dataset.t !== 'react'); $('#padPad').classList.toggle('hidden', b.dataset.t !== 'pad'); if (b.dataset.t === 'pad') gpStart(); };
   const R = { st: 'idle', t: 0, to: 0, res: [] }, rp = $('#reactPad');
   rp.addEventListener('pointerdown', () => {
     if (R.st === 'idle' || R.st === 'done') {
@@ -910,8 +912,272 @@ document.addEventListener('click', e => {
 });
 setInterval(() => { if (curPage === 'gfx') gwRefresh(); }, 2500);
 
+/* ======================= FIVEM LOOK ======================= */
+function sceneClone(suffix) {
+  const src = $('#xhScene .gscene'); if (!src) return '';
+  return src.outerHTML.replace(/\b(gsky|gsun|groad)\b/g, `$1${suffix}`);
+}
+function timeOfDay(d = new Date()) { const h = d.getHours(); return h >= 6 && h < 17 ? 'day' : h >= 17 && h < 21 ? 'dusk' : 'night'; }
+function banner() {
+  const d = new Date(), h = d.getHours(), tod = timeOfDay(d);
+  $('#bnScene').className = 'bn-scene sc-' + tod;
+  $('#greet').textContent = h < 5 ? 'Gute Nacht' : h < 11 ? 'Guten Morgen' : h < 17 ? 'Guten Tag' : h < 22 ? 'Guten Abend' : 'Gute Nacht';
+  $('#bnTime').textContent = `Los Santos · ${d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`;
+}
+function initLook() {
+  $('#bnScene').innerHTML = sceneClone('B'); $('#spScene').innerHTML = sceneClone('S');
+  $('#spScene').className = 'sp-scene sc-' + timeOfDay();
+  banner(); setInterval(banner, 30000);
+}
+function passed(title, sub) {
+  const p = $('#passed'); $('#paT').textContent = title; $('#paS').textContent = sub || '';
+  p.classList.remove('show'); void p.offsetWidth; p.classList.add('show');
+  clearTimeout(p._t); p._t = setTimeout(() => p.classList.remove('show'), 3300);
+}
+window.passed = passed;
+
+/* ======================= MINIMAP ======================= */
+const MM_STYLES = [
+  ['round', 'Rund', '<circle cx="12" cy="12" r="7"/>'],
+  ['square', 'Quadrat', '<rect x="5" y="5" width="14" height="14" rx="3"/>'],
+  ['frame', 'Rahmen', '<rect x="3" y="6" width="18" height="12" rx="2"/>'],
+  ['glow', 'Neon', '<rect x="3" y="6" width="18" height="12" rx="2"/><rect x="1" y="4" width="22" height="16" rx="3" opacity=".4"/>'],
+  ['corners', 'Ecken', '<path d="M3 9V6h4M17 6h4v3M21 15v3h-4M7 18H3v-3"/>'],
+];
+const MM = { cfg: { style: 'round', color: '#FF7A3D', thick: 3, mask: 92, glow: true }, on: false, x: 0, y: 0, w: 0, h: 0, res: { w: 1920, h: 1080 }, align: false, P: 26 };
+function mmDefaults(push = true) {
+  const H = MM.res.h;
+  Object.assign(MM, { x: Math.round(H * .026), y: Math.round(H * .045), w: Math.round(H * .243), h: Math.round(H * .157) });
+  if (push) { mmUI(); mmPush(); }
+}
+function mmMapMock(x, w, h) {
+  x.fillStyle = '#86977A'; x.fillRect(0, 0, w, h);
+  x.fillStyle = '#6E8FB0'; x.beginPath(); x.moveTo(w * .7, 0); x.lineTo(w, 0); x.lineTo(w, h * .55); x.quadraticCurveTo(w * .8, h * .4, w * .7, 0); x.fill();
+  x.strokeStyle = '#D9D4C5'; x.lineWidth = Math.max(2, h / 40);
+  [[0, h * .45, w, h * .5], [w * .3, 0, w * .38, h], [0, h * .9, w * .8, h * .2], [w * .62, h, w * .7, h * .35]].forEach(([a, b, c, d]) => { x.beginPath(); x.moveTo(a, b); x.lineTo(c, d); x.stroke(); });
+  x.fillStyle = '#fff'; x.beginPath(); x.moveTo(w / 2, h / 2 - 7); x.lineTo(w / 2 + 5, h / 2 + 6); x.lineTo(w / 2, h / 2 + 3); x.lineTo(w / 2 - 5, h / 2 + 6); x.fill();
+}
+function mmDraw(align = MM.align) {
+  const { P, w, h } = MM, c = MM.cfg, cv = document.createElement('canvas'); cv.width = w + 2 * P; cv.height = h + 2 * P;
+  const x = cv.getContext('2d'), mask = `rgba(9,9,11,${c.mask / 100})`, t = c.thick;
+  const glow = () => { if (c.glow || c.style === 'glow') { x.shadowColor = c.color; x.shadowBlur = c.style === 'glow' ? 18 : 10; } };
+  const rr = (X, Y, W, H, r) => { x.beginPath(); x.roundRect(X, Y, W, H, r); };
+  if (c.style === 'round' || c.style === 'square') {
+    const s = h, cx = P + w / 2, cy = P + h / 2;
+    x.beginPath(); x.rect(P, P, w, h);
+    if (c.style === 'round') x.arc(cx, cy, s / 2 - t / 2, 0, Math.PI * 2, true); else x.roundRect(cx - s / 2 + t / 2, P + t / 2, s - t, s - t, 12);
+    x.fillStyle = mask; x.fill('evenodd');
+    glow(); x.strokeStyle = c.color; x.lineWidth = t; x.beginPath();
+    if (c.style === 'round') x.arc(cx, cy, s / 2 - t / 2, 0, Math.PI * 2); else x.roundRect(cx - s / 2 + t / 2, P + t / 2, s - t, s - t, 12);
+    x.stroke();
+  } else if (c.style === 'corners') {
+    glow(); x.strokeStyle = c.color; x.lineWidth = t; x.lineCap = 'round'; const L = Math.min(w, h) * .22;
+    [[P, P + L, P, P, P + L, P], [P + w - L, P, P + w, P, P + w, P + L], [P + w, P + h - L, P + w, P + h, P + w - L, P + h], [P + L, P + h, P, P + h, P, P + h - L]]
+      .forEach(([a, b, c2, d, e, f]) => { x.beginPath(); x.moveTo(a, b); x.lineTo(c2, d); x.lineTo(e, f); x.stroke(); });
+  } else {
+    glow(); x.strokeStyle = c.color; x.lineWidth = t; rr(P - t / 2, P - t / 2, w + t, h + t, 8); x.stroke();
+    if (c.style === 'glow') { x.shadowBlur = 0; x.globalAlpha = .45; x.lineWidth = 1; rr(P - t - 3, P - t - 3, w + 2 * t + 6, h + 2 * t + 6, 11); x.stroke(); x.globalAlpha = 1; }
+  }
+  if (align) { x.shadowBlur = 0; x.fillStyle = 'rgba(255,0,200,.16)'; x.fillRect(P, P, w, h); x.setLineDash([6, 4]); x.strokeStyle = '#FF2BD6'; x.lineWidth = 2; x.strokeRect(P + 1, P + 1, w - 2, h - 2); }
+  return cv;
+}
+function mmRender() {
+  const img = mmDraw(), cv = $('#mmCanvas'), P = MM.P;
+  cv.width = img.width; cv.height = img.height;
+  const x = cv.getContext('2d'); x.save(); x.translate(P, P); mmMapMock(x, MM.w, MM.h); x.restore(); x.drawImage(img, 0, 0);
+  cv.style.width = Math.min(img.width * 1.4, 520) + 'px';
+}
+let mmT = 0;
+function mmPush() {
+  mmRender(); clearTimeout(mmT);
+  mmT = setTimeout(async () => {
+    const png = mmDraw().toDataURL('image/png').split(',')[1];
+    const r = await api('minimap.set', { on: MM.on, x: MM.x - MM.P, y: MM.y - MM.P, png, json: JSON.stringify({ ...MM.cfg, x: MM.x, y: MM.y, w: MM.w, h: MM.h }) }).catch(() => null);
+    if (r && r.client && r.client.h) { MM.res = r.client; $('#mmRes').textContent = `${r.client.w}×${r.client.h}`; if (MM.fresh) { MM.fresh = false; mmDefaults(); } }
+  }, 120);
+}
+function mmUI() {
+  $('#mmStyles').innerHTML = MM_STYLES.map(([k, n, svg]) => `<button class="xst ${MM.cfg.style === k ? 'on' : ''}" data-mms="${k}"><svg viewBox="0 0 24 24">${svg}</svg>${n}</button>`).join('');
+  const cols = [getComputedStyle(document.documentElement).getPropertyValue('--a').trim().toUpperCase(), '#FFFFFF', '#3DE0FF', '#3DFF8B', '#FFE03D', '#FF3B5C', '#B78CFF'];
+  $('#mmColors').innerHTML = [...new Set(cols)].map(c => `<button class="xcol ${MM.cfg.color.toUpperCase() === c ? 'on' : ''}" data-mmc="${c}" style="background:${c}"></button>`).join('') + `<label class="xcustom" title="Eigene Farbe"><input type="color" id="mmPick" value="${MM.cfg.color}"></label>`;
+  const H = MM.res.h, sl = [['thick', 'Dicke', 1, 8, MM.cfg.thick], ['mask', 'Abdeckung', 40, 100, MM.cfg.mask, '%'], ['x', 'Links', 0, Math.round(H * .2), MM.x], ['y', 'Unten', 0, Math.round(H * .2), MM.y], ['w', 'Breite', 100, Math.round(H * .5), MM.w], ['h', 'Höhe', 60, Math.round(H * .4), MM.h]];
+  $('#mmSliders').innerHTML = `<div class="xs tgl"><span>Leuchten</span><div class="tg ${MM.cfg.glow ? 'on' : ''}" data-mmb="glow"></div></div>` +
+    sl.map(([k, n, mi, ma, v, u = '']) => `<div class="xs"><span>${n}</span><input type="range" min="${mi}" max="${ma}" value="${v}" style="--p:${(v - mi) / (ma - mi) * 100}%" data-mmr="${k}"><b>${v}${u}</b></div>`).join('');
+  $('#mmAlign').classList.toggle('on', MM.align);
+  $('#mmMain').querySelector('span').textContent = MM.on ? 'Ausschalten' : 'Einschalten';
+  $('#mmMain').classList.toggle('p', !MM.on);
+  $('#navMm').classList.toggle('hidden', !MM.on);
+  mmRender();
+}
+function mmToggle() { MM.on = !MM.on; mmUI(); mmPush(); toast(MM.on ? 'Minimap-Overlay an' : 'Minimap-Overlay aus', MM.on ? 'Erscheint, sobald FiveM vorne ist · Server-Regeln beachten' : ''); }
+window.mmToggle = mmToggle; window.mmDefaults = mmDefaults;
+document.addEventListener('click', e => {
+  const s = e.target.closest('[data-mms]'); if (s) { MM.cfg.style = s.dataset.mms; mmUI(); mmPush(); return; }
+  const c = e.target.closest('[data-mmc]'); if (c) { MM.cfg.color = c.dataset.mmc; mmUI(); mmPush(); return; }
+  const b = e.target.closest('[data-mmb]'); if (b) { MM.cfg[b.dataset.mmb] = !MM.cfg[b.dataset.mmb]; mmUI(); mmPush(); return; }
+  if (e.target.closest('#mmAlign')) { MM.align = !MM.align; if (MM.align && !MM.on) { MM.on = true; } api('minimap.preview', { on: MM.align }); mmUI(); mmPush(); if (MM.align) toast('Ausrichten-Modus', 'Starte FiveM und schieb den pinken Rahmen mit den Reglern genau auf die Minimap'); }
+});
+document.addEventListener('input', e => {
+  const r = e.target.closest('[data-mmr]');
+  if (r) { const k = r.dataset.mmr, v = +r.value; if (k in MM.cfg) MM.cfg[k] = v; else MM[k] = v; r.style.setProperty('--p', (v - r.min) / (r.max - r.min) * 100 + '%'); r.nextElementSibling.textContent = v + (k === 'mask' ? '%' : ''); mmPush(); return; }
+  if (e.target.id === 'mmPick') { MM.cfg.color = e.target.value.toUpperCase(); mmPush(); }
+});
+function initMinimap(s) {
+  const m = s.minimap || {}; let j = null; try { j = m.json ? JSON.parse(m.json) : null; } catch { }
+  MM.on = !!m.on; MM.fresh = !j;
+  if (j) { Object.assign(MM.cfg, { style: j.style, color: j.color, thick: j.thick, mask: j.mask, glow: j.glow }); Object.assign(MM, { x: j.x, y: j.y, w: j.w, h: j.h }); }
+  else { MM.res.h = Math.round(screen.height * devicePixelRatio) || 1080; mmDefaults(false); }
+  mmUI(); mmPush();
+}
+
+/* ======================= CLIPPER ======================= */
+const CL_RECS = {
+  nvidia: ['NVIDIA', 'Alt+F10', 'In der NVIDIA App (Alt+Z) unter Aufnahme „Instant Replay“ einschalten. Clips landen in Videos.'],
+  gamebar: ['Game Bar', 'Win+Alt+G', 'Windows Game Bar mit Hintergrundaufnahme. Clips landen in Videos\\Captures.'],
+  amd: ['AMD', 'Strg+Shift+S', 'In AMD Adrenalin „Instant Replay“ aktivieren.'],
+  obs: ['OBS', 'Strg+Alt+F12', 'In OBS den Replay-Puffer starten und unter Einstellungen → Hotkeys „Wiederholung speichern“ auf Strg+Alt+F12 legen.'],
+};
+const CL = { key: 0x78, recorder: 'nvidia', flash: true };
+function clFlashPng() {
+  const cv = document.createElement('canvas'); cv.width = 380; cv.height = 58; const x = cv.getContext('2d');
+  x.fillStyle = 'rgba(10,10,12,.9)'; x.beginPath(); x.roundRect(0, 0, 380, 58, 12); x.fill();
+  const a = getComputedStyle(document.documentElement).getPropertyValue('--a').trim();
+  x.fillStyle = a; x.fillRect(0, 10, 4, 38);
+  x.fillStyle = '#FF3B3B'; x.beginPath(); x.arc(30, 29, 7, 0, Math.PI * 2); x.fill();
+  x.fillStyle = '#fff'; x.font = '700 18px Geist, Inter, sans-serif'; x.fillText('CLIP GESPEICHERT', 50, 27);
+  x.fillStyle = '#A1A1AA'; x.font = '500 12px Inter, sans-serif'; x.fillText(`OrbitTweak · ${CL_RECS[CL.recorder][0]}`, 50, 44);
+  return cv.toDataURL('image/png').split(',')[1];
+}
+async function clipPush() {
+  const r = await api('clip.cfg', { key: CL.key, recorder: CL.recorder, flash: CL.flash, png: clFlashPng() }).catch(() => null);
+  if (r && r.keyOk === false) toast('Taste belegt', 'Andere Clip-Taste wählen', false);
+}
+function clipUI() {
+  $('#clRecs').innerHTML = Object.entries(CL_RECS).map(([k, [n, combo]]) => `<button class="cl-rec ${CL.recorder === k ? 'on' : ''}" data-rec="${k}"><b>${n}</b><span>${combo}</span></button>`).join('');
+  $('#clRecTxt').innerHTML = esc(CL_RECS[CL.recorder][2]) + (CL.recorder === 'gamebar' ? `<br><button class="btn sm mt8" onclick="clipGameBar()">${ico('zap')}Hintergrundaufnahme einschalten</button>` : '');
+  $('#clKey').innerHTML = KEYS.map(([n, v]) => `<button class="${CL.key === v ? 'on' : ''}" data-clk="${v}">${n}</button>`).join('');
+  $('#clFlash').classList.toggle('on', CL.flash);
+}
+async function clipGameBar() { await api('clip.gamebar'); toast('Hintergrundaufnahme an', 'Hinweis: der Tweak „Xbox Game DVR aus“ ist damit wieder rückgängig'); }
+window.clipGameBar = clipGameBar;
+async function clipTest() { await api('clip.save'); toast('Clip gespeichert', `${CL_RECS[CL.recorder][0]} · ${CL_RECS[CL.recorder][1]}`); setTimeout(clipList, 4000); }
+window.clipTest = clipTest;
+async function clipOpen(rel) { api('clip.open', { rel }); }
+window.clipOpen = clipOpen;
+let clips = [];
+async function clipList() {
+  try { clips = await api('clip.list'); } catch { clips = []; }
+  $('#clCount').textContent = clips.length;
+  $('#clGrid').innerHTML = clips.length ? clips.map((c, i) => {
+    const src = 'https://clips.orbit/' + c.rel.split('/').map(encodeURIComponent).join('/');
+    const vid = c.ext === '.mkv' ? `<div class="noprev">MKV · ohne Vorschau</div>` : `<video src="${src}#t=0.5" preload="metadata" muted playsinline></video>`;
+    return `<div class="clipc" data-clip="${i}"><div class="v">${vid}</div><div class="m"><b>${esc(c.name)}</b><span>${esc(c.folder || '')} · ${bytes(c.size)} · ${new Date(c.date).toLocaleDateString('de-DE')}</span></div></div>`;
+  }).join('') : `<div class="empty">Noch keine Clips gefunden. Drück im Spiel deine Clip-Taste.</div>`;
+}
+window.clipList = clipList;
+document.addEventListener('mouseover', e => { const v = e.target.closest('.clipc video'); if (v) v.play().catch(() => { }); });
+document.addEventListener('mouseout', e => { const v = e.target.closest('.clipc video'); if (v) { v.pause(); } });
+document.addEventListener('click', e => {
+  const r = e.target.closest('[data-rec]'); if (r) { CL.recorder = r.dataset.rec; clipUI(); clipPush(); return; }
+  const k = e.target.closest('[data-clk]'); if (k) { CL.key = +k.dataset.clk; clipUI(); clipPush(); return; }
+  if (e.target.closest('#clFlash')) { CL.flash = !CL.flash; clipUI(); clipPush(); return; }
+  const c = e.target.closest('[data-clip]'); if (c) {
+    const cl = clips[+c.dataset.clip], src = 'https://clips.orbit/' + cl.rel.split('/').map(encodeURIComponent).join('/');
+    modal(`<div class="kicker">Clip</div><h1 style="margin-top:8px;font-size:20px">${esc(cl.name)}</h1><div class="player mt">${cl.ext === '.mkv' ? '<p>MKV kann hier nicht abgespielt werden.</p>' : `<video src="${src}" controls autoplay></video>`}</div>
+      <div class="act"><button class="btn" onclick="closeModal()">Schließen</button><button class="btn" onclick="clipOpen('${esc(cl.rel)}')">${ico('folder')}Im Ordner zeigen</button><button class="btn d" onclick="clipDel('${esc(cl.rel)}')">${ico('trash')}Löschen</button></div>`);
+    $('#mbox').style.width = '760px';
+  }
+});
+async function clipDel(rel) { const r = await api('clip.delete', { rel }); closeModal(); $('#mbox').style.width = ''; toast(r.ok ? 'Clip gelöscht' : 'Löschen fehlgeschlagen', r.error || '', r.ok); clipList(); }
+window.clipDel = clipDel;
+function initClip(s) { Object.assign(CL, s.clip || {}); clipUI(); clipPush(); }
+
+/* ======================= MODS ======================= */
+const MOD_CATS = { minimap: ['Minimap', 'map', 'Eigene Karten & Farben'], kill: ['Kill-Effekte', 'crosshair', 'Effekte bei Treffern & Kills'], gfx: ['Grafik-Packs', 'sun', 'Licht, Wetter, Farben'], sound: ['Sounds', 'activity', 'Waffen & Fahrzeuge'], other: ['Sonstiges', 'puzzle', 'Alles andere'] };
+function modCatsUI() { $('#modCats').innerHTML = Object.entries(MOD_CATS).map(([k, [n, i, d]]) => `<div class="card hov mcat" onclick="modInstall('${k}')"><div class="qi">${ico(i)}</div><b>${n}</b><span>${d}</span><div class="sub" style="font-size:11.5px;margin-top:8px;color:var(--a)">+ Installieren</div></div>`).join(''); }
+async function modInstall(cat, ok) {
+  if (!S.settings.modsAck && !ok) return modal(`<div class="kicker">Hinweis</div><h1 style="margin-top:10px">Mods auf eigene <span class="grad">Verantwortung</span></h1>
+    <p>Viele FiveM-Server verbieten Mods (Pure-Mode). Mit Mods kannst du dort nicht joinen oder wirst gekickt, manche Server bannen dafür. Installiere nur Mods aus vertrauenswürdigen Quellen.</p>
+    <div class="act"><button class="btn" onclick="closeModal()">Abbrechen</button><button class="btn p lg" onclick="modAck('${cat}')">${ico('check')}Verstanden</button></div>`);
+  const r = await api('mods.install', { cat }).catch(e => ({ error: e.message }));
+  if (r.cancelled) return;
+  if (r.error) toast('Nicht installiert', r.error, false); else { toast(`${r.count} Mod(s) installiert`, 'Wirkt beim nächsten FiveM-Start'); passed('Mod installiert', `${MOD_CATS[cat]?.[0] || 'Mod'} · ${r.count} Datei(en)`); }
+  modList();
+}
+function modAck(cat) { closeModal(); S.settings.modsAck = true; api('settings.set', { key: 'modsAck', value: true }); modInstall(cat, true); }
+window.modInstall = modInstall; window.modAck = modAck;
+async function modList() {
+  let r; try { r = await api('mods.list'); } catch { r = { found: false, items: [] }; }
+  const items = r.items || [];
+  $('#modCount').textContent = items.length;
+  const row = m => `<div class="mod"><div class="ti" style="width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:rgba(var(--a-rgb),.1);color:var(--a)">${ico(MOD_CATS[m.cat]?.[1] || 'puzzle')}</div><div class="tx"><b>${esc(m.name)}</b><p>${MOD_CATS[m.cat]?.[0] || 'Sonstiges'} · ${bytes(m.size)}</p></div><span class="chip ${m.on ? 'g' : ''}">${m.on ? 'Aktiv' : 'Aus'}</span><div class="tg ${m.on ? 'on' : ''}" data-mod="${esc(m.name)}"></div><button class="ib" title="Löschen" data-moddel="${esc(m.name)}">${ico('trash')}</button></div>`;
+  $('#modList').innerHTML = !r.found ? '<div class="empty">FiveM nicht gefunden. Pfad im Launcher wählen.</div>' : items.length ? items.map(row).join('') : '<div class="empty">Noch keine Mods installiert. Wähl oben eine Kategorie.</div>';
+  const mm = items.filter(m => m.cat === 'minimap');
+  if ($('#mmMods')) $('#mmMods').innerHTML = mm.map(row).join('');
+}
+document.addEventListener('click', async e => {
+  const t = e.target.closest('[data-mod]');
+  if (t) { const on = !t.classList.contains('on'); const r = await api('mods.toggle', { name: t.dataset.mod, on }); if (r.error) toast('Geht gerade nicht', r.error, false); else toast(on ? 'Mod aktiviert' : 'Mod deaktiviert', t.dataset.mod); modList(); return; }
+  const d = e.target.closest('[data-moddel]');
+  if (d && await confirmBox('Mod löschen?', d.dataset.moddel + ' wird entfernt.')) { const r = await api('mods.delete', { name: d.dataset.moddel }); if (r.error) toast('Nicht gelöscht', r.error, false); modList(); }
+});
+
+/* ======================= SNAP TAP / CONTROLLER / NET ======================= */
+document.addEventListener('click', e => {
+  if (!e.target.closest('#snapTg')) return;
+  S.settings.snapTap = !S.settings.snapTap; $('#snapTg').classList.toggle('on', S.settings.snapTap);
+  api('settings.set', { key: 'snapTap', value: S.settings.snapTap });
+  toast(S.settings.snapTap ? 'Snap Tap an' : 'Snap Tap aus', S.settings.snapTap ? 'Nur aktiv, solange FiveM vorne ist · Server-Regeln beachten' : '');
+});
+const GP_NAMES = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'Back', 'Start', 'LS', 'RS', '↑', '↓', '←', '→', 'Guide'];
+let gpRaf = 0;
+function gpStart() {
+  cancelAnimationFrame(gpRaf);
+  $('#gpBtns').innerHTML = GP_NAMES.map((n, i) => `<i data-gb="${i}">${n}</i>`).join('');
+  $('#gpLT').style.transition = $('#gpRT').style.transition = 'none';
+  const loop = () => {
+    if (curPage !== 'input' || $('#padPad').classList.contains('hidden')) return;
+    const gp = [...(navigator.getGamepads ? navigator.getGamepads() : [])].find(Boolean);
+    $('#gpNone').classList.toggle('hidden', !!gp); $('#gpLive').classList.toggle('hidden', !gp);
+    if (gp) {
+      const ax = gp.axes, mv = (el, x, y) => el.style.transform = `translate(${(x || 0) * 40}px,${(y || 0) * 40}px)`;
+      mv($('#gpL'), ax[0], ax[1]); mv($('#gpR'), ax[2], ax[3]);
+      $('#gpLT').style.width = (gp.buttons[6]?.value || 0) * 100 + '%'; $('#gpRT').style.width = (gp.buttons[7]?.value || 0) * 100 + '%';
+      $$('#gpBtns i').forEach(i => i.classList.toggle('on', !!gp.buttons[+i.dataset.gb]?.pressed));
+      const l = Math.hypot(ax[0] || 0, ax[1] || 0), r = Math.hypot(ax[2] || 0, ax[3] || 0), idle = l < .3 && r < .3;
+      $('#gpDrift').textContent = `${gp.id.split('(')[0].trim().slice(0, 28)} · Drift L ${l.toFixed(2)} · R ${r.toFixed(2)}${idle ? (Math.max(l, r) > .08 ? ' · Drift erkannt!' : ' · OK') : ''}`;
+    }
+    gpRaf = requestAnimationFrame(loop);
+  };
+  loop();
+}
+function gpRumble() { const gp = [...navigator.getGamepads()].find(Boolean); gp?.vibrationActuator?.playEffect('dual-rumble', { duration: 700, strongMagnitude: 1, weakMagnitude: .6 }).catch(() => { }); }
+window.gpRumble = gpRumble;
+let ntT = 'cfx';
+document.addEventListener('click', e => { const b = e.target.closest('[data-nt]'); if (!b) return; ntT = b.dataset.nt; $$('#ntTarget button').forEach(x => x.classList.toggle('on', x === b)); $('#ntHost').classList.toggle('hidden', ntT !== 'custom'); });
+async function netTest() {
+  const target = ntT === 'custom' ? $('#ntHost').value.trim() : ntT;
+  if (ntT === 'custom' && !/^[\w.\-]+:\d{1,5}$/.test(target)) return toast('Adresse prüfen', 'Format IP:Port, z. B. 123.45.67.89:30120', false);
+  const btn = $('#ntBtn'); btn.disabled = true; $('#ntTxt').textContent = 'Messe…'; $('#ntBars').innerHTML = '';
+  try {
+    const r = await api('net.test', { target });
+    if (!r.ok) { $('#ntAvg').textContent = '--'; $('#ntJit').textContent = '--'; $('#ntLoss').textContent = '100%'; $('#ntTxt').textContent = 'Keine Verbindung'; return; }
+    countTo($('#ntAvg'), r.avg, ' ms'); $('#ntJit').textContent = r.jitter + ' ms'; $('#ntLoss').textContent = r.loss + '%';
+    const mx = Math.max(...r.samples, 1);
+    $('#ntBars').innerHTML = r.samples.map((s, i) => `<i style="height:${Math.max(8, s / mx * 100)}%;animation-delay:${i * 25}ms" title="${s} ms"></i>`).join('') + Array.from({ length: r.loss / 5 }, () => '<i class="lost" style="height:100%"></i>').join('');
+    const good = r.avg < 60 && r.jitter < 6 && r.loss === 0, ok = r.avg < 110 && r.jitter < 15 && r.loss <= 5;
+    $('#ntTxt').innerHTML = good ? '<span style="color:var(--good)">Top für Hitreg</span>' : ok ? '<span style="color:var(--warn)">Spielbar, leichte Schwankungen</span>' : '<span style="color:var(--bad)">Schlecht für Hitreg: Netzwerk-Tweaks anwenden, LAN statt WLAN</span>';
+  } catch (e) { toast('Test fehlgeschlagen', e.message, false); }
+  finally { btn.disabled = false; }
+}
+window.netTest = netTest;
+
 /* ======================= BOOT ======================= */
 async function boot() {
+  const t0 = performance.now();
+  initLook();
+  const hideSplash = () => $('#splash').classList.add('out');
+  setTimeout(hideSplash, 5000);
   $('#side').onclick = e => { const n = e.target.closest('.nav'); if (n) go(n.dataset.p); };
   document.addEventListener('mousedown', e => {
     if (e.button !== 0 || !e.target.closest('[data-drag]') || e.target.closest('button,.pill')) return;
@@ -934,13 +1200,15 @@ async function boot() {
   if (d.settings.lastBoost) $('#lastBoost').textContent = 'Letzter Boost: ' + new Date(d.settings.lastBoost).toLocaleDateString('de-DE');
   $('#launchSub').textContent = d.fivem.found ? 'mit Pre-Launch-Boost' : 'FiveM nicht gefunden';
   feed(d.fivem.found ? 'FiveM erkannt: ' + d.fivem.path : 'FiveM nicht gefunden: Pfad im Launcher wählen');
-  renderSettings(); renderLauncher(); initFx(d.settings);
+  renderSettings(); renderLauncher(); initFx(d.settings); initMinimap(d.settings); initClip(d.settings);
+  $('#snapTg').classList.toggle('on', !!d.settings.snapTap);
   await loadTweaks();
   refreshCache(); ping(); setInterval(ping, 8000);
   api('health').then(h => { S.health = h; $('#hsHealth').textContent = h.score + '%'; }).catch(() => { });
   if (S.settings.autoUpdate !== false) setTimeout(() => checkUpdate(false), 1500);
   setInterval(() => { if (S.settings.autoUpdate !== false) checkUpdate(false); }, 2 * 3600 * 1000);
-  if (S.settings.firstRun) setTimeout(() => wizard(0), 700);
+  setTimeout(hideSplash, Math.max(0, 1300 - (performance.now() - t0)));
+  if (S.settings.firstRun) setTimeout(() => wizard(0), 1500);
 }
 
 /* ======================= MOCK BACKEND (browser preview) ======================= */
@@ -974,6 +1242,16 @@ const Mock = {
       case 'boost': for (let i = 0; i <= 10; i++) { onEvent('boost', { pct: i * 10, text: 'Schritt ' + i }); await sleep(220); } M.tweaks.forEach(t => t.rec && (t.applied = true)); return { freed: 1.4e9, restart: true, applied: 9 };
       case 'xhair.set': return { keyOk: true };
       case 'clip': return { ok: false };
+      case 'net.test': await sleep(900); return { ok: true, avg: 23, min: 19, max: 31, jitter: 2.4, loss: 0, samples: Array.from({ length: 20 }, () => 19 + Math.round(Math.random() * 12)) };
+      case 'minimap.set': return { ok: true, client: { w: 1920, h: 1080 } };
+      case 'minimap.preview': return null;
+      case 'clip.cfg': return { keyOk: true, combo: 'Alt+F10' };
+      case 'clip.save': case 'clip.open': case 'clip.gamebar': return { ok: true };
+      case 'clip.delete': return { ok: true };
+      case 'clip.list': return ['Grand Theft Auto V 2026.11.13 - 21.14.08.02', 'FiveM 2026.11.13 - 20.51.44.01', 'Gangwar Clutch', 'Grand Theft Auto V 2026.11.12 - 23.02.10.05'].map((n, i) => ({ name: n, rel: 'Grand Theft Auto V/' + n + '.mp4', folder: i === 2 ? 'Captures' : 'Grand Theft Auto V', size: 48e6 + i * 9e6, date: new Date(Date.now() - i * 864e5).toISOString(), ext: '.mp4' }));
+      case 'mods.list': return { found: true, items: [{ name: 'round_minimap_dark.rpf', on: true, size: 3.4e6, cat: 'minimap' }, { name: 'killfx_red_flash.rpf', on: true, size: 1.2e6, cat: 'kill' }, { name: 'nve_lite.rpf', on: false, size: 84e6, cat: 'gfx' }] };
+      case 'mods.install': return { count: 1 };
+      case 'mods.toggle': case 'mods.delete': case 'mods.folder': return {};
       case 'f8.send': await sleep(500); return { sent: true };
       case 'f8.values': return { cl_drawfps: 'true' };
       case 'gw.info': return { found: true, mode: 'windowed', w: 1600, h: 900 };
