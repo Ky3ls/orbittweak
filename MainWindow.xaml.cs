@@ -197,6 +197,7 @@ public partial class MainWindow : Window
                     case "autoRamClean": S.AutoRamClean = val.GetBoolean(); break;
                     case "autoPriority": S.AutoPriority = val.GetBoolean(); break;
                     case "firstRun": S.FirstRun = val.GetBoolean(); break;
+                    case "xhairAck": S.XhairAck = val.GetBoolean(); break;
                     case "launch": S.Launch = val.Deserialize<LaunchCfg>(JIn) ?? new LaunchCfg(); break;
                 }
                 S.Save();

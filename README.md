@@ -1,8 +1,10 @@
 # OrbitTweak
 
-FiveM Performance Suite für Windows 10/11: One-Click-Boost, Server-Hub, Launcher, GTA-V-Grafik-Tuner, Input-Lab (WASD), Cleaner und Health-Check.
+FiveM Performance Suite für Windows 10/11: One-Click-Boost, Server-Hub, Launcher, GTA-V-Grafik-Tuner, Fadenkreuz-Overlay, Live-Farben, Input-Lab (WASD), Cleaner und Health-Check.
 
 Alle Optimierungen nutzen offizielle Windows-Einstellungen und lassen sich einzeln zurücksetzen. OrbitTweak injiziert nichts und verändert keine FiveM-Dateien.
+
+> **Hinweis zum Fadenkreuz:** Manche FiveM-Server verbieten Fadenkreuz-Overlays. Prüfe vorher die Regeln deines Servers, die Nutzung erfolgt auf eigene Verantwortung.
 
 ## Download
 Die aktuelle `OrbitTweak.exe` gibt es unter [Releases](https://github.com/Ky3ls/orbittweak/releases/latest). Die App aktualisiert sich danach selbst.

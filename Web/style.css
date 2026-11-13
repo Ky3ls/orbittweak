@@ -399,6 +399,10 @@ input[type=range]::-webkit-slider-thumb:hover{box-shadow:0 0 0 7px rgba(var(--a-
 .xnote .btn{margin-top:8px;display:flex}
 .xnote>div{display:flex;flex-direction:column;align-items:flex-start}
 
+.xwarn{display:flex;gap:12px;align-items:flex-start;margin:-6px 0 16px;padding:13px 16px;border-radius:14px;background:linear-gradient(90deg,rgba(247,195,92,.12),rgba(247,195,92,.04));border:1px solid rgba(247,195,92,.35);font-size:13px;color:#E7DCC4;line-height:1.5}
+.xwarn svg.i{color:var(--warn);width:18px;height:18px;margin-top:1px}
+.xwarn b{color:var(--warn)}
+
 /* ============ DISPLAY ============ */
 .dpgrid{display:grid;grid-template-columns:1fr 380px;gap:16px;align-items:start}
 .dpresets{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}

@@ -60,6 +60,8 @@ public class Settings
     public LaunchCfg Launch { get; set; } = new();
     public List<string> Favorites { get; set; } = new();
     public CrosshairCfg Xhair { get; set; } = new();
+    public bool XhairAck { get; set; }
+    public int XhairRev { get; set; }
     public DisplayCfg Display { get; set; } = new();
 
     private static string Dir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "OrbitTweak");
@@ -70,7 +72,12 @@ public class Settings
         try
         {
             if (File.Exists(FilePath))
-                return JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath)) ?? new Settings();
+            {
+                var s = JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath)) ?? new Settings();
+                // 2.5.1: crosshair should stay visible when tabbing out
+                if (s.XhairRev < 1) { s.Xhair.OnlyGame = false; s.XhairRev = 1; }
+                return s;
+            }
         }
         catch { }
         return new Settings();

@@ -188,7 +188,7 @@
       <div class="quick">
         <div class="card hov qt" onclick="clearFmCache()"><div class="qi"><svg class="i"><use href="#trash"/></svg></div><div><b>Cache leeren</b><span>Hilft gegen Texture-Loss</span></div></div>
         <div class="card hov qt" onclick="cleanRam()"><div class="qi"><svg class="i"><use href="#ram"/></svg></div><div><b>RAM freigeben</b><span>Standby + Working-Sets</span></div></div>
-        <div class="card hov qt" onclick="go('xhair')"><div class="qi"><svg class="i"><use href="#crosshair"/></svg></div><div><b>Fadenkreuz</b><span>Overlay, live im Spiel</span></div></div>
+        <div class="card hov qt" onclick="go('xhair')"><div class="qi"><svg class="i"><use href="#crosshair"/></svg></div><div><b>Fadenkreuz</b><span>Server-Regeln beachten</span></div></div>
         <div class="card hov qt" onclick="go('display')"><div class="qi"><svg class="i"><use href="#sun"/></svg></div><div><b>Live-Farben</b><span>Mehr Farbe, bessere Sicht</span></div></div>
       </div>
     </section>
@@ -271,6 +271,7 @@
         <div><div class="kicker">Fadenkreuz</div><h1>Crosshair <span class="grad">Overlay</span></h1><p class="pd">Dein eigenes Fadenkreuz über FiveM. Wirkt sofort, ohne Neustart und ohne Eingriff ins Spiel.</p></div>
         <div class="ph-r"><button class="btn p lg" id="xhMain" onclick="xhToggle()"><svg class="i"><use href="#crosshair"/></svg><span>Einschalten</span></button></div>
       </div>
+      <div class="xwarn"><svg class="i"><use href="#alert"/></svg><div><b>Achtung: Server-Regeln beachten.</b> Manche FiveM-Server verbieten Fadenkreuz-Overlays. Prüfe vorher die Regeln deines Servers, die Nutzung erfolgt auf eigene Verantwortung.</div></div>
       <div class="xgrid">
         <div class="col">
           <div class="card xprev-card">
@@ -280,10 +281,10 @@
           <div class="card">
             <div class="lbl"><svg class="i"><use href="#settings"/></svg>Anzeige</div>
             <div class="srow"><div><b>Fadenkreuz anzeigen</b><p>Auch per Taste im Spiel umschaltbar</p></div><div class="tg" id="xhOn" data-xt="on"></div></div>
-            <div class="srow"><div><b>Nur wenn FiveM im Vordergrund ist</b><p>Verschwindet automatisch auf dem Desktop und im Alt-Tab</p></div><div class="tg" id="xhOnly" data-xt="onlyGame"></div></div>
+            <div class="srow"><div><b>Beim Raustabben ausblenden</b><p>Aus: Das Fadenkreuz bleibt immer sichtbar, auch beim Alt-Tab</p></div><div class="tg" id="xhOnly" data-xt="onlyGame"></div></div>
             <div class="srow"><div><b>Ein/Aus-Taste</b><p id="xhKeyTxt">Globale Taste, funktioniert im Spiel</p></div></div>
             <div class="seg keyseg" id="xhKey"></div>
-            <div class="xnote"><svg class="i"><use href="#alert"/></svg><div>Overlays sind nur im Modus <b>Randlos</b> oder <b>Fenster</b> sichtbar, nicht im exklusiven Vollbild. Einige Server verbieten externe Fadenkreuze in ihren Regeln.<button class="btn sm" onclick="setBorderless()">Randlos einstellen</button></div></div>
+            <div class="xnote"><svg class="i"><use href="#alert"/></svg><div>Overlays sind nur im Modus <b>Randlos</b> oder <b>Fenster</b> sichtbar, nicht im exklusiven Vollbild.<button class="btn sm" onclick="setBorderless()">Randlos einstellen</button></div></div>
           </div>
         </div>
         <div class="card">
@@ -446,7 +447,7 @@
           <button class="btn" onclick="wizard(0)"><svg class="i"><use href="#sparkle"/></svg>Setup-Assistent</button>
           <button class="btn d" onclick="revertAll()"><svg class="i"><use href="#undo"/></svg>Alle Tweaks zurücksetzen</button>
         </div>
-        <p class="sub" style="font-size:12px;line-height:1.6;margin-top:16px;max-width:760px">OrbitTweak ändert nur Windows-Einstellungen und Caches. Es injiziert nichts und verändert keine FiveM-Dateien. Einstellungen liegen unter %AppData%\OrbitTweak.</p>
+        <p class="sub" style="font-size:12px;line-height:1.6;margin-top:16px;max-width:760px">OrbitTweak ändert nur Windows-Einstellungen und Caches. Es injiziert nichts und verändert keine FiveM-Dateien. Fadenkreuz-Overlays sind auf manchen Servern verboten, prüfe die Server-Regeln. Einstellungen liegen unter %AppData%\OrbitTweak.</p>
       </div>
     </section>
   </main>

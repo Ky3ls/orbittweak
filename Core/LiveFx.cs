@@ -17,7 +17,7 @@ namespace OrbitTweak.Core;
 public class CrosshairCfg
 {
     public bool On { get; set; }
-    public bool OnlyGame { get; set; } = true;
+    public bool OnlyGame { get; set; }   // off = stays visible when tabbing out
     public int Key { get; set; } = 0x79; // F10
     public int OffsetX { get; set; }
     public int OffsetY { get; set; }

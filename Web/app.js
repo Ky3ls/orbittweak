@@ -118,7 +118,7 @@ function onEvent(ev, d) {
   else if (ev === 'log') feed(d.text);
   else if (ev === 'boost') boostProgress(d.pct, d.text);
   else if (ev === 'update') updProgress(d);
-  else if (ev === 'xhair') { XH.on = d.on; xhState(); toast(d.on ? 'Fadenkreuz an' : 'Fadenkreuz aus', 'per Taste'); }
+  else if (ev === 'xhair') { XH.on = d.on; xhState(); toast(d.on ? 'Fadenkreuz an' : 'Fadenkreuz aus', d.on ? 'per Taste · Server-Regeln beachten' : 'per Taste'); }
   else if (ev === 'display') { DP.cfg.on = d.on; dpState(); }
 }
 function stats(d) {
@@ -609,7 +609,8 @@ const XH_STYLES = [
 ];
 const XH_COLORS = ['#3DFF8B', '#FFFFFF', '#3DE0FF', '#FFE03D', '#FF3B5C', '#FF4DF0', '#FF8A3D'];
 const XH_SLIDERS = [['size', 'Länge', 1, 40], ['thick', 'Dicke', 1, 8], ['gap', 'Lücke', 0, 20], ['alpha', 'Deckkraft', 20, 100, '%'], ['oThick', 'Kontur', 0, 3], ['dotSize', 'Punkt', 1, 8], ['offsetX', 'Versatz X', -60, 60], ['offsetY', 'Versatz Y', -60, 60]];
-const XH = { cfg: { ...XH_DEF }, on: false, onlyGame: true, key: 0x79, offsetX: 0, offsetY: 0 };
+const XH_RULES = 'Manche FiveM-Server verbieten Fadenkreuz-Overlays. Prüfe vorher die Regeln deines Servers, die Nutzung erfolgt auf eigene Verantwortung.';
+const XH = { cfg: { ...XH_DEF }, on: false, onlyGame: false, key: 0x79, offsetX: 0, offsetY: 0 };
 
 function xhDraw(c) {
   const o = c.outline ? c.oThick : 0, t = c.thick, g = c.style === 'plus' ? 0 : c.gap, L = c.size;
@@ -679,7 +680,16 @@ function xhState() {
   const kn = KEYS.find(k => k[1] === XH.key)?.[0];
   $('#xhKeyTxt').textContent = XH.key ? `${kn} schaltet das Fadenkreuz im Spiel an und aus` : 'Keine Taste, nur hier umschaltbar';
 }
-function xhToggle() { XH.on = !XH.on; xhState(); xhPush(false); toast(XH.on ? 'Fadenkreuz an' : 'Fadenkreuz aus', XH.on ? (XH.onlyGame ? 'Erscheint, sobald FiveM im Vordergrund ist' : 'Liegt jetzt über allen Fenstern') : ''); }
+function xhToggle(confirmed) {
+  if (!XH.on && !S.settings.xhairAck && !confirmed) {
+    return modal(`<div class="kicker">Hinweis</div><h1 style="margin-top:10px">Server-Regeln <span class="grad">beachten</span></h1>
+      <p>${XH_RULES}</p><p>OrbitTweak zeigt das Fadenkreuz nur als Fenster über dem Spiel an und verändert nichts an FiveM.</p>
+      <div class="act"><button class="btn" onclick="closeModal()">Abbrechen</button><button class="btn p lg" onclick="xhAck()">${ico('check')}Verstanden, einschalten</button></div>`);
+  }
+  XH.on = !XH.on; xhState(); xhPush(false);
+  toast(XH.on ? 'Fadenkreuz an' : 'Fadenkreuz aus', XH.on ? 'Server-Regeln beachten · ' + (XH.onlyGame ? 'nur im Spiel sichtbar' : 'bleibt auch beim Raustabben') : '');
+}
+function xhAck() { closeModal(); S.settings.xhairAck = true; api('settings.set', { key: 'xhairAck', value: true }); xhToggle(true); }
 async function setBorderless() {
   const r = await api('gfx.save', { values: { Windowed: 2 } });
   if (r.error) return toast('Nicht gespeichert', r.error, false);
@@ -777,7 +787,7 @@ document.addEventListener('input', e => {
 async function initFx(s) {
   const x = s.xhair || {};
   try { if (x.json) XH.cfg = { ...XH_DEF, ...JSON.parse(x.json) }; } catch { }
-  Object.assign(XH, { on: !!x.on, onlyGame: x.onlyGame !== false, key: x.key ?? 0x79, offsetX: x.offsetX || 0, offsetY: x.offsetY || 0 });
+  Object.assign(XH, { on: !!x.on, onlyGame: x.onlyGame === true, key: x.key ?? 0x79, offsetX: x.offsetX || 0, offsetY: x.offsetY || 0 });
   xhUI(); xhPush();
   try {
     const d = await api('display.get');
@@ -821,7 +831,7 @@ async function boot() {
 
 /* ======================= MOCK BACKEND (browser preview) ======================= */
 const Mock = {
-  settings: { accent: 'inferno', autoInstall: false, restoreBeforeBoost: true, purgeStandby: true, autoPriority: true, autoRamClean: false, autoUpdate: true, firstRun: false, lastBoost: null, xhair: { on: true, onlyGame: true, key: 0x79, offsetX: 0, offsetY: 0, json: null }, display: { on: false, onlyGame: true, vibrance: 0, brightness: 0, contrast: 0, gamma: 100, key: 0 } },
+  settings: { accent: 'inferno', autoInstall: false, restoreBeforeBoost: true, purgeStandby: true, autoPriority: true, autoRamClean: false, autoUpdate: true, firstRun: false, lastBoost: null, xhairAck: false, xhair: { on: false, onlyGame: false, key: 0x79, offsetX: 0, offsetY: 0, json: null }, display: { on: false, onlyGame: true, vibrance: 0, brightness: 0, contrast: 0, gamma: 100, key: 0 } },
   tweaks: [
     ['gpu', 'fivem', 'Hochleistungs-GPU erzwingen', 'FiveM läuft immer auf der dedizierten Grafikkarte statt der iGPU.', 'monitor', null, 1],
     ['fso', 'fivem', 'Vollbild-Optimierung für FiveM aus', 'Echter Exclusive-Fullscreen, weniger Input-Lag.', 'max', null, 1],
