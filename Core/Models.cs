@@ -73,6 +73,7 @@ public class Settings
     public long BgVersion { get; set; }
     public PadCfg Pad { get; set; } = new();
     public string? BgPreset { get; set; }
+    public Dictionary<string, List<string>> CatalogMods { get; set; } = new();
     public int XhairRev { get; set; }
     public DisplayCfg Display { get; set; } = new();
 

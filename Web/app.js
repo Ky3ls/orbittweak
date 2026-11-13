@@ -132,7 +132,8 @@ function onEvent(ev, d) {
   else if (ev === 'pad') padState(d);
   else if (ev === 'padon') { PAD.cfg.mode = d.mode; padUI(); toast(d.mode === 'off' ? 'Controller-Anzeige aus' : 'Controller-Anzeige automatisch', 'per Taste'); }
   else if (ev === 'modInstalled') { passed('Mod installiert', `${MOD_CATS[d.cat]?.[0] || 'Mod'} · ${d.name}`); modList(); }
-  else if (ev === 'reshade') { const b = $('#rsBar i'); if (b) b.style.width = d.pct + '%'; $('#rsProg').textContent = d.text; }
+  else if (ev === 'reshade') { for (const k in LIB.busy) LIB.busy[k] = d.pct; libRender(); }
+  else if (ev === 'modget') { if (d.id in LIB.busy) { LIB.busy[d.id] = d.pct; libRender(); } }
   else if (ev === 'clip') { toast('Clip gespeichert', 'per Taste · ' + (CL_RECS[d.recorder]?.[1] || '')); if (curPage === 'clip') setTimeout(clipList, 4000); }
 }
 function stats(d) {
@@ -1114,7 +1115,7 @@ async function modInstall(cat, ok, reshade) {
   if (r.error) toast('Nicht installiert', r.error, false); else { toast(`${r.count} Mod(s) installiert`, 'Wirkt beim nächsten FiveM-Start'); passed('Mod installiert', `${MOD_CATS[cat]?.[0] || 'Mod'} · ${r.count} Datei(en)`); }
   modList();
 }
-function modAck(cat, reshade) { closeModal(); S.settings.modsAck = true; api('settings.set', { key: 'modsAck', value: true }); if (reshade) rsInstall(); else if (cat !== '__dl' && cat !== '__browse') modInstall(cat, true); }
+function modAck(cat, reshade) { closeModal(); S.settings.modsAck = true; api('settings.set', { key: 'modsAck', value: true }); if (reshade) { const m = LIB.items.find(x => x.type === 'reshade' && x.preset === (RS.preset || 'vivid')) || LIB.items.find(x => x.type === 'reshade'); if (m) libInstall(m.id); } else if (cat !== '__dl' && cat !== '__browse') modInstall(cat, true); }
 window.modInstall = modInstall; window.modAck = modAck;
 async function modList() {
   let r; try { r = await api('mods.list'); } catch { r = { found: false, items: [] }; }
@@ -1252,34 +1253,8 @@ document.addEventListener('click', e => { const t = e.target.closest('#setTabs .
 
 /* ======================= RESHADE ======================= */
 let RS = { installed: false, presets: [], preset: null };
-async function rsLoad() {
-  try { RS = await api('reshade.status'); } catch { return; }
-  if (!RS.found) { $('#rsState').textContent = 'FiveM nicht gefunden'; return; }
-  $('#rsState').className = 'chip ' + (RS.installed ? 'g' : RS.other ? 'w' : '');
-  $('#rsState').textContent = RS.installed ? `Installiert · v${RS.version}` : RS.other ? 'Andere dxgi.dll gefunden' : 'Nicht installiert';
-  $('#rsBtn').classList.toggle('hidden', RS.installed);
-  $('#rsDel').classList.toggle('hidden', !RS.installed);
-  const sel = RS.preset || 'vivid';
-  $('#rsPresets').innerHTML = (RS.presets || []).map(p => `<button class="rsp ${RS.installed && sel === p.id ? 'on' : ''}" data-rsp="${p.id}"><i class="rsf-${p.id}"></i><b>${p.name}</b><span>${p.desc}</span></button>`).join('');
-  const u = bgUrl(); $$('.rsp i').forEach(i => i.style.backgroundImage = `url('${u}')`);
-}
-async function rsInstall() {
-  if (!S.settings.modsAck) return modInstall('gfx', false, true);
-  $('#rsBtn').disabled = true; $('#rsBar').classList.remove('hidden'); $('#rsProg').classList.remove('hidden');
-  const r = await api('reshade.install', { preset: RS.preset || 'vivid' }).catch(e => ({ error: e.message }));
-  $('#rsBtn').disabled = false;
-  if (r.error) { toast('ReShade nicht installiert', r.error, false); $('#rsProg').textContent = r.error; }
-  else { passed('ReShade installiert', 'Im Spiel mit Pos1 öffnen'); $('#rsBar').classList.add('hidden'); $('#rsProg').classList.add('hidden'); }
-  rsLoad();
-}
-async function rsUninstall() { if (!await confirmBox('ReShade entfernen?', 'ReShade, Shader und Presets werden aus FiveM gelöscht.')) return; const r = await api('reshade.uninstall'); toast(r.error ? 'Nicht entfernt' : 'ReShade entfernt', r.error || '', !r.error); rsLoad(); }
-window.rsInstall = rsInstall; window.rsUninstall = rsUninstall;
-document.addEventListener('click', async e => {
-  const p = e.target.closest('[data-rsp]'); if (!p) return;
-  RS.preset = p.dataset.rsp; $$('.rsp').forEach(x => x.classList.toggle('on', x === p));
-  if (!RS.installed) return toast('Preset gewählt', 'Wird bei der Installation gesetzt');
-  const r = await api('reshade.preset', { id: RS.preset }); toast(r.error ? 'Nicht gesetzt' : 'Preset aktiv', r.error || 'Ab dem nächsten FiveM-Start, im Spiel mit Pos1 umschaltbar', !r.error);
-});
+async function rsUninstall() { if (!await confirmBox('ReShade entfernen?', 'ReShade, Shader und Looks werden aus FiveM gelöscht.')) return; const r = await api('reshade.uninstall'); toast(r.error ? 'Nicht entfernt' : 'ReShade entfernt', r.error || '', !r.error); RS = await api('reshade.status'); libRender(); }
+window.rsUninstall = rsUninstall;
 
 /* ======================= MOD COLLECTION ======================= */
 const COLL = [
@@ -1321,9 +1296,10 @@ function modBrowse(url, cat) {
   toast('Mod-Browser geöffnet', 'Klick auf Download, die Mod wird automatisch installiert');
 }
 window.modBrowse = modBrowse;
-function modsRefresh() {
-  if (curPage === 'mods') { $('#modColl').innerHTML = collHtml(); dlList('#modDl'); modList(); rsLoad(); }
-  if (curPage === 'minimap') { $('#mmColl').innerHTML = collHtml('minimap'); dlList('#mmDl', 'minimap'); modList(); }
+async function modsRefresh() {
+  await libLoad(); RSC = null; libRender();
+  if (curPage === 'mods') { dlList('#modDl'); modList(); }
+  if (curPage === 'minimap') { dlList('#mmDl', 'minimap'); modList(); }
 }
 setInterval(() => { if (curPage === 'mods') dlList('#modDl'); if (curPage === 'minimap') dlList('#mmDl', 'minimap'); }, 6000);
 
@@ -1385,7 +1361,6 @@ function padUI() {
   $('#padKey').innerHTML = KEYS.map(([n, v]) => `<button class="${c.key === v ? 'on' : ''}" data-pk="${v}">${n}</button>`).join('');
   $('#navPad').classList.toggle('hidden', c.mode === 'off');
   $('#navPad').textContent = c.mode === 'on' ? 'AN' : 'AUTO';
-  $('#padBg').style.backgroundImage = `url('${bgUrl()}')`;
   padDraw();
 }
 let padT = 0, padArtKey = null;
@@ -1428,6 +1403,112 @@ async function initPad(s) {
   PAD.r = new PadArt.Pad($('#padPrev'));
   padUI(); padPush();
 }
+
+/* ======================= MOD LIBRARY ======================= */
+const LIB_URL = 'https://raw.githubusercontent.com/Ky3ls/orbittweak/main/mods.json';
+const LIB_CATS = [['all', 'Alle', 'layers'], ['reshade', 'ReShade-Looks', 'sparkle'], ['kill', 'Kill-Effekte', 'crosshair'], ['minimap', 'Minimap', 'map'], ['gfx', 'Grafik-Packs', 'sun'], ['sound', 'Sounds', 'activity'], ['other', 'Sonstiges', 'puzzle']];
+const LIB = { items: [], installed: new Set(), cat: 'all', q: '', sort: 'pop', busy: {} };
+async function libLoad() {
+  let data = null;
+  try { const c = new AbortController(); setTimeout(() => c.abort(), 4000); data = await (await fetch(LIB_URL + '?t=' + Math.floor(Date.now() / 3e5), { signal: c.signal })).json(); } catch { }
+  if (!data || !Array.isArray(data.mods)) try { data = await (await fetch('mods.json')).json(); } catch { data = { mods: [] }; }
+  LIB.items = data.mods.filter(m => m && m.id && m.name && (m.type === 'reshade' || (m.type === 'file' && /^https:\/\//.test(m.url || ''))));
+  try { LIB.installed = new Set((await api('mods.lib')).installed || []); } catch { }
+  try { RS = await api('reshade.status'); } catch { }
+}
+const libState = m => m.type === 'reshade' ? (RS.installed ? (RS.preset === m.preset ? 'active' : 'ready') : 'none') : (LIB.installed.has(m.id) ? 'installed' : 'none');
+function libCard(m) {
+  const st = libState(m), busy = LIB.busy[m.id];
+  const thumb = m.img ? `style="background-image:url('${esc(m.img)}')"` : `style="background-image:url('${bgUrl()}')"`;
+  const cat = LIB_CATS.find(c => c[0] === m.cat) || LIB_CATS[6];
+  const btn = busy != null ? `<button class="btn sm" disabled>${ico('refresh', 'i spin')}${busy > 0 ? busy + ' %' : 'Installiere…'}</button>`
+    : st === 'active' ? `<button class="btn sm ok" disabled>${ico('check')}Aktiv</button>`
+    : st === 'ready' ? `<button class="btn p sm" data-lib="${esc(m.id)}">${ico('zap')}Aktivieren</button>`
+    : st === 'installed' ? `<button class="btn sm d" data-librm="${esc(m.id)}">${ico('trash')}Entfernen</button>`
+    : `<button class="btn p sm" data-lib="${esc(m.id)}">${ico('download')}Installieren</button>`;
+  return `<div class="lcard ${st === 'active' || st === 'installed' ? 'on' : ''}">
+    <div class="lthumb ${m.type === 'reshade' && !m.img ? 'rsf-' + esc(m.preset) : ''}" ${thumb}></div>
+    <div class="ltop"><span class="lcat">${ico(cat[2])}${cat[1]}</span>${m.popular >= 85 ? '<span class="lhot">Beliebt</span>' : ''}</div>
+    <div class="lbody"><b>${esc(m.name)}</b><span class="lby">von ${esc(m.author || 'unbekannt')}</span><p>${esc(m.desc || '')}</p>
+      <div class="ltags">${(m.tags || []).slice(0, 4).map(t => `<span>#${esc(t)}</span>`).join('')}</div>
+      <div class="lact"><span class="lsize">${m.type === 'reshade' ? 'ReShade-Look' : m.size ? bytes(m.size) : 'Mod-Datei'}</span>${btn}</div></div></div>`;
+}
+function libList(cat) {
+  const q = LIB.q.trim().toLowerCase();
+  let l = LIB.items.filter(m => (cat === 'all' || m.cat === cat) && (!q || [m.name, m.desc, m.author, ...(m.tags || [])].join(' ').toLowerCase().includes(q)));
+  l.sort(LIB.sort === 'az' ? (a, b) => a.name.localeCompare(b.name) : LIB.sort === 'new' ? (a, b) => (b.added || '').localeCompare(a.added || '') : (a, b) => (b.popular || 0) - (a.popular || 0));
+  return l;
+}
+function libRender() {
+  if ($('#libCats')) $('#libCats').innerHTML = LIB_CATS.map(([k, n, i]) => { const c = k === 'all' ? LIB.items.length : LIB.items.filter(m => m.cat === k).length; return `<button class="lchip ${LIB.cat === k ? 'on' : ''}" data-lc="${k}">${ico(i)}${n}<span>${c}</span></button>`; }).join('');
+  const empty = cat => `<div class="empty">${LIB.q ? 'Nichts gefunden für „' + esc(LIB.q) + '“.' : `Noch keine Mods in dieser Kategorie.<br><span style="font-size:12px">Eigene Datei über „Datei installieren“ hinzufügen. Neue Mods kommen automatisch, sobald sie in der Bibliothek (mods.json) stehen.</span>`}</div>`;
+  if ($('#libGrid')) { const l = libList(LIB.cat); $('#libGrid').innerHTML = l.length ? l.map(libCard).join('') : empty(LIB.cat); }
+  if ($('#mmLib')) { const l = libList('minimap'); $('#mmLib').innerHTML = l.length ? l.map(libCard).join('') : empty('minimap'); }
+  rsSettings();
+}
+async function libInstall(id) {
+  const m = LIB.items.find(x => x.id === id); if (!m) return;
+  if (!S.settings.modsAck && m.type !== 'reshade') return modInstall('__dl');
+  LIB.busy[id] = 0; libRender();
+  try {
+    if (m.type === 'reshade') {
+      if (!RS.installed) {
+        if (!S.settings.modsAck) { delete LIB.busy[id]; libRender(); return modInstall('gfx', false, true); }
+        RS.preset = m.preset;
+        const r = await api('reshade.install', { preset: m.preset });
+        if (r.error) throw new Error(r.error);
+        passed('ReShade installiert', `Look „${m.name}“ aktiv · im Spiel mit Pos1 öffnen`);
+      } else {
+        const r = await api('reshade.preset', { id: m.preset }); if (r.error) throw new Error(r.error);
+        toast(`Look „${m.name}“ aktiv`, 'Ab dem nächsten FiveM-Start');
+      }
+      RS = await api('reshade.status');
+    } else {
+      const r = await api('mods.get', { id: m.id, url: m.url, sha256: m.sha256 || '', cat: m.cat, name: m.name });
+      if (r.error) throw new Error(r.error);
+      LIB.installed.add(m.id); passed('Mod installiert', `${m.name} · aktiv beim nächsten FiveM-Start`); modList();
+    }
+  } catch (e) { toast('Nicht installiert', e.message, false); }
+  delete LIB.busy[id]; libRender();
+}
+async function libRemove(id) {
+  const m = LIB.items.find(x => x.id === id);
+  if (!await confirmBox('Mod entfernen?', (m ? m.name : id) + ' wird aus FiveM gelöscht.')) return;
+  const r = await api('mods.remove', { id }); if (r.error) return toast('Nicht entfernt', r.error, false);
+  LIB.installed.delete(id); toast('Mod entfernt', m ? m.name : ''); libRender(); modList();
+}
+document.addEventListener('click', e => {
+  const c = e.target.closest('[data-lc]'); if (c) { LIB.cat = c.dataset.lc; libRender(); return; }
+  const s = e.target.closest('#libSort button'); if (s) { LIB.sort = s.dataset.v; $$('#libSort button').forEach(b => b.classList.toggle('on', b === s)); libRender(); return; }
+  const i = e.target.closest('[data-lib]'); if (i) { libInstall(i.dataset.lib); return; }
+  const r = e.target.closest('[data-librm]'); if (r) libRemove(r.dataset.librm);
+});
+document.addEventListener('input', e => { if (e.target.id === 'libSearch') { LIB.q = e.target.value; libRender(); } });
+
+/* ---- ReShade settings ---- */
+const RS_KEYS = [['Pos1', 36], ['Einfg', 45], ['Entf', 46], ['Ende', 35], ['Bild↑', 33], ['Bild↓', 34], ['Druck', 44], ['Rollen', 145], ['F2', 113], ['F9', 120], ['F11', 122], ['Aus', 0]];
+let RSC = null;
+async function rsSettings() {
+  const card = $('#rsSet'); if (!card) return;
+  card.classList.toggle('hidden', !RS.installed);
+  if (!RS.installed) return;
+  if (!RSC) try { RSC = await api('reshade.cfg.get'); } catch { RSC = null; }
+  if (!RSC || !RSC.found) return;
+  $('#rsVer').textContent = RS.version ? 'v' + RS.version : 'installiert';
+  $$('[data-rk]').forEach(el => { const k = el.dataset.rk; el.innerHTML = RS_KEYS.filter(([, v]) => k === 'keyNext' || v !== 0).map(([n, v]) => `<button class="${RSC[k] === v ? 'on' : ''}" data-rkv="${v}">${n}</button>`).join(''); });
+  $('#rsFps').classList.toggle('on', !!RSC.showFps); $('#rsPerf').classList.toggle('on', !!RSC.perf);
+}
+async function rsSave(patch) {
+  Object.assign(RSC, patch);
+  const r = await api('reshade.cfg.set', { cfg: patch });
+  if (r.error) toast('Nicht gespeichert', r.error, false); else toast('ReShade gespeichert', 'Gilt ab dem nächsten FiveM-Start');
+  rsSettings();
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-rkv]'); if (b && RSC) { const k = b.parentElement.dataset.rk, v = +b.dataset.rkv; const clash = ['keyOverlay', 'keyEffects', 'keyScreenshot', 'keyNext'].find(x => x !== k && v && RSC[x] === v); if (clash) return toast('Taste schon belegt', 'Bitte andere Taste wählen', false); rsSave({ [k]: v }); return; }
+  if (e.target.closest('#rsFps') && RSC) rsSave({ showFps: !RSC.showFps });
+  if (e.target.closest('#rsPerf') && RSC) rsSave({ perf: !RSC.perf });
+});
 
 /* ======================= BOOT ======================= */
 async function boot() {
@@ -1511,10 +1592,13 @@ const Mock = {
       case 'pad.watch': return { active: true, state: { c: true, t: 'ps', name: 'PlayStation 4 DualShock', b: { a: true, rb: true, up: true }, lx: .5, ly: -.3, rx: 0, ry: .6, lt: .4, rt: 1 } };
       case 'mods.browse': return null;
       case 'mods.install': return { count: 1 };
+      case 'mods.lib': return { installed: [] };
+      case 'reshade.cfg.get': return { found: true, keyOverlay: 36, keyEffects: 145, keyScreenshot: 44, keyNext: 0, showFps: false, perf: true };
+      case 'reshade.cfg.set': case 'reshade.shots': return {};
       case 'server.current': return { found: true, connected: true, key: 'cfx:abc123', url: 'cfx.re/join/abc123', fav: false, server: { name: '^1Nova^7City ^3| Roleplay [GER]', desc: 'Die lebendigste Stadt Deutschlands · Whitelist · Eigene Wirtschaft', allTags: ['roleplay', 'deutsch', 'economy', 'whitelist', 'jobs', 'gangs', 'custom cars'], locale: 'DE', players: 187, max: 256, ping: 22, build: '3095', onesync: true, resources: 412, owner: 'NovaTeam', discord: 'https://discord.gg/novacity', website: 'https://novacity.de', connect: 'cfx.re/join/abc123', online: true } };
       case 'mods.downloads': return [{ name: 'satellite_minimap_v2.zip', size: 18e6, date: new Date().toISOString(), rpfs: 1, cat: 'minimap' }, { name: 'KillFX_RedPulse.rar', size: 2.4e6, date: new Date(Date.now() - 864e5).toISOString(), rpfs: -1, cat: 'kill' }];
       case 'mods.installDl': await sleep(600); return { count: 1 };
-      case 'reshade.status': return { found: true, installed: false, presets: [{ id: 'vivid', name: 'Lebendig', desc: 'Kräftige Farben, knackig scharf' }, { id: 'pvp', name: 'Klar (PvP)', desc: 'Maximale Sichtbarkeit, scharfe Kanten' }, { id: 'cine', name: 'Cinematic', desc: 'Filmlook mit Vignette' }, { id: 'night', name: 'Nachtsicht', desc: 'Dunkle Ecken sichtbar' }, { id: 'techni', name: 'Technicolor', desc: 'Satte Retro-Farben' }] };
+      case 'reshade.status': return { found: true, installed: true, version: '6.8.0', preset: 'vivid', presets: [{ id: 'vivid', name: 'Lebendig', desc: 'Kräftige Farben, knackig scharf' }, { id: 'pvp', name: 'Klar (PvP)', desc: 'Maximale Sichtbarkeit, scharfe Kanten' }, { id: 'cine', name: 'Cinematic', desc: 'Filmlook mit Vignette' }, { id: 'night', name: 'Nachtsicht', desc: 'Dunkle Ecken sichtbar' }, { id: 'techni', name: 'Technicolor', desc: 'Satte Retro-Farben' }] };
       case 'reshade.install': for (let i = 1; i <= 5; i++) { onEvent('reshade', { pct: i * 20, text: 'Schritt ' + i }); await sleep(250); } return {};
       case 'reshade.preset': case 'reshade.uninstall': return {};
       case 'thumb': case 'clip.thumb': return { url: null };

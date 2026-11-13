@@ -433,6 +433,70 @@ public partial class MainWindow : Window
                 if (err == null) Log("🎨 ReShade entfernt");
                 return new { error = err };
             }
+            case "reshade.cfg.get": return await Task.Run(ReShade.GetCfg);
+            case "reshade.cfg.set":
+            {
+                var err = ReShade.SetCfg(a.GetProperty("cfg"));
+                if (err == null) Log("🎨 ReShade-Einstellungen gespeichert");
+                return new { error = err };
+            }
+            case "reshade.shots": { var d = ReShade.ScreenshotDir; Directory.CreateDirectory(d); Proc.Open(d); return null; }
+
+            // ---------- mod library ----------
+            case "mods.lib": return new { installed = S.CatalogMods.Keys };
+            case "mods.get":
+            {
+                var id = Str(a, "id"); var url = Str(a, "url"); var sha = Str(a, "sha256").ToLowerInvariant(); var cat = Str(a, "cat");
+                if (!url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) return new { error = "Nur sichere https-Downloads erlaubt" };
+                if (FiveM.IsRunning) return new { error = "Bitte FiveM zuerst schließen" };
+                var dir = Path.Combine(Path.GetTempPath(), "OrbitTweak-lib"); Directory.CreateDirectory(dir);
+                var name = Path.GetFileName(new Uri(url).LocalPath); if (string.IsNullOrWhiteSpace(name)) name = id + ".zip";
+                var file = Path.Combine(dir, name);
+                try
+                {
+                    using (var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromMinutes(10) })
+                    {
+                        http.DefaultRequestHeaders.UserAgent.ParseAdd("OrbitTweak");
+                        using var resp = await http.GetAsync(url, System.Net.Http.HttpCompletionOption.ResponseHeadersRead);
+                        resp.EnsureSuccessStatusCode();
+                        var total = resp.Content.Headers.ContentLength ?? 0;
+                        await using var src = await resp.Content.ReadAsStreamAsync();
+                        await using var dst = File.Create(file);
+                        var buf = new byte[81920]; long done = 0; int n, lastPct = -1;
+                        while ((n = await src.ReadAsync(buf)) > 0)
+                        {
+                            await dst.WriteAsync(buf.AsMemory(0, n)); done += n;
+                            var pct = total > 0 ? (int)(done * 100 / total) : 0;
+                            if (pct != lastPct) { lastPct = pct; Emit("modget", new { id, pct }); }
+                        }
+                    }
+                    if (sha.Length == 64)
+                    {
+                        await using var fs = File.OpenRead(file);
+                        var h = Convert.ToHexString(await System.Security.Cryptography.SHA256.HashDataAsync(fs)).ToLowerInvariant();
+                        if (h != sha) return new { error = "Prüfsumme stimmt nicht, Download verworfen" };
+                    }
+                    var names = new List<string>();
+                    var (files, temp, err) = await Task.Run(() => ModDownloads.PrepareFile(file));
+                    try { if (err == null) (_, err) = await Task.Run(() => Mods.InstallNamed(files, cat, S.ModCats, names)); }
+                    finally { if (temp != null) try { Directory.Delete(temp, true); } catch { } }
+                    if (err != null) return new { error = err };
+                    S.CatalogMods[id] = names; S.Save();
+                    Log($"🧩 Mod installiert: {Str(a, "name")}");
+                    return new { count = names.Count };
+                }
+                catch (Exception ex) { return new { error = "Download fehlgeschlagen: " + ex.Message }; }
+                finally { try { File.Delete(file); } catch { } }
+            }
+            case "mods.remove":
+            {
+                var id = Str(a, "id");
+                if (!S.CatalogMods.TryGetValue(id, out var names)) return new { error = "Nicht installiert" };
+                foreach (var n in names) { var e2 = Mods.Delete(n); if (e2 != null) return new { error = e2 }; S.ModCats.Remove(n); }
+                S.CatalogMods.Remove(id); S.Save();
+                return new { ok = true };
+            }
+
             case "reshade.preset":
             {
                 var err = ReShade.SetPreset(Str(a, "id"));

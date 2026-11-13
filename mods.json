@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "info": "OrbitTweak Mod-Bibliothek. type 'reshade' = ReShade-Look (preset-id), type 'file' = Mod-Datei (.rpf/.zip/.rar/.7z) per https-Direktlink. Felder: id, name, cat (reshade|kill|minimap|gfx|sound|other), author, desc, tags, popular (0-100), added (YYYY-MM-DD), img (optional https-Bild), url + sha256 + size (nur bei file).",
+  "mods": [
+    { "id": "rs-vivid", "type": "reshade", "preset": "vivid", "name": "Lebendig", "cat": "reshade", "author": "OrbitTweak", "desc": "Kräftige Farben und knackige Schärfe. Der Allrounder für Roleplay.", "tags": ["farben", "scharf", "rp"], "popular": 96, "added": "2026-11-13" },
+    { "id": "rs-pvp", "type": "reshade", "preset": "pvp", "name": "Klar (PvP)", "cat": "reshade", "author": "OrbitTweak", "desc": "Maximale Sichtbarkeit, schärfere Kanten, Gegner fallen schneller auf.", "tags": ["pvp", "gangwar", "sicht"], "popular": 94, "added": "2026-11-13" },
+    { "id": "rs-sharp", "type": "reshade", "preset": "sharp", "name": "Ultra-Scharf", "cat": "reshade", "author": "OrbitTweak", "desc": "AMD CAS plus LumaSharpen: so scharf wie es geht.", "tags": ["pvp", "scharf"], "popular": 88, "added": "2026-11-14" },
+    { "id": "rs-cine", "type": "reshade", "preset": "cine", "name": "Cinematic", "cat": "reshade", "author": "OrbitTweak", "desc": "Filmlook mit Tonemapping, Kontrast und Vignette. Perfekt für Clips.", "tags": ["clips", "film"], "popular": 85, "added": "2026-11-13" },
+    { "id": "rs-golden", "type": "reshade", "preset": "golden", "name": "Golden Hour", "cat": "reshade", "author": "OrbitTweak", "desc": "Warmes Sonnenlicht wie am Vinewood Sign, ganz ohne Grafikmod.", "tags": ["warm", "sonne"], "popular": 82, "added": "2026-11-14" },
+    { "id": "rs-night", "type": "reshade", "preset": "night", "name": "Nachtsicht", "cat": "reshade", "author": "OrbitTweak", "desc": "Hellt dunkle Ecken auf, nachts siehst du deutlich mehr.", "tags": ["nacht", "pvp", "sicht"], "popular": 80, "added": "2026-11-13" },
+    { "id": "rs-cold", "type": "reshade", "preset": "cold", "name": "Kalt & Clean", "cat": "reshade", "author": "OrbitTweak", "desc": "Kühle, saubere Farben mit leichter Schärfe.", "tags": ["kalt", "clean"], "popular": 74, "added": "2026-11-14" },
+    { "id": "rs-film", "type": "reshade", "preset": "film", "name": "Kinofilm", "cat": "reshade", "author": "OrbitTweak", "desc": "Analoger DPX-Filmlook mit sanfter Vignette.", "tags": ["film", "clips"], "popular": 70, "added": "2026-11-14" },
+    { "id": "rs-techni", "type": "reshade", "preset": "techni", "name": "Technicolor", "cat": "reshade", "author": "OrbitTweak", "desc": "Satte Retro-Farben im Stil alter Kinofilme.", "tags": ["retro", "farben"], "popular": 66, "added": "2026-11-13" },
+    { "id": "rs-light", "type": "reshade", "preset": "light", "name": "FPS-Light", "cat": "reshade", "author": "OrbitTweak", "desc": "Dezent schöner bei kaum FPS-Verlust. Für schwächere PCs.", "tags": ["fps", "leicht"], "popular": 78, "added": "2026-11-14" },
+    { "id": "rs-noir", "type": "reshade", "preset": "noir", "name": "Noir", "cat": "reshade", "author": "OrbitTweak", "desc": "Schwarz-Weiß mit Filmkorn. Für besondere Clips.", "tags": ["sw", "clips"], "popular": 55, "added": "2026-11-14" }
+  ]
+}

@@ -184,6 +184,130 @@ internal static class ReShade
             offset_bias=1.000000
             show_sharpen=0
             """),
+        ("sharp", "Ultra-Scharf", "Maximale Schärfe für PvP", """
+            Techniques=CAS@CAS.fx,LumaSharpen@LumaSharpen.fx
+            TechniqueSorting=CAS@CAS.fx,LumaSharpen@LumaSharpen.fx
+
+            [CAS.fx]
+            Contrast=0.400000
+            Sharpening=1.000000
+
+            [LumaSharpen.fx]
+            sharp_strength=0.400000
+            sharp_clamp=0.035000
+            pattern=1
+            offset_bias=1.000000
+            show_sharpen=0
+            """),
+        ("golden", "Golden Hour", "Warmes Sonnenlicht wie in Vinewood", """
+            Techniques=LiftGammaGain@LiftGammaGain.fx,Vibrance@Vibrance.fx,Curves@Curves.fx
+            TechniqueSorting=LiftGammaGain@LiftGammaGain.fx,Vibrance@Vibrance.fx,Curves@Curves.fx
+
+            [LiftGammaGain.fx]
+            RGB_Lift=1.000000,0.985000,0.950000
+            RGB_Gamma=1.000000,1.000000,1.000000
+            RGB_Gain=1.070000,1.000000,0.900000
+
+            [Vibrance.fx]
+            Vibrance=0.250000
+            VibranceRGBBalance=1.000000,1.000000,1.000000
+            Vibrance_Luma=0
+
+            [Curves.fx]
+            Mode=0
+            Formula=4
+            Contrast=0.200000
+            """),
+        ("cold", "Kalt & Clean", "Kühle Farben, klare Sicht", """
+            Techniques=LiftGammaGain@LiftGammaGain.fx,Vibrance@Vibrance.fx,CAS@CAS.fx
+            TechniqueSorting=LiftGammaGain@LiftGammaGain.fx,Vibrance@Vibrance.fx,CAS@CAS.fx
+
+            [LiftGammaGain.fx]
+            RGB_Lift=0.970000,0.990000,1.020000
+            RGB_Gamma=1.000000,1.000000,1.000000
+            RGB_Gain=0.930000,0.990000,1.080000
+
+            [Vibrance.fx]
+            Vibrance=0.200000
+            VibranceRGBBalance=1.000000,1.000000,1.000000
+            Vibrance_Luma=0
+
+            [CAS.fx]
+            Contrast=0.200000
+            Sharpening=0.600000
+            """),
+        ("noir", "Noir", "Schwarz-Weiß-Film mit Korn", """
+            Techniques=Monochrome@Monochrome.fx,Curves@Curves.fx,Vignette@Vignette.fx,FilmGrain@FilmGrain.fx
+            TechniqueSorting=Monochrome@Monochrome.fx,Curves@Curves.fx,Vignette@Vignette.fx,FilmGrain@FilmGrain.fx
+
+            [Monochrome.fx]
+            Monochrome_preset=0
+            Monochrome_conversion_values=0.210000,0.720000,0.070000
+            Normalize=0
+            Monochrome_color_saturation=0.000000
+
+            [Curves.fx]
+            Mode=0
+            Formula=4
+            Contrast=0.450000
+
+            [Vignette.fx]
+            Type=0
+            Ratio=1.000000
+            Radius=1.700000
+            Amount=-0.600000
+            Slope=2
+            Center=0.500000,0.500000
+
+            [FilmGrain.fx]
+            Intensity=0.250000
+            Variance=0.400000
+            Mean=0.500000
+            SignalToNoiseRatio=6
+            """),
+        ("film", "Kinofilm", "Analoger Film-Look", """
+            Techniques=DPX@DPX.fx,Vignette@Vignette.fx,LumaSharpen@LumaSharpen.fx
+            TechniqueSorting=DPX@DPX.fx,Vignette@Vignette.fx,LumaSharpen@LumaSharpen.fx
+
+            [DPX.fx]
+            RGB_Curve=8.000000,8.000000,8.000000
+            RGB_C=0.360000,0.360000,0.340000
+            Contrast=0.100000
+            Saturation=3.000000
+            Colorfulness=2.500000
+            Strength=0.300000
+
+            [Vignette.fx]
+            Type=0
+            Ratio=1.000000
+            Radius=2.000000
+            Amount=-0.350000
+            Slope=2
+            Center=0.500000,0.500000
+
+            [LumaSharpen.fx]
+            sharp_strength=0.450000
+            sharp_clamp=0.035000
+            pattern=1
+            offset_bias=1.000000
+            show_sharpen=0
+            """),
+        ("light", "FPS-Light", "Dezent schöner, kaum FPS-Verlust", """
+            Techniques=Vibrance@Vibrance.fx,LumaSharpen@LumaSharpen.fx
+            TechniqueSorting=Vibrance@Vibrance.fx,LumaSharpen@LumaSharpen.fx
+
+            [Vibrance.fx]
+            Vibrance=0.200000
+            VibranceRGBBalance=1.000000,1.000000,1.000000
+            Vibrance_Luma=0
+
+            [LumaSharpen.fx]
+            sharp_strength=0.500000
+            sharp_clamp=0.035000
+            pattern=1
+            offset_bias=1.000000
+            show_sharpen=0
+            """),
     };
 
     public static bool Installed
@@ -305,6 +429,37 @@ internal static class ReShade
         progress(95, "FiveM für ReShade freischalten…");
         if (FiveM.CitizenIni is { } ini) Ini.Set(ini, "Addons", "ReShade5", AckLine());
         progress(100, "Fertig");
+        return null;
+    }
+
+    // ---------- in-app ReShade settings ----------
+    public static object GetCfg()
+    {
+        if (Plugins == null || !File.Exists(Config)) return new { found = false };
+        int key(string name, int def) => int.TryParse((Ini.Get(Config, "INPUT", name) ?? "").Split(',')[0], out var v) ? v : def;
+        return new
+        {
+            found = true,
+            keyOverlay = key("KeyOverlay", 36), keyEffects = key("KeyEffects", 145), keyScreenshot = key("KeyScreenshot", 44),
+            keyNext = key("KeyNextPreset", 0),
+            showFps = Ini.Get(Config, "OVERLAY", "ShowFPS") == "1",
+            perf = Ini.Get(Config, "GENERAL", "PerformanceMode") != "0",
+            shots = Ini.Get(Config, "SCREENSHOT", "SavePath") ?? ScreenshotDir
+        };
+    }
+
+    public static string ScreenshotDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "FiveM ReShade");
+
+    public static string? SetCfg(System.Text.Json.JsonElement a)
+    {
+        if (Plugins == null || !Installed) return "ReShade ist nicht installiert";
+        string? str(string k) => a.TryGetProperty(k, out var v) ? v.ToString() : null;
+        foreach (var (k, ini) in new[] { ("keyOverlay", "KeyOverlay"), ("keyEffects", "KeyEffects"), ("keyScreenshot", "KeyScreenshot"), ("keyNext", "KeyNextPreset") })
+            if (str(k) is { } v && int.TryParse(v, out var vk)) Ini.Set(Config, "INPUT", ini, $"{vk},0,0,0");
+        if (str("showFps") is { } f) Ini.Set(Config, "OVERLAY", "ShowFPS", f == "True" || f == "true" ? "1" : "0");
+        if (str("perf") is { } p) Ini.Set(Config, "GENERAL", "PerformanceMode", p == "True" || p == "true" ? "1" : "0");
+        Directory.CreateDirectory(ScreenshotDir);
+        if (Ini.Get(Config, "SCREENSHOT", "SavePath") == null) Ini.Set(Config, "SCREENSHOT", "SavePath", ScreenshotDir);
         return null;
     }
 

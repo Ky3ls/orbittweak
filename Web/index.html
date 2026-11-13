@@ -403,12 +403,12 @@
     <!-- ================= MINIMAP ================= -->
     <section class="page" id="p-minimap">
       <div class="ph">
-        <div><div class="kicker">Minimap</div><h1>Echte <span class="grad">Minimap-Mods</span></h1><p class="pd">Ändert die echte GTA-Karte: Satellit, dunkel, Atlas, farbig. Mod finden, herunterladen, OrbitTweak installiert sie mit einem Klick.</p></div>
+        <div><div class="kicker">Minimap</div><h1>Echte <span class="grad">Minimap-Mods</span></h1><p class="pd">Ändert die echte GTA-Karte: Satellit, dunkel, Atlas, farbig. Aus der Bibliothek mit einem Klick installieren oder eigene Datei wählen.</p></div>
         <div class="ph-r"><button class="btn" onclick="modInstall('minimap')"><svg class="i"><use href="#file"/></svg>Datei wählen</button></div>
       </div>
       <div class="xwarn"><svg class="i"><use href="#alert"/></svg><div><b>Achtung: Viele Server verbieten Mods.</b> Server mit Pure-Mode lassen dich mit Minimap-Mods nicht joinen oder kicken dich. Die Nutzung erfolgt auf eigene Verantwortung.</div></div>
-      <div class="steps3"><div><i>1</i><span>Stil wählen und <b>Mods finden</b></span></div><div><i>2</i><span>Mod herunterladen (.rpf, .zip, .rar, .7z)</span></div><div><i>3</i><span>OrbitTweak erkennt den Download, <b>Installieren</b> klicken</span></div></div>
-      <div class="coll" id="mmColl"></div>
+      
+      <div class="lib-grid" id="mmLib"></div>
       <div class="card mt">
         <div class="row"><div class="lbl"><svg class="i"><use href="#download"/></svg>Neu in deinen Downloads</div><span class="sp"></span><button class="btn sm" onclick="api('downloads.open')"><svg class="i"><use href="#folder"/></svg>Downloads</button></div>
         <div id="mmDl" class="mt8"></div>
@@ -447,37 +447,35 @@
     <!-- ================= MODS ================= -->
     <section class="page" id="p-mods">
       <div class="ph">
-        <div><div class="kicker">Mods</div><h1>Mod-<span class="grad">Manager</span></h1><p class="pd">Kill-Effekte, Minimap, Grafik- und Sound-Packs per Klick installieren, an- und ausschalten.</p></div>
-        <div class="ph-r"><button class="btn" onclick="api('mods.folder')"><svg class="i"><use href="#folder"/></svg>Mods-Ordner</button></div>
+        <div><div class="kicker">Mods</div><h1>Mod-<span class="grad">Bibliothek</span></h1><p class="pd">Mods aussuchen und mit einem Klick installieren, aktivieren oder wieder entfernen. Direkt hier, ohne Website.</p></div>
+        <div class="ph-r"><button class="btn" onclick="modInstall('other')"><svg class="i"><use href="#file"/></svg>Datei installieren</button><button class="btn" onclick="api('mods.folder')"><svg class="i"><use href="#folder"/></svg>Mods-Ordner</button></div>
       </div>
-      <div class="xwarn"><svg class="i"><use href="#alert"/></svg><div><b>Achtung: Viele Server verbieten Mods.</b> Server mit Pure-Mode lassen dich mit Mods nicht joinen oder kicken dich, manche bannen dafür. Installiere nur Mods aus vertrauenswürdigen Quellen. Die Nutzung erfolgt auf eigene Verantwortung.</div></div>
-      <div class="card mb">
-        <div class="mb-head"><div class="rs-ico"><svg class="i"><use href="#globe"/></svg></div><div style="flex:1"><h2>Mod-Browser</h2><p class="sub" style="font-size:12.5px;margin-top:4px">Stöbern wie im Browser, direkt in OrbitTweak. Klick auf <b>Download</b>, und die Mod wird automatisch in FiveM installiert.</p></div></div>
-        <div class="mb-src">
-          <button class="mbs" onclick="modBrowse('https://www.gta5-mods.com/','gfx')"><b>GTA5-Mods</b><span>Größte Mod-Seite</span></button>
-          <button class="mbs" onclick="modBrowse('https://forum.cfx.re/search?q=client%20mod%20rpf','gfx')"><b>Cfx.re Forum</b><span>FiveM-Releases</span></button>
-          <button class="mbs" onclick="modBrowse('https://github.com/search?q=fivem+rpf&type=repositories','other')"><b>GitHub</b><span>Open-Source-Mods</span></button>
+      <div class="xwarn"><svg class="i"><use href="#alert"/></svg><div><b>Achtung: Viele Server verbieten Mods.</b> Server mit Pure-Mode lassen dich mit Mods nicht joinen oder kicken dich, manche bannen dafür. ReShade-Looks sind meist erlaubt. Die Nutzung erfolgt auf eigene Verantwortung.</div></div>
+      <div class="lib-bar">
+        <div class="lib-search"><svg class="i"><use href="#target"/></svg><input class="in" id="libSearch" placeholder="Mods suchen, z. B. pvp, nacht, kill …"></div>
+        <div class="seg" id="libSort"><button class="on" data-v="pop">Beliebt</button><button data-v="new">Neu</button><button data-v="az">A–Z</button></div>
+      </div>
+      <div class="lib-cats" id="libCats"></div>
+      <div class="lib-grid" id="libGrid"></div>
+      <div class="card mt hidden" id="rsSet">
+        <div class="row"><div class="lbl"><svg class="i"><use href="#sparkle"/></svg>ReShade-Einstellungen</div><span class="chip g" id="rsVer">installiert</span><span class="sp"></span><button class="btn sm" onclick="api('reshade.shots')"><svg class="i"><use href="#folder"/></svg>Screenshots</button><button class="btn sm d" onclick="rsUninstall()"><svg class="i"><use href="#trash"/></svg>ReShade entfernen</button></div>
+        <div class="rs-grid mt">
+          <div><span class="rs-l">Menü öffnen</span><div class="seg keyseg" data-rk="keyOverlay"></div></div>
+          <div><span class="rs-l">Effekte an/aus</span><div class="seg keyseg" data-rk="keyEffects"></div></div>
+          <div><span class="rs-l">Screenshot</span><div class="seg keyseg" data-rk="keyScreenshot"></div></div>
+          <div><span class="rs-l">Nächster Look</span><div class="seg keyseg" data-rk="keyNext"></div></div>
         </div>
-      </div>
-      <div class="card gb rs mt" id="rsCard">
-        <div class="rs-head">
-          <div class="rs-ico"><svg class="i"><use href="#sparkle"/></svg></div>
-          <div style="flex:1"><div class="row"><h2>ReShade für FiveM</h2><span class="chip" id="rsState">Nicht installiert</span></div><p class="sub" style="font-size:12.5px;margin-top:4px">Offizielles ReShade von reshade.me plus SweetFX-Shader. OrbitTweak installiert alles in FiveM, schaltet es frei und bringt eigene Presets mit. Im Spiel mit <b>Pos1</b> öffnen.</p></div>
-          <div class="row" style="flex:none"><button class="btn d hidden" id="rsDel" onclick="rsUninstall()"><svg class="i"><use href="#trash"/></svg>Entfernen</button><button class="btn p lg" id="rsBtn" onclick="rsInstall()"><svg class="i"><use href="#download"/></svg><span>Mit 1 Klick installieren</span></button></div>
-        </div>
-        <div class="bar hidden" id="rsBar" style="margin-top:14px"><i style="width:0"></i></div><div class="sub hidden" id="rsProg" style="font-size:12px;margin-top:6px"></div>
-        <div class="rs-presets" id="rsPresets"></div>
-        <p class="warnline"><svg class="i"><use href="#alert"/></svg>FiveM gibt für ReShade keinen Support. Selten kann es abstürzen, dann hier einfach entfernen.</p>
-      </div>
-      <div class="lbl mt" style="margin-bottom:10px"><svg class="i"><use href="#puzzle"/></svg>Mod-Sammlung</div>
-      <div class="coll" id="modColl"></div>
-      <div class="card mt">
-        <div class="row"><div class="lbl"><svg class="i"><use href="#download"/></svg>Neu in deinen Downloads</div><span class="sp"></span><button class="btn sm" onclick="modInstall('other')"><svg class="i"><use href="#file"/></svg>Datei wählen</button><button class="btn sm" onclick="api('downloads.open')"><svg class="i"><use href="#folder"/></svg>Downloads</button></div>
-        <div id="modDl" class="mt8"></div>
+        <div class="srow"><div><b>FPS im ReShade-Overlay anzeigen</b><p>Kleine FPS-Anzeige oben in der Ecke</p></div><div class="tg" id="rsFps"></div></div>
+        <div class="srow"><div><b>Performance-Modus</b><p>Mehr FPS, Effekte lassen sich im Spiel dann nicht mehr verstellen</p></div><div class="tg" id="rsPerf"></div></div>
+        <p class="muted" style="font-size:11.5px;margin-top:6px">Änderungen gelten ab dem nächsten FiveM-Start. Den aktiven Look wählst du oben in der Bibliothek.</p>
       </div>
       <div class="card mt">
-        <div class="row"><div class="lbl"><svg class="i"><use href="#puzzle"/></svg>Installierte Mods</div><span class="chip" id="modCount">0</span><span class="sp"></span><span class="sub" style="font-size:12px">Änderungen nur bei geschlossenem FiveM</span></div>
+        <div class="row"><div class="lbl"><svg class="i"><use href="#puzzle"/></svg>Installierte Mod-Dateien</div><span class="chip" id="modCount">0</span><span class="sp"></span><span class="sub" style="font-size:12px">Änderungen nur bei geschlossenem FiveM</span></div>
         <div id="modList" class="mt8"></div>
+      </div>
+      <div class="card mt">
+        <div class="row"><div class="lbl"><svg class="i"><use href="#download"/></svg>Neu in deinen Downloads</div><span class="sp"></span><button class="btn sm" onclick="api('downloads.open')"><svg class="i"><use href="#folder"/></svg>Downloads</button></div>
+        <div id="modDl" class="mt8"></div>
       </div>
     </section>
 
@@ -500,7 +498,7 @@
         <div class="col">
           <div class="card">
             <div class="row"><div class="lbl"><svg class="i"><use href="#eye"/></svg>Live-Vorschau</div><span class="sp"></span><span class="chip" id="padName">Kein Controller</span></div>
-            <div class="padprev" id="padStage"><div class="padbg" id="padBg"></div><div class="padhost" id="padPrev"></div></div>
+            <div class="padprev" id="padStage"><div class="padhost" id="padPrev"></div></div>
             <p class="sub" id="padHint" style="font-size:12px;margin-top:10px;line-height:1.5">Automatisch: Das Overlay erscheint, sobald ein Controller angeschlossen ist und benutzt wird, und verschwindet nach 45 Sekunden ohne Eingabe oder wenn er getrennt wird.</p>
             <p class="muted" style="font-size:11px;margin-top:8px">Controller-Grafiken: Gamepad Viewer Skin „Dracula“ (MIT-Lizenz).</p>
           </div>

@@ -37,6 +37,9 @@ internal static class Mods
     }
 
     public static (int count, string? error) Install(IEnumerable<string> files, string cat, Dictionary<string, string> cats)
+        => InstallNamed(files, cat, cats, null);
+
+    public static (int count, string? error) InstallNamed(IEnumerable<string> files, string cat, Dictionary<string, string> cats, List<string>? names)
     {
         if (Dir is not { } dir) return (0, "FiveM nicht gefunden");
         if (FiveM.IsRunning) return (0, "Bitte FiveM zuerst schließen");
@@ -49,7 +52,7 @@ internal static class Mods
                 if (!IsRpf(file)) continue;
                 var name = Path.GetFileName(file);
                 File.Copy(file, Path.Combine(dir, name), true);
-                cats[name] = cat; n++;
+                cats[name] = cat; n++; names?.Add(name);
             }
             else if (file.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
             {
@@ -59,7 +62,7 @@ internal static class Mods
                     var target = Path.Combine(dir, Path.GetFileName(e.Name));
                     e.ExtractToFile(target, true);
                     if (!IsRpf(target)) { File.Delete(target); continue; }
-                    cats[Path.GetFileName(e.Name)] = cat; n++;
+                    cats[Path.GetFileName(e.Name)] = cat; n++; names?.Add(Path.GetFileName(e.Name));
                 }
             }
         }
