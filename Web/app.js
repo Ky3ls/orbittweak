@@ -1200,19 +1200,16 @@ async function thumbNext() {
 /* ======================= GTA BACKGROUND ======================= */
 const LA = { day: 'img/la-day.jpg', dusk: 'img/la-sunset.jpg', night: 'img/la-night.jpg' };
 const LA_ALL = [['auto', 'Tageszeit', null], ['la-day', 'Tag', 'img/la-day.jpg'], ['la-sunset', 'Abendsonne', 'img/la-sunset.jpg'], ['la-dusk', 'Sonnenuntergang', 'img/la-dusk.jpg'], ['la-night', 'Nacht', 'img/la-night.jpg'], ['la-night2', 'Downtown', 'img/la-night2.jpg']];
-const ownUrl = () => S.settings.bgVersion ? `https://bg.orbit/bg.jpg?v=${S.settings.bgVersion}` : null;
+const ownUrl = () => null;
 const bgUrl = () => ownUrl() || (LA_ALL.find(x => x[0] === S.settings.bgPreset)?.[2]) || LA[timeOfDay()];
 function applyBg() {
   const u = bgUrl();
   const own = `<div class="own-bg" style="background-image:url('${u}')"></div>`;
   $('#bnScene').innerHTML = own;
   $('#spScene').innerHTML = own;
-  const ownBtn = $('#xhBg [data-bg="own"]');
-  ownBtn.classList.toggle('hidden', !ownUrl());
-  xhScene(ownUrl() ? 'own' : timeOfDay());
+  xhScene(timeOfDay());
   $$('.dpimg').forEach(d => d.style.backgroundImage = u ? `url('${u}')` : '');
   $$('.dpre i').forEach(d => d.style.backgroundImage = u ? `url('${u}')` : '');
-  $('#bgClear').classList.toggle('hidden', !ownUrl());
   $$('.rsp i').forEach(i => i.style.backgroundImage = `url('${u}')`);
 }
 function xhScene(k) {
@@ -1223,21 +1220,12 @@ function xhScene(k) {
   xhPlace();
 }
 async function bgGrid() {
-  const g = $('#bgGrid'); g.innerHTML = '<div class="sub" style="font-size:12px">Suche GTA-Bilder…</div>';
-  let pics = [], cl = [];
-  try { pics = await api('bg.list'); } catch { }
-  try { cl = (await api('clip.list')).slice(0, 8); } catch { }
-  const items = [...pics.map(p => ({ k: 'path', v: p.path, n: p.name, s: p.source })), ...cl.map(c => ({ k: 'rel', v: c.rel, n: c.name, s: 'Clip' }))];
-  const cur = ownUrl() ? null : (S.settings.bgPreset || 'auto');
-  g.innerHTML = LA_ALL.map(([k, n, src]) => `<button class="bgc ${cur === k ? 'on' : ''}" data-bgp="${k}"><img alt="" class="ok" src="${src || LA[timeOfDay()]}"><span>${n}</span></button>`).join('') +
-    items.map((it, i) => `<button class="bgc" data-bgi="${i}"><img alt=""><span>${esc(it.s)}</span></button>`).join('');
-  g._items = items;
-  $$('#bgGrid img:not(.ok)').forEach((img, i) => thumb(items[i].k === 'rel' ? 'clip.thumb' : 'thumb', items[i].k === 'rel' ? { rel: items[i].v } : { path: items[i].v }, img));
+  const g = $('#bgGrid'), cur = S.settings.bgPreset || 'auto';
+  g.innerHTML = LA_ALL.map(([k, n, src]) => `<button class="bgc ${cur === k ? 'on' : ''}" data-bgp="${k}"><img alt="" class="ok" src="${src || LA[timeOfDay()]}"><span>${n}</span></button>`).join('');
 }
 document.addEventListener('click', async e => {
   const pr = e.target.closest('[data-bgp]');
   if (pr) {
-    if (ownUrl()) { await api('bg.clear'); S.settings.bgVersion = 0; }
     S.settings.bgPreset = pr.dataset.bgp === 'auto' ? null : pr.dataset.bgp; api('settings.set', { key: 'bgPreset', value: S.settings.bgPreset || '' });
     applyBg(); bgGrid(); return;
   }
@@ -1385,7 +1373,7 @@ setInterval(() => { if (curPage === 'home' || curPage === 'servers') curServer()
 const PAD = { cfg: { on: false, layout: 'auto', body: 'black', color: 'orig', corner: 'br', size: 75, opacity: 90, key: 0, accent: '#FF7A3D' }, r: null, state: null };
 const PAD_COLORS = ['#FF3B4E', '#FF7A18', '#F5C451', '#3DDC6B', '#3D8BFF', '#8B5CF6', '#F472B6', '#FFFFFF', '#18181B'];
 const accHex = () => getComputedStyle(document.documentElement).getPropertyValue('--a').trim();
-function padDraw() { if (PAD.r && PAD.r.geo) PAD.r.draw(PAD.state, { ...PAD.cfg, accent: PAD.cfg.color === 'theme' || PAD.cfg.color === 'orig' ? accHex() : PAD.cfg.color }); }
+function padDraw() { if (PAD.r) PAD.r.draw(PAD.state, { ...PAD.cfg, accent: PAD.cfg.color === 'theme' || PAD.cfg.color === 'orig' ? accHex() : PAD.cfg.color }); }
 function padUI() {
   const c = PAD.cfg;
   [['#padLayout', c.layout], ['#padBody', c.body], ['#padOpacity', String(c.opacity)]].forEach(([s, v]) => $$(s + ' button').forEach(b => b.classList.toggle('on', b.dataset.v === v)));
@@ -1400,11 +1388,17 @@ function padUI() {
   $('#padBg').style.backgroundImage = `url('${bgUrl()}')`;
   padDraw();
 }
-let padT = 0;
+let padT = 0, padArtKey = null;
 function padPush() {
   clearTimeout(padT);
   padT = setTimeout(async () => {
-    const r = await api('pad.set', { cfg: { ...PAD.cfg, accent: PAD.cfg.color === 'orig' || PAD.cfg.color === 'theme' ? accHex() : PAD.cfg.color } }).catch(() => null);
+    const args = { cfg: { ...PAD.cfg, accent: PAD.cfg.color === 'orig' || PAD.cfg.color === 'theme' ? accHex() : PAD.cfg.color } };
+    if (padArtKey !== PAD.cfg.body) {   // art only changes with the body colour
+      padArtKey = PAD.cfg.body;
+      args.art = { xbox: await PadArt.png('xbox', PAD.cfg.body), ps: await PadArt.png('ps', PAD.cfg.body) };
+      args.dyn = { xbox: PadArt.dyn('xbox'), ps: PadArt.dyn('ps') };
+    }
+    const r = await api('pad.set', args).catch(() => null);
     if (r && r.keyOk === false) toast('Taste belegt', 'Andere Taste wählen', false);
   }, 80);
 }
@@ -1428,13 +1422,8 @@ function padState(d) {
 }
 async function initPad(s) {
   Object.assign(PAD.cfg, s.pad || {});
-  try {
-    const g = await api('pad.geo');
-    PAD.r = new PadSVG($('#padPrev'), g);
-    $('#padUrl').textContent = g.url || 'http://127.0.0.1:47811/';
-    if (g.error) $('#padUrl').textContent += '  (Fehler: ' + g.error + ')';
-  } catch { }
-  padUI();
+  PAD.r = new PadArt.Pad($('#padPrev'));
+  padUI(); padPush();
 }
 
 /* ======================= BOOT ======================= */
@@ -1465,7 +1454,7 @@ async function boot() {
   if (d.settings.lastBoost) $('#lastBoost').textContent = 'Letzter Boost: ' + new Date(d.settings.lastBoost).toLocaleDateString('de-DE');
   $('#launchSub').textContent = d.fivem.found ? 'mit Pre-Launch-Boost' : 'FiveM nicht gefunden';
   feed(d.fivem.found ? 'FiveM erkannt: ' + d.fivem.path : 'FiveM nicht gefunden: Pfad im Launcher wählen');
-  renderSettings(); renderLauncher(); initFx(d.settings); initMinimap(d.settings); initClip(d.settings); applyBg(); initPad(d.settings);
+  renderSettings(); renderLauncher(); initFx(d.settings); initMinimap(d.settings); initClip(d.settings); if (d.settings.bgVersion) { api('bg.clear').catch(() => { }); S.settings.bgVersion = 0; } applyBg(); initPad(d.settings);
   $('#snapTg').classList.toggle('on', !!d.settings.snapTap);
   await loadTweaks();
   refreshCache(); ping(); setInterval(ping, 8000); curServer();
@@ -1515,7 +1504,6 @@ const Mock = {
       case 'clip.delete': return { ok: true };
       case 'clip.list': return ['Grand Theft Auto V 2026.11.13 - 21.14.08.02', 'FiveM 2026.11.13 - 20.51.44.01', 'Gangwar Clutch', 'Grand Theft Auto V 2026.11.12 - 23.02.10.05'].map((n, i) => ({ name: n, rel: 'Grand Theft Auto V/' + n + '.mp4', folder: i === 2 ? 'Captures' : 'Grand Theft Auto V', size: 48e6 + i * 9e6, date: new Date(Date.now() - i * 864e5).toISOString(), ext: '.mp4' }));
       case 'mods.list': return { found: true, items: [{ name: 'round_minimap_dark.rpf', on: true, size: 3.4e6, cat: 'minimap' }, { name: 'killfx_red_flash.rpf', on: true, size: 1.2e6, cat: 'kill' }, { name: 'nve_lite.rpf', on: false, size: 84e6, cat: 'gfx' }] };
-      case 'pad.geo': return PADMOCK();
       case 'pad.set': return { keyOk: true };
       case 'pad.watch': return { state: { c: true, t: 'ps', name: 'PlayStation 5 DualSense', b: { a: true, rb: true, up: true }, lx: .5, ly: -.3, rx: 0, ry: .6, lt: .4, rt: 1 } };
       case 'mods.browse': return null;
@@ -1559,15 +1547,3 @@ const Mock = {
 
 boot();
 
-// browser-preview copy of the host geometry (PadGeo in Pad.cs)
-function PADMOCK() {
-  const S_ = (k, id, x, y, w = 0, h = 0, r = 0, txt, col) => ({ k, id, x, y, w, h, r, txt, col });
-  const dpad = (cx, cy) => [S_('rect', 'up', cx - 8, cy - 26, 16, 18, 4), S_('rect', 'down', cx - 8, cy + 8, 16, 18, 4), S_('rect', 'left', cx - 26, cy - 8, 18, 16, 4), S_('rect', 'right', cx + 8, cy - 8, 18, 16, 4)];
-  const stick = (id, cx, cy) => [S_('base', id + 'b', cx, cy, 0, 0, 25), S_('stick', id, cx, cy, 0, 0, 16)];
-  const top = [S_('trig', 'lt', 64, 6, 62, 22, 8), S_('trig', 'rt', 214, 6, 62, 22, 8), S_('rect', 'lb', 60, 31, 76, 14, 7), S_('rect', 'rb', 204, 31, 76, 14, 7), S_('body', 'body', 0, 0)];
-  const ps = [...top, ...dpad(98, 94), S_('rect', 'pad', 136, 54, 68, 42, 9), S_('rect', 'back', 120, 58, 9, 16, 4), S_('rect', 'start', 211, 58, 9, 16, 4), S_('circle', 'guide', 170, 116, 0, 0, 8), ...stick('ls', 132, 140), ...stick('rs', 208, 140),
-    S_('face', 'y', 242, 72, 0, 0, 11, '△', '#4ADE9A'), S_('face', 'b', 264, 94, 0, 0, 11, '○', '#F87171'), S_('face', 'a', 242, 116, 0, 0, 11, '✕', '#7DB4FF'), S_('face', 'x', 220, 94, 0, 0, 11, '□', '#F49AC2')];
-  const xbox = [...top, ...stick('ls', 98, 94), ...dpad(134, 140), S_('rect', 'back', 146, 84, 16, 10, 5), S_('rect', 'start', 178, 84, 16, 10, 5), S_('circle', 'guide', 170, 62, 0, 0, 11), ...stick('rs', 208, 140),
-    S_('face', 'y', 242, 72, 0, 0, 11, 'Y', '#F5C451'), S_('face', 'b', 264, 94, 0, 0, 11, 'B', '#F25F5C'), S_('face', 'a', 242, 116, 0, 0, 11, 'A', '#4ADE80'), S_('face', 'x', 220, 94, 0, 0, 11, 'X', '#4F9CF9')];
-  return { xbox, ps, body: 'M70,50 C110,32 230,32 270,50 C312,68 336,162 318,202 C306,228 268,228 252,200 L232,168 L108,168 L88,200 C72,228 34,228 22,202 C4,162 28,68 70,50 Z', url: 'http://127.0.0.1:47811/' };
-}

@@ -1,5 +1,4 @@
 using System.IO;
-using System.Net;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
@@ -244,133 +243,83 @@ internal static class PadInput
     }
 }
 
-// =====================================================================
-//  Geometry – one description, drawn by WPF (overlay) and SVG (app + OBS)
-// =====================================================================
-public record PadShape(string K, string Id, double X, double Y, double W = 0, double H = 0, double R = 0, string? D = null, string? Txt = null, string? Col = null);
-
-internal static class PadGeo
+public class PadDyn
 {
-    public const double W = 340, H = 232;
-    public const string Body = "M70,50 C110,32 230,32 270,50 C312,68 336,162 318,202 C306,228 268,228 252,200 L232,168 L108,168 L88,200 C72,228 34,228 22,202 C4,162 28,68 70,50 Z";
-
-    private static IEnumerable<PadShape> Dpad(double cx, double cy) => new[]
-    {
-        new PadShape("rect", "up", cx - 8, cy - 26, 16, 18, 4), new PadShape("rect", "down", cx - 8, cy + 8, 16, 18, 4),
-        new PadShape("rect", "left", cx - 26, cy - 8, 18, 16, 4), new PadShape("rect", "right", cx + 8, cy - 8, 18, 16, 4),
-    };
-    private static IEnumerable<PadShape> Stick(string id, double cx, double cy) => new[]
-    {
-        new PadShape("base", id + "b", cx, cy, R: 25), new PadShape("stick", id, cx, cy, R: 16),
-    };
-
-    public static List<PadShape> Shapes(string layout)
-    {
-        bool ps = layout == "ps";
-        var l = new List<PadShape>
-        {
-            new("trig", "lt", 64, 6, 62, 22, 8), new("trig", "rt", 214, 6, 62, 22, 8),
-            new("rect", "lb", 60, 31, 76, 14, 7), new("rect", "rb", 204, 31, 76, 14, 7),
-            new("body", "body", 0, 0, D: Body),
-        };
-        if (ps)
-        {
-            l.AddRange(Dpad(98, 94));
-            l.Add(new("rect", "pad", 136, 54, 68, 42, 9));
-            l.Add(new("rect", "back", 120, 58, 9, 16, 4)); l.Add(new("rect", "start", 211, 58, 9, 16, 4));
-            l.Add(new("circle", "guide", 170, 116, R: 8));
-            l.AddRange(Stick("ls", 132, 140)); l.AddRange(Stick("rs", 208, 140));
-            l.Add(new("face", "y", 242, 72, R: 11, Txt: "△", Col: "#4ADE9A")); l.Add(new("face", "b", 264, 94, R: 11, Txt: "○", Col: "#F87171"));
-            l.Add(new("face", "a", 242, 116, R: 11, Txt: "✕", Col: "#7DB4FF")); l.Add(new("face", "x", 220, 94, R: 11, Txt: "□", Col: "#F49AC2"));
-        }
-        else
-        {
-            l.AddRange(Stick("ls", 98, 94));
-            l.AddRange(Dpad(134, 140));
-            l.Add(new("rect", "back", 146, 84, 16, 10, 5)); l.Add(new("rect", "start", 178, 84, 16, 10, 5));
-            l.Add(new("circle", "guide", 170, 62, R: 11));
-            l.AddRange(Stick("rs", 208, 140));
-            l.Add(new("face", "y", 242, 72, R: 11, Txt: "Y", Col: "#F5C451")); l.Add(new("face", "b", 264, 94, R: 11, Txt: "B", Col: "#F25F5C"));
-            l.Add(new("face", "a", 242, 116, R: 11, Txt: "A", Col: "#4ADE80")); l.Add(new("face", "x", 220, 94, R: 11, Txt: "X", Col: "#4F9CF9"));
-        }
-        return l;
-    }
+    public string Id { get; set; } = "";
+    public string K { get; set; } = "";
+    public string? D { get; set; }
+    public double Cx { get; set; }
+    public double Cy { get; set; }
+    public double R { get; set; }
+    public double Mv { get; set; }
+    public string? Col { get; set; }
 }
 
+/// <summary>Draws the controller art (PNG from the app) plus the live parts on top.</summary>
 internal sealed class PadView : FrameworkElement
 {
+    public const double W = 600, H = 400;
     public PadCfg Cfg = new();
-    public string Accent = "#FF7A3D";
     public string Layout = "xbox";
-    private static readonly Typeface Face = new(new FontFamily("Segoe UI Symbol, Segoe UI"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
+    public Dictionary<string, System.Windows.Media.Imaging.BitmapSource> Art = new();
+    public Dictionary<string, List<PadDyn>> Dyn = new();
+    private readonly Dictionary<string, Geometry> _geo = new();
 
     private static SolidColorBrush Br(string hex, double a = 1)
     {
         var c = (Color)ColorConverter.ConvertFromString(hex);
         var b = new SolidColorBrush(Color.FromArgb((byte)(255 * a), c.R, c.G, c.B)); b.Freeze(); return b;
     }
+    private Geometry G(string d) { if (!_geo.TryGetValue(d, out var g)) { g = Geometry.Parse(d); g.Freeze(); _geo[d] = g; } return g; }
 
     protected override void OnRender(DrawingContext dc)
     {
-        PadState s; lock (PadInput.State) s = PadInput.State;
+        PadState s = PadInput.State;
+        if (Art.TryGetValue(Layout, out var art)) dc.DrawImage(art, new Rect(0, 0, W, H));
+        if (!Dyn.TryGetValue(Layout, out var dyn)) return;
         bool white = Cfg.Body == "white";
-        var body = white ? Br("#ECECEF") : Br("#17171B");
-        var idle = white ? Br("#C6C6CC") : Br("#2C2C33");
-        var deep = white ? Br("#AEAEB5") : Br("#0D0D10");
-        var line = new Pen(white ? Br("#9A9AA2") : Br("#3A3A44"), 1.5); line.Freeze();
-        string accentHex = Cfg.Color == "theme" ? Accent : Cfg.Color.StartsWith("#") ? Cfg.Color : Accent;
-        var acc = Br(accentHex);
-        bool On(string id) => s.B.TryGetValue(id, out var v) && v;
-
-        foreach (var p in PadGeo.Shapes(Layout))
+        var acc = Br(Cfg.Accent is { Length: 7 } a ? a : "#FF7A3D");
+        var b = s.B;
+        bool On(string id) => b.TryGetValue(id, out var v) && v;
+        foreach (var p in dyn)
         {
+            var col = Cfg.Color == "orig" && p.Col != null ? Br(p.Col, .9) : Br(Cfg.Accent is { Length: 7 } a2 ? a2 : "#FF7A3D", .9);
             switch (p.K)
             {
-                case "body":
-                    dc.DrawGeometry(body, new Pen(white ? Br("#B9B9C0") : Br("#2E2E36"), 2), Geometry.Parse(p.D));
-                    break;
                 case "trig":
                 {
-                    var r = new Rect(p.X, p.Y, p.W, p.H);
-                    dc.DrawRoundedRectangle(idle, line, r, p.R, p.R);
-                    double v = p.Id == "lt" ? s.Lt : s.Rt;
-                    if (v > 0.02)
-                    {
-                        dc.PushClip(new RectangleGeometry(new Rect(p.X, p.Y + p.H * (1 - v), p.W, p.H * v)));
-                        dc.DrawRoundedRectangle(acc, null, r, p.R, p.R);
-                        dc.Pop();
-                    }
+                    double v = Math.Clamp(p.Id == "lt" ? s.Lt : s.Rt, 0, 1);
+                    if (v < 0.02 || p.D == null) break;
+                    var g = G(p.D); var bb = g.Bounds;
+                    dc.PushClip(g); dc.PushOpacity(.88);
+                    dc.DrawRectangle(acc, null, new Rect(bb.X, bb.Bottom - bb.Height * v, bb.Width, bb.Height * v));
+                    dc.Pop(); dc.Pop();
                     break;
                 }
-                case "rect":
-                    dc.DrawRoundedRectangle(On(p.Id) ? acc : idle, line, new Rect(p.X, p.Y, p.W, p.H), p.R, p.R);
+                case "btn":
+                    if (On(p.Id) && p.D != null) { var g = G(p.D); dc.DrawGeometry(null, new Pen(Br(Cfg.Color == "orig" && p.Col != null ? p.Col : Cfg.Accent, .35), 6), g); dc.DrawGeometry(col, null, g); }
                     break;
                 case "circle":
-                    dc.DrawEllipse(On(p.Id) ? acc : idle, line, new Point(p.X, p.Y), p.R, p.R);
-                    break;
-                case "base":
-                    dc.DrawEllipse(deep, line, new Point(p.X, p.Y), p.R, p.R);
+                    if (On(p.Id)) { var c = new Point(p.Cx, p.Cy); dc.DrawEllipse(null, new Pen(col.Clone().Also(x => x.Opacity = .4), 6), c, p.R, p.R); dc.DrawEllipse(col, null, c, p.R, p.R); }
                     break;
                 case "stick":
                 {
                     double ax = p.Id == "ls" ? s.Lx : s.Rx, ay = p.Id == "ls" ? s.Ly : s.Ry;
-                    var c = new Point(p.X + ax * 10, p.Y + ay * 10);
-                    dc.DrawEllipse(On(p.Id) ? acc : (white ? Br("#F7F7F9") : Br("#3B3B44")), new Pen(white ? Br("#9A9AA2") : Br("#55555F"), 2), c, p.R, p.R);
-                    dc.DrawEllipse(null, new Pen(white ? Br("#C9C9CF") : Br("#24242A"), 1.5), c, p.R - 5, p.R - 5);
-                    break;
-                }
-                case "face":
-                {
-                    bool on = On(p.Id);
-                    var col = Cfg.Color == "orig" ? Br(p.Col!) : acc;
-                    dc.DrawEllipse(on ? col : idle, line, new Point(p.X, p.Y), p.R, p.R);
-                    var ft = new FormattedText(p.Txt!, System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight, Face, 12, on ? Br(white ? "#FFFFFF" : "#101014") : (Cfg.Color == "orig" ? Br(p.Col!) : (white ? Br("#4A4A52") : Br("#C9C9D1"))), 1.0);
-                    dc.DrawText(ft, new Point(p.X - ft.Width / 2, p.Y - ft.Height / 2));
+                    var c = new Point(p.Cx + ax * p.Mv, p.Cy + ay * p.Mv);
+                    dc.DrawEllipse(Br("#000000", .5), null, new Point(c.X, c.Y + 3), p.R + 2, p.R + 2);
+                    dc.DrawEllipse(Br(white ? "#4A4C53" : "#44464E"), new Pen(Br(white ? "#AEB0B7" : "#08080A"), 2), c, p.R, p.R);
+                    dc.DrawEllipse(Br(white ? "#2A2B30" : "#26272C"), new Pen(Br("#FFFFFF", .08), 2), c, p.R - 8, p.R - 8);
+                    if (On(p.Id)) dc.DrawEllipse(null, new Pen(acc, 4), c, p.R - 1, p.R - 1);
                     break;
                 }
             }
         }
     }
+}
+
+internal static class BrushExt
+{
+    public static T Also<T>(this T o, Action<T> a) { a(o); return o; }
 }
 
 internal sealed class PadOverlay
@@ -388,13 +337,15 @@ internal sealed class PadOverlay
     private Window? _w;
     private IntPtr _h;
     private bool _shown, _subscribed;
-    private readonly PadView _view = new() { Width = PadGeo.W, Height = PadGeo.H };
+    private readonly PadView _view = new() { Width = PadView.W, Height = PadView.H };
     private PadCfg _cfg = new();
     private DateTime _lastDraw;
 
-    public void Configure(PadCfg cfg, string accent, string layout)
+    public PadView View => _view;
+
+    public void Configure(PadCfg cfg, string layout)
     {
-        _cfg = cfg; _view.Cfg = cfg; _view.Accent = accent; _view.Layout = layout;
+        _cfg = cfg; _view.Cfg = cfg; _view.Layout = layout;
         if (_w != null) _w.Opacity = Math.Clamp(cfg.Opacity, 20, 100) / 100.0;
         _view.InvalidateVisual();
     }
@@ -437,7 +388,7 @@ internal sealed class PadOverlay
         Ensure();
         if (_h == IntPtr.Zero) return;
         var (l, t, r, b) = GameFocus.Client();
-        int w = (int)(PadGeo.W * _cfg.Size / 100.0), h = (int)(PadGeo.H * _cfg.Size / 100.0), m = 24;
+        int w = (int)(PadView.W * 0.6 * _cfg.Size / 100.0), h = (int)(PadView.H * 0.6 * _cfg.Size / 100.0), m = 24;
         int x = _cfg.Corner.EndsWith("l") ? l + m : r - w - m;
         int y = _cfg.Corner.StartsWith("t") ? t + m : b - h - m;
         bool moved = !GetWindowRect(_h, out var rc) || rc.L != x || rc.T != y || rc.R - rc.L != w || rc.B - rc.T != h;
@@ -452,94 +403,4 @@ internal sealed class PadOverlay
         try { _w?.Close(); } catch { }
         _w = null; _h = IntPtr.Zero; _shown = false;
     }
-}
-
-// =====================================================================
-//  OBS BROWSER SOURCE – http://127.0.0.1:47811/  (transparent page)
-// =====================================================================
-internal static class PadServer
-{
-    public const int Port = 47811;
-    public static string Url => $"http://127.0.0.1:{Port}/";
-    private static HttpListener? _l;
-    public static string? WebDir;
-    public static Func<object>? Config;
-    public static string? Error;
-
-    public static void Start()
-    {
-        if (_l != null) return;
-        try
-        {
-            _l = new HttpListener();
-            _l.Prefixes.Add(Url);
-            _l.Start();
-            _ = Task.Run(Accept);
-            Error = null;
-        }
-        catch (Exception ex) { Error = ex.Message; _l = null; }
-    }
-
-    private static async Task Accept()
-    {
-        while (_l is { IsListening: true })
-        {
-            HttpListenerContext ctx;
-            try { ctx = await _l.GetContextAsync(); } catch { return; }
-            _ = Task.Run(() => Handle(ctx));
-        }
-    }
-
-    private static async Task Handle(HttpListenerContext ctx)
-    {
-        var res = ctx.Response;
-        try
-        {
-            var path = ctx.Request.Url?.AbsolutePath ?? "/";
-            res.Headers["Access-Control-Allow-Origin"] = "*";
-            if (path == "/state")
-            {
-                PadInput.Use(true);
-                try
-                {
-                    res.ContentType = "text/event-stream";
-                    res.SendChunked = true;
-                    var o = res.OutputStream;
-                    string last = "";
-                    int tick = 0;
-                    while (_l is { IsListening: true })
-                    {
-                        var j = PadInput.Json();
-                        if (j != last || ++tick % 60 == 0)
-                        {
-                            last = j;
-                            var bytes = Encoding.UTF8.GetBytes("data: " + j + "\n\n");
-                            await o.WriteAsync(bytes);
-                            await o.FlushAsync();
-                        }
-                        await Task.Delay(16);
-                    }
-                }
-                finally { PadInput.Use(false); }
-                return;
-            }
-            if (path == "/cfg")
-            {
-                var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(Config?.Invoke(), new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
-                res.ContentType = "application/json";
-                await res.OutputStream.WriteAsync(bytes);
-                return;
-            }
-            var file = path == "/" ? "obs.html" : path.TrimStart('/');
-            if (WebDir == null || file.Contains("..") || !(file is "obs.html" or "pad.js")) { res.StatusCode = 404; return; }
-            var full = Path.Combine(WebDir, file);
-            res.ContentType = file.EndsWith(".js") ? "text/javascript" : "text/html; charset=utf-8";
-            var data = await File.ReadAllBytesAsync(full);
-            await res.OutputStream.WriteAsync(data);
-        }
-        catch { }
-        finally { try { res.Close(); } catch { } }
-    }
-
-    public static void Stop() { try { _l?.Stop(); } catch { } _l = null; }
 }

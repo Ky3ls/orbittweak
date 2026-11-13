@@ -314,7 +314,7 @@
       <div class="xgrid">
         <div class="col">
           <div class="card xprev-card">
-            <div class="row"><div class="lbl"><svg class="i"><use href="#eye"/></svg>Vorschau</div><span class="sp"></span><div class="seg" id="xhBg"><button class="hidden" data-bg="own">Dein Bild</button><button class="on" data-bg="day">Tag</button><button data-bg="dusk">Abend</button><button data-bg="night">Nacht</button></div></div>
+            <div class="row"><div class="lbl"><svg class="i"><use href="#eye"/></svg>Vorschau</div><span class="sp"></span><div class="seg" id="xhBg"><button class="on" data-bg="day">Tag</button><button data-bg="dusk">Abend</button><button data-bg="night">Nacht</button></div></div>
             <div class="xscene sc-day" id="xhScene"><svg class="gscene" viewBox="0 0 640 360" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
   <defs>
     <linearGradient id="gsky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--s1)"/><stop offset=".62" style="stop-color:var(--s2)"/><stop offset="1" style="stop-color:var(--s3)"/></linearGradient>
@@ -493,7 +493,7 @@
     <!-- ================= CONTROLLER ================= -->
     <section class="page" id="p-pad">
       <div class="ph">
-        <div><div class="kicker">Controller</div><h1>Controller-<span class="grad">Anzeige</span></h1><p class="pd">Zeigt deinen Controller und jede gedrückte Taste live, perfekt für Streams und Videos. Xbox, PS4 und PS5 werden erkannt.</p></div>
+        <div><div class="kicker">Controller</div><h1>Controller-<span class="grad">Anzeige</span></h1><p class="pd">Zeigt deinen Controller und jede gedrückte Taste live, als Overlay im Spiel. Xbox, PS4 und PS5 werden automatisch erkannt.</p></div>
         <div class="ph-r"><button class="btn p lg" id="padMain" onclick="padToggle()"><svg class="i"><use href="#gamepad"/></svg><span>Overlay einschalten</span></button></div>
       </div>
       <div class="xgrid">
@@ -502,11 +502,6 @@
             <div class="row"><div class="lbl"><svg class="i"><use href="#eye"/></svg>Live-Vorschau</div><span class="sp"></span><span class="chip" id="padName">Kein Controller</span></div>
             <div class="padprev" id="padStage"><div class="padbg" id="padBg"></div><div class="padhost" id="padPrev"></div></div>
             <p class="sub" style="font-size:12px;margin-top:10px;line-height:1.5">Drück Tasten oder beweg die Sticks, die Vorschau reagiert sofort. PlayStation-Controller per USB oder Bluetooth, Xbox per USB, Funk oder Bluetooth.</p>
-          </div>
-          <div class="card">
-            <div class="lbl"><svg class="i"><use href="#film"/></svg>OBS / Streamlabs (empfohlen)</div>
-            <p class="sub" style="font-size:12.5px;margin-top:8px;line-height:1.5">In OBS eine <b>Browser-Quelle</b> hinzufügen und diese Adresse einfügen. Breite 680, Höhe 464, Hintergrund ist durchsichtig. Funktioniert auch mit Spielaufnahme und im Vollbild.</p>
-            <div class="f8line"><code id="padUrl">http://127.0.0.1:47811/</code><button class="btn sm p" onclick="copyCmd($('#padUrl').textContent)"><svg class="i"><use href="#copy"/></svg>Kopieren</button></div>
           </div>
         </div>
         <div class="card">
@@ -523,7 +518,7 @@
           <div class="seg mt8" id="padOpacity"><button data-v="100">Voll</button><button data-v="80">Leicht durchsichtig</button><button data-v="55">Halb</button></div>
           <div class="lbl mt"><svg class="i"><use href="#keyboard"/></svg>Ein/Aus-Taste</div>
           <div class="seg keyseg mt8" id="padKey"></div>
-          <div class="xnote"><svg class="i"><use href="#alert"/></svg><div>Das Bildschirm-Overlay ist im Modus <b>Randlos</b> oder <b>Fenster</b> sichtbar. Für Aufnahmen und Streams die OBS-Browser-Quelle nutzen, die funktioniert immer.</div></div>
+          <div class="xnote"><svg class="i"><use href="#alert"/></svg><div>Das Overlay ist im Modus <b>Randlos</b> oder <b>Fenster</b> sichtbar, nicht im exklusiven Vollbild.</div></div>
         </div>
       </div>
     </section>
@@ -648,8 +643,8 @@
           <div class="themes mt" id="themes"></div>
         </div>
         <div class="card mt">
-          <div class="row"><div class="lbl"><svg class="i"><use href="#monitor"/></svg>GTA-Hintergrund</div><span class="sp"></span><button class="btn sm" onclick="bgPick()"><svg class="i"><use href="#file"/></svg>Bild wählen</button><button class="btn sm" id="bgClear" onclick="bgClear()"><svg class="i"><use href="#undo"/></svg>Standard</button></div>
-          <p class="sub" style="font-size:12.5px;margin-top:6px">Hintergrund für Startseite, Ladebildschirm, Fadenkreuz- und Farb-Vorschau. Los-Santos-Fotos oder eigene GTA-Screenshots.</p>
+          <div class="row"><div class="lbl"><svg class="i"><use href="#monitor"/></svg>Hintergrund (Los Santos)</div></div>
+          <p class="sub" style="font-size:12.5px;margin-top:6px">Für Startseite, Ladebildschirm und Vorschauen. „Tageszeit“ wechselt automatisch zwischen Tag, Abend und Nacht.</p>
           <div class="bg-grid" id="bgGrid"></div>
           <p class="muted" style="font-size:11px;margin-top:12px;line-height:1.5">Standard-Hintergründe: Fotos von Los Angeles, dem Vorbild für Los Santos. Michael Chusid (CC0), Josh Rose (CC0), Kevin Stanchfield (CC BY 2.0), FairbanksMike (CC BY 2.0), Stephen Friday (CC BY 2.0), via Wikimedia Commons.</p>
         </div>

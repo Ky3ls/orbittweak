@@ -75,7 +75,7 @@ public partial class MainWindow : Window
         Application.Current.ShutdownMode = ShutdownMode.OnMainWindowClose;
         _live.Tick += (_, _) => LiveTick();
         if (S.SnapTap) _snap.Enable(true);
-        _pad.Configure(S.Pad, S.Pad.Accent, S.Pad.Layout == "auto" ? "xbox" : S.Pad.Layout);
+        _pad.Configure(S.Pad, S.Pad.Layout == "auto" ? "xbox" : S.Pad.Layout);
         _live.Start();
 
         if (S.TimerRes) Catalog.SetTimerResolution(true);
@@ -106,9 +106,6 @@ public partial class MainWindow : Window
 #endif
             c.NewWindowRequested += (_, e) => { e.Handled = true; Proc.Open(e.Uri); };
             var webDir = ExtractWeb(Path.Combine(data, "web"));
-            PadServer.WebDir = webDir;
-            PadServer.Config = () => new { cfg = S.Pad, geo = new { xbox = PadGeo.Shapes("xbox"), ps = PadGeo.Shapes("ps"), body = PadGeo.Body } };
-            PadServer.Start();
             c.SetVirtualHostNameToFolderMapping("orbit.local", webDir, CoreWebView2HostResourceAccessKind.Allow);
             try { Directory.CreateDirectory(Backgrounds.Dir); c.SetVirtualHostNameToFolderMapping("bg.orbit", Backgrounds.Dir, CoreWebView2HostResourceAccessKind.Allow); } catch { }
             try { if (Directory.Exists(Clipper.VideosDir)) c.SetVirtualHostNameToFolderMapping("clips.orbit", Clipper.VideosDir, CoreWebView2HostResourceAccessKind.Allow); } catch { }
@@ -478,13 +475,23 @@ public partial class MainWindow : Window
             }
 
             // ---------- controller display ----------
-            case "pad.geo": return new { xbox = PadGeo.Shapes("xbox"), ps = PadGeo.Shapes("ps"), body = PadGeo.Body, url = PadServer.Url, error = PadServer.Error };
             case "pad.set":
             {
                 var was = S.Pad.On;
                 S.Pad = a.GetProperty("cfg").Deserialize<PadCfg>(JIn) ?? new PadCfg();
                 S.Save();
-                _pad.Configure(S.Pad, S.Pad.Accent, S.Pad.Layout == "auto" ? (PadInput.State.T == "ps" ? "ps" : "xbox") : S.Pad.Layout);
+                if (a.TryGetProperty("art", out var art) && art.ValueKind == JsonValueKind.Object)
+                    foreach (var pr in art.EnumerateObject())
+                        if (pr.Value.GetString() is { Length: > 100 } b64)
+                        {
+                            var bi = new System.Windows.Media.Imaging.BitmapImage();
+                            bi.BeginInit(); bi.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad; bi.StreamSource = new MemoryStream(Convert.FromBase64String(b64)); bi.EndInit(); bi.Freeze();
+                            _pad.View.Art[pr.Name] = bi;
+                        }
+                if (a.TryGetProperty("dyn", out var dyn) && dyn.ValueKind == JsonValueKind.Object)
+                    foreach (var pr in dyn.EnumerateObject())
+                        _pad.View.Dyn[pr.Name] = pr.Value.Deserialize<List<PadDyn>>(JIn) ?? new();
+                _pad.Configure(S.Pad, S.Pad.Layout == "auto" ? (PadInput.State.T == "ps" ? "ps" : "xbox") : S.Pad.Layout);
                 var keys = RegisterKeys();
                 LiveTick();
                 if (was != S.Pad.On) Log(S.Pad.On ? "🎮 Controller-Anzeige an" : "🎮 Controller-Anzeige aus");
@@ -698,7 +705,7 @@ public partial class MainWindow : Window
     private void StopLive()
     {
         _live.Stop();
-        _xhair.Close(); _minimap.Close(); _snap.Enable(false); _pad.Close(); PadServer.Stop();
+        _xhair.Close(); _minimap.Close(); _snap.Enable(false); _pad.Close();
         ScreenColor.Restore(); NvVibrance.Restore();
         var h = new WindowInteropHelper(this).Handle;
         if (h != IntPtr.Zero) { UnregisterHotKey(h, HK_XHAIR); UnregisterHotKey(h, HK_DISPLAY); UnregisterHotKey(h, HK_CLIP); }
