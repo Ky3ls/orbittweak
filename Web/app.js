@@ -97,6 +97,7 @@ function smoothPath(pts) {
 let curPage = 'home';
 function go(p) {
   if ((p === 'display') !== (curPage === 'display')) api('display.preview', { on: p === 'display' }).catch(() => { });
+  if ((p === 'pad') !== (curPage === 'pad')) api('pad.watch', { on: p === 'pad' }).then(r => r && padState(r.state)).catch(() => { });
   curPage = p;
   $$('.nav').forEach(n => n.classList.toggle('active', n.dataset.p === p));
   $$('.page').forEach(s => s.classList.toggle('show', s.id === 'p-' + p));
@@ -128,6 +129,9 @@ function onEvent(ev, d) {
   else if (ev === 'update') updProgress(d);
   else if (ev === 'xhair') { XH.on = d.on; xhState(); toast(d.on ? 'Fadenkreuz an' : 'Fadenkreuz aus', d.on ? 'per Taste · Server-Regeln beachten' : 'per Taste'); }
   else if (ev === 'display') { DP.cfg.on = d.on; dpState(); }
+  else if (ev === 'pad') padState(d);
+  else if (ev === 'padon') { PAD.cfg.on = d.on; padUI(); toast(d.on ? 'Controller-Overlay an' : 'Controller-Overlay aus', 'per Taste'); }
+  else if (ev === 'modInstalled') { passed('Mod installiert', `${MOD_CATS[d.cat]?.[0] || 'Mod'} · ${d.name}`); modList(); }
   else if (ev === 'reshade') { const b = $('#rsBar i'); if (b) b.style.width = d.pct + '%'; $('#rsProg').textContent = d.text; }
   else if (ev === 'clip') { toast('Clip gespeichert', 'per Taste · ' + (CL_RECS[d.recorder]?.[1] || '')); if (curPage === 'clip') setTimeout(clipList, 4000); }
 }
@@ -570,7 +574,7 @@ function renderSettings() {
 }
 document.addEventListener('click', e => {
   const th = e.target.closest('[data-th]');
-  if (th) { S.settings.accent = th.dataset.th; applyTheme(th.dataset.th); renderSettings(); api('settings.set', { key: 'accent', value: th.dataset.th }); return; }
+  if (th) { S.settings.accent = th.dataset.th; applyTheme(th.dataset.th); renderSettings(); api('settings.set', { key: 'accent', value: th.dataset.th }); padDraw(); padPush(); return; }
   const st = e.target.closest('[data-set]');
   if (st) { const k = st.dataset.set; S.settings[k] = !S.settings[k]; st.classList.toggle('on'); api('settings.set', { key: k, value: S.settings[k] }); if (!k.startsWith('auto') || k === 'autoRamClean' || k === 'autoPriority') loadTweaks(); }
 });
@@ -734,7 +738,7 @@ document.addEventListener('click', e => {
   const b = e.target.closest('[data-xb]'); if (b) { XH.cfg[b.dataset.xb] = !XH.cfg[b.dataset.xb]; xhUI(); xhPush(); return; }
   const k = e.target.closest('[data-xk]'); if (k) { XH.key = +k.dataset.xk; xhState(); xhPush(false); return; }
   const t = e.target.closest('[data-xt]'); if (t) { if (t.dataset.xt === 'on') return xhToggle(); XH.onlyGame = !XH.onlyGame; xhState(); xhPush(false); return; }
-  const bg = e.target.closest('#xhBg button'); if (bg) { $$('#xhBg button').forEach(x => x.classList.toggle('on', x === bg)); $('#xhScene').className = 'xscene sc-' + bg.dataset.bg + (bg.dataset.bg === 'own' ? ' sc-day' : ''); xhPlace(); }
+  const bg = e.target.closest('#xhBg button'); if (bg) xhScene(bg.dataset.bg);
 });
 document.addEventListener('input', e => {
   const r = e.target.closest('[data-xr]');
@@ -773,7 +777,7 @@ function dpUI() {
   const kn = KEYS.find(k => k[1] === c.key)?.[0];
   $('#dpKeyTxt').textContent = c.key ? `${kn} schaltet das Farbprofil im Spiel an und aus` : 'Profil im Spiel schnell umschalten';
   dpState();
-  const u = bgUrl(); if (u) $$('.dpre i').forEach(i => i.style.backgroundImage = `url('${u}')`);
+  const u = bgUrl(); $$('.dpre i').forEach(i => i.style.backgroundImage = `url('${u}')`); $$('.dpimg').forEach(d => d.style.backgroundImage = `url('${u}')`);
 }
 function dpState() {
   const c = DP.cfg;
@@ -932,14 +936,13 @@ function sceneClone(suffix) {
 function timeOfDay(d = new Date()) { const h = d.getHours(); return h >= 6 && h < 17 ? 'day' : h >= 17 && h < 21 ? 'dusk' : 'night'; }
 function banner() {
   const d = new Date(), h = d.getHours(), tod = timeOfDay(d);
-  $('#bnScene').className = 'bn-scene sc-' + tod;
+  $('#bnScene').className = 'bn-scene';
   $('#greet').textContent = h < 5 ? 'Gute Nacht' : h < 11 ? 'Guten Morgen' : h < 17 ? 'Guten Tag' : h < 22 ? 'Guten Abend' : 'Gute Nacht';
   $('#bnTime').textContent = `Los Santos · ${d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`;
 }
 function initLook() {
-  $('#bnScene').innerHTML = sceneClone('B'); $('#spScene').innerHTML = sceneClone('S');
-  $('#spScene').className = 'sp-scene sc-' + timeOfDay();
-  banner(); setInterval(banner, 30000);
+  $('#bnScene').innerHTML = `<div class="own-bg" style="background-image:url('${LA[timeOfDay()]}')"></div>`; $('#spScene').innerHTML = $('#bnScene').innerHTML;
+  banner(); setInterval(() => { banner(); if (!ownUrl() && !S.settings.bgPreset) applyBg(); }, 30000);
 }
 function passed(title, sub) {
   const p = $('#passed'); $('#paT').textContent = title; $('#paS').textContent = sub || '';
@@ -1111,7 +1114,7 @@ async function modInstall(cat, ok, reshade) {
   if (r.error) toast('Nicht installiert', r.error, false); else { toast(`${r.count} Mod(s) installiert`, 'Wirkt beim nächsten FiveM-Start'); passed('Mod installiert', `${MOD_CATS[cat]?.[0] || 'Mod'} · ${r.count} Datei(en)`); }
   modList();
 }
-function modAck(cat, reshade) { closeModal(); S.settings.modsAck = true; api('settings.set', { key: 'modsAck', value: true }); if (reshade) rsInstall(); else if (cat !== '__dl') modInstall(cat, true); }
+function modAck(cat, reshade) { closeModal(); S.settings.modsAck = true; api('settings.set', { key: 'modsAck', value: true }); if (reshade) rsInstall(); else if (cat !== '__dl' && cat !== '__browse') modInstall(cat, true); }
 window.modInstall = modInstall; window.modAck = modAck;
 async function modList() {
   let r; try { r = await api('mods.list'); } catch { r = { found: false, items: [] }; }
@@ -1195,21 +1198,29 @@ async function thumbNext() {
 }
 
 /* ======================= GTA BACKGROUND ======================= */
-const bgUrl = () => S.settings.bgVersion ? `https://bg.orbit/bg.jpg?v=${S.settings.bgVersion}` : null;
+const LA = { day: 'img/la-day.jpg', dusk: 'img/la-sunset.jpg', night: 'img/la-night.jpg' };
+const LA_ALL = [['auto', 'Tageszeit', null], ['la-day', 'Tag', 'img/la-day.jpg'], ['la-sunset', 'Abendsonne', 'img/la-sunset.jpg'], ['la-dusk', 'Sonnenuntergang', 'img/la-dusk.jpg'], ['la-night', 'Nacht', 'img/la-night.jpg'], ['la-night2', 'Downtown', 'img/la-night2.jpg']];
+const ownUrl = () => S.settings.bgVersion ? `https://bg.orbit/bg.jpg?v=${S.settings.bgVersion}` : null;
+const bgUrl = () => ownUrl() || (LA_ALL.find(x => x[0] === S.settings.bgPreset)?.[2]) || LA[timeOfDay()];
 function applyBg() {
   const u = bgUrl();
-  const own = u ? `<div class="own-bg" style="background-image:url('${u}')"></div>` : '';
-  $('#bnScene').innerHTML = own || sceneClone('B');
-  $('#spScene').innerHTML = own || sceneClone('S');
-  const sc = $('#xhScene'), ownBtn = $('#xhBg [data-bg="own"]');
-  sc.querySelector('.own-bg')?.remove();
-  ownBtn.classList.toggle('hidden', !u);
-  if (u) { sc.insertAdjacentHTML('afterbegin', own); sc.className = 'xscene sc-own sc-day'; $$('#xhBg button').forEach(b => b.classList.toggle('on', b === ownBtn)); }
-  else if (sc.classList.contains('sc-own')) { sc.className = 'xscene sc-day'; $$('#xhBg button').forEach(b => b.classList.toggle('on', b.dataset.bg === 'day')); }
-  xhPlace();
+  const own = `<div class="own-bg" style="background-image:url('${u}')"></div>`;
+  $('#bnScene').innerHTML = own;
+  $('#spScene').innerHTML = own;
+  const ownBtn = $('#xhBg [data-bg="own"]');
+  ownBtn.classList.toggle('hidden', !ownUrl());
+  xhScene(ownUrl() ? 'own' : timeOfDay());
   $$('.dpimg').forEach(d => d.style.backgroundImage = u ? `url('${u}')` : '');
   $$('.dpre i').forEach(d => d.style.backgroundImage = u ? `url('${u}')` : '');
-  $('#bgClear').classList.toggle('hidden', !u);
+  $('#bgClear').classList.toggle('hidden', !ownUrl());
+  $$('.rsp i').forEach(i => i.style.backgroundImage = `url('${u}')`);
+}
+function xhScene(k) {
+  const sc = $('#xhScene'); let el = sc.querySelector('.own-bg');
+  if (!el) { sc.insertAdjacentHTML('afterbegin', '<div class="own-bg"></div>'); el = sc.querySelector('.own-bg'); }
+  el.style.backgroundImage = `url('${k === 'own' ? ownUrl() : LA[k] || LA.day}')`;
+  $$('#xhBg button').forEach(b => b.classList.toggle('on', b.dataset.bg === k));
+  xhPlace();
 }
 async function bgGrid() {
   const g = $('#bgGrid'); g.innerHTML = '<div class="sub" style="font-size:12px">Suche GTA-Bilder…</div>';
@@ -1217,22 +1228,29 @@ async function bgGrid() {
   try { pics = await api('bg.list'); } catch { }
   try { cl = (await api('clip.list')).slice(0, 8); } catch { }
   const items = [...pics.map(p => ({ k: 'path', v: p.path, n: p.name, s: p.source })), ...cl.map(c => ({ k: 'rel', v: c.rel, n: c.name, s: 'Clip' }))];
-  if (!items.length) { g.innerHTML = '<div class="empty" style="grid-column:1/-1">Keine GTA-Bilder gefunden. Mach im Spiel einen Screenshot (Steam: F12, NVIDIA: Alt+F1) oder wähl ein Bild.</div>'; return; }
-  g.innerHTML = items.map((it, i) => `<button class="bgc" data-bgi="${i}"><img alt=""><span>${esc(it.s)}</span></button>`).join('');
+  const cur = ownUrl() ? null : (S.settings.bgPreset || 'auto');
+  g.innerHTML = LA_ALL.map(([k, n, src]) => `<button class="bgc ${cur === k ? 'on' : ''}" data-bgp="${k}"><img alt="" class="ok" src="${src || LA[timeOfDay()]}"><span>${n}</span></button>`).join('') +
+    items.map((it, i) => `<button class="bgc" data-bgi="${i}"><img alt=""><span>${esc(it.s)}</span></button>`).join('');
   g._items = items;
-  $$('#bgGrid img').forEach((img, i) => thumb(items[i].k === 'rel' ? 'clip.thumb' : 'thumb', items[i].k === 'rel' ? { rel: items[i].v } : { path: items[i].v }, img));
+  $$('#bgGrid img:not(.ok)').forEach((img, i) => thumb(items[i].k === 'rel' ? 'clip.thumb' : 'thumb', items[i].k === 'rel' ? { rel: items[i].v } : { path: items[i].v }, img));
 }
 document.addEventListener('click', async e => {
+  const pr = e.target.closest('[data-bgp]');
+  if (pr) {
+    if (ownUrl()) { await api('bg.clear'); S.settings.bgVersion = 0; }
+    S.settings.bgPreset = pr.dataset.bgp === 'auto' ? null : pr.dataset.bgp; api('settings.set', { key: 'bgPreset', value: S.settings.bgPreset || '' });
+    applyBg(); bgGrid(); return;
+  }
   const b = e.target.closest('[data-bgi]'); if (!b) return;
   const it = $('#bgGrid')._items[+b.dataset.bgi];
   b.classList.add('busy');
   const r = await api('bg.set', it.k === 'rel' ? { rel: it.v } : { path: it.v });
   b.classList.remove('busy');
   if (r.error) return toast('Bild nicht übernommen', r.error, false);
-  S.settings.bgVersion = r.v; applyBg(); toast('GTA-Hintergrund gesetzt', 'Startseite, Ladebildschirm und Vorschauen nutzen jetzt dein Bild');
+  S.settings.bgVersion = r.v; applyBg(); bgGrid(); toast('GTA-Hintergrund gesetzt', 'Startseite, Ladebildschirm und Vorschauen nutzen jetzt dein Bild');
 });
 async function bgPick() { const r = await api('bg.pick'); if (r.cancelled) return; if (r.error) return toast('Bild nicht übernommen', r.error, false); S.settings.bgVersion = r.v; applyBg(); toast('GTA-Hintergrund gesetzt', ''); }
-async function bgClear() { await api('bg.clear'); S.settings.bgVersion = 0; applyBg(); }
+async function bgClear() { await api('bg.clear'); S.settings.bgVersion = 0; applyBg(); bgGrid(); }
 window.bgPick = bgPick; window.bgClear = bgClear;
 
 /* ======================= SETTINGS TABS ======================= */
@@ -1255,7 +1273,7 @@ async function rsLoad() {
   $('#rsDel').classList.toggle('hidden', !RS.installed);
   const sel = RS.preset || 'vivid';
   $('#rsPresets').innerHTML = (RS.presets || []).map(p => `<button class="rsp ${RS.installed && sel === p.id ? 'on' : ''}" data-rsp="${p.id}"><i class="rsf-${p.id}"></i><b>${p.name}</b><span>${p.desc}</span></button>`).join('');
-  const u = bgUrl(); if (u) $$('.rsp i').forEach(i => i.style.backgroundImage = `url('${u}')`);
+  const u = bgUrl(); $$('.rsp i').forEach(i => i.style.backgroundImage = `url('${u}')`);
 }
 async function rsInstall() {
   if (!S.settings.modsAck) return modInstall('gfx', false, true);
@@ -1291,7 +1309,7 @@ const COLL = [
   ['sound', 'Motor-Sounds', 'Echte Motorsounds für Autos', 'fivem engine sound pack rpf'],
 ];
 function collHtml(filter) {
-  return COLL.filter(c => !filter || c[0] === filter).map(([cat, n, d, q]) => `<div class="card hov ccard"><div class="qi">${ico(MOD_CATS[cat][1])}</div><b>${n}</b><span>${d}</span><div class="row" style="margin-top:12px;gap:8px"><button class="btn sm p" onclick="api('open',{target:'https://www.google.com/search?q=${encodeURIComponent(q)}'})">${ico('globe')}Mods finden</button><button class="btn sm" onclick="modInstall('${cat}')">${ico('file')}Datei</button></div></div>`).join('');
+  return COLL.filter(c => !filter || c[0] === filter).map(([cat, n, d, q]) => `<div class="card hov ccard"><div class="qi">${ico(MOD_CATS[cat][1])}</div><b>${n}</b><span>${d}</span><div class="row" style="margin-top:12px;gap:6px;flex-wrap:wrap"><button class="btn sm p" onclick="modBrowse('https://www.gta5-mods.com/search/${encodeURIComponent(q.replace(/ ?(fivem|rpf) ?/g, ' ').trim())}','${cat}')">${ico('globe')}GTA5-Mods</button><button class="btn sm" onclick="modBrowse('https://forum.cfx.re/search?q=${encodeURIComponent(q)}','${cat}')">${ico('globe')}Cfx.re</button></div></div>`).join('');
 }
 async function dlList(target, filter) {
   let l = []; try { l = await api('mods.downloads'); } catch { }
@@ -1309,6 +1327,12 @@ document.addEventListener('click', async e => {
   if (r.error) { toast('Nicht installiert', r.error, false); b.disabled = false; b.innerHTML = `${ico('download')}Installieren`; }
   else { passed('Mod installiert', `${MOD_CATS[cat][0]} · ${r.count} Datei(en)`); modList(); }
 });
+function modBrowse(url, cat) {
+  if (!S.settings.modsAck) return modInstall('__browse');
+  api('mods.browse', { url, cat, accent: getComputedStyle(document.documentElement).getPropertyValue('--a').trim() });
+  toast('Mod-Browser geöffnet', 'Klick auf Download, die Mod wird automatisch installiert');
+}
+window.modBrowse = modBrowse;
 function modsRefresh() {
   if (curPage === 'mods') { $('#modColl').innerHTML = collHtml(); dlList('#modDl'); modList(); rsLoad(); }
   if (curPage === 'minimap') { $('#mmColl').innerHTML = collHtml('minimap'); dlList('#mmDl', 'minimap'); modList(); }
@@ -1357,6 +1381,62 @@ async function curFav() {
 window.curFav = curFav;
 setInterval(() => { if (curPage === 'home' || curPage === 'servers') curServer(); }, 15000);
 
+/* ======================= CONTROLLER DISPLAY ======================= */
+const PAD = { cfg: { on: false, layout: 'auto', body: 'black', color: 'orig', corner: 'br', size: 75, opacity: 90, key: 0, accent: '#FF7A3D' }, r: null, state: null };
+const PAD_COLORS = ['#FF3B4E', '#FF7A18', '#F5C451', '#3DDC6B', '#3D8BFF', '#8B5CF6', '#F472B6', '#FFFFFF', '#18181B'];
+const accHex = () => getComputedStyle(document.documentElement).getPropertyValue('--a').trim();
+function padDraw() { if (PAD.r && PAD.r.geo) PAD.r.draw(PAD.state, { ...PAD.cfg, accent: PAD.cfg.color === 'theme' || PAD.cfg.color === 'orig' ? accHex() : PAD.cfg.color }); }
+function padUI() {
+  const c = PAD.cfg;
+  [['#padLayout', c.layout], ['#padBody', c.body], ['#padOpacity', String(c.opacity)]].forEach(([s, v]) => $$(s + ' button').forEach(b => b.classList.toggle('on', b.dataset.v === v)));
+  $$('#padCorner button').forEach(b => b.classList.toggle('on', b.dataset.v === c.corner));
+  $('#padColors').innerHTML = `<button class="btn sm ${c.color === 'orig' ? 'p' : ''}" data-pc="orig">Original</button><button class="btn sm ${c.color === 'theme' ? 'p' : ''}" data-pc="theme">Theme</button>` +
+    PAD_COLORS.map(x => `<button class="xcol ${c.color.toUpperCase() === x ? 'on' : ''}" data-pc="${x}" style="background:${x}"></button>`).join('') + `<label class="xcustom" title="Eigene Farbe"><input type="color" id="padPick" value="${c.color.startsWith('#') ? c.color : '#FF7A3D'}"></label>`;
+  $('#padSize').value = c.size; $('#padSize').style.setProperty('--p', (c.size - 40) / 120 * 100 + '%'); $('#padSizeV').textContent = c.size + '%';
+  $('#padKey').innerHTML = KEYS.map(([n, v]) => `<button class="${c.key === v ? 'on' : ''}" data-pk="${v}">${n}</button>`).join('');
+  $('#padMain').querySelector('span').textContent = c.on ? 'Overlay ausschalten' : 'Overlay einschalten';
+  $('#padMain').classList.toggle('p', !c.on);
+  $('#navPad').classList.toggle('hidden', !c.on);
+  $('#padBg').style.backgroundImage = `url('${bgUrl()}')`;
+  padDraw();
+}
+let padT = 0;
+function padPush() {
+  clearTimeout(padT);
+  padT = setTimeout(async () => {
+    const r = await api('pad.set', { cfg: { ...PAD.cfg, accent: PAD.cfg.color === 'orig' || PAD.cfg.color === 'theme' ? accHex() : PAD.cfg.color } }).catch(() => null);
+    if (r && r.keyOk === false) toast('Taste belegt', 'Andere Taste wählen', false);
+  }, 80);
+}
+function padToggle() { PAD.cfg.on = !PAD.cfg.on; padUI(); padPush(); toast(PAD.cfg.on ? 'Controller-Overlay an' : 'Controller-Overlay aus', PAD.cfg.on ? 'Sichtbar in der gewählten Bildschirmecke' : ''); }
+window.padToggle = padToggle;
+document.addEventListener('click', e => {
+  const s = e.target.closest('#padLayout button,#padBody button,#padOpacity button,#padCorner button');
+  if (s) { const k = { padLayout: 'layout', padBody: 'body', padOpacity: 'opacity', padCorner: 'corner' }[s.parentElement.id]; PAD.cfg[k] = k === 'opacity' ? +s.dataset.v : s.dataset.v; padUI(); padPush(); return; }
+  const c = e.target.closest('[data-pc]'); if (c) { PAD.cfg.color = c.dataset.pc; padUI(); padPush(); return; }
+  const k = e.target.closest('[data-pk]'); if (k) { PAD.cfg.key = +k.dataset.pk; padUI(); padPush(); }
+});
+document.addEventListener('input', e => {
+  if (e.target.id === 'padSize') { PAD.cfg.size = +e.target.value; e.target.style.setProperty('--p', (PAD.cfg.size - 40) / 120 * 100 + '%'); $('#padSizeV').textContent = PAD.cfg.size + '%'; padPush(); }
+  if (e.target.id === 'padPick') { PAD.cfg.color = e.target.value.toUpperCase(); padDraw(); padPush(); }
+});
+document.addEventListener('change', e => { if (e.target.id === 'padPick') padUI(); });
+function padState(d) {
+  PAD.state = d;
+  const n = $('#padName'); if (n) { n.textContent = d && d.c ? d.name : 'Kein Controller'; n.className = 'chip ' + (d && d.c ? 'g' : ''); }
+  padDraw();
+}
+async function initPad(s) {
+  Object.assign(PAD.cfg, s.pad || {});
+  try {
+    const g = await api('pad.geo');
+    PAD.r = new PadSVG($('#padPrev'), g);
+    $('#padUrl').textContent = g.url || 'http://127.0.0.1:47811/';
+    if (g.error) $('#padUrl').textContent += '  (Fehler: ' + g.error + ')';
+  } catch { }
+  padUI();
+}
+
 /* ======================= BOOT ======================= */
 async function boot() {
   const t0 = performance.now();
@@ -1385,7 +1465,7 @@ async function boot() {
   if (d.settings.lastBoost) $('#lastBoost').textContent = 'Letzter Boost: ' + new Date(d.settings.lastBoost).toLocaleDateString('de-DE');
   $('#launchSub').textContent = d.fivem.found ? 'mit Pre-Launch-Boost' : 'FiveM nicht gefunden';
   feed(d.fivem.found ? 'FiveM erkannt: ' + d.fivem.path : 'FiveM nicht gefunden: Pfad im Launcher wählen');
-  renderSettings(); renderLauncher(); initFx(d.settings); initMinimap(d.settings); initClip(d.settings); applyBg();
+  renderSettings(); renderLauncher(); initFx(d.settings); initMinimap(d.settings); initClip(d.settings); applyBg(); initPad(d.settings);
   $('#snapTg').classList.toggle('on', !!d.settings.snapTap);
   await loadTweaks();
   refreshCache(); ping(); setInterval(ping, 8000); curServer();
@@ -1435,6 +1515,10 @@ const Mock = {
       case 'clip.delete': return { ok: true };
       case 'clip.list': return ['Grand Theft Auto V 2026.11.13 - 21.14.08.02', 'FiveM 2026.11.13 - 20.51.44.01', 'Gangwar Clutch', 'Grand Theft Auto V 2026.11.12 - 23.02.10.05'].map((n, i) => ({ name: n, rel: 'Grand Theft Auto V/' + n + '.mp4', folder: i === 2 ? 'Captures' : 'Grand Theft Auto V', size: 48e6 + i * 9e6, date: new Date(Date.now() - i * 864e5).toISOString(), ext: '.mp4' }));
       case 'mods.list': return { found: true, items: [{ name: 'round_minimap_dark.rpf', on: true, size: 3.4e6, cat: 'minimap' }, { name: 'killfx_red_flash.rpf', on: true, size: 1.2e6, cat: 'kill' }, { name: 'nve_lite.rpf', on: false, size: 84e6, cat: 'gfx' }] };
+      case 'pad.geo': return PADMOCK();
+      case 'pad.set': return { keyOk: true };
+      case 'pad.watch': return { state: { c: true, t: 'ps', name: 'PlayStation 5 DualSense', b: { a: true, rb: true, up: true }, lx: .5, ly: -.3, rx: 0, ry: .6, lt: .4, rt: 1 } };
+      case 'mods.browse': return null;
       case 'mods.install': return { count: 1 };
       case 'server.current': return { found: true, connected: true, key: 'cfx:abc123', url: 'cfx.re/join/abc123', fav: false, server: { name: '^1Nova^7City ^3| Roleplay [GER]', desc: 'Die lebendigste Stadt Deutschlands · Whitelist · Eigene Wirtschaft', allTags: ['roleplay', 'deutsch', 'economy', 'whitelist', 'jobs', 'gangs', 'custom cars'], locale: 'DE', players: 187, max: 256, ping: 22, build: '3095', onesync: true, resources: 412, owner: 'NovaTeam', discord: 'https://discord.gg/novacity', website: 'https://novacity.de', connect: 'cfx.re/join/abc123', online: true } };
       case 'mods.downloads': return [{ name: 'satellite_minimap_v2.zip', size: 18e6, date: new Date().toISOString(), rpfs: 1, cat: 'minimap' }, { name: 'KillFX_RedPulse.rar', size: 2.4e6, date: new Date(Date.now() - 864e5).toISOString(), rpfs: -1, cat: 'kill' }];
@@ -1474,3 +1558,16 @@ const Mock = {
 };
 
 boot();
+
+// browser-preview copy of the host geometry (PadGeo in Pad.cs)
+function PADMOCK() {
+  const S_ = (k, id, x, y, w = 0, h = 0, r = 0, txt, col) => ({ k, id, x, y, w, h, r, txt, col });
+  const dpad = (cx, cy) => [S_('rect', 'up', cx - 8, cy - 26, 16, 18, 4), S_('rect', 'down', cx - 8, cy + 8, 16, 18, 4), S_('rect', 'left', cx - 26, cy - 8, 18, 16, 4), S_('rect', 'right', cx + 8, cy - 8, 18, 16, 4)];
+  const stick = (id, cx, cy) => [S_('base', id + 'b', cx, cy, 0, 0, 25), S_('stick', id, cx, cy, 0, 0, 16)];
+  const top = [S_('trig', 'lt', 64, 6, 62, 22, 8), S_('trig', 'rt', 214, 6, 62, 22, 8), S_('rect', 'lb', 60, 31, 76, 14, 7), S_('rect', 'rb', 204, 31, 76, 14, 7), S_('body', 'body', 0, 0)];
+  const ps = [...top, ...dpad(98, 94), S_('rect', 'pad', 136, 54, 68, 42, 9), S_('rect', 'back', 120, 58, 9, 16, 4), S_('rect', 'start', 211, 58, 9, 16, 4), S_('circle', 'guide', 170, 116, 0, 0, 8), ...stick('ls', 132, 140), ...stick('rs', 208, 140),
+    S_('face', 'y', 242, 72, 0, 0, 11, '△', '#4ADE9A'), S_('face', 'b', 264, 94, 0, 0, 11, '○', '#F87171'), S_('face', 'a', 242, 116, 0, 0, 11, '✕', '#7DB4FF'), S_('face', 'x', 220, 94, 0, 0, 11, '□', '#F49AC2')];
+  const xbox = [...top, ...stick('ls', 98, 94), ...dpad(134, 140), S_('rect', 'back', 146, 84, 16, 10, 5), S_('rect', 'start', 178, 84, 16, 10, 5), S_('circle', 'guide', 170, 62, 0, 0, 11), ...stick('rs', 208, 140),
+    S_('face', 'y', 242, 72, 0, 0, 11, 'Y', '#F5C451'), S_('face', 'b', 264, 94, 0, 0, 11, 'B', '#F25F5C'), S_('face', 'a', 242, 116, 0, 0, 11, 'A', '#4ADE80'), S_('face', 'x', 220, 94, 0, 0, 11, 'X', '#4F9CF9')];
+  return { xbox, ps, body: 'M70,50 C110,32 230,32 270,50 C312,68 336,162 318,202 C306,228 268,228 252,200 L232,168 L108,168 L88,200 C72,228 34,228 22,202 C4,162 28,68 70,50 Z', url: 'http://127.0.0.1:47811/' };
+}

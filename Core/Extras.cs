@@ -229,6 +229,22 @@ internal static class ReShade
         return await r.Content.ReadAsByteArrayAsync();
     }
 
+    /// <summary>
+    /// The ReShade setup is an .exe with a zip inside (plus the signature behind it).
+    /// Cut out exactly the zip part so .NET can read it.
+    /// </summary>
+    private static byte[] EmbeddedZip(byte[] b)
+    {
+        for (int e = b.Length - 22; e >= Math.Max(0, b.Length - 200_000); e--)
+        {
+            if (b[e] != 0x50 || b[e + 1] != 0x4B || b[e + 2] != 5 || b[e + 3] != 6) continue;
+            int cdSize = BitConverter.ToInt32(b, e + 12), cdOff = BitConverter.ToInt32(b, e + 16), cl = BitConverter.ToUInt16(b, e + 20);
+            int start = e - cdSize - cdOff, end = Math.Min(b.Length, e + 22 + cl);
+            if (start >= 0 && b[start] == 0x50 && b[start + 1] == 0x4B) return b[start..end];
+        }
+        throw new InvalidOperationException("ReShade-Setup hat ein unbekanntes Format");
+    }
+
     private static void ExtractShaders(byte[] zip, string root)
     {
         using var z = new ZipArchive(new MemoryStream(zip));
@@ -263,7 +279,7 @@ internal static class ReShade
         if (!m.Success) return "ReShade-Download nicht gefunden";
         progress(15, $"Lade ReShade {m.Groups[2].Value}…");
         var setup = await Get("https://reshade.me/" + m.Value);
-        using (var z = new ZipArchive(new MemoryStream(setup)))
+        using (var z = new ZipArchive(new MemoryStream(EmbeddedZip(setup))))
         {
             var e = z.GetEntry("ReShade64.dll") ?? throw new InvalidOperationException("ReShade64.dll nicht im Setup gefunden");
             e.ExtractToFile(Dll, true);
@@ -500,9 +516,10 @@ internal static class ModDownloads
     }
 
     /// <summary>Returns the files to hand to Mods.Install (unpacks .rar/.7z with Windows' tar).</summary>
-    public static (List<string> files, string? temp, string? error) Prepare(string name)
+    public static (List<string> files, string? temp, string? error) Prepare(string name) => PrepareFile(Path.Combine(Dir, Path.GetFileName(name)));
+
+    public static (List<string> files, string? temp, string? error) PrepareFile(string path)
     {
-        var path = Path.Combine(Dir, Path.GetFileName(name));
         if (!File.Exists(path)) return (new(), null, "Datei nicht gefunden");
         var ext = Path.GetExtension(path).ToLowerInvariant();
         if (ext is ".rpf" or ".zip") return (new() { path }, null, null);

@@ -19,3 +19,6 @@ Benötigt das .NET 8 SDK. Die Oberfläche liegt in `Web/` und wird per WebView2 
 1. `<Version>` in `OrbitTweak.csproj` erhöhen und neu bauen.
 2. GitHub-Release mit Tag `v<version>` anlegen und `OrbitTweak.exe` anhängen.
 3. Zeilen im Release-Text, die mit `- ` beginnen, zeigt die App als Änderungen an.
+
+## Bildnachweise
+Standard-Hintergründe: Fotos von Los Angeles via Wikimedia Commons – Michael Chusid (CC0), Josh Rose (CC0), Kevin Stanchfield (CC BY 2.0), FairbanksMike (CC BY 2.0), Stephen Friday (CC BY 2.0).

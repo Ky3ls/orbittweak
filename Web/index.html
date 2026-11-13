@@ -106,6 +106,7 @@
     <button class="nav" data-p="mods"><svg class="i"><use href="#puzzle"/></svg>Mods</button>
     <div class="nav-h">Tools</div>
     <button class="nav" data-p="clip"><svg class="i"><use href="#film"/></svg>Clipper</button>
+    <button class="nav" data-p="pad"><svg class="i"><use href="#gamepad"/></svg>Controller<span class="badge hidden" id="navPad">AN</span></button>
     <button class="nav" data-p="input"><svg class="i"><use href="#keyboard"/></svg>Input-Lab</button>
     <button class="nav" data-p="tweaks"><svg class="i"><use href="#zap"/></svg>Tweaks</button>
     <button class="nav" data-p="cleaner"><svg class="i"><use href="#trash"/></svg>Cleaner</button>
@@ -450,7 +451,15 @@
         <div class="ph-r"><button class="btn" onclick="api('mods.folder')"><svg class="i"><use href="#folder"/></svg>Mods-Ordner</button></div>
       </div>
       <div class="xwarn"><svg class="i"><use href="#alert"/></svg><div><b>Achtung: Viele Server verbieten Mods.</b> Server mit Pure-Mode lassen dich mit Mods nicht joinen oder kicken dich, manche bannen dafür. Installiere nur Mods aus vertrauenswürdigen Quellen. Die Nutzung erfolgt auf eigene Verantwortung.</div></div>
-      <div class="card gb rs" id="rsCard">
+      <div class="card mb">
+        <div class="mb-head"><div class="rs-ico"><svg class="i"><use href="#globe"/></svg></div><div style="flex:1"><h2>Mod-Browser</h2><p class="sub" style="font-size:12.5px;margin-top:4px">Stöbern wie im Browser, direkt in OrbitTweak. Klick auf <b>Download</b>, und die Mod wird automatisch in FiveM installiert.</p></div></div>
+        <div class="mb-src">
+          <button class="mbs" onclick="modBrowse('https://www.gta5-mods.com/','gfx')"><b>GTA5-Mods</b><span>Größte Mod-Seite</span></button>
+          <button class="mbs" onclick="modBrowse('https://forum.cfx.re/search?q=client%20mod%20rpf','gfx')"><b>Cfx.re Forum</b><span>FiveM-Releases</span></button>
+          <button class="mbs" onclick="modBrowse('https://github.com/search?q=fivem+rpf&type=repositories','other')"><b>GitHub</b><span>Open-Source-Mods</span></button>
+        </div>
+      </div>
+      <div class="card gb rs mt" id="rsCard">
         <div class="rs-head">
           <div class="rs-ico"><svg class="i"><use href="#sparkle"/></svg></div>
           <div style="flex:1"><div class="row"><h2>ReShade für FiveM</h2><span class="chip" id="rsState">Nicht installiert</span></div><p class="sub" style="font-size:12.5px;margin-top:4px">Offizielles ReShade von reshade.me plus SweetFX-Shader. OrbitTweak installiert alles in FiveM, schaltet es frei und bringt eigene Presets mit. Im Spiel mit <b>Pos1</b> öffnen.</p></div>
@@ -479,6 +488,44 @@
       </div>
       <div class="card f8info"><div class="f8i"><svg class="i"><use href="#zap"/></svg></div><div style="flex:1"><b>Klick = live im Spiel.</b><p>Läuft FiveM, holt OrbitTweak das Spiel kurz nach vorne, tippt den Befehl in die F8-Konsole und wechselt zurück. Das dauert unter einer Sekunde, drück in der Zeit nichts. Ist FiveM aus, werden deine Werte beim nächsten Spielstart automatisch gesetzt.</p></div><div class="row" style="gap:12px;flex:none"><span class="sub" style="font-size:12.5px">Beim Spielstart anwenden</span><div class="tg" id="f8Auto"></div></div></div>
       <div class="f8grid" id="f8list"></div>
+    </section>
+
+    <!-- ================= CONTROLLER ================= -->
+    <section class="page" id="p-pad">
+      <div class="ph">
+        <div><div class="kicker">Controller</div><h1>Controller-<span class="grad">Anzeige</span></h1><p class="pd">Zeigt deinen Controller und jede gedrückte Taste live, perfekt für Streams und Videos. Xbox, PS4 und PS5 werden erkannt.</p></div>
+        <div class="ph-r"><button class="btn p lg" id="padMain" onclick="padToggle()"><svg class="i"><use href="#gamepad"/></svg><span>Overlay einschalten</span></button></div>
+      </div>
+      <div class="xgrid">
+        <div class="col">
+          <div class="card">
+            <div class="row"><div class="lbl"><svg class="i"><use href="#eye"/></svg>Live-Vorschau</div><span class="sp"></span><span class="chip" id="padName">Kein Controller</span></div>
+            <div class="padprev" id="padStage"><div class="padbg" id="padBg"></div><div class="padhost" id="padPrev"></div></div>
+            <p class="sub" style="font-size:12px;margin-top:10px;line-height:1.5">Drück Tasten oder beweg die Sticks, die Vorschau reagiert sofort. PlayStation-Controller per USB oder Bluetooth, Xbox per USB, Funk oder Bluetooth.</p>
+          </div>
+          <div class="card">
+            <div class="lbl"><svg class="i"><use href="#film"/></svg>OBS / Streamlabs (empfohlen)</div>
+            <p class="sub" style="font-size:12.5px;margin-top:8px;line-height:1.5">In OBS eine <b>Browser-Quelle</b> hinzufügen und diese Adresse einfügen. Breite 680, Höhe 464, Hintergrund ist durchsichtig. Funktioniert auch mit Spielaufnahme und im Vollbild.</p>
+            <div class="f8line"><code id="padUrl">http://127.0.0.1:47811/</code><button class="btn sm p" onclick="copyCmd($('#padUrl').textContent)"><svg class="i"><use href="#copy"/></svg>Kopieren</button></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="lbl"><svg class="i"><use href="#gamepad"/></svg>Controller-Typ</div>
+          <div class="seg mt8" id="padLayout"><button data-v="auto">Automatisch</button><button data-v="xbox">Xbox</button><button data-v="ps">PlayStation</button></div>
+          <div class="lbl mt"><svg class="i"><use href="#sparkle"/></svg>Gehäuse</div>
+          <div class="seg mt8" id="padBody"><button data-v="black">Schwarz</button><button data-v="white">Weiß</button></div>
+          <div class="lbl mt"><svg class="i"><use href="#sun"/></svg>Farbe beim Drücken</div>
+          <div class="xcolors" id="padColors"></div>
+          <div class="lbl mt"><svg class="i"><use href="#monitor"/></svg>Position am Bildschirm</div>
+          <div class="corners" id="padCorner"><button data-v="tl"></button><button data-v="tr"></button><button data-v="bl"></button><button data-v="br"></button></div>
+          <div class="xs mt8"><span>Größe</span><input type="range" min="40" max="160" id="padSize"><b id="padSizeV">75%</b></div>
+          <div class="lbl mt"><svg class="i"><use href="#layers"/></svg>Deckkraft</div>
+          <div class="seg mt8" id="padOpacity"><button data-v="100">Voll</button><button data-v="80">Leicht durchsichtig</button><button data-v="55">Halb</button></div>
+          <div class="lbl mt"><svg class="i"><use href="#keyboard"/></svg>Ein/Aus-Taste</div>
+          <div class="seg keyseg mt8" id="padKey"></div>
+          <div class="xnote"><svg class="i"><use href="#alert"/></svg><div>Das Bildschirm-Overlay ist im Modus <b>Randlos</b> oder <b>Fenster</b> sichtbar. Für Aufnahmen und Streams die OBS-Browser-Quelle nutzen, die funktioniert immer.</div></div>
+        </div>
+      </div>
     </section>
 
     <!-- ================= INPUT LAB ================= -->
@@ -602,8 +649,9 @@
         </div>
         <div class="card mt">
           <div class="row"><div class="lbl"><svg class="i"><use href="#monitor"/></svg>GTA-Hintergrund</div><span class="sp"></span><button class="btn sm" onclick="bgPick()"><svg class="i"><use href="#file"/></svg>Bild wählen</button><button class="btn sm" id="bgClear" onclick="bgClear()"><svg class="i"><use href="#undo"/></svg>Standard</button></div>
-          <p class="sub" style="font-size:12.5px;margin-top:6px">Dein eigenes GTA-Bild für Startseite, Ladebildschirm, Fadenkreuz- und Farb-Vorschau. Gefunden in Steam-Screenshots, NVIDIA/Game-Bar-Aufnahmen und deinen Clips.</p>
+          <p class="sub" style="font-size:12.5px;margin-top:6px">Hintergrund für Startseite, Ladebildschirm, Fadenkreuz- und Farb-Vorschau. Los-Santos-Fotos oder eigene GTA-Screenshots.</p>
           <div class="bg-grid" id="bgGrid"></div>
+          <p class="muted" style="font-size:11px;margin-top:12px;line-height:1.5">Standard-Hintergründe: Fotos von Los Angeles, dem Vorbild für Los Santos. Michael Chusid (CC0), Josh Rose (CC0), Kevin Stanchfield (CC BY 2.0), FairbanksMike (CC BY 2.0), Stephen Friday (CC BY 2.0), via Wikimedia Commons.</p>
         </div>
       </div>
 
@@ -650,6 +698,7 @@
 <div class="passed" id="passed"><div class="pa-band"><div class="pa-t" id="paT">Boost abgeschlossen</div><div class="pa-s" id="paS"></div></div></div>
 <div class="modal" id="modal"><div class="card gb mbox" id="mbox"></div></div>
 
+<script src="pad.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

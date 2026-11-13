@@ -71,6 +71,8 @@ public class Settings
     public Dictionary<string, string> ModCats { get; set; } = new();
     public bool ModsAck { get; set; }
     public long BgVersion { get; set; }
+    public PadCfg Pad { get; set; } = new();
+    public string? BgPreset { get; set; }
     public int XhairRev { get; set; }
     public DisplayCfg Display { get; set; } = new();
 

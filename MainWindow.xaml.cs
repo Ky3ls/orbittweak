@@ -27,6 +27,11 @@ public partial class MainWindow : Window
     private readonly CrosshairOverlay _xhair = new();
     private readonly CrosshairOverlay _minimap = new() { Anchor = Anchor.BottomLeft };
     private readonly SnapTap _snap = new();
+    private readonly PadOverlay _pad = new();
+    private CoreWebView2Environment? _env;
+    private bool _padWatch;
+    private DateTime _padEmit;
+    private const int HK_PAD = 0xB03;
     private readonly DispatcherTimer _live = new() { Interval = TimeSpan.FromMilliseconds(400) };
     private bool _dispActive, _preview, _lastGame;
     private bool? _gammaOk, _vibOk;
@@ -70,6 +75,7 @@ public partial class MainWindow : Window
         Application.Current.ShutdownMode = ShutdownMode.OnMainWindowClose;
         _live.Tick += (_, _) => LiveTick();
         if (S.SnapTap) _snap.Enable(true);
+        _pad.Configure(S.Pad, S.Pad.Accent, S.Pad.Layout == "auto" ? "xbox" : S.Pad.Layout);
         _live.Start();
 
         if (S.TimerRes) Catalog.SetTimerResolution(true);
@@ -86,7 +92,7 @@ public partial class MainWindow : Window
         try
         {
             var data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OrbitTweak");
-            var env = await CoreWebView2Environment.CreateAsync(null, Path.Combine(data, "WebView2"));
+            var env = _env = await CoreWebView2Environment.CreateAsync(null, Path.Combine(data, "WebView2"));
             Web.DefaultBackgroundColor = S.Mode == "light" ? System.Drawing.Color.FromArgb(255, 239, 237, 231) : System.Drawing.Color.FromArgb(255, 18, 18, 17);
             await Web.EnsureCoreWebView2Async(env);
             var c = Web.CoreWebView2;
@@ -99,7 +105,11 @@ public partial class MainWindow : Window
             c.Settings.AreDevToolsEnabled = false;
 #endif
             c.NewWindowRequested += (_, e) => { e.Handled = true; Proc.Open(e.Uri); };
-            c.SetVirtualHostNameToFolderMapping("orbit.local", ExtractWeb(Path.Combine(data, "web")), CoreWebView2HostResourceAccessKind.Allow);
+            var webDir = ExtractWeb(Path.Combine(data, "web"));
+            PadServer.WebDir = webDir;
+            PadServer.Config = () => new { cfg = S.Pad, geo = new { xbox = PadGeo.Shapes("xbox"), ps = PadGeo.Shapes("ps"), body = PadGeo.Body } };
+            PadServer.Start();
+            c.SetVirtualHostNameToFolderMapping("orbit.local", webDir, CoreWebView2HostResourceAccessKind.Allow);
             try { Directory.CreateDirectory(Backgrounds.Dir); c.SetVirtualHostNameToFolderMapping("bg.orbit", Backgrounds.Dir, CoreWebView2HostResourceAccessKind.Allow); } catch { }
             try { if (Directory.Exists(Clipper.VideosDir)) c.SetVirtualHostNameToFolderMapping("clips.orbit", Clipper.VideosDir, CoreWebView2HostResourceAccessKind.Allow); } catch { }
             c.WebMessageReceived += OnMessage;
@@ -213,6 +223,7 @@ public partial class MainWindow : Window
                     case "f8Auto": S.F8Auto = val.GetBoolean(); break;
                     case "xhairShrink": S.XhairShrink = val.GetBoolean(); break;
                     case "modsAck": S.ModsAck = val.GetBoolean(); break;
+                    case "bgPreset": S.BgPreset = val.GetString(); break;
                     case "snapTap": S.SnapTap = val.GetBoolean(); _snap.Enable(S.SnapTap); Log(S.SnapTap ? "⌨ Snap Tap aktiv (nur im Spiel)" : "⌨ Snap Tap aus"); break;
                     case "launch": S.Launch = val.Deserialize<LaunchCfg>(JIn) ?? new LaunchCfg(); break;
                 }
@@ -457,6 +468,35 @@ public partial class MainWindow : Window
                 S.BgVersion = 0; S.Save();
                 return new { v = 0 };
 
+            case "mods.browse":
+            {
+                if (_env == null) return null;
+                var url = Str(a, "url");
+                if (!url.StartsWith("https://")) url = ModBrowser.Sources[0].url;
+                new ModBrowser(_env, url, Str(a, "cat"), Str(a, "accent") is { Length: 7 } ac ? ac : "#FF7A3D", S, Log, d => Emit("modInstalled", d)) { Owner = this }.Show();
+                return null;
+            }
+
+            // ---------- controller display ----------
+            case "pad.geo": return new { xbox = PadGeo.Shapes("xbox"), ps = PadGeo.Shapes("ps"), body = PadGeo.Body, url = PadServer.Url, error = PadServer.Error };
+            case "pad.set":
+            {
+                var was = S.Pad.On;
+                S.Pad = a.GetProperty("cfg").Deserialize<PadCfg>(JIn) ?? new PadCfg();
+                S.Save();
+                _pad.Configure(S.Pad, S.Pad.Accent, S.Pad.Layout == "auto" ? (PadInput.State.T == "ps" ? "ps" : "xbox") : S.Pad.Layout);
+                var keys = RegisterKeys();
+                LiveTick();
+                if (was != S.Pad.On) Log(S.Pad.On ? "🎮 Controller-Anzeige an" : "🎮 Controller-Anzeige aus");
+                return new { keyOk = keys.pad };
+            }
+            case "pad.watch":
+            {
+                var on = Bool(a, "on");
+                if (on != _padWatch) { _padWatch = on; PadInput.Use(on); if (on) PadInput.Changed += PadToUi; else PadInput.Changed -= PadToUi; }
+                return new { state = PadInput.State };
+            }
+
             case "mods.folder": if (Mods.Dir is { } md) { Directory.CreateDirectory(md); Proc.Open(md); } return null;
 
             // ---------- network quality ----------
@@ -629,6 +669,7 @@ public partial class MainWindow : Window
         _xhair.Update(S.Xhair.On && (!S.Xhair.OnlyGame || game));
         _minimap.Update(S.Minimap.On && (game || _mmPreview));
         _flash.Update(DateTime.Now < _flashUntil);
+        _pad.Update(S.Pad.On);
         // re-apply when the game gets focus (fullscreen games may reset the gamma ramp)
         bool focusGained = game && !_lastGame;
         _lastGame = game;
@@ -657,23 +698,31 @@ public partial class MainWindow : Window
     private void StopLive()
     {
         _live.Stop();
-        _xhair.Close(); _minimap.Close(); _snap.Enable(false);
+        _xhair.Close(); _minimap.Close(); _snap.Enable(false); _pad.Close(); PadServer.Stop();
         ScreenColor.Restore(); NvVibrance.Restore();
         var h = new WindowInteropHelper(this).Handle;
         if (h != IntPtr.Zero) { UnregisterHotKey(h, HK_XHAIR); UnregisterHotKey(h, HK_DISPLAY); UnregisterHotKey(h, HK_CLIP); }
         _flash.Close();
     }
 
-    private (bool xhair, bool display, bool clip) RegisterKeys()
+    private (bool xhair, bool display, bool clip, bool pad) RegisterKeys()
     {
         var h = new WindowInteropHelper(this).Handle;
-        if (h == IntPtr.Zero) return (true, true, true);
+        if (h == IntPtr.Zero) return (true, true, true, true);
         UnregisterHotKey(h, HK_XHAIR); UnregisterHotKey(h, HK_DISPLAY);
         bool x = S.Xhair.Key <= 0 || RegisterHotKey(h, HK_XHAIR, 0x4000, (uint)S.Xhair.Key);
         bool d = S.Display.Key <= 0 || (S.Display.Key != S.Xhair.Key && RegisterHotKey(h, HK_DISPLAY, 0x4000, (uint)S.Display.Key));
-        UnregisterHotKey(h, HK_CLIP);
+        UnregisterHotKey(h, HK_CLIP); UnregisterHotKey(h, HK_PAD);
+        bool pk = S.Pad.Key <= 0 || (new[] { S.Xhair.Key, S.Display.Key, S.Clip.Key }.Contains(S.Pad.Key) ? false : RegisterHotKey(h, HK_PAD, 0x4000, (uint)S.Pad.Key));
         bool c = S.Clip.Key <= 0 || (S.Clip.Key != S.Xhair.Key && S.Clip.Key != S.Display.Key && RegisterHotKey(h, HK_CLIP, 0x4000, (uint)S.Clip.Key));
-        return (x, d, c);
+        return (x, d, c, pk);
+    }
+
+    private void PadToUi()
+    {
+        if (DateTime.Now - _padEmit < TimeSpan.FromMilliseconds(33)) return;
+        _padEmit = DateTime.Now;
+        Emit("pad", PadInput.State);
     }
 
     private async Task SaveClip()
@@ -694,6 +743,12 @@ public partial class MainWindow : Window
             S.Xhair.On = !S.Xhair.On; S.Save(); LiveTick();
             if (S.Xhair.On) ShrinkReticle();
             Emit("xhair", new { on = S.Xhair.On });
+            handled = true;
+        }
+        else if (id == HK_PAD)
+        {
+            S.Pad.On = !S.Pad.On; S.Save(); LiveTick();
+            Emit("padon", new { on = S.Pad.On });
             handled = true;
         }
         else if (id == HK_CLIP)
