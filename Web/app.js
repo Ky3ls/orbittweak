@@ -93,7 +93,7 @@ function go(p) {
   $$('.nav').forEach(n => n.classList.toggle('active', n.dataset.p === p));
   $$('.page').forEach(s => s.classList.toggle('show', s.id === 'p-' + p));
   moveInd(); enterPage($('#p-' + p));
-  ({ servers: () => S.servers.length || loadServers(), gfx: () => { S.gfx || loadGfx(); gwRefresh(); }, f8: () => $('#f8list').children.length || renderF8(), xhair: () => setTimeout(xhPlace, 30), cleaner: () => S.clean.length || scan(),
+  ({ servers: () => S.servers.length || loadServers(), gfx: () => { S.gfx || loadGfx(); gwRefresh(); }, f8: () => loadF8().then(renderF8), xhair: () => setTimeout(xhPlace, 30), cleaner: () => S.clean.length || scan(),
      diag: () => { S.health ? renderHealth(S.health) : runHealth(); loadLogs(); }, launcher: renderCmd, home: refreshCache })[p]?.();
 }
 window.go = go;
@@ -688,6 +688,7 @@ function xhUI() {
   xhRender();
 }
 function xhState() {
+  $('#xhShrink').classList.toggle('on', S.settings.xhairShrink !== false);
   $('#xhOn').classList.toggle('on', XH.on); $('#xhOnly').classList.toggle('on', XH.onlyGame);
   $('#xhMain').querySelector('span').textContent = XH.on ? 'Ausschalten' : 'Einschalten';
   $('#xhMain').classList.toggle('p', !XH.on);
@@ -703,7 +704,7 @@ function xhToggle(confirmed) {
       <div class="act"><button class="btn" onclick="closeModal()">Abbrechen</button><button class="btn p lg" onclick="xhAck()">${ico('check')}Verstanden, einschalten</button></div>`);
   }
   XH.on = !XH.on; xhState(); xhPush(false);
-  if (XH.on) { api('clip', { text: 'profile_reticuleSize 0' }).catch(() => { }); setTimeout(() => toast('Tipp: GTA-Fadenkreuz verkleinern', 'profile_reticuleSize 0 ist kopiert · In FiveM F8, Strg+V, Enter'), 900); }
+  if (XH.on && S.settings.xhairShrink !== false) setTimeout(() => toast('GTA-Fadenkreuz wird minimiert', 'OrbitTweak sendet profile_reticuleSize 0 an FiveM'), 700);
   toast(XH.on ? 'Fadenkreuz an' : 'Fadenkreuz aus', XH.on ? 'Server-Regeln beachten · ' + (XH.onlyGame ? 'nur im Spiel sichtbar' : 'bleibt auch beim Raustabben') : '');
 }
 function xhAck() { closeModal(); S.settings.xhairAck = true; api('settings.set', { key: 'xhairAck', value: true }); xhToggle(true); }
@@ -734,6 +735,7 @@ document.addEventListener('input', e => {
   if (e.target.id === 'xhPick') { XH.cfg.color = e.target.value.toUpperCase(); xhRender(); xhPush(); }
 });
 document.addEventListener('change', e => { if (e.target.id === 'xhPick') xhUI(); });
+document.addEventListener('click', e => { if (!e.target.closest('#xhShrink')) return; S.settings.xhairShrink = S.settings.xhairShrink === false; api('settings.set', { key: 'xhairShrink', value: S.settings.xhairShrink }); xhState(); });
 
 /* ======================= SCREEN COLOR ======================= */
 const DP_PRESETS = {
@@ -815,48 +817,73 @@ async function initFx(s) {
 
 /* ======================= F8 COMMANDS ======================= */
 // Only commands from the official FiveM docs / production console whitelist.
+// A click sends the command straight into FiveM's F8 console (OrbitTweak types it for you).
 const F8 = [
   ['Anzeige', 'monitor', [
-    { k: 'cl_drawfps', n: 'FPS-Anzeige', d: 'Zeigt die FPS oben in der Ecke.', t: 'bool', v: true },
-    { k: 'cl_drawperf', n: 'Performance-Anzeige', d: 'FPS, Ping, Paketverlust, CPU/GPU-Last und GPU-Temperatur.', t: 'bool', v: false },
-    { k: 'profile_reticuleSize', n: 'GTA-Fadenkreuz minimal', d: 'Stellt das Spiel-Fadenkreuz auf die kleinste Größe. Ideal mit dem OrbitTweak-Fadenkreuz.', t: 'fixed', v: 0 },
+    { k: 'cl_drawfps', n: 'FPS-Anzeige', d: 'Zeigt die FPS oben in der Ecke.', t: 'bool', def: false },
+    { k: 'cl_drawperf', n: 'Performance-Anzeige', d: 'FPS, Ping, Paketverlust, CPU/GPU-Last und GPU-Temperatur.', t: 'bool', def: false },
+    { k: 'profile_reticuleSize', n: 'GTA-Fadenkreuz Größe', d: '0 = kleinstmöglich. Ganz ausblenden kann es nur der Server.', t: 'range', min: 0, max: 10, def: 0 },
   ]],
   ['Kamera', 'eye', [
-    { k: 'cam_disableCameraShake', n: 'Kamerawackeln aus', d: 'Kein Wackeln bei Explosionen und Treffern.', t: 'bool', v: true },
-    { k: 'cam_enableHandbrakeCamera', n: 'Handbremsen-Kameraschwenk', d: 'Aus: Die Kamera schwenkt beim Driften nicht mehr mit.', t: 'bool', v: false },
-    { k: 'cam_vehicleFirstPersonFOV', n: 'Fahrzeug-Ego-Sicht (FOV)', d: 'Sichtfeld in der Ego-Ansicht im Auto. -1 = Standard.', t: 'range', min: -1, max: 130, v: 90 },
+    { k: 'cam_disableCameraShake', n: 'Kamerawackeln aus', d: 'Kein Wackeln bei Explosionen und Treffern.', t: 'bool', def: false },
+    { k: 'cam_enableHandbrakeCamera', n: 'Handbremsen-Kameraschwenk', d: 'Aus: Die Kamera schwenkt beim Driften nicht mehr mit.', t: 'bool', def: true },
+    { k: 'cam_vehicleFirstPersonFOV', n: 'Fahrzeug-Ego-Sicht (FOV)', d: 'Sichtfeld in der Ego-Ansicht im Auto. -1 = Standard.', t: 'range', min: -1, max: 130, def: -1 },
   ]],
   ['Performance', 'zap', [
-    { k: 'str_maxVehicleTextureRes', n: 'Fahrzeug-Texturen begrenzen', d: 'Weniger Speicher, weniger Texture-Loss. Autos werden etwas unschärfer. Standard 1024.', t: 'seg', o: [256, 512, 1024], v: 512 },
-    { k: 'voice_enableNoiseSuppression', n: 'Voice: Rauschunterdrückung', d: 'Filtert Hintergrundgeräusche im Voice-Chat.', t: 'bool', v: true },
+    { k: 'str_maxVehicleTextureRes', n: 'Fahrzeug-Texturen begrenzen', d: 'Weniger Speicher, weniger Texture-Loss. Autos etwas unschärfer.', t: 'seg', o: [256, 512, 1024], def: 1024 },
+    { k: 'voice_enableNoiseSuppression', n: 'Voice: Rauschunterdrückung', d: 'Filtert Hintergrundgeräusche im Voice-Chat.', t: 'bool', def: true },
   ]],
   ['Audio', 'activity', [
-    { k: 'profile_musicVolumeInMp', n: 'Musik im Multiplayer', d: '0 = aus. 10 entspricht 100 %.', t: 'range', min: 0, max: 10, v: 0 },
-    { k: 'profile_sfxVolume', n: 'Effekt-Lautstärke', d: 'Schüsse, Autos, Umgebung. 10 entspricht 100 %.', t: 'range', min: 0, max: 10, v: 10 },
+    { k: 'profile_musicVolumeInMp', n: 'Musik im Multiplayer', d: '0 = aus, 10 = 100 %.', t: 'range', min: 0, max: 10, def: 10 },
+    { k: 'profile_sfxVolume', n: 'Effekt-Lautstärke', d: 'Schüsse, Autos, Umgebung. 10 = 100 %.', t: 'range', min: 0, max: 10, def: 10 },
   ]],
 ];
-const f8Val = {};
-const f8Cmd = c => `${c.k} ${f8Val[c.k] ?? c.v}`;
+const F8ALL = () => F8.flatMap(x => x[2]);
+const f8Val = {}, f8St = {};
+const f8Get = c => { const v = f8Val[c.k]; if (v == null) return c.def; return c.t === 'bool' ? v === 'true' || v === true : +v; };
+const f8Cmd = (c, v = f8Get(c)) => `${c.k} ${v}`;
+function f8Status(k) {
+  const s = f8St[k];
+  return s === 'sending' ? '<span class="chip a">Sende…</span>' : s === 'sent' ? '<span class="chip g">Live gesetzt</span>' : s === 'queued' ? '<span class="chip w">Beim Spielstart</span>' : s === 'error' ? '<span class="chip r">Fehler</span>' : '';
+}
 function renderF8() {
+  $('#f8Auto').classList.toggle('on', S.settings.f8Auto !== false);
   $('#f8list').innerHTML = F8.map(([cat, icon, items]) => `<div class="card"><div class="lbl">${ico(icon)}${cat}</div>${items.map(c => {
-    const v = f8Val[c.k] ?? c.v;
-    const ctl = c.t === 'bool' ? `<div class="seg" data-f8="${c.k}"><button class="${v === true ? 'on' : ''}" data-v="true">An</button><button class="${v === false ? 'on' : ''}" data-v="false">Aus</button></div>`
+    const v = f8Get(c);
+    const ctl = c.t === 'bool' ? `<div class="tg ${v ? 'on' : ''}" data-f8b="${c.k}"></div>`
       : c.t === 'seg' ? `<div class="seg" data-f8="${c.k}">${c.o.map(o => `<button class="${v === o ? 'on' : ''}" data-v="${o}">${o}</button>`).join('')}</div>`
-      : c.t === 'range' ? `<div class="rng"><input type="range" min="${c.min}" max="${c.max}" value="${v}" style="--p:${(v - c.min) / (c.max - c.min) * 100}%" data-f8r="${c.k}"><b>${v}</b></div>` : '';
-    return `<div class="f8row"><div class="top"><div><b>${c.n}</b><p>${c.d}</p></div>${ctl}</div><div class="f8line"><code id="f8c-${c.k}">${esc(f8Cmd(c))}</code><button class="btn sm" onclick="copyCmd($('#f8c-${c.k}').textContent,this)">${ico('copy')}Kopieren</button></div></div>`;
+      : `<div class="rng"><input type="range" min="${c.min}" max="${c.max}" value="${v}" style="--p:${(v - c.min) / (c.max - c.min) * 100}%" data-f8r="${c.k}"><b>${v}</b></div>`;
+    return `<div class="f8row"><div class="top"><div><b>${c.n}</b><p>${c.d}</p></div>${ctl}</div><div class="f8meta"><code id="f8c-${c.k}">${esc(f8Cmd(c))}</code><span id="f8s-${c.k}">${f8Status(c.k)}</span><button class="ib" title="Kopieren" onclick="copyCmd($('#f8c-${c.k}').textContent)">${ico('copy')}</button></div></div>`;
   }).join('')}</div>`).join('');
 }
+async function f8Send(c, v) {
+  f8Val[c.k] = String(v);
+  const set = (st) => { f8St[c.k] = st; const el = $('#f8s-' + c.k); if (el) el.innerHTML = f8Status(c.k); };
+  const code = $('#f8c-' + c.k); if (code) code.textContent = f8Cmd(c, v);
+  set('sending');
+  try {
+    const r = await api('f8.send', { cmds: [f8Cmd(c, v)] });
+    if (r.sent) { set('sent'); toast(`${c.n}: ${c.t === 'bool' ? (v ? 'an' : 'aus') : v}`, 'Live an FiveM gesendet'); }
+    else if (r.error && r.error !== 'FiveM läuft nicht') { set('error'); toast('Nicht gesendet', r.error, false); }
+    else { set('queued'); toast('Gespeichert', 'FiveM läuft nicht. Wird beim nächsten Spielstart automatisch gesetzt.'); }
+  } catch (e) { set('error'); toast('Nicht gesendet', e.message, false); }
+}
+window.f8Quick = async (k, v) => { const c = F8ALL().find(x => x.k === k); await f8Send(c, v); if (curPage === 'f8') renderF8(); };
 document.addEventListener('click', e => {
-  const b = e.target.closest('[data-f8] button'); if (!b) return;
-  const k = b.parentElement.dataset.f8, raw = b.dataset.v;
-  f8Val[k] = raw === 'true' ? true : raw === 'false' ? false : +raw; renderF8();
+  const t = e.target.closest('[data-f8b]');
+  if (t) { const c = F8ALL().find(x => x.k === t.dataset.f8b), v = !f8Get(c); t.classList.toggle('on', v); f8Send(c, v); return; }
+  const b = e.target.closest('[data-f8] button');
+  if (b) { const c = F8ALL().find(x => x.k === b.parentElement.dataset.f8); b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); f8Send(c, +b.dataset.v); return; }
+  if (e.target.closest('#f8Auto')) { S.settings.f8Auto = S.settings.f8Auto === false; api('settings.set', { key: 'f8Auto', value: S.settings.f8Auto }); renderF8(); }
 });
 document.addEventListener('input', e => {
   const r = e.target.closest('[data-f8r]'); if (!r) return;
-  const k = r.dataset.f8r, c = F8.flatMap(x => x[2]).find(x => x.k === k);
-  f8Val[k] = +r.value; r.style.setProperty('--p', (r.value - r.min) / (r.max - r.min) * 100 + '%'); r.nextElementSibling.textContent = r.value;
-  $('#f8c-' + k).textContent = f8Cmd(c);
+  const c = F8ALL().find(x => x.k === r.dataset.f8r);
+  r.style.setProperty('--p', (r.value - r.min) / (r.max - r.min) * 100 + '%'); r.nextElementSibling.textContent = r.value;
+  $('#f8c-' + c.k).textContent = f8Cmd(c, +r.value);
 });
+document.addEventListener('change', e => { const r = e.target.closest('[data-f8r]'); if (r) f8Send(F8ALL().find(x => x.k === r.dataset.f8r), +r.value); });
+async function loadF8() { try { Object.assign(f8Val, await api('f8.values')); } catch { } }
 
 /* ======================= LIVE DISPLAY MODE ======================= */
 async function gwRefresh() {
@@ -947,6 +974,8 @@ const Mock = {
       case 'boost': for (let i = 0; i <= 10; i++) { onEvent('boost', { pct: i * 10, text: 'Schritt ' + i }); await sleep(220); } M.tweaks.forEach(t => t.rec && (t.applied = true)); return { freed: 1.4e9, restart: true, applied: 9 };
       case 'xhair.set': return { keyOk: true };
       case 'clip': return { ok: false };
+      case 'f8.send': await sleep(500); return { sent: true };
+      case 'f8.values': return { cl_drawfps: 'true' };
       case 'gw.info': return { found: true, mode: 'windowed', w: 1600, h: 900 };
       case 'gw.borderless': case 'gw.windowed': return { ok: true };
       case 'display.get': return { cfg: M.settings.display, nvidia: true, unlocked: false, gammaOk: null };

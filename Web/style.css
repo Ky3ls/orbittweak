@@ -426,6 +426,14 @@ input[type=range]::-webkit-slider-thumb:hover{box-shadow:0 0 0 7px rgba(var(--a-
 .f8row .rng{display:flex;align-items:center;gap:10px;width:190px}
 .f8row .rng b{font-family:var(--disp);width:34px;text-align:right}
 
+.f8info{display:flex;gap:16px;align-items:center;margin-bottom:16px;padding:16px 18px}
+.f8info b{font-size:14px}
+.f8info p{font-size:12.5px;color:var(--sub);margin-top:3px;line-height:1.5}
+.f8i{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;background:var(--grad);color:var(--on);flex:none}
+.f8meta{display:flex;align-items:center;gap:8px;margin-top:10px}
+.f8meta code{flex:1;font-family:var(--mono);font-size:11.5px;padding:6px 10px;border-radius:8px;background:rgba(0,0,0,.3);border:1px solid var(--line);color:#A9A9B2;user-select:text;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.f8meta .ib{width:30px;height:30px}
+
 /* ============ GFX LIVE ============ */
 .glive{margin-bottom:16px}
 .glive .gl-top{display:flex;align-items:center;gap:12px}

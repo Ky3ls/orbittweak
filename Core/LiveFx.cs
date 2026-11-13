@@ -51,6 +51,7 @@ internal static class GameFocus
     private static uint _pid;
     private static bool _game;
     private static IntPtr _gameWnd;
+    public static uint Pid => _game ? _pid : 0;
 
     /// <summary>True when the focused window belongs to the GTA/FiveM game process.</summary>
     public static bool IsGame()
@@ -457,5 +458,80 @@ internal static class GameWindow
         int w = (m.R - m.L) * 3 / 4, hh = (m.B - m.T) * 3 / 4;
         SetWindowPos(h, IntPtr.Zero, m.L + (m.R - m.L - w) / 2, m.T + (m.B - m.T - hh) / 2, w, hh, SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOZORDER | SWP_NOACTIVATE);
         return null;
+    }
+}
+
+// =====================================================================
+//  F8 CONSOLE SENDER – types official FiveM console commands for the user
+//  (same as pressing F8 and typing). Only plain keyboard input, nothing injected.
+// =====================================================================
+internal static class ConsoleSender
+{
+    [StructLayout(LayoutKind.Sequential)]
+    private struct KEYBDINPUT { public ushort wVk, wScan; public uint dwFlags, time; public IntPtr dwExtraInfo; }
+    [StructLayout(LayoutKind.Explicit, Size = 40)]
+    private struct INPUT { [FieldOffset(0)] public uint type; [FieldOffset(8)] public KEYBDINPUT ki; }
+
+    [DllImport("user32.dll", SetLastError = true)] private static extern uint SendInput(uint n, INPUT[] inputs, int size);
+    [DllImport("user32.dll")] private static extern uint MapVirtualKey(uint code, uint type);
+    [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr h);
+    [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr h, int cmd);
+    [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr h);
+
+    private const uint KEYUP = 0x2, UNICODE = 0x4;
+    private const ushort VK_F8 = 0x77, VK_RETURN = 0x0D, VK_MENU = 0x12, VK_SHIFT = 0x10, VK_CONTROL = 0x11;
+    private static readonly SemaphoreSlim Lock = new(1, 1);
+
+    private static INPUT Vk(ushort vk, bool up) => new() { type = 1, ki = new KEYBDINPUT { wVk = vk, wScan = (ushort)MapVirtualKey(vk, 0), dwFlags = up ? KEYUP : 0 } };
+    private static INPUT Ch(char c, bool up) => new() { type = 1, ki = new KEYBDINPUT { wScan = c, dwFlags = UNICODE | (up ? KEYUP : 0) } };
+    private static void Send(params INPUT[] i) => SendInput((uint)i.Length, i, Marshal.SizeOf<INPUT>());
+    private static void Tap(ushort vk) => Send(Vk(vk, false), Vk(vk, true));
+
+    private static void Focus(IntPtr h)
+    {
+        // a tap on ALT lifts Windows' foreground lock so focus can be handed over
+        Send(Vk(VK_MENU, false), Vk(VK_MENU, true));
+        SetForegroundWindow(h);
+    }
+
+    /// <summary>Opens the F8 console in FiveM, types the commands, closes it and returns focus.</summary>
+    public static async Task<string?> Run(IList<string> cmds, IntPtr returnTo)
+    {
+        if (cmds.Count == 0) return null;
+        foreach (var c in cmds)
+            if (!System.Text.RegularExpressions.Regex.IsMatch(c, @"^[A-Za-z0-9_]+ [A-Za-z0-9_\.\-]+$")) return "Ungültiger Befehl";
+        var game = GameWindow.Find();
+        if (game == IntPtr.Zero) return "FiveM läuft nicht";
+        await Lock.WaitAsync();
+        try
+        {
+            bool wasFg = GetForegroundWindow() == game;
+            if (!wasFg)
+            {
+                if (IsIconic(game)) ShowWindow(game, 9);
+                Focus(game);
+                for (int i = 0; i < 30 && GetForegroundWindow() != game; i++) await Task.Delay(50);
+                if (GetForegroundWindow() != game) return "FiveM konnte nicht in den Vordergrund geholt werden";
+                await Task.Delay(300);
+            }
+            // make sure no modifier is stuck, then F8 → type → Enter → F8
+            Send(Vk(VK_SHIFT, true), Vk(VK_CONTROL, true), Vk(VK_MENU, true));
+            await Task.Delay(120);
+            Tap(VK_F8);
+            await Task.Delay(280);
+            foreach (var cmd in cmds)
+            {
+                foreach (var ch in cmd) { Send(Ch(ch, false), Ch(ch, true)); await Task.Delay(4); }
+                await Task.Delay(40);
+                Tap(VK_RETURN);
+                await Task.Delay(140);
+            }
+            Tap(VK_F8);
+            await Task.Delay(150);
+            if (!wasFg && returnTo != IntPtr.Zero) Focus(returnTo);
+            return null;
+        }
+        finally { Lock.Release(); }
     }
 }

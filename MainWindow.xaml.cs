@@ -202,6 +202,8 @@ public partial class MainWindow : Window
                     case "firstRun": S.FirstRun = val.GetBoolean(); break;
                     case "xhairAck": S.XhairAck = val.GetBoolean(); break;
                     case "autoBorderless": S.AutoBorderless = val.GetBoolean(); break;
+                    case "f8Auto": S.F8Auto = val.GetBoolean(); break;
+                    case "xhairShrink": S.XhairShrink = val.GetBoolean(); break;
                     case "launch": S.Launch = val.Deserialize<LaunchCfg>(JIn) ?? new LaunchCfg(); break;
                 }
                 S.Save();
@@ -286,6 +288,7 @@ public partial class MainWindow : Window
             case "xhair.set":
             {
                 var x = S.Xhair;
+                var wasOn = x.On;
                 x.On = Bool(a, "on"); x.OnlyGame = Bool(a, "onlyGame"); x.Key = Int(a, "key");
                 x.OffsetX = Math.Clamp(Int(a, "offsetX"), -400, 400); x.OffsetY = Math.Clamp(Int(a, "offsetY"), -400, 400);
                 var json = Str(a, "json"); if (json.Length > 0) x.Json = json;
@@ -295,8 +298,22 @@ public partial class MainWindow : Window
                 S.Save();
                 var keys = RegisterKeys();
                 LiveTick();
+                if (!wasOn && x.On) ShrinkReticle();
                 return new { keyOk = keys.xhair };
             }
+
+            // ---------- F8 console ----------
+            case "f8.send":
+            {
+                var cmds = a.GetProperty("cmds").EnumerateArray().Select(c => (c.GetString() ?? "").Trim()).Where(c => c.Length > 0).ToList();
+                foreach (var c in cmds) { var sp = c.IndexOf(' '); if (sp > 0) S.F8[c[..sp]] = c[(sp + 1)..]; }
+                S.Save();
+                if (GameWindow.Find() == IntPtr.Zero) return new { sent = false, queued = true };
+                var err = await ConsoleSender.Run(cmds, new WindowInteropHelper(this).Handle);
+                if (err == null) Log("⌨ F8: " + string.Join(" · ", cmds));
+                return err == null ? new { sent = true, queued = false } : (object)new { sent = false, queued = true, error = err };
+            }
+            case "f8.values": return S.F8;
 
             // ---------- live display mode ----------
             case "gw.info": return await Task.Run(GameWindow.Info);
@@ -409,9 +426,37 @@ public partial class MainWindow : Window
     // =====================================================================
     //  LIVE: crosshair overlay, screen color, hotkeys
     // =====================================================================
+    private DateTime? _gameFgSince;
+    private uint _f8Pid, _reticlePid;
+
+    private void ShrinkReticle()
+    {
+        if (!S.XhairShrink) return;
+        S.F8["profile_reticuleSize"] = "0"; S.Save();
+        if (GameWindow.Find() == IntPtr.Zero) return;           // applied automatically at next game start
+        var pid = GameFocus.Pid;
+        if (pid != 0 && pid == _reticlePid) return;
+        _reticlePid = pid;
+        var back = GameFocus.IsGame() ? IntPtr.Zero : new WindowInteropHelper(this).Handle;
+        _ = ConsoleSender.Run(new[] { "profile_reticuleSize 0" }, back).ContinueWith(t => { if (t.Result == null) Log("⌨ GTA-Fadenkreuz minimiert"); });
+    }
+
     private void LiveTick()
     {
         bool game = GameFocus.IsGame();
+        // after the game has been in front for 20 s, apply the saved F8 settings once per game session
+        if (game)
+        {
+            _gameFgSince ??= DateTime.Now;
+            var pid = GameFocus.Pid;
+            if (S.F8Auto && S.F8.Count > 0 && pid != 0 && pid != _f8Pid && DateTime.Now - _gameFgSince > TimeSpan.FromSeconds(20))
+            {
+                _f8Pid = pid; _reticlePid = pid;
+                var cmds = S.F8.Select(kv => kv.Key + " " + kv.Value).ToList();
+                _ = ConsoleSender.Run(cmds, IntPtr.Zero).ContinueWith(t => { if (t.Result == null) Log($"⌨ {cmds.Count} F8-Einstellungen automatisch gesetzt"); });
+            }
+        }
+        else _gameFgSince = null;
         _xhair.Update(S.Xhair.On && (!S.Xhair.OnlyGame || game));
         // re-apply when the game gets focus (fullscreen games may reset the gamma ramp)
         bool focusGained = game && !_lastGame;
@@ -464,6 +509,7 @@ public partial class MainWindow : Window
         if (id == HK_XHAIR)
         {
             S.Xhair.On = !S.Xhair.On; S.Save(); LiveTick();
+            if (S.Xhair.On) ShrinkReticle();
             Emit("xhair", new { on = S.Xhair.On });
             handled = true;
         }

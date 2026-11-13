@@ -267,7 +267,7 @@
         <p class="sub" style="font-size:12px;margin-top:10px" id="gwHint">Läuft das Spiel im Vollbild? Drück im Spiel einmal Alt+Enter, dann hier auf „Randloses Vollbild“. Ideal fürs Fadenkreuz und schnelles Alt-Tab.</p>
         <div class="gl-quick">
           <button onclick="go('display')"><span class="qi"><svg class="i"><use href="#sun"/></svg></span><span><b>Live-Farben</b><span>Farbe, Helligkeit, Gamma</span></span></button>
-          <button onclick="copyCmd('cl_drawfps true')"><span class="qi"><svg class="i"><use href="#activity"/></svg></span><span><b>FPS-Anzeige</b><span>F8-Befehl kopieren</span></span></button>
+          <button onclick="f8Quick('cl_drawfps',true)"><span class="qi"><svg class="i"><use href="#activity"/></svg></span><span><b>FPS-Anzeige an</b><span>Live in FiveM</span></span></button>
           <button onclick="go('f8')"><span class="qi"><svg class="i"><use href="#terminal"/></svg></span><span><b>F8-Befehle</b><span>Kamera, Texturen, Audio</span></span></button>
         </div>
       </div>
@@ -334,7 +334,7 @@
             <div class="srow"><div><b>Beim Raustabben ausblenden</b><p>Aus: Das Fadenkreuz bleibt immer sichtbar, auch beim Alt-Tab</p></div><div class="tg" id="xhOnly" data-xt="onlyGame"></div></div>
             <div class="srow"><div><b>Ein/Aus-Taste</b><p id="xhKeyTxt">Globale Taste, funktioniert im Spiel</p></div></div>
             <div class="seg keyseg" id="xhKey"></div>
-            <div class="xgame"><div class="row"><b>GTA-Fadenkreuz klein machen</b></div><p>Das eigene Fadenkreuz von GTA lässt sich per F8 auf die kleinste Größe stellen. Ganz abschalten kann es nur der Server. Tipp: Mit <b>Mittelpunkt</b> an überdeckt dein Fadenkreuz den GTA-Punkt.</p><div class="f8line"><code>profile_reticuleSize 0</code><button class="btn sm" onclick="copyCmd('profile_reticuleSize 0')"><svg class="i"><use href="#copy"/></svg>Kopieren</button></div><p class="muted" style="font-size:11.5px;margin-top:6px">In FiveM: F8 drücken, Strg+V, Enter. Bleibt gespeichert.</p></div>
+            <div class="xgame"><div class="row"><b>GTA-Fadenkreuz klein machen</b></div><p>Das eigene Fadenkreuz von GTA wird auf die kleinste Größe gestellt, OrbitTweak sendet den F8-Befehl für dich. Ganz abschalten kann es nur der Server. Tipp: Mit <b>Mittelpunkt</b> an überdeckt dein Fadenkreuz den GTA-Punkt.</p><div class="f8line"><code>profile_reticuleSize 0</code><button class="btn sm p" onclick="f8Quick('profile_reticuleSize',0)"><svg class="i"><use href="#zap"/></svg>Jetzt setzen</button></div><div class="srow" style="padding:10px 0 0;border:0"><div><b style="font-size:13px">Automatisch beim Einschalten</b><p>OrbitTweak minimiert das GTA-Fadenkreuz, sobald dein Fadenkreuz angeht</p></div><div class="tg" id="xhShrink"></div></div></div>
             <div class="xnote"><svg class="i"><use href="#alert"/></svg><div>Overlays sind nur im Modus <b>Randlos</b> oder <b>Fenster</b> sichtbar, nicht im exklusiven Vollbild.<button class="btn sm" onclick="setBorderless()">Randlos einstellen</button></div></div>
           </div>
         </div>
@@ -383,9 +383,9 @@
     <!-- ================= F8 ================= -->
     <section class="page" id="p-f8">
       <div class="ph">
-        <div><div class="kicker">F8-Konsole</div><h1>FiveM <span class="grad">Befehle</span></h1><p class="pd">Offizielle FiveM-Einstellungen, die es in keinem Menü gibt. Wert wählen, kopieren, im Spiel einfügen. Wirkt sofort.</p></div>
+        <div><div class="kicker">F8-Konsole</div><h1>FiveM <span class="grad">Befehle</span></h1><p class="pd">Offizielle FiveM-Einstellungen, die es in keinem Menü gibt. Einfach an- oder ausklicken, OrbitTweak setzt sie sofort im Spiel.</p></div>
       </div>
-      <div class="f8how"><div><i>1</i><span>Wert einstellen und <b>Kopieren</b> klicken</span></div><div><i>2</i><span>In FiveM <b>F8</b> drücken</span></div><div><i>3</i><span><b>Strg+V</b> und <b>Enter</b></span></div></div>
+      <div class="card f8info"><div class="f8i"><svg class="i"><use href="#zap"/></svg></div><div style="flex:1"><b>Klick = live im Spiel.</b><p>Läuft FiveM, holt OrbitTweak das Spiel kurz nach vorne, tippt den Befehl in die F8-Konsole und wechselt zurück. Das dauert unter einer Sekunde, drück in der Zeit nichts. Ist FiveM aus, werden deine Werte beim nächsten Spielstart automatisch gesetzt.</p></div><div class="row" style="gap:12px;flex:none"><span class="sub" style="font-size:12.5px">Beim Spielstart anwenden</span><div class="tg" id="f8Auto"></div></div></div>
       <div class="f8grid" id="f8list"></div>
     </section>
 

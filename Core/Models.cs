@@ -62,6 +62,9 @@ public class Settings
     public CrosshairCfg Xhair { get; set; } = new();
     public bool XhairAck { get; set; }
     public bool AutoBorderless { get; set; }
+    public Dictionary<string, string> F8 { get; set; } = new();
+    public bool F8Auto { get; set; } = true;
+    public bool XhairShrink { get; set; } = true;
     public int XhairRev { get; set; }
     public DisplayCfg Display { get; set; } = new();
 
