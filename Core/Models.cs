@@ -61,6 +61,7 @@ public class Settings
     public List<string> Favorites { get; set; } = new();
     public CrosshairCfg Xhair { get; set; } = new();
     public bool XhairAck { get; set; }
+    public bool AutoBorderless { get; set; }
     public int XhairRev { get; set; }
     public DisplayCfg Display { get; set; } = new();
 

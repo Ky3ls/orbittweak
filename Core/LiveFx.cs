@@ -38,10 +38,19 @@ public class DisplayCfg
 
 internal static class GameFocus
 {
+    [StructLayout(LayoutKind.Sequential)] private struct RECT { public int L, T, R, B; }
+    [StructLayout(LayoutKind.Sequential)] private struct POINT { public int X, Y; }
     [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+    [DllImport("user32.dll")] private static extern bool IsWindow(IntPtr h);
+    [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr h);
+    [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr h);
+    [DllImport("user32.dll")] private static extern bool GetClientRect(IntPtr h, out RECT r);
+    [DllImport("user32.dll")] private static extern bool ClientToScreen(IntPtr h, ref POINT p);
+    [DllImport("user32.dll")] private static extern int GetSystemMetrics(int i);
     private static uint _pid;
     private static bool _game;
+    private static IntPtr _gameWnd;
 
     /// <summary>True when the focused window belongs to the GTA/FiveM game process.</summary>
     public static bool IsGame()
@@ -49,16 +58,35 @@ internal static class GameFocus
         var h = GetForegroundWindow();
         if (h == IntPtr.Zero) return false;
         GetWindowThreadProcessId(h, out var pid);
-        if (pid == _pid) return _game;
-        _pid = pid;
-        try
+        if (pid != _pid)
         {
-            using var p = Process.GetProcessById((int)pid);
-            var n = p.ProcessName;
-            _game = n.Contains("GTAProcess", StringComparison.OrdinalIgnoreCase) || n.Equals("GTA5", StringComparison.OrdinalIgnoreCase);
+            _pid = pid;
+            try
+            {
+                using var p = Process.GetProcessById((int)pid);
+                var n = p.ProcessName;
+                _game = n.Contains("GTAProcess", StringComparison.OrdinalIgnoreCase) || n.Equals("GTA5", StringComparison.OrdinalIgnoreCase);
+            }
+            catch { _game = false; }
         }
-        catch { _game = false; }
+        if (_game) _gameWnd = h;
         return _game;
+    }
+
+    /// <summary>
+    /// Exact center (physical pixels) of the game picture: the client area of the game window
+    /// (works for borderless, windowed and other monitors). Falls back to the primary screen.
+    /// </summary>
+    public static (int x, int y) Center()
+    {
+        var h = _gameWnd;
+        if (h != IntPtr.Zero && IsWindow(h) && IsWindowVisible(h) && !IsIconic(h) && GetClientRect(h, out var r) && r.R > 200 && r.B > 200)
+        {
+            var p = new POINT();
+            ClientToScreen(h, ref p);
+            return (p.X + r.R / 2, p.Y + r.B / 2);
+        }
+        return (GetSystemMetrics(0) / 2, GetSystemMetrics(1) / 2);
     }
 }
 
@@ -69,14 +97,15 @@ internal sealed class CrosshairOverlay
 {
     private const int GWL_EXSTYLE = -20;
     private const long WS_EX_TRANSPARENT = 0x20, WS_EX_LAYERED = 0x80000, WS_EX_TOOLWINDOW = 0x80, WS_EX_NOACTIVATE = 0x8000000, WS_EX_TOPMOST = 0x8;
-    private const uint SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOACTIVATE = 0x10, SWP_SHOWWINDOW = 0x40;
+    private const uint SWP_NOACTIVATE = 0x10, SWP_SHOWWINDOW = 0x40;
     private static readonly IntPtr HWND_TOPMOST = new(-1);
 
+    [StructLayout(LayoutKind.Sequential)] private struct RECT { public int L, T, R, B; }
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] private static extern IntPtr GetWindowLongPtr(IntPtr h, int i);
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")] private static extern IntPtr SetWindowLongPtr(IntPtr h, int i, IntPtr v);
     [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
     [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr h, int cmd);
-    [DllImport("user32.dll")] private static extern int GetSystemMetrics(int i);
+    [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr h, out RECT r);
 
     private Window? _w;
     private IntPtr _h;
@@ -85,6 +114,8 @@ internal sealed class CrosshairOverlay
     private bool _shown;
 
     public bool HasImage => _pw > 0;
+
+    public void SetOffset(int ox, int oy) { _ox = ox; _oy = oy; }
 
     public void SetImage(byte[] png, int ox, int oy)
     {
@@ -98,7 +129,6 @@ internal sealed class CrosshairOverlay
         RenderOptions.SetBitmapScalingMode(_img, BitmapScalingMode.NearestNeighbor);
         _img.Source = bi;
         Ensure();
-        if (_shown) Place(true);
     }
 
     private void Ensure()
@@ -121,29 +151,28 @@ internal sealed class CrosshairOverlay
         ShowWindow(_h, 0);
     }
 
-    private void Place(bool show)
-    {
-        if (_h == IntPtr.Zero) return;
-        int sw = GetSystemMetrics(0), sh = GetSystemMetrics(1);
-        int x = sw / 2 - _pw / 2 + _ox, y = sh / 2 - _ph / 2 + _oy;
-        SetWindowPos(_h, HWND_TOPMOST, x, y, _pw, _ph, SWP_NOACTIVATE | (show ? SWP_SHOWWINDOW : 0));
-    }
-
-    /// <summary>Called every tick: shows/hides and keeps the window above the game.</summary>
+    /// <summary>
+    /// Called every tick: shows/hides, keeps the window above the game and re-centers it.
+    /// The image has an odd size with the crosshair on its middle pixel, so that pixel lands
+    /// exactly on the center of the game picture. Position and size are checked every tick,
+    /// which also corrects any DPI rescaling Windows/WPF might apply.
+    /// </summary>
     public void Update(bool visible)
     {
         if (!HasImage) visible = false;
-        if (visible)
+        if (!visible)
         {
-            Ensure();
-            if (!_shown) { Place(true); _shown = true; }
-            else SetWindowPos(_h, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            if (_shown) { ShowWindow(_h, 0); _shown = false; }
+            return;
         }
-        else if (_shown)
-        {
-            ShowWindow(_h, 0);
-            _shown = false;
-        }
+        Ensure();
+        if (_h == IntPtr.Zero) return;
+        var (cx, cy) = GameFocus.Center();
+        int x = cx - _pw / 2 + _ox, y = cy - _ph / 2 + _oy;
+        bool moved = !GetWindowRect(_h, out var r) || r.L != x || r.T != y || r.R - r.L != _pw || r.B - r.T != _ph;
+        if (!_shown || moved) SetWindowPos(_h, HWND_TOPMOST, x, y, _pw, _ph, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+        else SetWindowPos(_h, HWND_TOPMOST, 0, 0, 0, 0, 0x1 | 0x2 | SWP_NOACTIVATE);
+        _shown = true;
     }
 
     public void Close()
@@ -326,5 +355,107 @@ internal static class NvVibrance
     {
         if (_set == null) return;
         try { foreach (var (h, lvl) in Orig) _set(h, 0, lvl); } catch { }
+    }
+}
+
+// =====================================================================
+//  LIVE DISPLAY MODE – turns the running game window borderless (like
+//  "Borderless Gaming"): only the window style/position is changed.
+// =====================================================================
+internal static class GameWindow
+{
+    private const int GWL_STYLE = -16, GWL_EXSTYLE = -20;
+    private const long WS_CAPTION = 0xC00000, WS_THICKFRAME = 0x40000, WS_SYSMENU = 0x80000, WS_MINIMIZEBOX = 0x20000, WS_MAXIMIZEBOX = 0x10000, WS_POPUP = 0x80000000;
+    private const long WS_EX_DLGMODALFRAME = 0x1, WS_EX_CLIENTEDGE = 0x200, WS_EX_STATICEDGE = 0x20000, WS_EX_WINDOWEDGE = 0x100;
+    private const uint SWP_FRAMECHANGED = 0x20, SWP_SHOWWINDOW = 0x40, SWP_NOZORDER = 0x4, SWP_NOACTIVATE = 0x10;
+
+    [StructLayout(LayoutKind.Sequential)] private struct RECT { public int L, T, R, B; }
+    [StructLayout(LayoutKind.Sequential)] private struct MONITORINFO { public int cbSize; public RECT rcMonitor, rcWork; public uint dwFlags; }
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] private static extern IntPtr GetWindowLongPtr(IntPtr h, int i);
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")] private static extern IntPtr SetWindowLongPtr(IntPtr h, int i, IntPtr v);
+    [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
+    [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr h, out RECT r);
+    [DllImport("user32.dll")] private static extern bool GetClientRect(IntPtr h, out RECT r);
+    [DllImport("user32.dll")] private static extern IntPtr MonitorFromWindow(IntPtr h, uint flags);
+    [DllImport("user32.dll")] private static extern bool GetMonitorInfo(IntPtr m, ref MONITORINFO mi);
+    [DllImport("user32.dll")] private static extern bool IsWindow(IntPtr h);
+    [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr h);
+
+    private static IntPtr _saved;
+    private static long _savedStyle, _savedEx;
+    private static RECT _savedRect;
+    public static IntPtr LastAuto;
+
+    public static IntPtr Find()
+    {
+        try
+        {
+            using var p = FiveM.GameProcess();
+            var h = p?.MainWindowHandle ?? IntPtr.Zero;
+            return h != IntPtr.Zero && IsWindow(h) ? h : IntPtr.Zero;
+        }
+        catch { return IntPtr.Zero; }
+    }
+
+    private static RECT Monitor(IntPtr h)
+    {
+        var mi = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+        GetMonitorInfo(MonitorFromWindow(h, 2), ref mi);
+        return mi.rcMonitor;
+    }
+
+    /// <summary>"windowed" (has a title bar), "borderless" (no frame, fills the monitor) or "fullscreen".</summary>
+    public static string Mode(IntPtr h)
+    {
+        var st = GetWindowLongPtr(h, GWL_STYLE).ToInt64();
+        if ((st & WS_CAPTION) == WS_CAPTION) return "windowed";
+        return "borderless";
+    }
+
+    public static object Info()
+    {
+        var h = Find();
+        if (h == IntPtr.Zero) return new { found = false };
+        GetClientRect(h, out var c);
+        var mode = IsIconic(h) ? "fullscreen" : Mode(h);
+        return new { found = true, mode, w = c.R, h = c.B };
+    }
+
+    public static string? MakeBorderless(IntPtr h = default)
+    {
+        if (h == IntPtr.Zero) h = Find();
+        if (h == IntPtr.Zero) return "FiveM läuft nicht (Spiel noch nicht gestartet)";
+        if (IsIconic(h)) return "Das Spiel ist minimiert oder im exklusiven Vollbild. Drück im Spiel Alt+Enter und versuch es nochmal.";
+        var st = GetWindowLongPtr(h, GWL_STYLE).ToInt64();
+        var ex = GetWindowLongPtr(h, GWL_EXSTYLE).ToInt64();
+        if ((st & WS_CAPTION) == WS_CAPTION)
+        {
+            _saved = h; _savedStyle = st; _savedEx = ex;
+            GetWindowRect(h, out _savedRect);
+        }
+        SetWindowLongPtr(h, GWL_STYLE, new IntPtr((st & ~(WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX)) | WS_POPUP));
+        SetWindowLongPtr(h, GWL_EXSTYLE, new IntPtr(ex & ~(WS_EX_DLGMODALFRAME | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE | WS_EX_WINDOWEDGE)));
+        var m = Monitor(h);
+        SetWindowPos(h, IntPtr.Zero, m.L, m.T, m.R - m.L, m.B - m.T, SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOZORDER | SWP_NOACTIVATE);
+        return null;
+    }
+
+    public static string? MakeWindowed()
+    {
+        var h = Find();
+        if (h == IntPtr.Zero) return "FiveM läuft nicht (Spiel noch nicht gestartet)";
+        if (h == _saved && _savedStyle != 0)
+        {
+            SetWindowLongPtr(h, GWL_STYLE, new IntPtr(_savedStyle));
+            SetWindowLongPtr(h, GWL_EXSTYLE, new IntPtr(_savedEx));
+            SetWindowPos(h, IntPtr.Zero, _savedRect.L, _savedRect.T, _savedRect.R - _savedRect.L, _savedRect.B - _savedRect.T, SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOZORDER | SWP_NOACTIVATE);
+            return null;
+        }
+        var st = GetWindowLongPtr(h, GWL_STYLE).ToInt64();
+        SetWindowLongPtr(h, GWL_STYLE, new IntPtr((st & ~WS_POPUP) | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX));
+        var m = Monitor(h);
+        int w = (m.R - m.L) * 3 / 4, hh = (m.B - m.T) * 3 / 4;
+        SetWindowPos(h, IntPtr.Zero, m.L + (m.R - m.L - w) / 2, m.T + (m.B - m.T - hh) / 2, w, hh, SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOZORDER | SWP_NOACTIVATE);
+        return null;
     }
 }

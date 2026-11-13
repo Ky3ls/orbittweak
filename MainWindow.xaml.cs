@@ -176,6 +176,9 @@ public partial class MainWindow : Window
             case "win.max": WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized; return null;
             case "win.close": Close(); return null;
             case "open": Proc.Open(Str(a, "target")); return null;
+            case "clip":
+                try { Clipboard.SetText(Str(a, "text")); return new { ok = true }; }
+                catch (Exception ex) { return new { ok = false, error = ex.Message }; }
 
             // ---------- init / settings ----------
             case "init":
@@ -198,6 +201,7 @@ public partial class MainWindow : Window
                     case "autoPriority": S.AutoPriority = val.GetBoolean(); break;
                     case "firstRun": S.FirstRun = val.GetBoolean(); break;
                     case "xhairAck": S.XhairAck = val.GetBoolean(); break;
+                    case "autoBorderless": S.AutoBorderless = val.GetBoolean(); break;
                     case "launch": S.Launch = val.Deserialize<LaunchCfg>(JIn) ?? new LaunchCfg(); break;
                 }
                 S.Save();
@@ -287,10 +291,26 @@ public partial class MainWindow : Window
                 var json = Str(a, "json"); if (json.Length > 0) x.Json = json;
                 var png = Str(a, "png");
                 if (png.Length > 0) _xhair.SetImage(Convert.FromBase64String(png), x.OffsetX, x.OffsetY);
+                else _xhair.SetOffset(x.OffsetX, x.OffsetY);
                 S.Save();
                 var keys = RegisterKeys();
                 LiveTick();
                 return new { keyOk = keys.xhair };
+            }
+
+            // ---------- live display mode ----------
+            case "gw.info": return await Task.Run(GameWindow.Info);
+            case "gw.borderless":
+            {
+                var err = GameWindow.MakeBorderless();
+                if (err == null) Log("🖥 Randloses Vollbild aktiviert (live)");
+                return err == null ? new { ok = true } : new { error = err };
+            }
+            case "gw.windowed":
+            {
+                var err = GameWindow.MakeWindowed();
+                if (err == null) Log("🖥 Fenstermodus aktiviert (live)");
+                return err == null ? new { ok = true } : new { error = err };
             }
 
             // ---------- screen color ----------
@@ -602,6 +622,19 @@ public partial class MainWindow : Window
                             var f = Native.CleanMemory(S.PurgeStandby);
                             Log($"♻ Auto-RAM-Clean: {SysInfo.Bytes(f)}");
                         }
+                    }
+                    if (game != null && S.AutoBorderless)
+                    {
+                        try
+                        {
+                            var gh = game.MainWindowHandle;
+                            if (gh != IntPtr.Zero && gh != GameWindow.LastAuto && GameWindow.Mode(gh) == "windowed")
+                            {
+                                GameWindow.LastAuto = gh;
+                                Dispatcher.Invoke(() => { if (GameWindow.MakeBorderless(gh) == null) Log("🖥 Automatisch randlos gemacht"); });
+                            }
+                        }
+                        catch { }
                     }
                     return (object)new { running = procs.Length > 0, game = game != null, build, prio, gameRam = ram };
                 }

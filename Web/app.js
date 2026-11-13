@@ -93,7 +93,7 @@ function go(p) {
   $$('.nav').forEach(n => n.classList.toggle('active', n.dataset.p === p));
   $$('.page').forEach(s => s.classList.toggle('show', s.id === 'p-' + p));
   moveInd(); enterPage($('#p-' + p));
-  ({ servers: () => S.servers.length || loadServers(), gfx: () => S.gfx || loadGfx(), cleaner: () => S.clean.length || scan(),
+  ({ servers: () => S.servers.length || loadServers(), gfx: () => { S.gfx || loadGfx(); gwRefresh(); }, f8: () => $('#f8list').children.length || renderF8(), xhair: () => setTimeout(xhPlace, 30), cleaner: () => S.clean.length || scan(),
      diag: () => { S.health ? renderHealth(S.health) : runHealth(); loadLogs(); }, launcher: renderCmd, home: refreshCache })[p]?.();
 }
 window.go = go;
@@ -643,12 +643,28 @@ function xhDraw(c) {
 function xhRender(bump) {
   const src = xhDraw(XH.cfg), cv = $('#xhCanvas'), z = $('#xhZoom');
   cv.width = src.width; cv.height = src.height; cv.getContext('2d').drawImage(src, 0, 0);
-  cv.style.marginLeft = XH.offsetX * 2 + 'px'; cv.style.marginTop = XH.offsetY * 2 + 'px';
+  xhPlace();
   const zx = z.getContext('2d'); zx.clearRect(0, 0, 96, 96); zx.imageSmoothingEnabled = false;
   const s = Math.max(24, Math.min(src.width, 48)), sx = (src.width - s) / 2; zx.drawImage(src, sx, sx, s, s, 0, 0, 96, 96);
   if (bump) { const sc = $('#xhScene'); sc.classList.remove('bump'); void sc.offsetWidth; sc.classList.add('bump'); }
   return src;
 }
+// same math as the overlay window: middle pixel of the odd-sized image sits on the center pixel
+function xhPlace() {
+  const sc = $('#xhScene'), cv = $('#xhCanvas'); if (!sc || !cv.width) return;
+  const R = (cv.width - 1) / 2;
+  cv.style.left = (Math.floor(sc.clientWidth / 2) - R + XH.offsetX) + 'px';
+  cv.style.top = (Math.floor(sc.clientHeight / 2) - R + XH.offsetY) + 'px';
+}
+addEventListener('resize', () => xhPlace());
+async function copyCmd(text, btn) {
+  let ok = false;
+  try { const r = await api('clip', { text }); ok = r && r.ok; } catch { }
+  if (!ok) try { await navigator.clipboard.writeText(text); ok = true; } catch { }
+  if (btn) { btn.classList.add('ok'); const o = btn.innerHTML; btn.innerHTML = `${ico('check')}Kopiert`; setTimeout(() => { btn.classList.remove('ok'); btn.innerHTML = o; }, 1600); }
+  toast(ok ? 'Befehl kopiert' : 'Kopieren fehlgeschlagen', ok ? `${text} · In FiveM: F8, Strg+V, Enter` : text, ok);
+}
+window.copyCmd = copyCmd;
 let xhT = 0;
 function xhPush(img = true) {
   clearTimeout(xhT);
@@ -687,6 +703,7 @@ function xhToggle(confirmed) {
       <div class="act"><button class="btn" onclick="closeModal()">Abbrechen</button><button class="btn p lg" onclick="xhAck()">${ico('check')}Verstanden, einschalten</button></div>`);
   }
   XH.on = !XH.on; xhState(); xhPush(false);
+  if (XH.on) { api('clip', { text: 'profile_reticuleSize 0' }).catch(() => { }); setTimeout(() => toast('Tipp: GTA-Fadenkreuz verkleinern', 'profile_reticuleSize 0 ist kopiert · In FiveM F8, Strg+V, Enter'), 900); }
   toast(XH.on ? 'Fadenkreuz an' : 'Fadenkreuz aus', XH.on ? 'Server-Regeln beachten · ' + (XH.onlyGame ? 'nur im Spiel sichtbar' : 'bleibt auch beim Raustabben') : '');
 }
 function xhAck() { closeModal(); S.settings.xhairAck = true; api('settings.set', { key: 'xhairAck', value: true }); xhToggle(true); }
@@ -703,7 +720,7 @@ document.addEventListener('click', e => {
   const b = e.target.closest('[data-xb]'); if (b) { XH.cfg[b.dataset.xb] = !XH.cfg[b.dataset.xb]; xhUI(); xhPush(); return; }
   const k = e.target.closest('[data-xk]'); if (k) { XH.key = +k.dataset.xk; xhState(); xhPush(false); return; }
   const t = e.target.closest('[data-xt]'); if (t) { if (t.dataset.xt === 'on') return xhToggle(); XH.onlyGame = !XH.onlyGame; xhState(); xhPush(false); return; }
-  const bg = e.target.closest('#xhBg button'); if (bg) { $$('#xhBg button').forEach(x => x.classList.toggle('on', x === bg)); $('#xhScene').className = 'xscene bg-' + bg.dataset.bg; }
+  const bg = e.target.closest('#xhBg button'); if (bg) { $$('#xhBg button').forEach(x => x.classList.toggle('on', x === bg)); $('#xhScene').className = 'xscene sc-' + bg.dataset.bg; xhPlace(); }
 });
 document.addEventListener('input', e => {
   const r = e.target.closest('[data-xr]');
@@ -796,6 +813,76 @@ async function initFx(s) {
   dpUI();
 }
 
+/* ======================= F8 COMMANDS ======================= */
+// Only commands from the official FiveM docs / production console whitelist.
+const F8 = [
+  ['Anzeige', 'monitor', [
+    { k: 'cl_drawfps', n: 'FPS-Anzeige', d: 'Zeigt die FPS oben in der Ecke.', t: 'bool', v: true },
+    { k: 'cl_drawperf', n: 'Performance-Anzeige', d: 'FPS, Ping, Paketverlust, CPU/GPU-Last und GPU-Temperatur.', t: 'bool', v: false },
+    { k: 'profile_reticuleSize', n: 'GTA-Fadenkreuz minimal', d: 'Stellt das Spiel-Fadenkreuz auf die kleinste Größe. Ideal mit dem OrbitTweak-Fadenkreuz.', t: 'fixed', v: 0 },
+  ]],
+  ['Kamera', 'eye', [
+    { k: 'cam_disableCameraShake', n: 'Kamerawackeln aus', d: 'Kein Wackeln bei Explosionen und Treffern.', t: 'bool', v: true },
+    { k: 'cam_enableHandbrakeCamera', n: 'Handbremsen-Kameraschwenk', d: 'Aus: Die Kamera schwenkt beim Driften nicht mehr mit.', t: 'bool', v: false },
+    { k: 'cam_vehicleFirstPersonFOV', n: 'Fahrzeug-Ego-Sicht (FOV)', d: 'Sichtfeld in der Ego-Ansicht im Auto. -1 = Standard.', t: 'range', min: -1, max: 130, v: 90 },
+  ]],
+  ['Performance', 'zap', [
+    { k: 'str_maxVehicleTextureRes', n: 'Fahrzeug-Texturen begrenzen', d: 'Weniger Speicher, weniger Texture-Loss. Autos werden etwas unschärfer. Standard 1024.', t: 'seg', o: [256, 512, 1024], v: 512 },
+    { k: 'voice_enableNoiseSuppression', n: 'Voice: Rauschunterdrückung', d: 'Filtert Hintergrundgeräusche im Voice-Chat.', t: 'bool', v: true },
+  ]],
+  ['Audio', 'activity', [
+    { k: 'profile_musicVolumeInMp', n: 'Musik im Multiplayer', d: '0 = aus. 10 entspricht 100 %.', t: 'range', min: 0, max: 10, v: 0 },
+    { k: 'profile_sfxVolume', n: 'Effekt-Lautstärke', d: 'Schüsse, Autos, Umgebung. 10 entspricht 100 %.', t: 'range', min: 0, max: 10, v: 10 },
+  ]],
+];
+const f8Val = {};
+const f8Cmd = c => `${c.k} ${f8Val[c.k] ?? c.v}`;
+function renderF8() {
+  $('#f8list').innerHTML = F8.map(([cat, icon, items]) => `<div class="card"><div class="lbl">${ico(icon)}${cat}</div>${items.map(c => {
+    const v = f8Val[c.k] ?? c.v;
+    const ctl = c.t === 'bool' ? `<div class="seg" data-f8="${c.k}"><button class="${v === true ? 'on' : ''}" data-v="true">An</button><button class="${v === false ? 'on' : ''}" data-v="false">Aus</button></div>`
+      : c.t === 'seg' ? `<div class="seg" data-f8="${c.k}">${c.o.map(o => `<button class="${v === o ? 'on' : ''}" data-v="${o}">${o}</button>`).join('')}</div>`
+      : c.t === 'range' ? `<div class="rng"><input type="range" min="${c.min}" max="${c.max}" value="${v}" style="--p:${(v - c.min) / (c.max - c.min) * 100}%" data-f8r="${c.k}"><b>${v}</b></div>` : '';
+    return `<div class="f8row"><div class="top"><div><b>${c.n}</b><p>${c.d}</p></div>${ctl}</div><div class="f8line"><code id="f8c-${c.k}">${esc(f8Cmd(c))}</code><button class="btn sm" onclick="copyCmd($('#f8c-${c.k}').textContent,this)">${ico('copy')}Kopieren</button></div></div>`;
+  }).join('')}</div>`).join('');
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-f8] button'); if (!b) return;
+  const k = b.parentElement.dataset.f8, raw = b.dataset.v;
+  f8Val[k] = raw === 'true' ? true : raw === 'false' ? false : +raw; renderF8();
+});
+document.addEventListener('input', e => {
+  const r = e.target.closest('[data-f8r]'); if (!r) return;
+  const k = r.dataset.f8r, c = F8.flatMap(x => x[2]).find(x => x.k === k);
+  f8Val[k] = +r.value; r.style.setProperty('--p', (r.value - r.min) / (r.max - r.min) * 100 + '%'); r.nextElementSibling.textContent = r.value;
+  $('#f8c-' + k).textContent = f8Cmd(c);
+});
+
+/* ======================= LIVE DISPLAY MODE ======================= */
+async function gwRefresh() {
+  try {
+    const g = await api('gw.info');
+    const el = $('#gwState');
+    el.className = 'chip ' + (g.found ? (g.mode === 'windowed' ? 'w' : 'g') : '');
+    el.textContent = !g.found ? 'FiveM nicht gestartet' : g.mode === 'windowed' ? `Fenster · ${g.w}×${g.h}` : g.mode === 'borderless' ? `Randlos/Vollbild · ${g.w}×${g.h}` : `Vollbild · ${g.w}×${g.h}`;
+    $('#gwAuto').classList.toggle('on', !!S.settings.autoBorderless);
+  } catch { }
+}
+async function gwSet(mode) {
+  const r = await api('gw.' + mode).catch(e => ({ error: e.message }));
+  if (r.error) toast('Geht gerade nicht', r.error, false);
+  else toast(mode === 'borderless' ? 'Randloses Vollbild aktiv' : 'Fenstermodus aktiv', 'Sofort, ohne Neustart');
+  gwRefresh();
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('#gwAuto')) return;
+  S.settings.autoBorderless = !S.settings.autoBorderless;
+  api('settings.set', { key: 'autoBorderless', value: S.settings.autoBorderless });
+  gwRefresh();
+  if (S.settings.autoBorderless) toast('Automatisch randlos', 'Sobald FiveM im Fenstermodus läuft');
+});
+setInterval(() => { if (curPage === 'gfx') gwRefresh(); }, 2500);
+
 /* ======================= BOOT ======================= */
 async function boot() {
   $('#side').onclick = e => { const n = e.target.closest('.nav'); if (n) go(n.dataset.p); };
@@ -859,6 +946,9 @@ const Mock = {
       case 'tweak.set': { const t = M.tweaks.find(x => x.id === a.id); t.applied = a.on; return { applied: a.on }; }
       case 'boost': for (let i = 0; i <= 10; i++) { onEvent('boost', { pct: i * 10, text: 'Schritt ' + i }); await sleep(220); } M.tweaks.forEach(t => t.rec && (t.applied = true)); return { freed: 1.4e9, restart: true, applied: 9 };
       case 'xhair.set': return { keyOk: true };
+      case 'clip': return { ok: false };
+      case 'gw.info': return { found: true, mode: 'windowed', w: 1600, h: 900 };
+      case 'gw.borderless': case 'gw.windowed': return { ok: true };
       case 'display.get': return { cfg: M.settings.display, nvidia: true, unlocked: false, gammaOk: null };
       case 'display.set': M.settings.display = a.cfg; return { active: a.cfg.on, gammaOk: true, vibOk: true, keyOk: true };
       case 'display.preview': return { active: false };
