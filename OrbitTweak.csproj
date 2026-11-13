@@ -10,7 +10,7 @@
     <AssemblyName>OrbitTweak</AssemblyName>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>2.14.0</Version>
+    <Version>2.15.0</Version>
     <Product>OrbitTweak</Product>
     <Description>OrbitTweak – FiveM Performance Suite</Description>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>

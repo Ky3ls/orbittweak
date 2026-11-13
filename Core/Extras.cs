@@ -697,6 +697,8 @@ internal static class ModDownloads
 internal static class Account
 {
     private static string? _hwid;
+    /// <summary>The OrbitTweak API. Fixed in the app so the login check can not be redirected.</summary>
+    public const string Api = "https://orbittweak-api.orbittweak.workers.dev";
 
     /// <summary>Anonymous PC fingerprint: SHA-256 of Windows MachineGuid + CPU + board. Never sent in clear.</summary>
     public static string Hwid

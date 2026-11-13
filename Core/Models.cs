@@ -76,6 +76,7 @@ public class Settings
     public Dictionary<string, List<string>> CatalogMods { get; set; } = new();
     public string? AuthToken { get; set; }
     public string? AuthRole { get; set; }
+    public DateTime? AuthOkUntil { get; set; }
     public int XhairRev { get; set; }
     public DisplayCfg Display { get; set; } = new();
 

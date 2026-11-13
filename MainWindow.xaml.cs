@@ -74,11 +74,11 @@ public partial class MainWindow : Window
         AppDomain.CurrentDomain.ProcessExit += (_, _) => { ScreenColor.Restore(); NvVibrance.Restore(); };
         Application.Current.ShutdownMode = ShutdownMode.OnMainWindowClose;
         _live.Tick += (_, _) => LiveTick();
-        if (S.SnapTap) _snap.Enable(true);
+        // Snap Tap, timer resolution etc. only start after a valid key (see OnAuthed)
         _pad.Configure(S.Pad, S.Pad.Layout == "auto" ? "xbox" : S.Pad.Layout);
         _live.Start();
 
-        if (S.TimerRes) Catalog.SetTimerResolution(true);
+
         Task.Run(Catalog.UndoKeyboardTurbo);
         Updater.CleanupOld();
         Background = S.Mode == "light" ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(239, 237, 231)) : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(18, 18, 17));
@@ -177,8 +177,32 @@ public partial class MainWindow : Window
     // =====================================================================
     //  COMMANDS
     // =====================================================================
+    // Without a valid key only these commands work (window, login, updates).
+    private static readonly HashSet<string> Unlocked = new()
+    {
+        "win.drag", "win.min", "win.max", "win.close", "init", "auth.info", "auth.check", "auth.redeem", "auth.logout",
+        "update.check", "update.download", "update.install", "open"
+    };
+    private bool _authed;
+
+    private void OnAuthed(string? role)
+    {
+        bool first = !_authed;
+        _authed = true; S.AuthRole = role ?? S.AuthRole; S.AuthOkUntil = DateTime.Now.AddDays(3); S.Save();
+        if (!first) return;
+        if (S.SnapTap) _snap.Enable(true);
+        if (S.TimerRes) Catalog.SetTimerResolution(true);
+    }
+
+    private void Lock()
+    {
+        _authed = false; S.AuthToken = null; S.AuthRole = null; S.AuthOkUntil = null; S.Save();
+        _snap.Enable(false); Catalog.SetTimerResolution(false); LiveTick();
+    }
+
     private async Task<object?> Handle(string cmd, JsonElement a)
     {
+        if (!_authed && !Unlocked.Contains(cmd)) throw new InvalidOperationException("Gesperrt: Bitte zuerst deinen Key einlösen");
         switch (cmd)
         {
             // ---------- window ----------
@@ -434,27 +458,43 @@ public partial class MainWindow : Window
                 return new { error = err };
             }
             // ---------- account (access code + HWID) ----------
-            case "auth.info": return new { hwid = Account.Hwid[..12], role = S.AuthRole, loggedIn = !string.IsNullOrEmpty(S.AuthToken) };
+            case "auth.info": return new { hwid = Account.Hwid[..12], role = S.AuthRole, loggedIn = _authed };
+            case "auth.check":
+            {
+                if (string.IsNullOrEmpty(S.AuthToken)) return new { ok = false };
+                var res = await Account.Call(Account.Api, "GET", "/api/me", null, S.AuthToken);
+                if (res is JsonElement me && me.TryGetProperty("role", out var role))
+                {
+                    OnAuthed(role.GetString());
+                    return new { ok = true, role = S.AuthRole, note = me.TryGetProperty("note", out var nt) ? nt.GetString() : null };
+                }
+                var msg = res is JsonElement e3 && e3.TryGetProperty("error", out var er3) ? er3.GetString() : null;
+                // server unreachable: keep working for a few days with the last confirmed login
+                if (msg != null && msg.StartsWith("Server nicht erreichbar") && S.AuthOkUntil > DateTime.Now)
+                { _authed = true; OnAuthed(S.AuthRole); return new { ok = true, role = S.AuthRole, offline = true }; }
+                if (msg == "Nicht angemeldet") Lock();
+                return new { ok = false, error = msg };
+            }
             case "auth.redeem":
             {
                 var payload = JsonSerializer.SerializeToElement(new { code = Str(a, "code").Trim().ToUpperInvariant(), hwid = Account.Hwid });
-                var res = await Account.Call(Str(a, "api"), "POST", "/api/redeem", payload, null);
+                var res = await Account.Call(Account.Api, "POST", "/api/redeem", payload, null);
                 if (res is JsonElement je && je.TryGetProperty("token", out var tk))
                 {
-                    S.AuthToken = tk.GetString(); S.AuthRole = je.TryGetProperty("role", out var rl) ? rl.GetString() : "editor"; S.Save();
-                    Log($"🔑 Angemeldet als {(S.AuthRole == "admin" ? "Admin" : "Editor")}");
-                    return new { ok = true, role = S.AuthRole };
+                    S.AuthToken = tk.GetString();
+                    OnAuthed(je.TryGetProperty("role", out var rl) ? rl.GetString() : "user");
+                    return new { ok = true, role = S.AuthRole, note = je.TryGetProperty("note", out var nt) ? nt.GetString() : null };
                 }
                 return res;
             }
-            case "auth.logout": S.AuthToken = null; S.AuthRole = null; S.Save(); return new { ok = true };
+            case "auth.logout": Lock(); return new { ok = true };
             case "srv":
             {
-                var res = await Account.Call(Str(a, "api"), Str(a, "method") == "POST" ? "POST" : "GET", Str(a, "path"),
+                var res = await Account.Call(Account.Api, Str(a, "method") == "POST" ? "POST" : "GET", Str(a, "path"),
                     a.TryGetProperty("body", out var bd) ? bd : null, S.AuthToken);
                 // token no longer valid (revoked / other PC) -> sign out locally
                 if (res is JsonElement e2 && e2.TryGetProperty("error", out var er) && er.GetString() == "Nicht angemeldet" && S.AuthToken != null)
-                { S.AuthToken = null; S.AuthRole = null; S.Save(); }
+                { Lock(); Emit("locked", new { }); }
                 return res;
             }
 
@@ -739,6 +779,12 @@ public partial class MainWindow : Window
 
     private void LiveTick()
     {
+        if (!_authed)
+        {
+            _xhair.Update(false); _minimap.Update(false); _flash.Update(false); _pad.Update(false);
+            if (_dispActive) { ScreenColor.Restore(); NvVibrance.Restore(); _dispActive = false; }
+            return;
+        }
         bool game = GameFocus.IsGame();
         SnapTap.GameInFront = game;
         // after the game has been in front for 20 s, apply the saved F8 settings once per game session
@@ -978,7 +1024,7 @@ public partial class MainWindow : Window
                         build = game.ProcessName.Split('_').FirstOrDefault(x => x.Length > 1 && x[0] == 'b' && char.IsDigit(x[1]));
                         try
                         {
-                            if (S.AutoPriority && game.PriorityClass is not (ProcessPriorityClass.High or ProcessPriorityClass.RealTime))
+                            if (_authed && S.AutoPriority && game.PriorityClass is not (ProcessPriorityClass.High or ProcessPriorityClass.RealTime))
                             {
                                 game.PriorityClass = ProcessPriorityClass.High;
                                 Log("⚡ Auto-Priorität: GTA-Prozess auf HOCH");
@@ -994,14 +1040,14 @@ public partial class MainWindow : Window
                         }
                         catch { prio = "?"; }
 
-                        if (S.AutoRamClean && DateTime.Now - _lastAutoClean > TimeSpan.FromMinutes(5))
+                        if (_authed && S.AutoRamClean && DateTime.Now - _lastAutoClean > TimeSpan.FromMinutes(5))
                         {
                             _lastAutoClean = DateTime.Now;
                             var f = Native.CleanMemory(S.PurgeStandby);
                             Log($"♻ Auto-RAM-Clean: {SysInfo.Bytes(f)}");
                         }
                     }
-                    if (game != null && S.AutoBorderless)
+                    if (_authed && game != null && S.AutoBorderless)
                     {
                         try
                         {

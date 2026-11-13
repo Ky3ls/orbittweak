@@ -1,7 +1,7 @@
 -- OrbitTweak API (Cloudflare D1)
 CREATE TABLE IF NOT EXISTS codes (
   code        TEXT PRIMARY KEY,      -- ORB-XXXX-XXXX-XXXX
-  role        TEXT NOT NULL,         -- admin | editor
+  role        TEXT NOT NULL,         -- admin | editor | user
   note        TEXT,
   hwid        TEXT,                  -- bound PC (sha256), NULL until first redeem
   created_at  INTEGER NOT NULL,

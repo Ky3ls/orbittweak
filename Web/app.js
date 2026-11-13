@@ -129,6 +129,7 @@ function onEvent(ev, d) {
   else if (ev === 'update') updProgress(d);
   else if (ev === 'xhair') { XH.on = d.on; xhState(); toast(d.on ? 'Fadenkreuz an' : 'Fadenkreuz aus', d.on ? 'per Taste · Server-Regeln beachten' : 'per Taste'); }
   else if (ev === 'display') { DP.cfg.on = d.on; dpState(); }
+  else if (ev === 'locked') gate('Dein Key wurde gesperrt oder ist auf einem anderen PC aktiv.');
   else if (ev === 'pad') padState(d);
   else if (ev === 'padon') { PAD.cfg.mode = d.mode; padUI(); toast(d.mode === 'off' ? 'Controller-Anzeige aus' : 'Controller-Anzeige automatisch', 'per Taste'); }
   else if (ev === 'modInstalled') { passed('Mod installiert', `${MOD_CATS[d.cat]?.[0] || 'Mod'} · ${d.name}`); modList(); }
@@ -1533,24 +1534,23 @@ function accUI() {
   const r = ACC.loggedIn ? ACC.role : null;
   $('#accHwid').textContent = ACC.hwid || '…';
   $('#accRole').className = 'chip ' + (r === 'admin' ? 'a' : r ? 'g' : '');
-  $('#accRole').textContent = r === 'admin' ? 'Admin' : r ? 'Editor' : 'Nicht angemeldet';
-  $('#accLogin').classList.toggle('hidden', !!r); $('#accIn').classList.toggle('hidden', !r);
-  $('#accTitle').textContent = r === 'admin' ? 'Angemeldet als Admin' : 'Angemeldet als Editor';
-  $('#accText').textContent = r === 'admin' ? 'Du kannst Codes erzeugen, Mods direkt live stellen und Einreichungen freigeben.' : 'Du kannst Mods einreichen. Ein Admin gibt sie frei.';
-  $('#accNoSrv').classList.toggle('hidden', !!LIB.api);
+  $('#accRole').textContent = r === 'admin' ? 'Admin' : r === 'editor' ? 'Editor' : r ? 'Nutzer' : 'Nicht angemeldet';
+  $('#accLogin').classList.toggle('hidden', r === 'admin'); $('#accIn').classList.toggle('hidden', !r);
+  $('#accTitle').textContent = r === 'admin' ? 'Lizenz aktiv · Admin' : r === 'editor' ? 'Lizenz aktiv · Editor' : 'Lizenz aktiv';
+  $('#accText').textContent = r === 'admin' ? 'Du kannst Keys erzeugen, Mods direkt live stellen und Einreichungen freigeben.' : r === 'editor' ? 'Du kannst Mods einreichen. Ein Admin gibt sie frei.' : 'OrbitTweak ist auf diesem PC freigeschaltet.';
+  $('#accNoSrv').classList.add('hidden');
   $('#navAdmin').classList.toggle('hidden', r !== 'admin');
-  $('#libAdd').classList.toggle('hidden', !r);
+  $('#libAdd').classList.toggle('hidden', !(r === 'admin' || r === 'editor'));
 }
 async function accRedeem() {
   const code = $('#accCode').value.trim().toUpperCase();
   if (!/^ORB-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(code)) return toast('Code prüfen', 'Format: ORB-XXXX-XXXX-XXXX', false);
-  if (!LIB.api) return toast('Server noch nicht online', 'Bitte später nochmal versuchen', false);
-  const r = await api('auth.redeem', { api: LIB.api, code });
+  const r = await api('auth.redeem', { code });
   if (r.error) return toast('Code nicht angenommen', r.error, false);
   ACC.loggedIn = true; ACC.role = r.role; $('#accCode').value = ''; accUI();
   passed(r.role === 'admin' ? 'Admin freigeschaltet' : 'Zugang freigeschaltet', 'Code ist jetzt an diesen PC gebunden');
 }
-async function accLogout() { await api('auth.logout'); ACC.loggedIn = false; ACC.role = null; accUI(); toast('Abgemeldet', 'Mit deinem Code kannst du dich auf diesem PC jederzeit wieder anmelden'); }
+async function accLogout() { if (!await confirmBox('Abmelden?', 'OrbitTweak wird gesperrt, bis du deinen Key wieder eingibst.')) return; await api('auth.logout'); ACC.loggedIn = false; ACC.role = null; accUI(); go('home'); gate('Abgemeldet. Gib deinen Key ein, um weiterzumachen.'); }
 window.accRedeem = accRedeem; window.accLogout = accLogout;
 document.addEventListener('input', e => { if (e.target.id === 'accCode') { let v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); if (v.startsWith('ORB')) v = v.slice(3); v = v.slice(0, 12); e.target.value = v ? 'ORB-' + v.match(/.{1,4}/g).join('-') : ''; } });
 
@@ -1601,7 +1601,7 @@ async function admLoad() {
     $('#admCount').textContent = r.codes.length;
     $('#admCodes').innerHTML = r.codes.length ? r.codes.map(c => `<div class="crow2 ${c.revoked ? 'off' : ''}">
       <code class="cc">${esc(c.code)}</code><button class="ib" title="Kopieren" onclick="copyCmd('${esc(c.code)}')">${ico('copy')}</button>
-      <span class="chip ${c.role === 'admin' ? 'a' : ''}">${c.role === 'admin' ? 'Admin' : 'Editor'}</span>
+      <span class="chip ${c.role === 'admin' ? 'a' : c.role === 'editor' ? 'g' : ''}">${c.role === 'admin' ? 'Admin' : c.role === 'editor' ? 'Editor' : 'Nutzer'}</span>
       <span class="cn">${esc(c.note || '')}${c.self ? ' <span class="muted">(du)</span>' : ''}</span>
       <span class="cs">${c.revoked ? '<span class="chip r">Gesperrt</span>' : c.hwid ? `<span class="chip g">Gebunden</span><span class="muted"> PC ${esc(c.hwid)} · aktiv vor ${ago(c.last_seen || c.bound_at)}</span>` : '<span class="chip w">Noch frei</span>'}</span>
       ${c.self ? '' : `${c.hwid ? `<button class="btn sm" onclick="admAct('unbind','${esc(c.code)}')">PC lösen</button>` : ''}<button class="btn sm ${c.revoked ? '' : 'd'}" onclick="admAct('revoke','${esc(c.code)}',${c.revoked ? 1 : 0})">${c.revoked ? 'Entsperren' : 'Sperren'}</button>`}
@@ -1620,12 +1620,12 @@ async function admLoad() {
   }
 }
 async function admCreate() {
-  const role = $('#admRole .on')?.dataset.v || 'editor';
+  const role = $('#admRole .on')?.dataset.v || 'user';
   const r = await srv('POST', '/api/codes', { role, note: $('#admNote').value });
   if (r.error) return toast('Fehler', r.error, false);
   $('#admNote').value = '';
   $('#admNewCode').classList.remove('hidden');
-  $('#admNewCode').innerHTML = `<div><span class="sub" style="font-size:12px">Neuer ${role === 'admin' ? 'Admin' : 'Editor'}-Code, nur einmal an einen PC bindbar:</span><code>${esc(r.code)}</code></div><button class="btn p" onclick="copyCmd('${esc(r.code)}')">${ico('copy')}Kopieren</button>`;
+  $('#admNewCode').innerHTML = `<div><span class="sub" style="font-size:12px">Neuer ${role === 'admin' ? 'Admin' : role === 'editor' ? 'Editor' : 'Nutzer'}-Key, wird an den ersten PC gebunden:</span><code>${esc(r.code)}</code></div><button class="btn p" onclick="copyCmd('${esc(r.code)}')">${ico('copy')}Kopieren</button>`;
   admLoad();
 }
 async function admAct(kind, code, undo) {
@@ -1643,6 +1643,70 @@ async function admMod(kind, id) {
   admLoad(); admPendingCount(); libLoad().then(libRender);
 }
 window.admCreate = admCreate; window.admAct = admAct; window.admMod = admMod; window.admLoad = admLoad;
+
+/* ======================= LICENSE GATE ======================= */
+const LOCK = { resolve: null, busy: false };
+const lkInputs = () => [0, 1, 2].map(i => $('#lkIn' + i));
+function gate(reason) {
+  return new Promise(res => {
+    LOCK.resolve = res;
+    const l = $('#lock'); l.classList.remove('out', 'ok'); l.classList.add('show');
+    $('#lkCard').classList.remove('done', 'busy');
+    $('#lkTitle').innerHTML = 'Willkommen bei <span class="grad">OrbitTweak</span>';
+    $('#lkSub').textContent = reason || 'Gib deinen Lizenz-Key ein, um OrbitTweak freizuschalten.';
+    $('#lkErr').textContent = ''; lkInputs().forEach(i => i.value = '');
+    $('.lk-bg').style.backgroundImage = `url('${bgUrl()}')`;
+    api('auth.info').then(i => $('#lkHwid').textContent = i.hwid || '…').catch(() => { });
+    setTimeout(() => lkInputs()[0].focus(), 600);
+  });
+}
+function lkFill(text) {
+  const v = text.toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^ORB/, '').slice(0, 12);
+  lkInputs().forEach((inp, i) => inp.value = v.slice(i * 4, i * 4 + 4));
+  const next = lkInputs().find(x => x.value.length < 4); (next || lkInputs()[2]).focus();
+}
+document.addEventListener('input', e => {
+  const i = lkInputs().indexOf(e.target); if (i < 0) return;
+  const v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (v.length > 4 || /ORB/.test(v)) return lkFill(lkInputs().map(x => x.value).join(''));
+  e.target.value = v; $('#lkKey').classList.remove('bad'); $('#lkErr').textContent = '';
+  if (v.length === 4 && i < 2) lkInputs()[i + 1].focus();
+});
+document.addEventListener('paste', e => { if (lkInputs().includes(e.target)) { e.preventDefault(); lkFill(e.clipboardData.getData('text')); } });
+document.addEventListener('keydown', e => {
+  const i = lkInputs().indexOf(e.target); if (i < 0) return;
+  if (e.key === 'Enter') lkSubmit();
+  if (e.key === 'Backspace' && !e.target.value && i > 0) lkInputs()[i - 1].focus();
+});
+async function lkSubmit() {
+  if (LOCK.busy) return;
+  const parts = lkInputs().map(x => x.value);
+  if (parts.some(p => p.length !== 4)) return lkFail('Bitte den kompletten Key eingeben (ORB-XXXX-XXXX-XXXX).');
+  LOCK.busy = true; $('#lkCard').classList.add('busy'); $('#lkErr').textContent = '';
+  const t0 = performance.now();
+  let r; try { r = await api('auth.redeem', { code: 'ORB-' + parts.join('-') }); } catch (e) { r = { error: e.message }; }
+  await sleep(Math.max(0, 900 - (performance.now() - t0)));   // let the scan animation breathe
+  $('#lkCard').classList.remove('busy'); LOCK.busy = false;
+  if (!r || r.error) return lkFail(r && r.error || 'Unbekannter Fehler');
+  await lkSuccess(r.note, r.role);
+}
+function lkFail(msg) {
+  const c = $('#lkCard'); c.classList.remove('shake'); void c.offsetWidth; c.classList.add('shake');
+  $('#lkKey').classList.add('bad'); $('#lkErr').textContent = msg;
+}
+async function lkSuccess(note, role) {
+  const c = $('#lkCard'); c.classList.add('done');
+  $('#lkTitle').innerHTML = 'Freigeschaltet';
+  $('#lkSub').textContent = (note ? `Willkommen, ${note}!` : 'Willkommen!') + (role === 'admin' ? ' Admin-Rechte aktiv.' : role === 'editor' ? ' Editor-Rechte aktiv.' : '');
+  ACC.loggedIn = true; ACC.role = role;
+  await sleep(1500);
+  $('#lock').classList.add('out');
+  await sleep(700);
+  $('#lock').classList.remove('show', 'out');
+  if (LOCK.resolve) { const r = LOCK.resolve; LOCK.resolve = null; r(); }
+  accUI && accUI();
+}
+$('#lkGo') && ($('#lkGo').onclick = lkSubmit);
 
 /* ======================= BOOT ======================= */
 async function boot() {
@@ -1671,13 +1735,19 @@ async function boot() {
   $('#mOs').textContent = `${d.sys.ramGb} GB RAM`;
   if (d.settings.lastBoost) $('#lastBoost').textContent = 'Letzter Boost: ' + new Date(d.settings.lastBoost).toLocaleDateString('de-DE');
   $('#launchSub').textContent = d.fivem.found ? 'mit Pre-Launch-Boost' : 'FiveM nicht gefunden';
+  if (S.settings.autoUpdate !== false) setTimeout(() => checkUpdate(false), 1500);   // updates work even without a key
+  const lic = await api('auth.check').catch(() => ({ ok: false }));
+  if (!lic.ok) {
+    setTimeout(hideSplash, Math.max(0, 1100 - (performance.now() - t0)));
+    await gate(lic.error && lic.error !== 'Nicht angemeldet' ? lic.error : null);
+  } else ACC.note = lic.note;
+  $('#lkGo').onclick = lkSubmit;
   feed(d.fivem.found ? 'FiveM erkannt: ' + d.fivem.path : 'FiveM nicht gefunden: Pfad im Launcher wählen');
   renderSettings(); renderLauncher(); initFx(d.settings); initMinimap(d.settings); initClip(d.settings); libLoad().then(accLoad); if (d.settings.bgVersion) { api('bg.clear').catch(() => { }); S.settings.bgVersion = 0; } applyBg(); initPad(d.settings);
   $('#snapTg').classList.toggle('on', !!d.settings.snapTap);
   await loadTweaks();
   refreshCache(); ping(); setInterval(ping, 8000); curServer();
   api('health').then(h => { S.health = h; $('#hsHealth').textContent = h.score + '%'; }).catch(() => { });
-  if (S.settings.autoUpdate !== false) setTimeout(() => checkUpdate(false), 1500);
   setInterval(() => { if (S.settings.autoUpdate !== false) checkUpdate(false); }, 2 * 3600 * 1000);
   setTimeout(hideSplash, Math.max(0, 1300 - (performance.now() - t0)));
   if (S.settings.firstRun) setTimeout(() => wizard(0), 1500);
@@ -1728,7 +1798,8 @@ const Mock = {
       case 'mods.install': return { count: 1 };
       case 'mods.lib': return { installed: [] };
       case 'auth.info': return { hwid: '3fa9c1e07b2d', role: 'admin', loggedIn: true };
-      case 'auth.redeem': return { ok: true, role: 'editor' };
+      case 'auth.check': return /lock/.test(location.search) ? { ok: false } : { ok: true, role: 'admin', note: 'Ky3ls' };
+      case 'auth.redeem': await sleep(400); return a.code.endsWith('0000') ? { error: 'Code ungültig oder gesperrt' } : { ok: true, role: 'admin', note: 'Ky3ls' };
       case 'auth.logout': return { ok: true };
       case 'srv': return MOCKSRV(a);
       case 'reshade.cfg.get': return { found: true, keyOverlay: 36, keyEffects: 145, keyScreenshot: 44, keyNext: 0, showFps: false, perf: true };
