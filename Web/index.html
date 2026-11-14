@@ -671,64 +671,108 @@
 
     <!-- ================= SETTINGS ================= -->
     <section class="page" id="p-settings">
-      <div class="ph"><div><div class="kicker">Einstellungen</div><h1>Setup & <span class="grad">Style</span></h1><p class="pd">Alles an einem Ort, sortiert nach Thema.</p></div></div>
-      <div class="tabs" id="setTabs"><button class="tab on" data-st="design">Design</button><button class="tab" data-st="general">Allgemein</button><button class="tab" data-st="updates">Updates<span class="c hidden" id="setUpdC">NEU</span></button><button class="tab" data-st="safety">Sicherheit</button><button class="tab" data-st="account">Konto</button></div>
+      <div class="ph"><div><div class="kicker">Einstellungen</div><h1><span class="grad">Einstellungen</span></h1><p class="pd">Konto, Aussehen, Verhalten und Updates.</p></div></div>
 
-      <div class="stab" id="st-design">
-        <div class="card">
-          <div class="lbl"><svg class="i"><use href="#sparkle"/></svg>Akzentfarbe</div>
-          <div class="themes mt" id="themes"></div>
-        </div>
-        <div class="card mt">
-          <div class="row"><div class="lbl"><svg class="i"><use href="#monitor"/></svg>Hintergrund (GTA V)</div></div>
-          <p class="sub" style="font-size:12.5px;margin-top:6px">Für Startseite, Ladebildschirm und Vorschauen.</p>
-          <div class="bg-grid" id="bgGrid"></div>
-          <p class="muted" style="font-size:11px;margin-top:12px;line-height:1.5">Screenshots aus Grand Theft Auto V. GTA V © Rockstar Games.</p>
-        </div>
+      <div class="card sprof">
+        <div class="sp-av" id="spAv"><svg class="i"><use href="#shield"/></svg></div>
+        <div class="sp-tx"><b id="spTitle">Lizenz aktiv</b><p id="spSub">OrbitTweak ist auf diesem PC freigeschaltet</p></div>
+        <span class="sp"></span>
+        <div class="sp-m"><span>Version</span><b id="spVer">–</b></div>
+        <div class="sp-m"><span>Updates</span><b id="spUpd">–</b></div>
+        <div class="sp-m"><span>Rolle</span><b id="spRole">–</b></div>
       </div>
 
-      <div class="stab hidden" id="st-general">
-        <div class="card"><div class="lbl"><svg class="i"><use href="#settings"/></svg>Verhalten</div><div id="setList" class="mt8"></div></div>
-      </div>
+      <div class="sgrid">
+        <nav class="snav" id="setTabs">
+          <button class="tab on" data-st="account"><svg class="i"><use href="#shield"/></svg><span>Konto<small>Lizenz &amp; PC</small></span></button>
+          <button class="tab" data-st="design"><svg class="i"><use href="#sparkle"/></svg><span>Design<small>Farbe &amp; Hintergrund</small></span></button>
+          <button class="tab" data-st="general"><svg class="i"><use href="#sliders"/></svg><span>Verhalten<small>Leistung &amp; Boost</small></span></button>
+          <button class="tab" data-st="updates"><svg class="i"><use href="#download"/></svg><span>Updates<small>Version &amp; Automatik</small></span><em class="c hidden" id="setUpdC">NEU</em></button>
+          <button class="tab" data-st="safety"><svg class="i"><use href="#undo"/></svg><span>Sicherheit<small>Wiederherstellen</small></span></button>
+          <button class="tab" data-st="about"><svg class="i"><use href="#heart"/></svg><span>Über<small>Hinweise &amp; Credits</small></span></button>
+        </nav>
 
-      <div class="stab hidden" id="st-updates">
-        <div class="card gb" id="updCard">
-          <div class="row">
-            <div class="lbl"><svg class="i"><use href="#download"/></svg>Updates</div><span class="sp"></span>
-            <button class="btn sm" id="updCheck" onclick="checkUpdate(true)"><svg class="i"><use href="#refresh"/></svg>Jetzt prüfen</button>
+        <div class="sbody">
+          <div class="stab" id="st-account">
+            <div class="card">
+              <div class="sh"><b>Lizenz</b><span class="chip" id="accRole">Nicht angemeldet</span></div>
+              <div id="accIn" class="hidden"><div class="acc-ok"><svg class="i"><use href="#check"/></svg><div><b id="accTitle">Angemeldet</b><p id="accText"></p></div><span class="sp"></span><button class="btn sm" onclick="accLogout()">Abmelden</button></div></div>
+              <div class="srow"><div><b>PC-ID</b><p>Dein Key ist fest an diesen PC gebunden</p></div><code id="accHwid" class="hwid">…</code></div>
+              <p class="warnline hidden" id="accNoSrv"><svg class="i"><use href="#alert"/></svg>Der OrbitTweak-Server ist gerade nicht erreichbar.</p>
+            </div>
+            <div class="card mt" id="accLogin">
+              <div class="sh"><b>Anderen Key einlösen</b></div>
+              <p class="sub" style="font-size:12.5px;line-height:1.5">Hast du einen Editor- oder Admin-Key bekommen? Hier einlösen, um mehr Rechte zu erhalten.</p>
+              <div class="acc-login mt8"><input class="in mono" id="accCode" placeholder="ORB-XXXX-XXXX-XXXX" maxlength="18"><button class="btn p" onclick="accRedeem()"><svg class="i"><use href="#check"/></svg>Einlösen</button></div>
+            </div>
           </div>
-          <div class="row" style="margin-top:12px;align-items:baseline"><div class="big" style="font-size:26px" id="verCur">2.1.0</div><span class="sub" id="updTxt">Noch nicht geprüft</span></div>
-          <div class="updnote hidden" id="updBox">
-            <div class="row"><b>Version <span id="updVer"></span> ist da</b><span class="chip" id="updDate"></span><span class="sp"></span>
-              <button class="btn p" id="updBtn" onclick="doUpdate()"><svg class="i"><use href="#download"/></svg><span>Herunterladen &amp; installieren</span></button></div>
-            <ul class="changes" id="updNotes"></ul>
-            <div class="bar hidden" id="updMeter" style="margin-top:12px"><i id="updBar" style="width:0"></i></div>
-            <div class="sub" style="font-size:11px;margin-top:6px" id="updProg"></div>
-          </div>
-          <div id="updSets" class="mt8"></div>
-        </div>
-      </div>
 
-      <div class="stab hidden" id="st-account">
-        <div class="card">
-          <div class="row"><div class="lbl"><svg class="i"><use href="#shield"/></svg>Zugang</div><span class="chip" id="accRole">Nicht angemeldet</span><span class="sp"></span><span class="sub" style="font-size:12px">PC-ID <code id="accHwid" class="hwid">…</code></span></div>
-          <p class="sub" style="font-size:12.5px;margin-top:8px;line-height:1.5">Dein Lizenz-Key ist fest an diesen PC gebunden. Hast du einen Editor- oder Admin-Key bekommen, kannst du ihn hier einlösen, um mehr Rechte zu erhalten.</p>
-          <div id="accLogin" class="acc-login mt"><input class="in mono" id="accCode" placeholder="ORB-XXXX-XXXX-XXXX" maxlength="18"><button class="btn p" onclick="accRedeem()"><svg class="i"><use href="#check"/></svg>Code einlösen</button></div>
-          <div id="accIn" class="hidden mt"><div class="acc-ok"><svg class="i"><use href="#check"/></svg><div><b id="accTitle">Angemeldet</b><p id="accText">Du kannst Mods zur Bibliothek hinzufügen.</p></div><span class="sp"></span><button class="btn sm" onclick="accLogout()">Abmelden</button></div></div>
-          <p class="warnline hidden" id="accNoSrv"><svg class="i"><use href="#alert"/></svg>Der OrbitTweak-Server wird gerade eingerichtet. Codes funktionieren, sobald er online ist.</p>
-        </div>
-      </div>
-
-      <div class="stab hidden" id="st-safety">
-        <div class="card">
-          <div class="lbl"><svg class="i"><use href="#shield"/></svg>Sicherheit & Wiederherstellung</div>
-          <div class="safe-grid mt">
-            <button class="card hov sa" onclick="restorePoint()"><div class="qi"><svg class="i"><use href="#shield"/></svg></div><b>Wiederherstellungspunkt</b><span>Windows-Snapshot jetzt erstellen</span></button>
-            <button class="card hov sa" onclick="api('open',{target:'rstrui.exe'})"><div class="qi"><svg class="i"><use href="#undo"/></svg></div><b>Systemwiederherstellung</b><span>Zu einem Snapshot zurück</span></button>
-            <button class="card hov sa" onclick="wizard(0)"><div class="qi"><svg class="i"><use href="#sparkle"/></svg></div><b>Setup-Assistent</b><span>Nochmal von vorne einrichten</span></button>
-            <button class="card hov sa" onclick="revertAll()"><div class="qi" style="background:rgba(248,113,113,.12);color:var(--bad)"><svg class="i"><use href="#undo"/></svg></div><b>Alle Tweaks zurücksetzen</b><span>Windows auf Standard</span></button>
+          <div class="stab hidden" id="st-design">
+            <div class="card">
+              <div class="sh"><b>Akzentfarbe</b><span class="sub" style="font-size:12px">Gilt für die ganze App und den Controller</span></div>
+              <div class="themes" id="themes"></div>
+            </div>
+            <div class="card mt">
+              <div class="sh"><b>Hintergrund</b><span class="sub" style="font-size:12px">Startseite, Ladebildschirm und Vorschauen</span></div>
+              <div class="bg-grid" id="bgGrid"></div>
+              <button class="hidden" id="bgClear"></button>
+              <p class="muted" style="font-size:11px;margin-top:12px">Screenshots aus Grand Theft Auto V. GTA V © Rockstar Games.</p>
+            </div>
           </div>
-          <p class="sub" style="font-size:12px;line-height:1.6;margin-top:16px;max-width:760px">OrbitTweak ändert Windows-Einstellungen und Caches. Es injiziert nichts und verändert FiveM nur, wenn du selbst Mods oder ReShade installierst. Fadenkreuz-/Minimap-Overlays, Snap Tap und Mods sind auf manchen Servern verboten, prüfe die Server-Regeln. Einstellungen liegen unter %AppData%\OrbitTweak.</p>
+
+          <div class="stab hidden" id="st-general">
+            <div class="card">
+              <div class="sh"><b>Leistung &amp; Boost</b></div>
+              <div id="setList"></div>
+            </div>
+          </div>
+
+          <div class="stab hidden" id="st-updates">
+            <div class="card gb" id="updCard">
+              <div class="supd">
+                <div class="su-ic"><svg class="i"><use href="#download"/></svg></div>
+                <div style="flex:1;min-width:0"><div class="su-v" id="verCur">–</div><span class="sub" id="updTxt">Noch nicht geprüft</span></div>
+                <button class="btn" id="updCheck" onclick="checkUpdate(true)"><svg class="i"><use href="#refresh"/></svg>Jetzt prüfen</button>
+              </div>
+              <div class="updnote hidden" id="updBox">
+                <div class="row"><b>Version <span id="updVer"></span> ist da</b><span class="chip" id="updDate"></span><span class="sp"></span>
+                  <button class="btn p" id="updBtn" onclick="doUpdate()"><svg class="i"><use href="#download"/></svg><span>Herunterladen &amp; installieren</span></button></div>
+                <ul class="changes" id="updNotes"></ul>
+                <div class="bar hidden" id="updMeter" style="margin-top:12px"><i id="updBar" style="width:0"></i></div>
+                <div class="sub" style="font-size:11px;margin-top:6px" id="updProg"></div>
+              </div>
+            </div>
+            <div class="card mt">
+              <div class="sh"><b>Automatik</b></div>
+              <div id="updSets"></div>
+            </div>
+          </div>
+
+          <div class="stab hidden" id="st-safety">
+            <div class="card">
+              <div class="sh"><b>Wiederherstellen</b><span class="sub" style="font-size:12px">Falls nach einem Tweak etwas nicht passt</span></div>
+              <div class="slinks">
+                <button onclick="restorePoint()"><span class="qi"><svg class="i"><use href="#shield"/></svg></span><span><b>Wiederherstellungspunkt erstellen</b><small>Windows-Snapshot vom jetzigen Stand</small></span><svg class="i ch"><use href="#chev"/></svg></button>
+                <button onclick="api('open',{target:'rstrui.exe'})"><span class="qi"><svg class="i"><use href="#undo"/></svg></span><span><b>Systemwiederherstellung öffnen</b><small>Zu einem früheren Snapshot zurück</small></span><svg class="i ch"><use href="#chev"/></svg></button>
+                <button onclick="wizard(0)"><span class="qi"><svg class="i"><use href="#sparkle"/></svg></span><span><b>Setup-Assistent starten</b><small>OrbitTweak nochmal von vorne einrichten</small></span><svg class="i ch"><use href="#chev"/></svg></button>
+                <button class="bad" onclick="revertAll()"><span class="qi"><svg class="i"><use href="#undo"/></svg></span><span><b>Alle Tweaks zurücksetzen</b><small>Windows, Netzwerk, Input und FiveM auf Standard</small></span><svg class="i ch"><use href="#chev"/></svg></button>
+              </div>
+            </div>
+          </div>
+
+          <div class="stab hidden" id="st-about">
+            <div class="card">
+              <div class="sh"><b>Was OrbitTweak macht</b></div>
+              <p class="sub" style="font-size:12.5px;line-height:1.65">OrbitTweak ändert Windows-Einstellungen und Caches. Es injiziert nichts in FiveM und verändert das Spiel nur, wenn du selbst Mods oder ReShade installierst. Einstellungen liegen unter <code>%AppData%\OrbitTweak</code>.</p>
+              <div class="xnote mt"><svg class="i"><use href="#alert"/></svg><div><b>Server-Regeln beachten:</b> Fadenkreuz-Overlay, Snap Tap, Mods und ReShade sind auf manchen Servern verboten.</div></div>
+            </div>
+            <div class="card mt">
+              <div class="sh"><b>Credits</b></div>
+              <div class="srow"><div><b>Hintergrundbilder</b><p>Screenshots aus Grand Theft Auto V · © Rockstar Games</p></div></div>
+              <div class="srow"><div><b>Controller-Grafiken</b><p>Gamepad Viewer „Dracula“-Skin · MIT-Lizenz</p></div></div>
+              <div class="srow"><div><b>ReShade-Shader</b><p>ReShade, SweetFX und reshade-shaders · jeweilige Lizenzen</p></div></div>
+            </div>
+          </div>
         </div>
       </div>
     </section>

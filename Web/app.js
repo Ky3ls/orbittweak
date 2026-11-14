@@ -104,7 +104,7 @@ function go(p) {
   $$('.nav').forEach(n => n.classList.toggle('active', n.dataset.p === (NAV_OF[p] || p)));
   $$('.page').forEach(s => s.classList.toggle('show', s.id === 'p-' + p));
   moveInd(); enterPage($('#p-' + p));
-  ({ servers: () => S.servers.length || loadServers(), gfx: () => { S.gfx || loadGfx(); gwRefresh(); }, f8: () => loadF8().then(renderF8), admin: () => admShow(admTab), minimap: modsRefresh, clip: clipList, mods: modsRefresh, settings: () => setTab($('#setTabs .tab.on')?.dataset.st || 'design'), xhair: () => setTimeout(xhPlace, 30), cleaner: () => S.clean.length || scan(),
+  ({ servers: () => S.servers.length || loadServers(), gfx: () => { S.gfx || loadGfx(); gwRefresh(); }, f8: () => loadF8().then(renderF8), admin: () => admShow(admTab), minimap: modsRefresh, clip: clipList, mods: modsRefresh, settings: () => { setTab($('#setTabs .tab.on')?.dataset.st || 'account'); spProfile(); }, xhair: () => setTimeout(xhPlace, 30), cleaner: () => S.clean.length || scan(),
      diag: () => { S.health ? renderHealth(S.health) : runHealth(); loadLogs(); }, launcher: renderCmd, home: refreshCache })[p]?.();
 }
 window.go = go;
@@ -588,14 +588,14 @@ const SETS = [
 function renderSettings() {
   const cur = themeKey(S.settings.accent);
   $('#themes').innerHTML = Object.entries(THEMES).map(([k, [n, a, b]]) => `<div class="sw ${k === cur ? 'on' : ''}" data-th="${k}"><i style="background:linear-gradient(135deg,${a},${b})"></i>${n}</div>`).join('');
-  const row = ([k, n, d]) => `<div class="srow"><div><b>${n}</b><p>${d}</p></div><div class="tg ${S.settings[k] ? 'on' : ''}" data-set="${k}"></div></div>`;
+  const row = ([k, n, d]) => `<div class="srow sclick"><div><b>${n}</b><p>${d}</p></div><div class="tg ${S.settings[k] ? 'on' : ''}" data-set="${k}"></div></div>`;
   $('#setList').innerHTML = SETS.filter(s => !['autoUpdate', 'autoInstall'].includes(s[0])).map(row).join('');
   $('#updSets').innerHTML = SETS.filter(s => ['autoUpdate', 'autoInstall'].includes(s[0])).map(row).join('');
 }
 document.addEventListener('click', e => {
   const th = e.target.closest('[data-th]');
   if (th) { S.settings.accent = th.dataset.th; applyTheme(th.dataset.th); renderSettings(); api('settings.set', { key: 'accent', value: th.dataset.th }); padDraw(); padPush(); return; }
-  const st = e.target.closest('[data-set]');
+  const st = e.target.closest('[data-set]') || e.target.closest('.sclick')?.querySelector('[data-set]');
   if (st) { const k = st.dataset.set; S.settings[k] = !S.settings[k]; st.classList.toggle('on'); api('settings.set', { key: k, value: S.settings[k] }); if (!k.startsWith('auto') || k === 'autoRamClean' || k === 'autoPriority') loadTweaks(); }
 });
 async function restorePoint() { toast('Wird erstellt…', 'Kann bis zu einer Minute dauern'); const r = await api('restore'); toast(r.ok ? 'Wiederherstellungspunkt erstellt' : 'Fehlgeschlagen', r.ok ? 'Du kannst jederzeit zurück' : 'Ist der Computerschutz aktiviert?', r.ok); }
@@ -1274,6 +1274,7 @@ function setTab(t) {
   $$('.stab').forEach(s => s.classList.toggle('hidden', s.id !== 'st-' + t));
   if (t === 'design') bgGrid();
   if (t === 'account') accLoad();
+  enterPage($('#p-settings'));
 }
 window.setTab = setTab;
 document.addEventListener('click', e => { const t = e.target.closest('#setTabs .tab'); if (t) setTab(t.dataset.st); });
@@ -1567,7 +1568,9 @@ function accUI() {
   $('#accText').textContent = r === 'admin' ? 'Du kannst Keys erzeugen, Mods direkt live stellen und Einreichungen freigeben.' : r === 'editor' ? 'Du kannst Mods einreichen. Ein Admin gibt sie frei.' : 'OrbitTweak ist auf diesem PC freigeschaltet.';
   $('#accNoSrv').classList.add('hidden');
   $('#navAdmin').classList.toggle('hidden', r !== 'admin');
+  moveInd();
   $('#libAdd').classList.toggle('hidden', !(r === 'admin' || r === 'editor'));
+  spProfile();
 }
 async function accRedeem() {
   const code = $('#accCode').value.trim().toUpperCase();
@@ -1899,3 +1902,17 @@ document.addEventListener('click', e => {
   const b = e.target.closest('[data-tabs] .tab'); if (b) return pageTab(b.closest('[data-tabs]').dataset.tabs, b.dataset.tab);
   const g = e.target.closest('[data-gotab]'); if (g) { const [grp, k] = g.dataset.gotab.split(':'); pageTab(grp, k); }
 });
+
+/* ======================= SETTINGS PROFILE (2.18) ======================= */
+function spProfile() {
+  if (!$('#spTitle')) return;
+  const r = (typeof ACC !== 'undefined' && ACC.loggedIn) ? ACC.role : (S.settings.authRole || null);
+  const rn = r === 'admin' ? 'Admin' : r === 'editor' ? 'Editor' : r ? 'Nutzer' : '–';
+  $('#spTitle').textContent = r ? 'Lizenz aktiv' : 'Lizenz';
+  $('#spSub').textContent = r ? 'Freigeschaltet und an diesen PC gebunden' : 'Status wird geladen…';
+  $('#spRole').textContent = rn;
+  $('#spAv').className = 'sp-av' + (r === 'admin' ? ' adm' : '');
+  $('#spVer').textContent = $('#verCur')?.textContent || '–';
+  const ut = $('#updTxt')?.textContent || '';
+  $('#spUpd').textContent = /neue/i.test(ut) ? 'Update da' : /neueste/i.test(ut) ? 'Aktuell' : S.settings.autoUpdate ? 'Automatisch' : 'Manuell';
+}

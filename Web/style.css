@@ -976,3 +976,46 @@ select.sel{width:auto;height:30px;padding:0 8px;font-size:12px;border-radius:9px
 .tlist .tw:hover{background:rgba(255,255,255,.025)}
 .tlist .tw .ti{background:rgba(255,255,255,.04);color:var(--sub);transition:background .25s,color .25s}
 .tlist .tw.on .ti{background:rgba(var(--a-rgb),.12);color:var(--a)}
+
+/* 2.18 settings */
+.sprof{display:flex;align-items:center;gap:16px;padding:18px 22px;margin-bottom:16px;background:radial-gradient(120% 160% at 0 0,rgba(var(--a-rgb),.13),transparent 55%),var(--card)}
+.sp-av{width:48px;height:48px;border-radius:15px;display:grid;place-items:center;background:rgba(255,255,255,.05);color:var(--sub);flex:none}
+.sp-av.adm{background:var(--grad);color:var(--on);box-shadow:0 8px 22px -10px rgba(var(--a-rgb),.9)}
+.sp-av svg.i{width:22px;height:22px}
+.sp-tx b{font-family:var(--disp);font-size:17px;font-weight:650;letter-spacing:-.01em}
+.sp-tx p{font-size:12.5px;color:var(--sub);margin-top:2px}
+.sp-m{padding:0 18px;border-left:1px solid var(--line);min-width:96px}
+.sp-m span{display:block;font-size:11px;color:var(--mute)}
+.sp-m b{font-size:14px;font-weight:600}
+.sgrid{display:grid;grid-template-columns:230px 1fr;gap:16px;align-items:start}
+.snav{display:flex;flex-direction:column;gap:4px;padding:6px;border-radius:16px;background:rgba(255,255,255,.02);border:1px solid var(--line);position:sticky;top:0}
+.snav .tab{height:auto;padding:10px 12px;gap:12px;justify-content:flex-start;text-align:left;border-radius:11px}
+.snav .tab>svg.i{width:18px;height:18px;color:var(--mute);flex:none;transition:color .25s}
+.snav .tab.on>svg.i{color:var(--a)}
+.snav .tab span{display:flex;flex-direction:column;font-size:13.5px;font-weight:600}
+.snav .tab small{font-size:11px;font-weight:450;color:var(--mute);margin-top:1px}
+.snav .tab em.c{margin-left:auto;font-style:normal;font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:99px;background:var(--grad);color:var(--on)}
+.snav .tab em.c.hidden{display:none}
+.sbody{min-width:0}
+.sbody .stab{animation:rise .5s var(--ease) both}
+.sh{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.sh b{font-family:var(--disp);font-size:15.5px;font-weight:650;letter-spacing:-.01em;margin-right:auto}
+.sbody .srow{padding:14px 0}
+.sclick{cursor:pointer}
+.sbody .themes{margin-top:4px}
+.supd{display:flex;align-items:center;gap:16px}
+.su-ic{width:48px;height:48px;border-radius:15px;display:grid;place-items:center;background:rgba(var(--a-rgb),.12);color:var(--a);flex:none}
+.su-ic svg.i{width:22px;height:22px}
+.su-v{font-family:var(--disp);font-size:26px;font-weight:700;letter-spacing:-.03em;line-height:1.1}
+.slinks{display:flex;flex-direction:column}
+.slinks button{display:flex;align-items:center;gap:14px;padding:13px 10px;margin:0 -10px;border-radius:12px;text-align:left;transition:background .25s}
+.slinks button+button{border-top:1px solid var(--line)}
+.slinks button:hover{background:rgba(255,255,255,.03)}
+.slinks .qi{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:rgba(var(--a-rgb),.1);color:var(--a);flex:none}
+.slinks button>span:nth-child(2){flex:1;display:flex;flex-direction:column}
+.slinks b{font-weight:600;font-size:13.5px}
+.slinks small{font-size:12px;color:var(--sub);margin-top:1px}
+.slinks .ch{width:16px;height:16px;color:var(--mute);transition:transform .25s}
+.slinks button:hover .ch{transform:translateX(3px);color:var(--text)}
+.slinks button.bad .qi{background:rgba(248,113,113,.12);color:var(--bad)}
+.slinks button.bad b{color:var(--bad)}
