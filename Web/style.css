@@ -1019,3 +1019,9 @@ select.sel{width:auto;height:30px;padding:0 8px;font-size:12px;border-radius:9px
 .slinks button:hover .ch{transform:translateX(3px);color:var(--text)}
 .slinks button.bad .qi{background:rgba(248,113,113,.12);color:var(--bad)}
 .slinks button.bad b{color:var(--bad)}
+
+/* 2.19 auto clip */
+.cl-auto{margin-top:12px;transition:opacity .3s}
+.cl-auto.off{opacity:.45;pointer-events:none}
+.cs-i.dim>svg.i{background:rgba(255,255,255,.04);color:var(--mute)}
+.clstat{flex-wrap:wrap}

@@ -434,7 +434,7 @@
       <div class="card clstat" id="clStat"></div>
       <div class="tabs vtabs" data-tabs="clip">
         <button class="tab on" data-tab="gal"><svg class="i"><use href="#play"/></svg>Deine Clips<span class="vt-s" id="clCount">0</span></button>
-        <button class="tab" data-tab="setup"><svg class="i"><use href="#settings"/></svg>Einrichtung<span class="vt-s">Programm, Taste, Einblendung</span></button>
+        <button class="tab" data-tab="setup"><svg class="i"><use href="#settings"/></svg>Einrichtung<span class="vt-s">Programm, Taste, Auto-Clip</span></button>
       </div>
       <div data-pane="clip:gal">
         <div class="card">
@@ -447,7 +447,13 @@
           <div class="cl-step"><span class="cl-n">1</span><div class="cl-sb"><b>Aufnahme-Programm</b><p>Womit wird aufgenommen?</p><div class="cl-recs" id="clRecs"></div><p class="sub" id="clRecTxt" style="font-size:12.5px;margin-top:10px;line-height:1.5"></p></div></div>
           <div class="cl-step"><span class="cl-n">2</span><div class="cl-sb"><b>Clip-Taste</b><p>Diese Taste speichert im Spiel den Clip</p><div class="seg keyseg mt8" id="clKey"></div></div></div>
           <div class="cl-step"><span class="cl-n">3</span><div class="cl-sb row"><div style="flex:1"><b>Einblendung im Spiel</b><p>Kurzes „Clip gespeichert“ oben im Bild</p></div><div class="tg" id="clFlash"></div></div></div>
-          <p class="muted" style="font-size:11.5px;margin-top:12px">Kein Auto-Clip bei Kills: Dafür müsste OrbitTweak das Spiel auslesen, und das erkennen Anti-Cheats als Cheat.</p>
+          <div class="cl-step"><span class="cl-n">4</span><div class="cl-sb">
+            <div class="row"><div style="flex:1"><b>Auto-Clip nach Gefechten</b><p>Speichert automatisch einen Clip, sobald ein Schusswechsel vorbei ist</p></div><div class="tg" id="clAuto"></div></div>
+            <div id="clAutoOpts" class="cl-auto">
+              <div class="row" style="gap:14px;flex-wrap:wrap"><span class="sub" style="font-size:12.5px">Empfindlichkeit</span><div class="seg" id="clSens"></div></div>
+              <div class="xnote mt8"><svg class="i"><use href="#alert"/></svg><div><b>So funktioniert es:</b> OrbitTweak achtet nur auf deine linke Maustaste, während du in FiveM spielst (nicht in Menüs). Nach einer Schuss-Serie und 3 Sekunden Ruhe wird der Clip gespeichert. Das Spiel wird nicht ausgelesen, deshalb erkennt es Gefechte, nicht einzelne Kills. Stell die Instant-Replay-Länge in deinem Aufnahme-Programm auf mindestens 30 Sekunden.</div></div>
+            </div>
+          </div></div>
         </div>
       </div>
     </section>

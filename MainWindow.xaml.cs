@@ -27,6 +27,7 @@ public partial class MainWindow : Window
     private readonly CrosshairOverlay _xhair = new();
     private readonly CrosshairOverlay _minimap = new() { Anchor = Anchor.BottomLeft };
     private readonly SnapTap _snap = new();
+    private readonly AutoClip _autoClip = new();
     private readonly PadOverlay _pad = new();
     private CoreWebView2Environment? _env;
     private bool _padWatch;
@@ -74,6 +75,11 @@ public partial class MainWindow : Window
         AppDomain.CurrentDomain.ProcessExit += (_, _) => { ScreenColor.Restore(); NvVibrance.Restore(); };
         Application.Current.ShutdownMode = ShutdownMode.OnMainWindowClose;
         _live.Tick += (_, _) => LiveTick();
+        _autoClip.Fight += (shots, secs) => Dispatcher.InvokeAsync(async () =>
+        {
+            if (!_authed || !S.Clip.Auto) return;
+            await SaveClip($"Auto-Clip nach Gefecht ({shots} Schüsse)");
+        });
         // Snap Tap, timer resolution etc. only start after a valid key (see OnAuthed)
         _pad.Configure(S.Pad, S.Pad.Layout == "auto" ? "xbox" : S.Pad.Layout);
         _live.Start();
@@ -191,13 +197,14 @@ public partial class MainWindow : Window
         _authed = true; S.AuthRole = role ?? S.AuthRole; S.AuthOkUntil = DateTime.Now.AddDays(3); S.Save();
         if (!first) return;
         if (S.SnapTap) _snap.Enable(true);
+        _autoClip.Sens = S.Clip.Sens; _autoClip.Enable(S.Clip.Auto);
         if (S.TimerRes) Catalog.SetTimerResolution(true);
     }
 
     private void Lock()
     {
         _authed = false; S.AuthToken = null; S.AuthRole = null; S.AuthOkUntil = null; S.Save();
-        _snap.Enable(false); Catalog.SetTimerResolution(false); LiveTick();
+        _snap.Enable(false); _autoClip.Enable(false); Catalog.SetTimerResolution(false); LiveTick();
     }
 
     private async Task<object?> Handle(string cmd, JsonElement a)
@@ -377,6 +384,8 @@ public partial class MainWindow : Window
             case "clip.cfg":
             {
                 S.Clip.Key = Int(a, "key"); S.Clip.Flash = Bool(a, "flash");
+                S.Clip.Auto = Bool(a, "auto"); var sens = Int(a, "sens"); S.Clip.Sens = sens is >= 1 and <= 3 ? sens : 2;
+                _autoClip.Sens = S.Clip.Sens; _autoClip.Enable(S.Clip.Auto && _authed);
                 var rec = Str(a, "recorder"); if (Clipper.Recorders.ContainsKey(rec)) S.Clip.Recorder = rec;
                 var png = Str(a, "png"); if (png.Length > 0) _flash.SetImage(Convert.FromBase64String(png), 0, 40);
                 S.Save();
@@ -787,6 +796,7 @@ public partial class MainWindow : Window
         }
         bool game = GameFocus.IsGame();
         SnapTap.GameInFront = game;
+        AutoClip.GameInFront = game;
         // after the game has been in front for 20 s, apply the saved F8 settings once per game session
         if (game)
         {
@@ -832,7 +842,7 @@ public partial class MainWindow : Window
     private void StopLive()
     {
         _live.Stop();
-        _xhair.Close(); _minimap.Close(); _snap.Enable(false); _pad.Close();
+        _xhair.Close(); _minimap.Close(); _snap.Enable(false); _autoClip.Enable(false); _pad.Close();
         ScreenColor.Restore(); NvVibrance.Restore();
         var h = new WindowInteropHelper(this).Handle;
         if (h != IntPtr.Zero) { UnregisterHotKey(h, HK_XHAIR); UnregisterHotKey(h, HK_DISPLAY); UnregisterHotKey(h, HK_CLIP); }
@@ -859,11 +869,11 @@ public partial class MainWindow : Window
         Emit("pad", PadInput.State);
     }
 
-    private async Task SaveClip()
+    private async Task SaveClip(string? auto = null)
     {
         await Clipper.Save(S.Clip.Recorder);
-        Log($"🎬 Clip gespeichert ({Clipper.Recorders[S.Clip.Recorder].label})");
-        Emit("clip", new { recorder = S.Clip.Recorder });
+        Log(auto != null ? $"🎬 {auto}" : $"🎬 Clip gespeichert ({Clipper.Recorders[S.Clip.Recorder].label})");
+        Emit("clip", new { recorder = S.Clip.Recorder, auto });
         if (S.Clip.Flash) _flashUntil = DateTime.Now.AddSeconds(1.8);
         LiveTick();
     }

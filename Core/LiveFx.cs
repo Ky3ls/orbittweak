@@ -37,6 +37,8 @@ public class ClipCfg
     public int Key { get; set; } = 0x78;              // F9
     public string Recorder { get; set; } = "nvidia";  // nvidia | gamebar | amd | obs
     public bool Flash { get; set; } = true;
+    public bool Auto { get; set; }                    // auto-clip after a firefight
+    public int Sens { get; set; } = 2;                // 1 = only big fights, 2 = normal, 3 = every shot exchange
 }
 
 public enum Anchor { Center, BottomLeft, TopCenter }
@@ -745,5 +747,71 @@ internal static class Clipper
         Reg.Set(k, "AppCaptureEnabled", 1);
         Reg.Set(k, "HistoricalCaptureEnabled", 1);
         Reg.Set(@"HKCU\System\GameConfigStore", "GameDVR_Enabled", 1);
+    }
+}
+
+
+/// <summary>
+/// Auto-clip: watches only the user's own mouse (left button) while FiveM is in front and the cursor is hidden
+/// (= actual gameplay, not menus). A burst of shooting followed by a few quiet seconds counts as a firefight,
+/// then the normal clip hotkey of the recorder is sent. Nothing in the game is read.
+/// </summary>
+internal sealed class AutoClip
+{
+    [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int vk);
+    [StructLayout(LayoutKind.Sequential)] private struct CURSORINFO { public int cbSize, flags; public IntPtr hCursor; public int x, y; }
+    [DllImport("user32.dll")] private static extern bool GetCursorInfo(ref CURSORINFO ci);
+
+    public static volatile bool GameInFront;
+    public volatile int Sens = 2;
+    public event Action<int, double>? Fight; // shots, seconds of fire
+    private volatile bool _on;
+    private Thread? _t;
+    private DateTime _last = DateTime.MinValue;
+
+    public void Enable(bool on)
+    {
+        _on = on;
+        if (on && (_t == null || !_t.IsAlive))
+        {
+            _t = new Thread(Loop) { IsBackground = true, Name = "OrbitAutoClip", Priority = ThreadPriority.BelowNormal };
+            _t.Start();
+        }
+    }
+
+    private static bool CursorHidden()
+    {
+        var ci = new CURSORINFO { cbSize = Marshal.SizeOf<CURSORINFO>() };
+        return GetCursorInfo(ref ci) && (ci.flags & 1) == 0;
+    }
+
+    private void Loop()
+    {
+        DateTime start = DateTime.MinValue, lastShot = DateTime.MinValue;
+        int shots = 0; double fire = 0; bool was = false;
+        while (_on)
+        {
+            Thread.Sleep(16);
+            var now = DateTime.UtcNow;
+            bool lmb = GameInFront && (GetAsyncKeyState(0x01) & 0x8000) != 0 && CursorHidden();
+            if (lmb)
+            {
+                if (!was) { shots++; if (start == DateTime.MinValue) start = now; }
+                fire += 0.016; lastShot = now;
+            }
+            was = lmb;
+            if (start == DateTime.MinValue) continue;
+            // fight is over after 3 s without shooting, or forced after 45 s so the replay buffer still holds it
+            if ((now - lastShot).TotalSeconds >= 3 || (now - start).TotalSeconds >= 45)
+            {
+                var (needShots, needFire) = Sens switch { 1 => (12, 3.0), 3 => (3, 0.6), _ => (6, 1.4) };
+                if ((shots >= needShots || fire >= needFire) && (now - _last).TotalSeconds >= 20)
+                {
+                    _last = now;
+                    try { Fight?.Invoke(shots, Math.Round(fire, 1)); } catch { }
+                }
+                start = DateTime.MinValue; shots = 0; fire = 0;
+            }
+        }
     }
 }
