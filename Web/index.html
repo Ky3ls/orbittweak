@@ -448,11 +448,30 @@
           <div class="cl-step"><span class="cl-n">2</span><div class="cl-sb"><b>Clip-Taste</b><p>Diese Taste speichert im Spiel den Clip</p><div class="seg keyseg mt8" id="clKey"></div></div></div>
           <div class="cl-step"><span class="cl-n">3</span><div class="cl-sb row"><div style="flex:1"><b>Einblendung im Spiel</b><p>Kurzes „Clip gespeichert“ oben im Bild</p></div><div class="tg" id="clFlash"></div></div></div>
           <div class="cl-step"><span class="cl-n">4</span><div class="cl-sb">
-            <div class="row"><div style="flex:1"><b>Auto-Clip nach Gefechten</b><p>Speichert automatisch einen Clip, sobald ein Schusswechsel vorbei ist</p></div><div class="tg" id="clAuto"></div></div>
-            <div id="clAutoOpts" class="cl-auto">
-              <div class="row" style="gap:14px;flex-wrap:wrap"><span class="sub" style="font-size:12.5px">Empfindlichkeit</span><div class="seg" id="clSens"></div></div>
-              <div class="xnote mt8"><svg class="i"><use href="#alert"/></svg><div><b>So funktioniert es:</b> OrbitTweak achtet nur auf deine linke Maustaste, während du in FiveM spielst (nicht in Menüs). Nach einer Schuss-Serie und 3 Sekunden Ruhe wird der Clip gespeichert. Das Spiel wird nicht ausgelesen, deshalb erkennt es Gefechte, nicht einzelne Kills. Stell die Instant-Replay-Länge in deinem Aufnahme-Programm auf mindestens 30 Sekunden.</div></div>
+            <b>Auto-Clip</b><p>OrbitTweak speichert Clips von selbst, du musst keine Taste drücken</p>
+            <div class="ac-box">
+              <div class="row"><div class="ac-ic"><svg class="i"><use href="#crosshair"/></svg></div><div style="flex:1"><b>Bei Kills</b><p>Liest den Kill-Feed vom Bildschirm und clippt, wenn dein Name als Killer erscheint</p></div><div class="tg" id="clKills"></div></div>
+              <div id="clKillOpts" class="cl-auto">
+                <div class="ac-grid">
+                  <label><span>Dein Ingame-Name (wie im Kill-Feed)</span><input class="in" id="clName" maxlength="40" placeholder="z. B. Max_Power"></label>
+                  <label><span>Wo steht der Kill-Feed?</span><div class="seg" id="clArea"></div></label>
+                </div>
+                <div class="row mt8" style="gap:12px;flex-wrap:wrap">
+                  <div class="row" style="gap:10px"><div class="tg sm" id="clDeaths"></div><span class="sub" style="font-size:12.5px">Auch clippen, wenn ich sterbe</span></div>
+                  <span class="sp"></span>
+                  <button class="btn sm" id="clKfTest"><svg class="i"><use href="#eye"/></svg>Erkennung testen</button>
+                </div>
+                <div id="clKfOut" class="kf-out hidden"></div>
+                <p class="muted" style="font-size:11.5px;margin-top:10px;line-height:1.5">Funktioniert mit FiveM im Modus <b>Randlos</b> oder <b>Fenster</b> und auf Servern, deren Kill-Feed Spielernamen als Text zeigt. Das Spiel wird nicht ausgelesen: OrbitTweak schaut nur auf den Bildschirm, wie eine Aufnahme-Software.</p>
+              </div>
             </div>
+            <div class="ac-box">
+              <div class="row"><div class="ac-ic"><svg class="i"><use href="#target"/></svg></div><div style="flex:1"><b>Nach Gefechten</b><p>Für Server ohne Kill-Feed: clippt nach einer Schuss-Serie (linke Maustaste) und 3 Sekunden Ruhe</p></div><div class="tg" id="clAuto"></div></div>
+              <div id="clAutoOpts" class="cl-auto">
+                <div class="row" style="gap:14px;flex-wrap:wrap"><span class="sub" style="font-size:12.5px">Empfindlichkeit</span><div class="seg" id="clSens"></div></div>
+              </div>
+            </div>
+            <p class="muted" style="font-size:11.5px;margin-top:10px">Stell die Instant-Replay-Länge in deinem Aufnahme-Programm auf mindestens 30 Sekunden.</p>
           </div></div>
         </div>
       </div>

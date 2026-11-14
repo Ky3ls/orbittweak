@@ -1025,3 +1025,30 @@ select.sel{width:auto;height:30px;padding:0 8px;font-size:12px;border-radius:9px
 .cl-auto.off{opacity:.45;pointer-events:none}
 .cs-i.dim>svg.i{background:rgba(255,255,255,.04);color:var(--mute)}
 .clstat{flex-wrap:wrap}
+
+/* 2.20 kill feed auto clip */
+.ac-box{margin-top:12px;padding:14px;border-radius:14px;border:1px solid var(--line);background:rgba(255,255,255,.02)}
+.ac-box>.row{gap:12px}
+.ac-box b{font-size:13.5px}
+.ac-ic{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;background:rgba(var(--a-rgb),.1);color:var(--a);flex:none}
+.ac-ic svg.i{width:17px;height:17px}
+.ac-grid{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:end}
+.ac-grid label span{display:block;font-size:12px;color:var(--sub);margin-bottom:6px}
+.ac-grid .seg button{height:28px;padding:0 10px;font-size:11.5px}
+.ac-grid .in{height:38px}
+.tg.sm{transform:scale(.82);transform-origin:left center}
+.kf-out{margin-top:12px;padding:12px;border-radius:12px;background:rgba(0,0,0,.25);border:1px solid var(--line)}
+.kf-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+.kf-img{display:flex;flex-direction:column;gap:6px}
+.kf-img img{width:100%;border-radius:8px;border:1px solid var(--line);background:#000}
+.kf-img span{font-size:11px;color:var(--mute)}
+.kf-lines b{display:block;font-size:12px;margin-bottom:6px}
+.kf-l{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:8px;font-family:var(--mono);font-size:11.5px;color:var(--sub)}
+.kf-l+.kf-l{margin-top:3px}
+.kf-l em{font-style:normal;font-family:var(--body);font-size:9.5px;font-weight:700;padding:2px 6px;border-radius:99px}
+.kf-l.kill{background:rgba(52,211,153,.08);color:var(--text)}
+.kf-l.kill em{background:#34D399;color:#05261A}
+.kf-l.death{background:rgba(248,113,113,.08);color:var(--text)}
+.kf-l.death em{background:var(--bad);color:#2A0808}
+.kf-err{display:flex;align-items:center;gap:8px;font-size:12px;color:#FACC15;margin-bottom:10px}
+.kf-err svg.i{width:15px;height:15px;flex:none}

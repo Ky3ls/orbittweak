@@ -28,6 +28,8 @@ public partial class MainWindow : Window
     private readonly CrosshairOverlay _minimap = new() { Anchor = Anchor.BottomLeft };
     private readonly SnapTap _snap = new();
     private readonly AutoClip _autoClip = new();
+    private readonly KillFeed _killFeed = new();
+    private DateTime _kfSaveAt; private bool _kfPending; private int _kfKills, _kfDeaths;
     private readonly PadOverlay _pad = new();
     private CoreWebView2Environment? _env;
     private bool _padWatch;
@@ -79,6 +81,20 @@ public partial class MainWindow : Window
         {
             if (!_authed || !S.Clip.Auto) return;
             await SaveClip($"Auto-Clip nach Gefecht ({shots} Schüsse)");
+        });
+        _killFeed.Hit += kill => Dispatcher.InvokeAsync(async () =>
+        {
+            if (!_authed || !S.Clip.Kills) return;
+            if (kill) _kfKills++; else _kfDeaths++;
+            Emit("kill", new { kill });
+            // several kills in a row end up in one clip: save 3 s after the last one
+            _kfSaveAt = DateTime.Now.AddSeconds(3);
+            if (_kfPending) return;
+            _kfPending = true;
+            while (DateTime.Now < _kfSaveAt) await Task.Delay(250);
+            var what = _kfKills > 1 ? $"{_kfKills} Kills" : _kfKills == 1 ? "Kill" : "Tod";
+            _kfKills = 0; _kfDeaths = 0; _kfPending = false;
+            await SaveClip($"Auto-Clip: {what} erkannt");
         });
         // Snap Tap, timer resolution etc. only start after a valid key (see OnAuthed)
         _pad.Configure(S.Pad, S.Pad.Layout == "auto" ? "xbox" : S.Pad.Layout);
@@ -198,13 +214,14 @@ public partial class MainWindow : Window
         if (!first) return;
         if (S.SnapTap) _snap.Enable(true);
         _autoClip.Sens = S.Clip.Sens; _autoClip.Enable(S.Clip.Auto);
+        KfApply();
         if (S.TimerRes) Catalog.SetTimerResolution(true);
     }
 
     private void Lock()
     {
         _authed = false; S.AuthToken = null; S.AuthRole = null; S.AuthOkUntil = null; S.Save();
-        _snap.Enable(false); _autoClip.Enable(false); Catalog.SetTimerResolution(false); LiveTick();
+        _snap.Enable(false); _autoClip.Enable(false); _killFeed.Enable(false); Catalog.SetTimerResolution(false); LiveTick();
     }
 
     private async Task<object?> Handle(string cmd, JsonElement a)
@@ -386,6 +403,10 @@ public partial class MainWindow : Window
                 S.Clip.Key = Int(a, "key"); S.Clip.Flash = Bool(a, "flash");
                 S.Clip.Auto = Bool(a, "auto"); var sens = Int(a, "sens"); S.Clip.Sens = sens is >= 1 and <= 3 ? sens : 2;
                 _autoClip.Sens = S.Clip.Sens; _autoClip.Enable(S.Clip.Auto && _authed);
+                S.Clip.Kills = Bool(a, "kills"); S.Clip.Deaths = Bool(a, "deaths");
+                S.Clip.Name = Str(a, "name").Trim(); if (S.Clip.Name.Length > 40) S.Clip.Name = S.Clip.Name[..40];
+                var area = Str(a, "area"); if (KillFeed.Areas.ContainsKey(area)) S.Clip.Area = area;
+                KfApply();
                 var rec = Str(a, "recorder"); if (Clipper.Recorders.ContainsKey(rec)) S.Clip.Recorder = rec;
                 var png = Str(a, "png"); if (png.Length > 0) _flash.SetImage(Convert.FromBase64String(png), 0, 40);
                 S.Save();
@@ -393,6 +414,20 @@ public partial class MainWindow : Window
                 return new { keyOk = keys.clip, combo = Clipper.Recorders[S.Clip.Recorder].label };
             }
             case "clip.save": await SaveClip(); return new { ok = true };
+            case "clip.kftest":
+            {
+                // reads the kill-feed area once and returns what the text recognition sees
+                _killFeed.Name = Str(a, "name").Trim();
+                var area = Str(a, "area"); if (KillFeed.Areas.ContainsKey(area)) _killFeed.Area = area;
+                try
+                {
+                    var lines = await _killFeed.Read(true);
+                    var res = new { ok = true, img = _killFeed.LastImage, game = GameFocus.Pid != 0, lines = lines.Select(l => new { l.text, hit = KillFeed.Classify(l, _killFeed.Name) is bool k ? (k ? "kill" : "death") : null }).ToList() };
+                    KfApply();
+                    return res;
+                }
+                catch (Exception ex) { KfApply(); return new { ok = false, error = ex.Message }; }
+            }
             case "clip.list": return await Task.Run(Clipper.List);
             case "clip.open":
             {
@@ -842,7 +877,7 @@ public partial class MainWindow : Window
     private void StopLive()
     {
         _live.Stop();
-        _xhair.Close(); _minimap.Close(); _snap.Enable(false); _autoClip.Enable(false); _pad.Close();
+        _xhair.Close(); _minimap.Close(); _snap.Enable(false); _autoClip.Enable(false); _killFeed.Enable(false); _pad.Close();
         ScreenColor.Restore(); NvVibrance.Restore();
         var h = new WindowInteropHelper(this).Handle;
         if (h != IntPtr.Zero) { UnregisterHotKey(h, HK_XHAIR); UnregisterHotKey(h, HK_DISPLAY); UnregisterHotKey(h, HK_CLIP); }
@@ -867,6 +902,12 @@ public partial class MainWindow : Window
         if (DateTime.Now - _padEmit < TimeSpan.FromMilliseconds(33)) return;
         _padEmit = DateTime.Now;
         Emit("pad", PadInput.State);
+    }
+
+    private void KfApply()
+    {
+        _killFeed.Name = S.Clip.Name; _killFeed.Area = S.Clip.Area; _killFeed.Deaths = S.Clip.Deaths;
+        _killFeed.Enable(S.Clip.Kills && _authed && S.Clip.Name.Length >= 3);
     }
 
     private async Task SaveClip(string? auto = null)

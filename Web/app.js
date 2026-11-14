@@ -137,6 +137,7 @@ function onEvent(ev, d) {
   else if (ev === 'modInstalled') { passed('Mod installiert', `${MOD_CATS[d.cat]?.[0] || 'Mod'} · ${d.name}`); modList(); }
   else if (ev === 'reshade') { for (const k in LIB.busy) LIB.busy[k] = d.pct; libRender(); }
   else if (ev === 'modget') { if (d.id in LIB.busy) { LIB.busy[d.id] = d.pct; libRender(); } }
+  else if (ev === 'kill') { feed(d.kill ? '🎯 Kill erkannt, Clip folgt' : '💀 Tod erkannt, Clip folgt'); }
   else if (ev === 'clip') { toast(d.auto ? 'Auto-Clip gespeichert' : 'Clip gespeichert', d.auto ? 'Nach einem Gefecht · ' + (CL_RECS[d.recorder]?.[0] || '') : 'per Taste · ' + (CL_RECS[d.recorder]?.[1] || '')); if (curPage === 'clip') setTimeout(clipList, 4000); }
 }
 function stats(d) {
@@ -1067,7 +1068,8 @@ const CL_RECS = {
   amd: ['AMD', 'Strg+Shift+S', 'In AMD Adrenalin „Instant Replay“ aktivieren.'],
   obs: ['OBS', 'Strg+Alt+F12', 'In OBS den Replay-Puffer starten und unter Einstellungen → Hotkeys „Wiederholung speichern“ auf Strg+Alt+F12 legen.'],
 };
-const CL = { key: 0x78, recorder: 'nvidia', flash: true, auto: false, sens: 2 };
+const CL = { key: 0x78, recorder: 'nvidia', flash: true, auto: false, sens: 2, kills: false, deaths: false, name: '', area: 'tr' };
+const KF_AREAS = [['tr', 'Oben rechts'], ['tl', 'Oben links'], ['r', 'Rechts Mitte'], ['tc', 'Oben Mitte']];
 function clFlashPng() {
   const cv = document.createElement('canvas'); cv.width = 380; cv.height = 58; const x = cv.getContext('2d');
   x.fillStyle = 'rgba(10,10,12,.9)'; x.beginPath(); x.roundRect(0, 0, 380, 58, 12); x.fill();
@@ -1079,7 +1081,7 @@ function clFlashPng() {
   return cv.toDataURL('image/png').split(',')[1];
 }
 async function clipPush() {
-  const r = await api('clip.cfg', { key: CL.key, recorder: CL.recorder, flash: CL.flash, auto: CL.auto, sens: CL.sens, png: clFlashPng() }).catch(() => null);
+  const r = await api('clip.cfg', { key: CL.key, recorder: CL.recorder, flash: CL.flash, auto: CL.auto, sens: CL.sens, kills: CL.kills, deaths: CL.deaths, name: CL.name, area: CL.area, png: clFlashPng() }).catch(() => null);
   if (r && r.keyOk === false) toast('Taste belegt', 'Andere Clip-Taste wählen', false);
 }
 function clipUI() {
@@ -1088,6 +1090,10 @@ function clipUI() {
   $('#clKey').innerHTML = KEYS.map(([n, v]) => `<button class="${CL.key === v ? 'on' : ''}" data-clk="${v}">${n}</button>`).join('');
   $('#clFlash').classList.toggle('on', CL.flash);
   $('#clAuto').classList.toggle('on', CL.auto); $('#clAutoOpts').classList.toggle('off', !CL.auto);
+  $('#clKills').classList.toggle('on', CL.kills); $('#clKillOpts').classList.toggle('off', !CL.kills);
+  $('#clDeaths').classList.toggle('on', CL.deaths);
+  if (document.activeElement !== $('#clName')) $('#clName').value = CL.name || '';
+  $('#clArea').innerHTML = KF_AREAS.map(([v, n]) => `<button class="${CL.area === v ? 'on' : ''}" data-kfa="${v}">${n}</button>`).join('');
   $('#clSens').innerHTML = [[1, 'Nur große Gefechte'], [2, 'Normal'], [3, 'Jeder Schusswechsel']].map(([v, n]) => `<button class="${CL.sens === v ? 'on' : ''}" data-cls="${v}">${n}</button>`).join('');
   const kn = (KEYS.find(k => k[1] === CL.key) || ['Aus'])[0], off = !CL.key || kn === 'Aus';
   $('#clStat').innerHTML = `<div class="cs-i ${off ? 'warn' : ''}">${ico('keyboard')}<div><span>Clip-Taste</span><b>${off ? 'Keine Taste' : esc(kn)}</b></div></div>
@@ -1095,7 +1101,7 @@ function clipUI() {
     <div class="cs-i">${ico('film')}<div><span>Nimmt auf mit</span><b>${esc(CL_RECS[CL.recorder][0])}</b></div></div>
     <div class="cs-arrow">${ico("chev")}</div>
     <div class="cs-i">${ico('folder')}<div><span>Landet in</span><b>Videos</b></div></div>
-    <div class="cs-i ${CL.auto ? '' : 'dim'}">${ico('rec')}<div><span>Auto-Clip</span><b>${CL.auto ? 'Nach Gefechten' : 'Aus'}</b></div></div>
+    <div class="cs-i ${CL.auto || CL.kills ? '' : 'dim'}">${ico('rec')}<div><span>Auto-Clip</span><b>${CL.kills && CL.auto ? 'Kills + Gefechte' : CL.kills ? 'Bei Kills' : CL.auto ? 'Nach Gefechten' : 'Aus'}</b></div></div>
     <span class="sp"></span><button class="btn sm" data-goTab="clip:setup">${ico('settings')}Ändern</button>`;
 }
 async function clipGameBar() { await api('clip.gamebar'); toast('Hintergrundaufnahme an', 'Hinweis: der Tweak „Xbox Game DVR aus“ ist damit wieder rückgängig'); }
@@ -1123,6 +1129,15 @@ document.addEventListener('click', e => {
   if (e.target.closest('#clFlash')) { CL.flash = !CL.flash; clipUI(); clipPush(); return; }
   if (e.target.closest('#clAuto')) { CL.auto = !CL.auto; clipUI(); clipPush(); toast(CL.auto ? 'Auto-Clip an' : 'Auto-Clip aus', CL.auto ? 'Nach jedem Gefecht wird automatisch ein Clip gespeichert' : ''); return; }
   const cs = e.target.closest('[data-cls]'); if (cs) { CL.sens = +cs.dataset.cls; clipUI(); clipPush(); return; }
+  if (e.target.closest('#clKills')) {
+    CL.kills = !CL.kills; clipUI(); clipPush();
+    if (CL.kills && (CL.name || '').trim().length < 3) { toast('Ingame-Namen eintragen', 'Ohne Namen weiß OrbitTweak nicht, welche Kills deine sind', false); $('#clName').focus(); }
+    else toast(CL.kills ? 'Kill-Erkennung an' : 'Kill-Erkennung aus', CL.kills ? 'Teste sie am besten einmal mit „Erkennung testen“' : '');
+    return;
+  }
+  if (e.target.closest('#clDeaths')) { CL.deaths = !CL.deaths; clipUI(); clipPush(); return; }
+  const ka = e.target.closest('[data-kfa]'); if (ka) { CL.area = ka.dataset.kfa; clipUI(); clipPush(); return; }
+  if (e.target.closest('#clKfTest')) { kfTest(); return; }
   const c = e.target.closest('[data-clip]'); if (c) {
     const cl = clips[+c.dataset.clip], src = 'https://clips.orbit/' + cl.rel.split('/').map(encodeURIComponent).join('/');
     modal(`<div class="kicker">Clip</div><h1 style="margin-top:8px;font-size:20px">${esc(cl.name)}</h1><div class="player mt">${cl.ext === '.mkv' ? '<p>MKV kann hier nicht abgespielt werden.</p>' : `<video src="${src}" controls autoplay></video>`}</div>
@@ -1823,6 +1838,7 @@ const Mock = {
       case 'minimap.set': return { ok: true, client: { w: 1920, h: 1080 } };
       case 'minimap.preview': return null;
       case 'clip.cfg': return { keyOk: true, combo: 'Alt+F10' };
+      case 'clip.kftest': return { ok: true, game: true, img: null, lines: [{ text: ((a && a.name) || 'Max_Power') + ' [Pistol] Tony_Ricci', hit: 'kill' }, { text: 'Lena_V [AP] Jimmy', hit: null }, { text: 'Ricci [Rifle] ' + ((a && a.name) || 'Max_Power'), hit: 'death' }] };
       case 'clip.save': case 'clip.open': case 'clip.gamebar': return { ok: true };
       case 'clip.delete': return { ok: true };
       case 'clip.list': return ['Grand Theft Auto V 2026.11.13 - 21.14.08.02', 'FiveM 2026.11.13 - 20.51.44.01', 'Gangwar Clutch', 'Grand Theft Auto V 2026.11.12 - 23.02.10.05'].map((n, i) => ({ name: n, rel: 'Grand Theft Auto V/' + n + '.mp4', folder: i === 2 ? 'Captures' : 'Grand Theft Auto V', size: 48e6 + i * 9e6, date: new Date(Date.now() - i * 864e5).toISOString(), ext: '.mp4' }));
@@ -1921,3 +1937,25 @@ function spProfile() {
   const ut = $('#updTxt')?.textContent || '';
   $('#spUpd').textContent = /neue/i.test(ut) ? 'Update da' : /neueste/i.test(ut) ? 'Aktuell' : S.settings.autoUpdate ? 'Automatisch' : 'Manuell';
 }
+
+/* ======================= KILL FEED (2.20) ======================= */
+let kfNameT = 0;
+document.addEventListener('input', e => {
+  if (e.target.id !== 'clName') return;
+  CL.name = e.target.value; clearTimeout(kfNameT); kfNameT = setTimeout(() => { clipPush(); clipUI(); }, 500);
+});
+async function kfTest() {
+  const out = $('#clKfOut'), btn = $('#clKfTest');
+  out.classList.remove('hidden'); out.innerHTML = `<div class="sub" style="font-size:12px">${ico('refresh', 'i spin')} Lese Kill-Feed…</div>`;
+  btn.disabled = true;
+  let r; try { r = await api('clip.kftest', { name: CL.name, area: CL.area }); } catch (err) { r = { ok: false, error: err.message }; }
+  btn.disabled = false;
+  if (!r || !r.ok) { out.innerHTML = `<div class="kf-err">${ico('alert')}${esc((r && r.error) || 'Test fehlgeschlagen')}</div>`; return; }
+  const lines = r.lines || [];
+  const hits = lines.filter(l => l.hit).length;
+  out.innerHTML = `${r.game ? '' : `<div class="kf-err">${ico('alert')}FiveM ist nicht im Vordergrund. Starte FiveM, wechsle ins Spiel und teste dann mit der Clip-Taste oder hier nochmal.</div>`}
+    <div class="kf-cols"><div class="kf-img">${r.img ? `<img src="${r.img}" alt="">` : ''}<span>Das sieht OrbitTweak</span></div>
+    <div class="kf-lines"><b>Erkannter Text</b>${lines.length ? lines.map(l => `<div class="kf-l ${l.hit || ''}">${l.hit === 'kill' ? '<em>KILL</em>' : l.hit === 'death' ? '<em>TOD</em>' : ''}<span>${esc(l.text)}</span></div>`).join('') : '<div class="sub" style="font-size:12px">Kein Text gefunden. Stimmt die Position? Steht gerade etwas im Kill-Feed?</div>'}
+    ${lines.length && !hits ? `<p class="sub" style="font-size:11.5px;margin-top:8px">Dein Name „${esc(CL.name)}“ wurde nicht gefunden. Erst nach einem Kill steht er im Feed.</p>` : ''}</div></div>`;
+}
+window.kfTest = kfTest;

@@ -39,6 +39,10 @@ public class ClipCfg
     public bool Flash { get; set; } = true;
     public bool Auto { get; set; }                    // auto-clip after a firefight
     public int Sens { get; set; } = 2;                // 1 = only big fights, 2 = normal, 3 = every shot exchange
+    public bool Kills { get; set; }                   // auto-clip on kills read from the kill feed (OCR)
+    public bool Deaths { get; set; }
+    public string Name { get; set; } = "";            // in-game name as shown in the kill feed
+    public string Area { get; set; } = "tr";          // kill feed position: tr | tl | r | tc
 }
 
 public enum Anchor { Center, BottomLeft, TopCenter }
