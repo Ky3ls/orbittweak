@@ -232,22 +232,27 @@ async function boost(fromWizard) {
 }
 
 /* ======================= TWEAKS ======================= */
-const CATS = { fivem: ['FiveM', 'gamepad'], system: ['System', 'cpu'], network: ['Netzwerk & Hitreg', 'wifi'], input: ['Input', 'keyboard'] };
+const CATS = { fivem: ['FiveM', 'gamepad', 'Spiel-Priorität, GPU und Frametimes'], system: ['System', 'cpu', 'Windows-Einstellungen für weniger Ruckler'], network: ['Netzwerk & Hitreg', 'wifi', 'Niedrigere Latenz, stabilere Treffer'], input: ['Input', 'keyboard', 'Maus und Tastatur direkter'] };
 let curTab = 'fivem';
 async function loadTweaks() { S.tweaks = await api('tweaks.list'); renderTweaks(); score(); }
 function tweakHtml(t, compact) {
   const badge = t.badge ? `<span class="chip ${t.badge === 'NEUSTART' ? 'w' : 'a'}" style="margin-left:8px;height:18px;font-size:9px">${esc(t.badge)}</span>` : '';
-  const body = `<div class="ti">${ico(t.icon)}</div><div class="tx"><b>${esc(t.name)}</b>${badge}<p>${esc(t.desc)}</p></div><div class="tg ${t.applied ? 'on' : ''}" data-id="${t.id}"></div>`;
-  return compact ? `<div class="tw">${body}</div>` : `<div class="card hov tcard ${t.applied ? 'on' : ''}">${body}</div>`;
+  const rec = !compact && t.rec ? `<span class="chip" style="margin-left:6px;height:18px;font-size:9px">EMPFOHLEN</span>` : '';
+  const body = `<div class="ti">${ico(t.icon)}</div><div class="tx"><b>${esc(t.name)}</b>${badge}${rec}<p>${esc(t.desc)}</p></div><div class="tg ${t.applied ? 'on' : ''}" data-id="${t.id}"></div>`;
+  return `<div class="tw ${t.applied ? 'on' : ''}">${body}</div>`;
 }
 function renderTweaks() {
-  $('#tabs').innerHTML = Object.entries(CATS).map(([k, [n]]) => { const l = S.tweaks.filter(t => t.cat === k); return `<button class="tab ${k === curTab ? 'on' : ''}" data-c="${k}">${n}<span class="c">${l.filter(t => t.applied).length}/${l.length}</span></button>`; }).join('');
-  $('#tgrid').innerHTML = S.tweaks.filter(t => t.cat === curTab).map(t => tweakHtml(t)).join('');
+  $('#tabs').innerHTML = Object.entries(CATS).map(([k, [n, i]]) => { const l = S.tweaks.filter(t => t.cat === k); return `<button class="tab ${k === curTab ? 'on' : ''}" data-c="${k}">${ico(i)}${n}<span class="vt-s">${l.filter(t => t.applied).length} / ${l.length} an</span></button>`; }).join('');
+  const cur = S.tweaks.filter(t => t.cat === curTab);
+  $('#tlTitle').textContent = CATS[curTab][0]; $('#tlDesc').textContent = CATS[curTab][2];
+  $('#tlCount').textContent = `${cur.filter(t => t.applied).length} von ${cur.length} aktiv`;
+  $('#tgrid').innerHTML = cur.map(t => tweakHtml(t)).join('');
   $('#inputTweaks').innerHTML = S.tweaks.filter(t => t.cat === 'input').map(t => tweakHtml(t, true)).join('');
 }
 document.addEventListener('click', async e => {
-  const tab = e.target.closest('.tab'); if (tab) { curTab = tab.dataset.c; renderTweaks(); return; }
-  const tg = e.target.closest('.tg[data-id]') || e.target.closest('.tcard,.tw')?.querySelector('.tg[data-id]'); if (!tg) return;
+  const tab = e.target.closest('#tabs .tab'); if (tab) { curTab = tab.dataset.c; renderTweaks(); return; }
+  if (e.target.closest('.tab')) return;
+  const tg = e.target.closest('.tg[data-id]') || e.target.closest('.tw')?.querySelector('.tg[data-id]'); if (!tg) return;
   const t = S.tweaks.find(x => x.id === tg.dataset.id); if (!t) return;
   const want = !t.applied;
   $$(`.tg[data-id="${t.id}"]`).forEach(x => { x.classList.toggle('on', want); x.classList.add('busy'); });
@@ -285,11 +290,12 @@ function seg(el, opts, cur, onPick) {
 }
 async function renderLauncher() {
   const c = cfg();
-  seg($('#optBuild'), BUILDS.map(b => [b === 'Auto' ? 'AUTO' : 'b' + b, b]), c.build, v => { c.build = v; saveLaunch(); });
+  const sb = $('#optBuild'); sb.innerHTML = BUILDS.map(b => `<option value="${b}" ${b === c.build ? 'selected' : ''}>${b === 'Auto' ? 'Automatisch (empfohlen)' : 'Build ' + b}</option>`).join('');
+  sb.onchange = () => { c.build = sb.value; saveLaunch(); };
   seg($('#optPure'), [['Aus', 0], ['Pure 1', 1], ['Pure 2', 2]], c.pure, v => { c.pure = +v; saveLaunch(); });
-  try { const ini = await api('ini.get'); seg($('#optChan'), [['Release', 'production'], ['Beta', 'beta'], ['Latest', 'canary']], ini.channel, async v => { await api('ini.set', { channel: v }); toast('Update-Kanal gesetzt', v); }); } catch { }
-  $('#preList').innerHTML = PRE.map(([k, n, d]) => `<div class="pr"><div><b>${n}</b><span>${d}</span></div><div class="tg ${c.pre[k] ? 'on' : ''}" data-pre="${k}"></div></div>`).join('');
-  $('#preList').onclick = e => { const t = e.target.closest('[data-pre]'); if (!t) return; c.pre[t.dataset.pre] = !c.pre[t.dataset.pre]; t.classList.toggle('on'); saveLaunch(); };
+  try { const ini = await api('ini.get'); S.chan = ini.channel; seg($('#optChan'), [['Release', 'production'], ['Beta', 'beta'], ['Latest', 'canary']], ini.channel, async v => { S.chan = v; renderCmd(); await api('ini.set', { channel: v }); toast('Update-Kanal gesetzt', v); }); } catch { }
+  $('#preList').innerHTML = PRE.map(([k, n, d]) => `<div class="pr ${c.pre[k] ? 'on' : ''}"><div><b>${n}</b><span>${d}</span></div><div class="tg ${c.pre[k] ? 'on' : ''}" data-pre="${k}"></div></div>`).join('');
+  $('#preList').onclick = e => { const t = e.target.closest('[data-pre]'); if (!t) return; c.pre[t.dataset.pre] = !c.pre[t.dataset.pre]; t.classList.toggle('on'); t.closest('.pr').classList.toggle('on'); saveLaunch(); };
   renderCmd();
 }
 function saveLaunch() { api('settings.set', { key: 'launch', value: cfg() }); renderCmd(); }
@@ -300,6 +306,16 @@ function renderCmd() {
   if (+c.pure) s += ` <em>-pure_${c.pure}</em>`;
   if (con) s += ` <em>+connect ${esc(con)}</em>`;
   $('#cmdLine').innerHTML = s;
+  const on = PRE.filter(([k]) => c.pre[k]);
+  if ($('#preCount')) $('#preCount').textContent = on.length + ' aktiv';
+  const chan = { production: 'Release', beta: 'Beta', canary: 'Latest' }[S.chan] || 'Release';
+  if ($('#lSum')) $('#lSum').innerHTML = [
+    ['layers', 'Build', c.build === 'Auto' ? 'Automatisch' : c.build],
+    ['shield', 'Pure Mode', +c.pure ? 'Pure ' + c.pure : 'Aus'],
+    ['download', 'Kanal', chan],
+    ['sparkle', 'Boost', on.length ? on.length + ' Schritte' : 'Aus'],
+    ['link', 'Server', con ? con : 'Serverliste']
+  ].map(([i, k, v]) => `<div class="lh-i">${ico(i)}<span>${k}</span><b>${esc(v)}</b></div>`).join('');
 }
 async function launch(connect) {
   const c = cfg();
@@ -1071,6 +1087,13 @@ function clipUI() {
   $('#clRecTxt').innerHTML = esc(CL_RECS[CL.recorder][2]) + (CL.recorder === 'gamebar' ? `<br><button class="btn sm mt8" onclick="clipGameBar()">${ico('zap')}Hintergrundaufnahme einschalten</button>` : '');
   $('#clKey').innerHTML = KEYS.map(([n, v]) => `<button class="${CL.key === v ? 'on' : ''}" data-clk="${v}">${n}</button>`).join('');
   $('#clFlash').classList.toggle('on', CL.flash);
+  const kn = (KEYS.find(k => k[1] === CL.key) || ['Aus'])[0], off = !CL.key || kn === 'Aus';
+  $('#clStat').innerHTML = `<div class="cs-i ${off ? 'warn' : ''}">${ico('keyboard')}<div><span>Clip-Taste</span><b>${off ? 'Keine Taste' : esc(kn)}</b></div></div>
+    <div class="cs-arrow">${ico("chev")}</div>
+    <div class="cs-i">${ico('film')}<div><span>Nimmt auf mit</span><b>${esc(CL_RECS[CL.recorder][0])}</b></div></div>
+    <div class="cs-arrow">${ico("chev")}</div>
+    <div class="cs-i">${ico('folder')}<div><span>Landet in</span><b>Videos</b></div></div>
+    <span class="sp"></span><button class="btn sm" data-goTab="clip:setup">${ico('settings')}Ändern</button>`;
 }
 async function clipGameBar() { await api('clip.gamebar'); toast('Hintergrundaufnahme an', 'Hinweis: der Tweak „Xbox Game DVR aus“ ist damit wieder rückgängig'); }
 window.clipGameBar = clipGameBar;
@@ -1866,3 +1889,13 @@ function modTab(k) {
 }
 document.addEventListener('click', e => { const b = e.target.closest('[data-mt]'); if (b) modTab(b.dataset.mt); });
 window.modTab = modTab;
+
+/* ======================= GENERIC PAGE TABS (2.17) ======================= */
+function pageTab(group, k) {
+  $$(`[data-tabs="${group}"] .tab`).forEach(b => b.classList.toggle('on', b.dataset.tab === k));
+  $$(`[data-pane^="${group}:"]`).forEach(p => p.classList.toggle('hidden', p.dataset.pane !== group + ':' + k));
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-tabs] .tab'); if (b) return pageTab(b.closest('[data-tabs]').dataset.tabs, b.dataset.tab);
+  const g = e.target.closest('[data-gotab]'); if (g) { const [grp, k] = g.dataset.gotab.split(':'); pageTab(grp, k); }
+});

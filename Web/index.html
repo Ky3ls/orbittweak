@@ -31,7 +31,7 @@
     <symbol id="folder" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></symbol>
     <symbol id="refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></symbol>
     <symbol id="users" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
-    <symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol><symbol id="chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
     <symbol id="shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></symbol>
     <symbol id="heart" viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/><path d="M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27"/></symbol>
     <symbol id="file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8"/></symbol>
@@ -248,25 +248,29 @@
     <!-- ================= LAUNCHER ================= -->
     <section class="page" id="p-launcher">
       <div class="ph">
-        <div><div class="kicker">Launch Control</div><h1>FiveM <span class="grad">Launcher</span></h1><p class="pd">Lege fest, wie FiveM startet, und was vorher aufgeräumt wird.</p></div>
+        <div><div class="kicker">Launcher</div><h1>FiveM <span class="grad">starten</span></h1><p class="pd">Boost auswählen, optional direkt auf einen Server verbinden und los.</p></div>
         <div class="ph-r"><button class="btn" onclick="api('fivem.folder')"><svg class="i"><use href="#folder"/></svg>FiveM-Ordner</button><button class="btn" onclick="pickFiveM()"><svg class="i"><use href="#file"/></svg>Pfad wählen</button></div>
       </div>
-      <div class="lgrid">
-        <div class="card">
-          <div class="opt"><div class="lbl"><svg class="i"><use href="#layers"/></svg>Game Build erzwingen</div><div class="seg disp" id="optBuild"></div></div>
-          <div class="opt"><div class="lbl"><svg class="i"><use href="#shield"/></svg>Pure Mode</div><div class="seg" id="optPure"></div></div>
-          <div class="opt"><div class="lbl"><svg class="i"><use href="#download"/></svg>Update-Kanal (CitizenFX.ini)</div><div class="seg" id="optChan"></div></div>
-          <div class="opt" style="margin-bottom:0"><div class="lbl"><svg class="i"><use href="#link"/></svg>Direkt verbinden (optional)</div><input class="in" id="lConnect" placeholder="IP:Port oder cfx.re/join/…" oninput="renderCmd()"></div>
+      <div class="card lhero">
+        <div class="lh-l">
+          <div class="lbl"><svg class="i"><use href="#rocket"/></svg>Startklar</div>
+          <div class="lh-sum" id="lSum"></div>
+          <div class="lh-con"><svg class="i"><use href="#link"/></svg><input class="in" id="lConnect" placeholder="Direkt verbinden (optional): IP:Port oder cfx.re/join/…" oninput="renderCmd()"></div>
         </div>
-        <div class="card"><div class="lbl"><svg class="i"><use href="#sparkle"/></svg>Pre-Launch-Boost</div><div class="prelist mt8" id="preList"></div></div>
+        <button class="launch lh-go" onclick="launch()"><span class="pi"><svg class="i"><use href="#play"/></svg></span><span class="lh-t">FiveM starten<small>Boost anwenden und Spiel starten</small></span></button>
       </div>
-      <div class="card mt">
-        <div class="lbl"><svg class="i"><use href="#file"/></svg>Startbefehl</div>
-        <div class="cmd mt8" id="cmdLine"></div>
-        <button class="launch launch-big" onclick="launch()">
-          <span class="pi"><svg class="i"><use href="#play"/></svg></span>
-          FiveM starten<small>Boost anwenden und Spiel starten</small>
-        </button>
+      <div class="lgrid2">
+        <div class="card">
+          <div class="row"><div class="lbl"><svg class="i"><use href="#sparkle"/></svg>Boost vor dem Start</div><span class="sp"></span><span class="chip a" id="preCount">0 aktiv</span></div>
+          <div class="prelist mt8" id="preList"></div>
+        </div>
+        <div class="card">
+          <div class="lbl"><svg class="i"><use href="#settings"/></svg>Spiel-Optionen</div>
+          <div class="lopt"><div><b>Game Build</b><p>Nur ändern, wenn ein Server einen bestimmten Build verlangt</p></div><select class="in lsel" id="optBuild"></select></div>
+          <div class="lopt"><div><b>Pure Mode</b><p>Startet FiveM ohne Mods, für Server mit Pure-Pflicht</p></div><div class="seg" id="optPure"></div></div>
+          <div class="lopt"><div><b>Update-Kanal</b><p>Release ist am stabilsten</p></div><div class="seg" id="optChan"></div></div>
+          <details class="lcmd"><summary><svg class="i"><use href="#file"/></svg>Startbefehl anzeigen</summary><div class="cmd mt8" id="cmdLine"></div></details>
+        </div>
       </div>
     </section>
 
@@ -424,25 +428,27 @@
     <!-- ================= CLIPPER ================= -->
     <section class="page" id="p-clip">
       <div class="ph">
-        <div><div class="kicker">Clipper</div><h1>Clips mit <span class="grad">einer Taste</span></h1><p class="pd">Taste drücken, die letzten Sekunden landen als Clip auf der Platte. Mit Einblendung im Spiel und Galerie.</p></div>
+        <div><div class="kicker">Clipper</div><h1>Clips mit <span class="grad">einer Taste</span></h1><p class="pd">Taste drücken, die letzten Sekunden landen als Clip in deinem Videos-Ordner.</p></div>
         <div class="ph-r"><button class="btn" onclick="clipOpen('')"><svg class="i"><use href="#folder"/></svg>Videos-Ordner</button><button class="btn p" onclick="clipTest()"><svg class="i"><use href="#rec"/></svg>Clip jetzt speichern</button></div>
       </div>
-      <div class="cl-top">
+      <div class="card clstat" id="clStat"></div>
+      <div class="tabs vtabs" data-tabs="clip">
+        <button class="tab on" data-tab="gal"><svg class="i"><use href="#play"/></svg>Deine Clips<span class="vt-s" id="clCount">0</span></button>
+        <button class="tab" data-tab="setup"><svg class="i"><use href="#settings"/></svg>Einrichtung<span class="vt-s">Programm, Taste, Einblendung</span></button>
+      </div>
+      <div data-pane="clip:gal">
         <div class="card">
-          <div class="lbl"><svg class="i"><use href="#film"/></svg>Aufnahme-Programm</div>
-          <div class="cl-recs" id="clRecs"></div>
-          <p class="sub" id="clRecTxt" style="font-size:12.5px;margin-top:12px;line-height:1.5"></p>
-        </div>
-        <div class="card">
-          <div class="lbl"><svg class="i"><use href="#keyboard"/></svg>Clip-Taste</div>
-          <div class="seg keyseg mt8" id="clKey"></div>
-          <div class="srow"><div><b>Einblendung im Spiel</b><p>Kurzes „Clip gespeichert“ oben im Bild</p></div><div class="tg" id="clFlash"></div></div>
-          <div class="xnote" style="margin-top:8px"><svg class="i"><use href="#alert"/></svg><div><b>Auto-Clip bei Kills</b> würde das Auslesen des Spiels erfordern. Das erkennen Anti-Cheats als Cheat, deshalb setzt OrbitTweak auf die Clip-Taste.</div></div>
+          <div class="row"><div class="lbl"><svg class="i"><use href="#film"/></svg>Neueste zuerst</div><span class="sp"></span><button class="ib" onclick="clipList()" title="Neu laden"><svg class="i"><use href="#refresh"/></svg></button></div>
+          <div class="cl-grid mt8" id="clGrid"></div>
         </div>
       </div>
-      <div class="card mt">
-        <div class="row"><div class="lbl"><svg class="i"><use href="#play"/></svg>Deine Clips</div><span class="chip" id="clCount">0</span><span class="sp"></span><button class="ib" onclick="clipList()"><svg class="i"><use href="#refresh"/></svg></button></div>
-        <div class="cl-grid" id="clGrid"></div>
+      <div class="hidden" data-pane="clip:setup">
+        <div class="card">
+          <div class="cl-step"><span class="cl-n">1</span><div class="cl-sb"><b>Aufnahme-Programm</b><p>Womit wird aufgenommen?</p><div class="cl-recs" id="clRecs"></div><p class="sub" id="clRecTxt" style="font-size:12.5px;margin-top:10px;line-height:1.5"></p></div></div>
+          <div class="cl-step"><span class="cl-n">2</span><div class="cl-sb"><b>Clip-Taste</b><p>Diese Taste speichert im Spiel den Clip</p><div class="seg keyseg mt8" id="clKey"></div></div></div>
+          <div class="cl-step"><span class="cl-n">3</span><div class="cl-sb row"><div style="flex:1"><b>Einblendung im Spiel</b><p>Kurzes „Clip gespeichert“ oben im Bild</p></div><div class="tg" id="clFlash"></div></div></div>
+          <p class="muted" style="font-size:11.5px;margin-top:12px">Kein Auto-Clip bei Kills: Dafür müsste OrbitTweak das Spiel auslesen, und das erkennen Anti-Cheats als Cheat.</p>
+        </div>
       </div>
     </section>
 
@@ -595,11 +601,14 @@
     <!-- ================= TWEAKS ================= -->
     <section class="page" id="p-tweaks">
       <div class="ph">
-        <div><div class="kicker">Tweak Engine</div><h1>Performance <span class="grad">Tweaks</span></h1><p class="pd">Jeder Schalter ist eine Windows-Einstellung und lässt sich einzeln zurücknehmen.</p></div>
-        <div class="ph-r"><button class="btn d" onclick="revertAll()"><svg class="i"><use href="#undo"/></svg>Alles zurücksetzen</button><button class="btn p" onclick="applyCat(curTab)"><svg class="i"><use href="#zap"/></svg>Empfohlene anwenden</button></div>
+        <div><div class="kicker">Tweaks</div><h1>Performance <span class="grad">Tweaks</span></h1><p class="pd">Jeder Schalter ist eine Windows-Einstellung und lässt sich einzeln zurücknehmen.</p></div>
+        <div class="ph-r"><button class="btn d" onclick="revertAll()"><svg class="i"><use href="#undo"/></svg>Alles zurücksetzen</button><button class="btn p" onclick="applyCat(curTab)"><svg class="i"><use href="#zap"/></svg>Empfohlene hier anwenden</button></div>
       </div>
-      <div class="tabs" id="tabs"></div>
-      <div class="tgrid" id="tgrid"></div>
+      <div class="tabs vtabs" id="tabs"></div>
+      <div class="card tlist">
+        <div class="row tl-h"><div><b id="tlTitle"></b><p id="tlDesc"></p></div><span class="sp"></span><span class="chip" id="tlCount"></span></div>
+        <div id="tgrid"></div>
+      </div>
     </section>
 
     <!-- ================= CLEANER ================= -->

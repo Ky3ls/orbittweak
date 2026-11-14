@@ -918,3 +918,61 @@ select.sel{width:auto;height:30px;padding:0 8px;font-size:12px;border-radius:9px
 .vtabs .tab svg.i{width:17px;height:17px;color:var(--mute);transition:color .25s}
 .vtabs .tab.on svg.i{color:var(--a)}
 .vtabs .vt-s{margin-left:auto;font-size:11.5px;font-weight:450;color:var(--mute)}
+
+/* 2.17 launcher */
+.lhero{display:flex;gap:22px;align-items:stretch;padding:22px;background:radial-gradient(120% 140% at 100% 0,rgba(var(--a-rgb),.12),transparent 55%),var(--card)}
+.lh-l{flex:1;min-width:0;display:flex;flex-direction:column;gap:14px}
+.lh-sum{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.lh-i{padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid var(--line);min-width:0}
+.lh-i svg.i{width:15px;height:15px;color:var(--a);margin-bottom:6px}
+.lh-i span{display:block;font-size:11px;color:var(--mute)}
+.lh-i b{display:block;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lh-con{position:relative}
+.lh-con svg.i{position:absolute;left:13px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--mute)}
+.lh-con .in{padding-left:38px;width:100%}
+.lh-go{width:250px;flex:none;border-radius:18px;flex-direction:column;justify-content:center;gap:12px;font-family:var(--disp);font-size:20px;font-weight:650;letter-spacing:-.02em;height:auto}
+.lh-go .pi{position:static;width:52px;height:52px;border-radius:15px}
+.lh-t{display:flex;flex-direction:column;align-items:center;gap:2px}
+.lh-t small{font-family:var(--body);font-size:11.5px;font-weight:500;opacity:.8;letter-spacing:0}
+.lgrid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+.prelist .pr{padding:12px 10px;margin:0 -10px;border-radius:12px;border-bottom:0;transition:background .25s}
+.prelist .pr+.pr{border-top:1px solid var(--line)}
+.prelist .pr.on b{color:var(--text)}
+.prelist .pr:not(.on) b{color:var(--sub)}
+.lopt{display:flex;align-items:center;gap:14px;padding:13px 0;border-bottom:1px solid var(--line)}
+.lopt>div:first-child{flex:1;min-width:0}
+.lopt b{font-weight:600;font-size:13.5px}
+.lopt p{font-size:12px;color:var(--sub);margin-top:2px}
+.lopt .seg button{height:26px;padding:0 10px;font-size:11.5px}
+.lsel{width:200px;height:36px;flex:none;background:#18181B;color:var(--text);opacity:1;font-size:12.5px}
+.lcmd{margin-top:12px;font-size:12.5px;color:var(--sub)}
+.lcmd summary{cursor:pointer;display:flex;align-items:center;gap:8px;list-style:none;user-select:none}
+.lcmd summary::-webkit-details-marker{display:none}
+.lcmd summary svg.i{width:14px;height:14px}
+.lcmd summary:hover{color:var(--text)}
+/* 2.17 clipper */
+.clstat{display:flex;align-items:center;gap:12px;padding:14px 18px;margin-bottom:16px}
+.cs-i{display:flex;align-items:center;gap:10px}
+.cs-i>svg.i{width:34px;height:34px;padding:8px;border-radius:11px;background:rgba(var(--a-rgb),.1);color:var(--a)}
+.cs-i span{display:block;font-size:11px;color:var(--mute)}
+.cs-i b{font-size:13.5px;font-weight:600}
+.cs-i.warn>svg.i{background:rgba(250,204,21,.1);color:#FACC15}
+.cs-arrow svg.i{width:14px;height:14px;color:var(--mute)}
+.cl-step{display:flex;gap:14px;padding:16px 0;border-bottom:1px solid var(--line)}
+.cl-step:first-child{padding-top:4px}
+.cl-step:last-of-type{border:0}
+.cl-n{width:26px;height:26px;flex:none;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;background:rgba(var(--a-rgb),.12);color:var(--a)}
+.cl-sb{flex:1;min-width:0}
+.cl-sb b{font-weight:600;font-size:14px}
+.cl-sb p{font-size:12px;color:var(--sub);margin-top:2px}
+.cl-step .cl-recs{margin-top:10px}
+/* 2.17 tweaks list */
+.tlist{padding:6px 20px 8px}
+.tl-h{padding:14px 0 12px;border-bottom:1px solid var(--line)}
+.tl-h b{font-family:var(--disp);font-size:16px;font-weight:650}
+.tl-h p{font-size:12.5px;color:var(--sub);margin-top:2px}
+.tlist .tw{padding:14px 10px;margin:0 -10px;border-radius:12px;border-bottom:0;transition:background .25s}
+.tlist .tw+.tw{border-top:1px solid var(--line)}
+.tlist .tw:hover{background:rgba(255,255,255,.025)}
+.tlist .tw .ti{background:rgba(255,255,255,.04);color:var(--sub);transition:background .25s,color .25s}
+.tlist .tw.on .ti{background:rgba(var(--a-rgb),.12);color:var(--a)}
