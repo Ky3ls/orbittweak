@@ -702,7 +702,7 @@ input[type=range]::-webkit-slider-thumb:hover{box-shadow:0 0 0 7px rgba(var(--a-
 .ccard:hover .qi{background:var(--grad);color:var(--on);transform:rotate(-8deg)}
 .ccard b{font-size:14px}
 .ccard>span{font-size:12px;color:var(--sub);margin-top:2px;flex:1}
-.sel{width:auto;height:30px;padding:0 8px;font-size:12px;border-radius:9px;background:#18181B}
+select.sel{width:auto;height:30px;padding:0 8px;font-size:12px;border-radius:9px;background:#18181B}
 .rs{padding:20px}
 .rs-head{display:flex;gap:16px;align-items:center}
 .rs-ico{width:52px;height:52px;border-radius:16px;display:grid;place-items:center;background:var(--grad);color:var(--on);flex:none;box-shadow:0 10px 26px -10px rgba(var(--a-rgb),.9)}
@@ -911,3 +911,10 @@ input[type=range]::-webkit-slider-thumb:hover{box-shadow:0 0 0 7px rgba(var(--a-
 .lk-loading .bar i{width:0;transition:none}
 .lk-card.done .lk-loading .bar i{animation:lkLoad 1.4s .3s var(--ease) forwards}
 @keyframes lkLoad{to{width:100%}}
+
+/* 2.16 visuals sub-tabs */
+.vtabs{display:flex;width:100%;margin:0 0 18px}
+.vtabs .tab{flex:1;height:auto;padding:10px 16px;gap:10px;justify-content:flex-start}
+.vtabs .tab svg.i{width:17px;height:17px;color:var(--mute);transition:color .25s}
+.vtabs .tab.on svg.i{color:var(--a)}
+.vtabs .vt-s{margin-left:auto;font-size:11.5px;font-weight:450;color:var(--mute)}

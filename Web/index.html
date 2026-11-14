@@ -99,15 +99,14 @@
     <button class="nav" data-p="launcher"><svg class="i"><use href="#rocket"/></svg>Launcher</button>
     <button class="nav" data-p="f8"><svg class="i"><use href="#terminal"/></svg>F8-Befehle</button>
     <div class="nav-h">Visuals</div>
-    <button class="nav" data-p="gfx"><svg class="i"><use href="#monitor"/></svg>Grafik-Tuner</button>
+    <button class="nav" data-p="gfx"><svg class="i"><use href="#monitor"/></svg>Grafik &amp; Farben<span class="badge hidden" id="navDp">AN</span></button>
     <button class="nav" data-p="xhair"><svg class="i"><use href="#crosshair"/></svg>Fadenkreuz<span class="badge hidden" id="navXh">AN</span></button>
-    <button class="nav" data-p="minimap"><svg class="i"><use href="#map"/></svg>Minimap<span class="badge hidden" id="navMm">AN</span></button>
-    <button class="nav" data-p="display"><svg class="i"><use href="#sun"/></svg>Bildschirm<span class="badge hidden" id="navDp">AN</span></button>
-    <button class="nav" data-p="mods"><svg class="i"><use href="#puzzle"/></svg>Mods</button>
+    <button class="nav" data-p="mods"><svg class="i"><use href="#puzzle"/></svg>Mods &amp; ReShade<span class="badge hidden" id="navMm">AN</span></button>
     <div class="nav-h">Tools</div>
     <button class="nav" data-p="clip"><svg class="i"><use href="#film"/></svg>Clipper</button>
     <button class="nav" data-p="pad"><svg class="i"><use href="#gamepad"/></svg>Controller<span class="badge hidden" id="navPad">AN</span></button>
     <button class="nav" data-p="input"><svg class="i"><use href="#keyboard"/></svg>Input-Lab</button>
+    <div class="nav-h">System</div>
     <button class="nav" data-p="tweaks"><svg class="i"><use href="#zap"/></svg>Tweaks</button>
     <button class="nav" data-p="cleaner"><svg class="i"><use href="#trash"/></svg>Cleaner</button>
     <button class="nav" data-p="diag"><svg class="i"><use href="#heart"/></svg>Diagnose</button>
@@ -274,9 +273,10 @@
     <!-- ================= GRAPHICS ================= -->
     <section class="page" id="p-gfx">
       <div class="ph">
-        <div><div class="kicker">Grafik-Tuner</div><h1>GTA V <span class="grad">Grafik</span>-Presets</h1><p class="pd">Anzeigemodus live umschalten, Grafik-Presets für den nächsten Spielstart.</p></div>
+        <div><div class="kicker">Grafik &amp; Farben</div><h1>GTA V <span class="grad">Grafik</span>-Presets</h1><p class="pd">Anzeigemodus live umschalten, Grafik-Presets für den nächsten Spielstart.</p></div>
         <div class="ph-r"><span class="chip" id="gfxState">settings.xml</span></div>
       </div>
+      <div class="tabs vtabs"><button class="tab on" onclick="go('gfx')"><svg class="i"><use href="#monitor"/></svg>Spiel-Grafik<span class="vt-s">Fenster & Presets</span></button><button class="tab" onclick="go('display')"><svg class="i"><use href="#sun"/></svg>Live-Farben<span class="vt-s">Farbe, Helligkeit, Gamma</span></button></div>
       <div class="card gb glive">
         <div class="gl-top"><div class="lbl"><svg class="i"><use href="#zap"/></svg>Live: sofort, ohne Neustart</div><span class="sp"></span><span class="chip" id="gwState">FiveM nicht gestartet</span></div>
         <div class="gl-acts">
@@ -287,7 +287,7 @@
         </div>
         <p class="sub" style="font-size:12px;margin-top:10px" id="gwHint">Läuft das Spiel im Vollbild? Drück im Spiel einmal Alt+Enter, dann hier auf „Randloses Vollbild“. Ideal fürs Fadenkreuz und schnelles Alt-Tab.</p>
         <div class="gl-quick">
-          <button onclick="go('display')"><span class="qi"><svg class="i"><use href="#sun"/></svg></span><span><b>Live-Farben</b><span>Farbe, Helligkeit, Gamma</span></span></button>
+          <button onclick="go('xhair')"><span class="qi"><svg class="i"><use href="#crosshair"/></svg></span><span><b>Fadenkreuz</b><span>Eigenes Crosshair-Overlay</span></span></button>
           <button onclick="f8Quick('cl_drawfps',true)"><span class="qi"><svg class="i"><use href="#activity"/></svg></span><span><b>FPS-Anzeige an</b><span>Live in FiveM</span></span></button>
           <button onclick="go('f8')"><span class="qi"><svg class="i"><use href="#terminal"/></svg></span><span><b>F8-Befehle</b><span>Kamera, Texturen, Audio</span></span></button>
         </div>
@@ -374,9 +374,10 @@
     <!-- ================= DISPLAY ================= -->
     <section class="page" id="p-display">
       <div class="ph">
-        <div><div class="kicker">Bildschirm</div><h1>Live-<span class="grad">Farben</span></h1><p class="pd">Kräftigere Farben, hellere Schatten, bessere Sicht. Ändert sich sofort, auch während FiveM läuft.</p></div>
+        <div><div class="kicker">Grafik &amp; Farben</div><h1>Live-<span class="grad">Farben</span></h1><p class="pd">Kräftigere Farben, hellere Schatten, bessere Sicht. Ändert sich sofort, auch während FiveM läuft.</p></div>
         <div class="ph-r"><button class="btn" onclick="dpReset()"><svg class="i"><use href="#undo"/></svg>Standard</button><button class="btn p lg" id="dpMain" onclick="dpToggle()"><svg class="i"><use href="#sun"/></svg><span>Einschalten</span></button></div>
       </div>
+      <div class="tabs vtabs"><button class="tab" onclick="go('gfx')"><svg class="i"><use href="#monitor"/></svg>Spiel-Grafik<span class="vt-s">Fenster & Presets</span></button><button class="tab on" onclick="go('display')"><svg class="i"><use href="#sun"/></svg>Live-Farben<span class="vt-s">Farbe, Helligkeit, Gamma</span></button></div>
       <div class="dpgrid">
         <div class="col">
           <div class="dpresets" id="dpPresets"></div>
@@ -448,17 +449,22 @@
     <!-- ================= MODS ================= -->
     <section class="page" id="p-mods">
       <div class="ph">
-        <div><div class="kicker">Mods</div><h1>Mod-<span class="grad">Bibliothek</span></h1><p class="pd">Mods aussuchen und mit einem Klick installieren, aktivieren oder wieder entfernen. Direkt hier, ohne Website.</p></div>
+        <div><div class="kicker">Mods &amp; ReShade</div><h1>Mod-<span class="grad">Bibliothek</span></h1><p class="pd">Mods aussuchen und mit einem Klick installieren, aktivieren oder wieder entfernen. Direkt hier, ohne Website.</p></div>
         <div class="ph-r"><button class="btn p hidden" id="libAdd" onclick="libAddForm()"><svg class="i"><use href="#plus"/></svg>Mod hinzufügen</button><button class="btn" onclick="modInstall('other')"><svg class="i"><use href="#file"/></svg>Datei installieren</button><button class="btn" onclick="api('mods.folder')"><svg class="i"><use href="#folder"/></svg>Mods-Ordner</button></div>
       </div>
       <div class="xwarn"><svg class="i"><use href="#alert"/></svg><div><b>Achtung: Viele Server verbieten Mods.</b> Server mit Pure-Mode lassen dich mit Mods nicht joinen oder kicken dich, manche bannen dafür. ReShade-Looks sind meist erlaubt. Die Nutzung erfolgt auf eigene Verantwortung.</div></div>
+      <div class="tabs vtabs" id="modTabs"><button class="tab on" data-mt="lib"><svg class="i"><use href="#layers"/></svg>Bibliothek<span class="vt-s" id="mtLib">Looks &amp; Mods</span></button><button class="tab" data-mt="rs"><svg class="i"><use href="#sparkle"/></svg>ReShade<span class="vt-s" id="mtRs">Tasten &amp; Optionen</span></button><button class="tab" data-mt="files"><svg class="i"><use href="#puzzle"/></svg>Meine Mods<span class="vt-s" id="mtFiles">Installiert &amp; Downloads</span></button></div>
+      <div class="mtab" data-mtp="lib">
       <div class="lib-bar">
         <div class="lib-search"><svg class="i"><use href="#target"/></svg><input class="in" id="libSearch" placeholder="Mods suchen, z. B. pvp, nacht, kill …"></div>
         <div class="seg" id="libSort"><button class="on" data-v="pop">Beliebt</button><button data-v="new">Neu</button><button data-v="az">A–Z</button></div>
       </div>
       <div class="lib-cats" id="libCats"></div>
       <div class="lib-grid" id="libGrid"></div>
-      <div class="card mt hidden" id="rsSet">
+      </div>
+      <div class="mtab hidden" data-mtp="rs">
+        <div class="empty" id="rsNone">ReShade ist noch nicht installiert.<br><span style="font-size:12px">Wähl in der Bibliothek einen ReShade-Look und klick auf „Installieren“. Danach kannst du hier Tasten und Optionen einstellen.</span></div>
+      <div class="card hidden" id="rsSet">
         <div class="row"><div class="lbl"><svg class="i"><use href="#sparkle"/></svg>ReShade-Einstellungen</div><span class="chip g" id="rsVer">installiert</span><span class="sp"></span><button class="btn sm" onclick="api('reshade.shots')"><svg class="i"><use href="#folder"/></svg>Screenshots</button><button class="btn sm d" onclick="rsUninstall()"><svg class="i"><use href="#trash"/></svg>ReShade entfernen</button></div>
         <div class="rs-grid mt">
           <div><span class="rs-l">Menü öffnen</span><div class="seg keyseg" data-rk="keyOverlay"></div></div>
@@ -468,15 +474,18 @@
         </div>
         <div class="srow"><div><b>FPS im ReShade-Overlay anzeigen</b><p>Kleine FPS-Anzeige oben in der Ecke</p></div><div class="tg" id="rsFps"></div></div>
         <div class="srow"><div><b>Performance-Modus</b><p>Mehr FPS, Effekte lassen sich im Spiel dann nicht mehr verstellen</p></div><div class="tg" id="rsPerf"></div></div>
-        <p class="muted" style="font-size:11.5px;margin-top:6px">Änderungen gelten ab dem nächsten FiveM-Start. Den aktiven Look wählst du oben in der Bibliothek.</p>
+        <p class="muted" style="font-size:11.5px;margin-top:6px">Änderungen gelten ab dem nächsten FiveM-Start. Den aktiven Look wählst du im Tab „Bibliothek“.</p>
       </div>
-      <div class="card mt">
+      </div>
+      <div class="mtab hidden" data-mtp="files">
+      <div class="card">
         <div class="row"><div class="lbl"><svg class="i"><use href="#puzzle"/></svg>Installierte Mod-Dateien</div><span class="chip" id="modCount">0</span><span class="sp"></span><span class="sub" style="font-size:12px">Änderungen nur bei geschlossenem FiveM</span></div>
         <div id="modList" class="mt8"></div>
       </div>
       <div class="card mt">
         <div class="row"><div class="lbl"><svg class="i"><use href="#download"/></svg>Neu in deinen Downloads</div><span class="sp"></span><button class="btn sm" onclick="api('downloads.open')"><svg class="i"><use href="#folder"/></svg>Downloads</button></div>
         <div id="modDl" class="mt8"></div>
+      </div>
       </div>
     </section>
 

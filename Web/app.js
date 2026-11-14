@@ -95,11 +95,13 @@ function smoothPath(pts) {
 
 /* ======================= NAV ======================= */
 let curPage = 'home';
+const NAV_OF = { display: 'gfx', minimap: 'mods' };
 function go(p) {
+  if (p === 'minimap') { LIB.cat = 'minimap'; p = 'mods'; }
   if ((p === 'display') !== (curPage === 'display')) api('display.preview', { on: p === 'display' }).catch(() => { });
   if ((p === 'pad') !== (curPage === 'pad')) api('pad.watch', { on: p === 'pad' }).then(r => r && padState(r.state, r.active)).catch(() => { });
   curPage = p;
-  $$('.nav').forEach(n => n.classList.toggle('active', n.dataset.p === p));
+  $$('.nav').forEach(n => n.classList.toggle('active', n.dataset.p === (NAV_OF[p] || p)));
   $$('.page').forEach(s => s.classList.toggle('show', s.id === 'p-' + p));
   moveInd(); enterPage($('#p-' + p));
   ({ servers: () => S.servers.length || loadServers(), gfx: () => { S.gfx || loadGfx(); gwRefresh(); }, f8: () => loadF8().then(renderF8), admin: () => admShow(admTab), minimap: modsRefresh, clip: clipList, mods: modsRefresh, settings: () => setTab($('#setTabs .tab.on')?.dataset.st || 'design'), xhair: () => setTimeout(xhPlace, 30), cleaner: () => S.clean.length || scan(),
@@ -1121,7 +1123,7 @@ window.modInstall = modInstall; window.modAck = modAck;
 async function modList() {
   let r; try { r = await api('mods.list'); } catch { r = { found: false, items: [] }; }
   const items = r.items || [];
-  $('#modCount').textContent = items.length;
+  $('#modCount').textContent = items.length; if ($('#mtFiles')) $('#mtFiles').textContent = items.length + ' installiert';
   const row = m => `<div class="mod"><div class="ti" style="width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:rgba(var(--a-rgb),.1);color:var(--a)">${ico(MOD_CATS[m.cat]?.[1] || 'puzzle')}</div><div class="tx"><b>${esc(m.name)}</b><p>${MOD_CATS[m.cat]?.[0] || 'Sonstiges'} · ${bytes(m.size)}</p></div><span class="chip ${m.on ? 'g' : ''}">${m.on ? 'Aktiv' : 'Aus'}</span><div class="tg ${m.on ? 'on' : ''}" data-mod="${esc(m.name)}"></div><button class="ib" title="Löschen" data-moddel="${esc(m.name)}">${ico('trash')}</button></div>`;
   $('#modList').innerHTML = !r.found ? '<div class="empty">FiveM nicht gefunden. Pfad im Launcher wählen.</div>' : items.length ? items.map(row).join('') : '<div class="empty">Noch keine Mods installiert. Wähl oben eine Kategorie.</div>';
   const mm = items.filter(m => m.cat === 'minimap');
@@ -1446,7 +1448,7 @@ function libList(cat) {
   return l;
 }
 function libRender() {
-  if ($('#libCats')) $('#libCats').innerHTML = LIB_CATS.map(([k, n, i]) => { const c = k === 'all' ? LIB.items.length : LIB.items.filter(m => m.cat === k).length; return `<button class="lchip ${LIB.cat === k ? 'on' : ''}" data-lc="${k}">${ico(i)}${n}<span>${c}</span></button>`; }).join('');
+  if ($('#libCats')) $('#libCats').innerHTML = LIB_CATS.map(([k, n, i]) => { const c = k === 'all' ? LIB.items.length : LIB.items.filter(m => m.cat === k).length; if (!c && k !== LIB.cat) return ''; return `<button class="lchip ${LIB.cat === k ? 'on' : ''}" data-lc="${k}">${ico(i)}${n}<span>${c}</span></button>`; }).join('');
   const empty = cat => `<div class="empty">${LIB.q ? 'Nichts gefunden für „' + esc(LIB.q) + '“.' : `Noch keine Mods in dieser Kategorie.<br><span style="font-size:12px">Eigene Datei über „Datei installieren“ hinzufügen. Neue Mods kommen automatisch, sobald sie in der Bibliothek (mods.json) stehen.</span>`}</div>`;
   if ($('#libGrid')) { const l = libList(LIB.cat); $('#libGrid').innerHTML = l.length ? l.map(libCard).join('') : empty(LIB.cat); }
   if ($('#mmLib')) { const l = libList('minimap'); $('#mmLib').innerHTML = l.length ? l.map(libCard).join('') : empty('minimap'); }
@@ -1496,7 +1498,9 @@ const RS_KEYS = [['Pos1', 36], ['Einfg', 45], ['Entf', 46], ['Ende', 35], ['Bild
 let RSC = null;
 async function rsSettings() {
   const card = $('#rsSet'); if (!card) return;
-  card.classList.toggle('hidden', !RS.installed);
+  card.classList.toggle('hidden', !RS.installed); $('#rsNone')?.classList.toggle('hidden', !!RS.installed);
+  if ($('#mtRs')) $('#mtRs').textContent = RS.installed ? 'Installiert · Tasten & Optionen' : 'Nicht installiert';
+  if ($('#mtLib')) $('#mtLib').textContent = LIB.items.length + ' Looks & Mods';
   if (!RS.installed) return;
   if (!RSC) try { RSC = await api('reshade.cfg.get'); } catch { RSC = null; }
   if (!RSC || !RSC.found) return;
@@ -1853,3 +1857,12 @@ function MOCKSRV(a) {
   if (p === '/api/codes' && a.method === 'POST') return { code: 'ORB-N3WC-0D3X-YZ12', role: a.body.role };
   return { ok: true, status: 'pending' };
 }
+
+/* ======================= MOD TABS (2.16) ======================= */
+function modTab(k) {
+  $$('#modTabs .tab').forEach(b => b.classList.toggle('on', b.dataset.mt === k));
+  $$('#p-mods .mtab').forEach(p => p.classList.toggle('hidden', p.dataset.mtp !== k));
+  const pane = $(`#p-mods [data-mtp="${k}"]`); if (pane) enterPage($('#p-mods'));
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-mt]'); if (b) modTab(b.dataset.mt); });
+window.modTab = modTab;
