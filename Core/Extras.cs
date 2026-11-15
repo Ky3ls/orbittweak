@@ -540,14 +540,15 @@ internal static class Thumbs
         return ms.ToArray();
     }
 
-    public static async Task<string?> DataUrl(string path, int w = 400, int h = 225)
+    public static async Task<string?> DataUrl(string path, int w = 640, int h = 360)
     {
         if (!File.Exists(path)) return null;
         var key = $"{path}|{w}|{File.GetLastWriteTimeUtc(path).Ticks}";
         lock (Cache) if (Cache.TryGetValue(key, out var c)) return c;
         var url = await Sta(() =>
         {
-            try { var b = Bitmap(path, w, h); return b == null ? null : "data:image/jpeg;base64," + Convert.ToBase64String(Jpeg(b, 78)); }
+            // 640 px wide: stays sharp on large clip cards and on high-DPI screens
+            try { var b = Bitmap(path, w, h); return b == null ? null : "data:image/jpeg;base64," + Convert.ToBase64String(Jpeg(b, 86)); }
             catch { return null; }
         });
         if (url != null) lock (Cache) Cache[key] = url;
@@ -641,7 +642,9 @@ internal static class ModDownloads
         var n = name.ToLowerInvariant();
         if (Regex.IsMatch(n, "minimap|radar|map|atlas|satellite|postal")) return "minimap";
         if (Regex.IsMatch(n, "kill|blood|hit|tracer|impact|effect|fx")) return "kill";
-        if (Regex.IsMatch(n, "sound|audio|sfx|gunshot")) return "sound";
+        // the two files of a gun sound pack carry the names of the game's own sound archives
+        if (Regex.IsMatch(n, "sound|audio|sfx|gunshot|weapons_player|resident")) return "sound";
+        if (Regex.IsMatch(n, "skin|camo|weapons?\\b|gun")) return "skin";
         if (Regex.IsMatch(n, "graphic|visual|nve|reshade|enb|weather|timecycle|light|preset")) return "gfx";
         return "other";
     }

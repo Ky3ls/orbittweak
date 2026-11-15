@@ -43,6 +43,21 @@ public class LaunchCfg
     };
 }
 
+/// <summary>Where the app keeps its files.</summary>
+internal static class AppDirs
+{
+#if DEBUG
+    // Test aid, debug builds only: ORBIT_TEST_DATA points a test run at its own folder, so it never touches the real settings.
+    private static readonly string? Test = Environment.GetEnvironmentVariable("ORBIT_TEST_DATA") is { Length: > 0 } t ? t : null;
+#else
+    private const string? Test = null;
+#endif
+    /// <summary>Settings.</summary>
+    public static string Roaming => Test ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "OrbitTweak");
+    /// <summary>Working files: web pages, browser profile, clipper log.</summary>
+    public static string Local => Test ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OrbitTweak");
+}
+
 public class Settings
 {
     public string Accent { get; set; } = "ember";
@@ -51,6 +66,8 @@ public class Settings
     public bool AutoInstall { get; set; }
     public bool AutoPriority { get; set; } = true;
     public bool AutoRamClean { get; set; }
+    /// <summary>While the game runs, heavy programs next to it are put behind it (lower priority, efficiency mode).</summary>
+    public bool BgThrottle { get; set; }
     public bool RestoreBeforeBoost { get; set; } = true;
     public bool PurgeStandby { get; set; } = true;
     public bool TimerRes { get; set; }
@@ -66,6 +83,10 @@ public class Settings
     public bool F8Auto { get; set; } = true;
     public bool XhairShrink { get; set; } = true;
     public bool SnapTap { get; set; }
+    /// <summary>When the WASD tweak (keyboard buffer size) was last changed here: it only takes effect after a restart of Windows.</summary>
+    public DateTime? WasdSetAt { get; set; }
+    /// <summary>WASD "Laggen": held movement keys are let go for Gap ms every Every ms while the game is in front.</summary>
+    public WasdLagCfg Lag { get; set; } = new();
     public MinimapCfg Minimap { get; set; } = new();
     public ClipCfg Clip { get; set; } = new();
     public Dictionary<string, string> ModCats { get; set; } = new();
@@ -79,8 +100,11 @@ public class Settings
     public DateTime? AuthOkUntil { get; set; }
     public int XhairRev { get; set; }
     public DisplayCfg Display { get; set; } = new();
+    public MinimapModCfg MinimapMod { get; set; } = new();
+    public int ClipRev { get; set; }
+    public int LagRev { get; set; }
 
-    private static string Dir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "OrbitTweak");
+    private static string Dir => AppDirs.Roaming;
     private static string FilePath => Path.Combine(Dir, "settings.v2.json");
 
     public static Settings Load()
@@ -92,11 +116,16 @@ public class Settings
                 var s = JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath)) ?? new Settings();
                 // 2.5.1: crosshair should stay visible when tabbing out
                 if (s.XhairRev < 1) { s.Xhair.OnlyGame = false; s.XhairRev = 1; }
+                // 2.21: the built-in recorder and the automatic kill-feed position become the default once
+                if (s.ClipRev < 1) { s.Clip.Recorder = "orbit"; s.Clip.Area = "auto"; s.ClipRev = 1; }
+                // the old default of "Laggen" (30 ms every 90 ms) was hardly visible in the game: now "Stark"
+                // "Laggen" now makes the figure twitch instead of stop: the old stop-and-go values would be far too coarse
+                if (s.LagRev < 2) { s.Lag.Gap = 35; s.Lag.Every = 80; s.LagRev = 2; }
                 return s;
             }
         }
         catch { }
-        return new Settings();
+        return new Settings { XhairRev = 1, ClipRev = 1, LagRev = 2 }; // fresh install: nothing to migrate
     }
 
     public void Save()

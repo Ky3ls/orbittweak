@@ -39,6 +39,7 @@ const THEMES = {
   lime: ['Lime', '#84CC16', '#D9F99D'],
   copper: ['Copper', '#D97745', '#F2B07E'],
   ice: ['Ice', '#93C5FD', '#E0F2FE'],
+  winter: ['Winter', '#6FC3FF', '#EAF8FF'],
 };
 const THEME_ALIAS = { inferno: 'ember', blood: 'rose', toxic: 'mint', nebula: 'violet' };
 const themeKey = k => THEMES[k] ? k : THEMES[THEME_ALIAS[k]] ? THEME_ALIAS[k] : 'ember';
@@ -47,6 +48,8 @@ function applyTheme(k) {
   const t = THEMES[themeKey(k)], r = document.documentElement.style;
   r.setProperty('--a', t[1]); r.setProperty('--b', t[2]);
   r.setProperty('--a-rgb', hexRgb(t[1])); r.setProperty('--b-rgb', hexRgb(t[2]));
+  // the winter theme is more than a colour: cold background, frost on the cards and falling snow
+  document.documentElement.classList.toggle('th-winter', themeKey(k) === 'winter');
 }
 
 /* ======================= MOTION ======================= */
@@ -65,6 +68,7 @@ function countTo(el, to, suffix = '', dur = 700) {
 }
 function moveInd() {
   const a = $('.nav.active'), ind = $('#navInd'); if (!a || !ind) return;
+  if (a.classList.contains('mini')) { ind.style.opacity = 0; return; }   // the small buttons at the bottom have their own highlight
   ind.style.transform = `translateY(${a.offsetTop}px)`; ind.style.opacity = 1;
 }
 function enterPage(el) {
@@ -100,11 +104,12 @@ function go(p) {
   if (p === 'minimap') { LIB.cat = 'minimap'; p = 'mods'; }
   if ((p === 'display') !== (curPage === 'display')) api('display.preview', { on: p === 'display' }).catch(() => { });
   if ((p === 'pad') !== (curPage === 'pad')) api('pad.watch', { on: p === 'pad' }).then(r => r && padState(r.state, r.active)).catch(() => { });
+  if (p !== 'mods' && MMO.prev) mmoPreview(false);
   curPage = p;
   $$('.nav').forEach(n => n.classList.toggle('active', n.dataset.p === (NAV_OF[p] || p)));
   $$('.page').forEach(s => s.classList.toggle('show', s.id === 'p-' + p));
   moveInd(); enterPage($('#p-' + p));
-  ({ servers: () => S.servers.length || loadServers(), gfx: () => { S.gfx || loadGfx(); gwRefresh(); }, f8: () => loadF8().then(renderF8), admin: () => admShow(admTab), minimap: modsRefresh, clip: clipList, mods: modsRefresh, settings: () => { setTab($('#setTabs .tab.on')?.dataset.st || 'account'); spProfile(); }, xhair: () => setTimeout(xhPlace, 30), cleaner: () => S.clean.length || scan(),
+  ({ servers: () => S.servers.length || loadServers(), gfx: () => { S.gfx || loadGfx(); gwRefresh(); }, f8: () => loadF8().then(renderF8), admin: () => admShow(admTab), minimap: modsRefresh, clip: () => { clipList(); hlLoad(); }, mods: modsRefresh, settings: () => { setTab($('#setTabs .tab.on')?.dataset.st || 'account'); spProfile(); }, xhair: () => setTimeout(xhPlace, 30), cleaner: () => S.clean.length || scan(),
      diag: () => { S.health ? renderHealth(S.health) : runHealth(); loadLogs(); }, launcher: renderCmd, home: refreshCache })[p]?.();
 }
 window.go = go;
@@ -137,8 +142,27 @@ function onEvent(ev, d) {
   else if (ev === 'modInstalled') { passed('Mod installiert', `${MOD_CATS[d.cat]?.[0] || 'Mod'} · ${d.name}`); modList(); }
   else if (ev === 'reshade') { for (const k in LIB.busy) LIB.busy[k] = d.pct; libRender(); }
   else if (ev === 'modget') { if (d.id in LIB.busy) { LIB.busy[d.id] = d.pct; libRender(); } }
+  else if (ev === 'dlNew') {   // a pack landed in the Downloads folder (saved from Discord, for example)
+    toast('Neues Pack in deinen Downloads', `${d.name} · unter Mods → Dateien mit einem Klick installieren`);
+    if (curPage === 'mods') dlList('#modDl');
+  }
+  else if (ev === 'gamefront') document.documentElement.classList.toggle('rest', !!d.on);   // FiveM is in front: no blur, no running animations
+  else if (ev === 'clipwords') { CL.words = d.words; if ($('#clWords') && document.activeElement !== $('#clWords')) $('#clWords').value = CL.words; }
   else if (ev === 'kill') { feed(d.kill ? '🎯 Kill erkannt, Clip folgt' : '💀 Tod erkannt, Clip folgt'); }
-  else if (ev === 'clip') { toast(d.auto ? 'Auto-Clip gespeichert' : 'Clip gespeichert', d.auto ? 'Nach einem Gefecht · ' + (CL_RECS[d.recorder]?.[0] || '') : 'per Taste · ' + (CL_RECS[d.recorder]?.[1] || '')); if (curPage === 'clip') setTimeout(clipList, 4000); }
+  else if (ev === 'clip') {
+    if (d.error) toast('Kein Clip gespeichert', d.error, false);
+    else if (d.recorder === 'orbit') toast(d.auto ? 'Auto-Clip gespeichert' : 'Clip gespeichert', d.file || '');
+    else toast(d.auto ? 'Auto-Clip gespeichert' : 'Clip gespeichert', d.auto ? 'Nach einem Gefecht · ' + (CL_RECS[d.recorder]?.[0] || '') : 'per Taste · ' + (CL_RECS[d.recorder]?.[1] || ''));
+    if (curPage === 'clip') setTimeout(clipList, d.recorder === 'orbit' ? 600 : 4000);
+  }
+  else if (ev === 'mmbuild') mmbProgress(d);
+  else if (ev === 'highlight' || ev === 'share') hlProgress(d);
+  else if (ev === 'highlightDone') {   // made by itself after the game was closed
+    $('#hlProg')?.classList.add('hidden');
+    if (d.file) passed('Highlight-Video der Runde fertig', `${d.clips} Clips · ${d.file}`); else toast('Kein Highlight-Video', d.error || '', false);
+    if (curPage === 'clip') { clipList(); hlLoad(); }
+  }
+  else if (ev === 'lag') { if (wasdSt && wasdSt.chop) { wasdSt.chop.on = d.on; wasdUI(); } }   // switched with the key in the game
 }
 function stats(d) {
   $('#tbCpu').textContent = d.cpu + '%'; $('#tbRam').textContent = d.ram + '%';
@@ -538,6 +562,8 @@ async function checkUpdate(manual) {
       $('#updTxt').textContent = 'Neue Version verfügbar';
       $('#updVer').textContent = u.latest; $('#updDate').textContent = u.date || '';
       $('#updNotes').innerHTML = (u.notes || []).map(n => `<li>${esc(n)}</li>`).join('');
+      // kept for the "what is new" window that opens once after this update was installed
+      try { if ((u.notes || []).length) localStorage.setItem('orbitNotes', JSON.stringify({ v: u.latest, notes: u.notes })); } catch { }
       $('#updBox').classList.remove('hidden');
       $('#updPill').classList.add('show'); $('#updPillTxt').textContent = 'Update ' + u.latest;
       $('#navUpd').classList.remove('hidden');
@@ -603,7 +629,12 @@ async function restorePoint() { toast('Wird erstellt…', 'Kann bis zu einer Min
 
 /* ======================= MODAL / WIZARD ======================= */
 function modal(html) { $('#mbox').innerHTML = html; $('#modal').classList.add('show'); }
-function closeModal() { $('#modal').classList.remove('show'); }
+function closeModal() {
+  $('#modal').classList.remove('show');
+  // a clip that is still playing must stop with its window (picture and sound), whichever way the window was closed
+  $$('#mbox video, #mbox audio').forEach(v => { try { v.pause(); v.removeAttribute('src'); v.load(); } catch { } });
+  setTimeout(() => { if (!$('#modal').classList.contains('show')) { $('#mbox').innerHTML = ''; $('#mbox').style.width = ''; } }, 400);
+}
 function confirmBox(title, text) {
   return new Promise(res => {
     modal(`<h1>${esc(title)}</h1><p>${esc(text)}</p><div class="act"><button class="btn" id="mNo">Abbrechen</button><button class="btn p" id="mYes">Bestätigen</button></div>`);
@@ -1058,18 +1089,146 @@ document.addEventListener('input', e => {
   if (r) { const k = r.dataset.mmr, v = +r.value; if (k in MM.cfg) MM.cfg[k] = v; else MM[k] = v; r.style.setProperty('--p', (v - r.min) / (r.max - r.min) * 100 + '%'); r.nextElementSibling.textContent = v + (k === 'mask' ? '%' : ''); mmPush(); return; }
   if (e.target.id === 'mmPick') { MM.cfg.color = e.target.value.toUpperCase(); mmPush(); }
 });
-// 2.9.0: the frame overlay was replaced by real minimap mods – make sure an old overlay is off
-function initMinimap(s) { if (s.minimap && s.minimap.on) api('minimap.set', { on: false, x: 0, y: 0 }).catch(() => { }); }
+/* ======================= PICTURE OVER THE MINIMAP (overlay, 2.21) ======================= */
+// The user's own picture is laid over the game's minimap: an overlay window like the crosshair, positioned from the
+// bottom left corner of the game picture. Nothing in the game files is changed. Sizes are pixels of the game picture.
+// auto: position and size were not set by hand yet, so they follow the size of the game picture
+const MMO = { kind: 'ov', on: false, path: '', name: '', iw: 0, ih: 0, img: null, x: 0, y: 0, w: 0, h: 0, auto: true, fit: 'cover', shape: 'rect', op: 100, cw: 1920, ch: 1080, prev: false, t: 0 };
+// where the minimap usually sits: bottom left, a quarter of the picture height wide
+function mmoDefaults() { const H = MMO.ch; Object.assign(MMO, { x: Math.round(H * .025), y: Math.round(H * .037), w: Math.round(H / 4), h: Math.round(H / 6) }); }
+function mmoPaint(x, dx, dy, w, h) {
+  if (!MMO.img) return;
+  x.save(); x.globalAlpha = MMO.op / 100; x.imageSmoothingQuality = 'high';
+  x.beginPath();
+  if (MMO.shape === 'circle') x.ellipse(dx + w / 2, dy + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+  else if (MMO.shape === 'round') x.roundRect(dx, dy, w, h, Math.min(w, h) * .12);
+  else x.rect(dx, dy, w, h);
+  x.clip();
+  const iw = MMO.img.width, ih = MMO.img.height;
+  if (MMO.fit === 'stretch') x.drawImage(MMO.img, dx, dy, w, h);
+  else { const s = MMO.fit === 'contain' ? Math.min(w / iw, h / ih) : Math.max(w / iw, h / ih), tw = iw * s, th = ih * s; x.drawImage(MMO.img, dx + (w - tw) / 2, dy + (h - th) / 2, tw, th); }
+  x.restore();
+}
+/** The overlay picture exactly as it is shown in the game (base64 PNG), or '' without a picture. */
+function mmoPng() {
+  if (!MMO.img || MMO.w < 8 || MMO.h < 8) return '';
+  const c = document.createElement('canvas'); c.width = MMO.w; c.height = MMO.h;
+  mmoPaint(c.getContext('2d'), 0, 0, MMO.w, MMO.h);
+  return c.toDataURL('image/png').split(',')[1];
+}
+/** Sends position and (if it changed) the picture to the app; a moment after the last change while sliders move. */
+function mmoPush(pic = true, wait = 120) {
+  MMO.pic = MMO.pic || pic; clearTimeout(MMO.t);
+  MMO.t = setTimeout(async () => {
+    const png = MMO.pic ? mmoPng() : ''; MMO.pic = false;
+    const json = JSON.stringify({ path: MMO.path, name: MMO.name, x: MMO.x, y: MMO.y, w: MMO.w, h: MMO.h, auto: MMO.auto, fit: MMO.fit, shape: MMO.shape, op: MMO.op });
+    const r = await api('minimap.set', { on: MMO.on && !!MMO.img, x: MMO.x, y: MMO.y, json, png }).catch(() => null);
+    if (r && r.client && r.client.h > 200 && (r.client.w !== MMO.cw || r.client.h !== MMO.ch)) {
+      MMO.cw = r.client.w; MMO.ch = r.client.h;
+      if (MMO.auto) { mmoDefaults(); mmoUI(); mmoPush(true, 0); } else mmoUI();   // another picture size: lay it on the minimap again
+    }
+  }, wait);
+}
+function mmoLoad(i) {
+  return new Promise(res => {
+    Object.assign(MMO, { path: i.path, name: i.name, iw: i.w, ih: i.h, img: null });
+    const im = new Image(); im.onload = () => { MMO.img = im; res(true); }; im.onerror = () => res(false); im.src = i.preview;
+  });
+}
+function mmoPreview(on) { MMO.prev = on; api('minimap.preview', { on }).catch(() => { }); mmoUI(); }
+function mmoUI() {
+  if (!$('#mmoPick')) return;
+  $$('#mmKind button').forEach(b => b.classList.toggle('on', b.dataset.v === MMO.kind));
+  $('#mmOvPane').classList.toggle('hidden', MMO.kind !== 'ov'); $('#mmModPane').classList.toggle('hidden', MMO.kind !== 'mod');
+  const has = !!MMO.img;
+  $('#mmoName').textContent = MMO.path ? MMO.name : 'Bild auswählen';
+  $('#mmoInfo').textContent = MMO.path ? `${MMO.iw} × ${MMO.ih} Pixel` : 'PNG, JPG oder WebP';
+  const th = $('#mmoTh'); th.style.backgroundImage = has ? `url('${MMO.img.src}')` : ''; th.classList.toggle('has', has);
+  $('#mmoOn').classList.toggle('on', MMO.on && has);
+  const chip = $('#mmoChip'); chip.className = 'chip' + (MMO.on && has ? ' g' : ''); chip.textContent = MMO.on && has ? 'Aktiv' : 'Aus';
+  const rng = (id, v, max) => { const el = $(id); if (max) el.max = max; el.value = v; el.style.setProperty('--p', (v - el.min) / (el.max - el.min) * 100 + '%'); $(id + 'V').textContent = v + (id === '#mmoOp' ? '%' : ' px'); };
+  rng('#mmoX', MMO.x, Math.round(MMO.cw / 2)); rng('#mmoY', MMO.y, Math.round(MMO.ch / 2));
+  rng('#mmoW', MMO.w, Math.round(MMO.cw / 2)); rng('#mmoH', MMO.h, Math.round(MMO.ch / 2)); rng('#mmoOp', MMO.op);
+  $$('#mmoFit button').forEach(b => b.classList.toggle('on', b.dataset.v === MMO.fit));
+  $$('#mmoShape button').forEach(b => b.classList.toggle('on', b.dataset.v === MMO.shape));
+  $('#mmoPrev').classList.toggle('p', MMO.prev); $('#mmoPrev').querySelector('span').textContent = MMO.prev ? 'Vorschau auf dem Bildschirm aus' : 'Auf dem Bildschirm zeigen';
+  $('#mmoHint').innerHTML = !has ? 'Wähl links ein Bild aus. Danach siehst du hier, wo es im Spiel liegt.'
+    : `Das Bild liegt ${MMO.x} px vom linken und ${MMO.y} px vom unteren Rand, bei einem Spielbild von ${MMO.cw} × ${MMO.ch}. Passt es nicht genau auf deine Minimap, starte FiveM, schalte „Auf dem Bildschirm zeigen“ ein und schieb es mit den Reglern zurecht.`;
+  if ($('#mtMm') && MMO.on && has) $('#mtMm').textContent = 'Overlay aktiv';
+  mmoDraw();
+}
+/** Preview: the bottom left corner of the game picture with a stand-in minimap and the picture on top. */
+function mmoDraw() {
+  const cv = $('#mmoCv'); if (!cv) return;
+  const x = cv.getContext('2d'), W = cv.width, H = cv.height;
+  // shown part of the game picture: wide enough for the picture plus some room
+  const vw = Math.max(MMO.ch * .62, (MMO.x + MMO.w) * 1.25), vh = vw * H / W, k = W / vw;
+  const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#5A6B78'); g.addColorStop(.55, '#4B4F4A'); g.addColorStop(1, '#2F3130');
+  x.fillStyle = g; x.fillRect(0, 0, W, H);
+  x.strokeStyle = 'rgba(255,255,255,.06)'; x.lineWidth = 2; for (let i = 1; i < 6; i++) { x.beginPath(); x.moveTo(0, H * (.5 + i * .09)); x.lineTo(W, H * (.42 + i * .1)); x.stroke(); }
+  // stand-in minimap where GTA draws it
+  const d = { x: MMO.ch * .025, y: MMO.ch * .037, w: MMO.ch / 4, h: MMO.ch / 6 };
+  const bx = d.x * k, by = H - (d.y + d.h) * k, bw = d.w * k, bh = d.h * k;
+  x.save(); x.beginPath(); x.rect(bx, by, bw, bh); x.clip(); x.translate(bx, by); mmMapMock(x, bw, bh); x.restore();
+  x.strokeStyle = 'rgba(0,0,0,.6)'; x.lineWidth = 2; x.strokeRect(bx, by, bw, bh);
+  x.fillStyle = '#5BBF57'; x.fillRect(bx, by + bh + 4, bw * .5 - 2, 6); x.fillStyle = '#4A9BD8'; x.fillRect(bx + bw * .5 + 2, by + bh + 4, bw * .5 - 2, 6);
+  if (MMO.img) mmoPaint(x, MMO.x * k, H - (MMO.y + MMO.h) * k, MMO.w * k, MMO.h * k);
+  else { x.fillStyle = 'rgba(255,255,255,.6)'; x.font = '600 22px Inter, sans-serif'; x.textAlign = 'center'; x.fillText('Noch kein Bild gewählt', W / 2, H * .3); }
+}
+document.addEventListener('click', async e => {
+  const kind = e.target.closest('#mmKind button'); if (kind) { MMO.kind = kind.dataset.v; if (MMO.kind !== 'ov' && MMO.prev) mmoPreview(false); mmoUI(); return; }
+  if (!e.target.closest('#mmOvPane')) return;
+  if (e.target.closest('#mmoPick')) {
+    const i = await api('minimap.pick').catch(er => ({ error: er.message }));
+    if (i.cancelled) return;
+    if (i.error) return toast('Bild nicht geladen', i.error, false);
+    if (!await mmoLoad(i)) return toast('Bild nicht geladen', 'Die Datei konnte nicht gelesen werden', false);
+    MMO.on = true; mmoUI(); mmoPush(true, 0);
+    toast('Minimap-Bild aktiv', 'Erscheint, sobald FiveM vorne ist · Server-Regeln beachten');
+    return;
+  }
+  if (e.target.closest('#mmoOn')) {
+    if (!MMO.img) return toast('Erst ein Bild auswählen', '', false);
+    MMO.on = !MMO.on; mmoUI(); mmoPush(true, 0);
+    toast(MMO.on ? 'Minimap-Bild an' : 'Minimap-Bild aus', MMO.on ? 'Erscheint, sobald FiveM vorne ist' : ''); return;
+  }
+  if (e.target.closest('#mmoAuto')) { MMO.auto = true; mmoDefaults(); mmoUI(); mmoPush(true, 0); return; }
+  if (e.target.closest('#mmoPrev')) {
+    if (!MMO.img) return toast('Erst ein Bild auswählen', '', false);
+    mmoPreview(!MMO.prev); if (MMO.prev) { mmoPush(true, 0); toast('Vorschau an', 'Das Bild ist jetzt auch zu sehen, wenn FiveM nicht vorne ist'); } return;
+  }
+  const f = e.target.closest('#mmoFit button'); if (f) { MMO.fit = f.dataset.v; mmoUI(); mmoPush(); return; }
+  const sh = e.target.closest('#mmoShape button'); if (sh) { MMO.shape = sh.dataset.v; mmoUI(); mmoPush(); return; }
+});
+document.addEventListener('input', e => {
+  const k = { mmoX: 'x', mmoY: 'y', mmoW: 'w', mmoH: 'h', mmoOp: 'op' }[e.target.id]; if (!k) return;
+  MMO[k] = +e.target.value; if (k !== 'op') MMO.auto = false;
+  mmoUI(); mmoPush(k !== 'x' && k !== 'y');   // moving needs no new picture
+});
+// on start: bring back the picture that was set up (an old frame overlay from before 2.9 is switched off)
+async function initMinimap(s) {
+  const m = s.minimap || {}; let c = null; try { c = m.json ? JSON.parse(m.json) : null; } catch { }
+  if (!c || !c.path) { if (m.on) api('minimap.set', { on: false, x: 0, y: 0 }).catch(() => { }); mmoDefaults(); return; }
+  Object.assign(MMO, { x: c.x | 0, y: c.y | 0, w: Math.max(60, c.w | 0), h: Math.max(40, c.h | 0), auto: !!c.auto, fit: ['cover', 'contain', 'stretch'].includes(c.fit) ? c.fit : 'cover', shape: ['rect', 'round', 'circle'].includes(c.shape) ? c.shape : 'rect', op: Math.min(100, Math.max(20, c.op | 0 || 100)), on: !!m.on, path: c.path, name: c.name || '' });
+  const i = await api('minimap.info', { path: c.path }).catch(() => null);
+  if (!i || i.error || !await mmoLoad(i)) { MMO.on = false; if (m.on) api('minimap.set', { on: false, x: MMO.x, y: MMO.y }).catch(() => { }); mmoUI(); return; }   // the picture file is gone
+  mmoUI(); mmoPush(true, 0);
+}
 
 /* ======================= CLIPPER ======================= */
 const CL_RECS = {
+  orbit: ['OrbitTweak', 'Eingebaut', 'Empfohlen: OrbitTweak nimmt selbst auf, du brauchst kein anderes Programm. Clips landen in Videos\\OrbitTweak.'],
   nvidia: ['NVIDIA', 'Alt+F10', 'In der NVIDIA App (Alt+Z) unter Aufnahme „Instant Replay“ einschalten. Clips landen in Videos.'],
   gamebar: ['Game Bar', 'Win+Alt+G', 'Windows Game Bar mit Hintergrundaufnahme. Clips landen in Videos\\Captures.'],
   amd: ['AMD', 'Strg+Shift+S', 'In AMD Adrenalin „Instant Replay“ aktivieren.'],
   obs: ['OBS', 'Strg+Alt+F12', 'In OBS den Replay-Puffer starten und unter Einstellungen → Hotkeys „Wiederholung speichern“ auf Strg+Alt+F12 legen.'],
 };
-const CL = { key: 0x78, recorder: 'nvidia', flash: true, auto: false, sens: 2, kills: false, deaths: false, name: '', area: 'tr' };
-const KF_AREAS = [['tr', 'Oben rechts'], ['tl', 'Oben links'], ['r', 'Rechts Mitte'], ['tc', 'Oben Mitte']];
+const CL_WORDS = 'KILLED, KILL, GETÖTET, ELIMINATED, ELIMINIERT, ERLEDIGT';
+const CL = { key: 0x78, recorder: 'orbit', flash: true, auto: false, sens: 2, kills: false, detect: 'mark', words: CL_WORDS, net: true, banner: true, autoHighlight: false, highlightTail: 8, shareMb: 10, deaths: false, name: '', area: 'auto', before: 20, after: 5, quality: 'std', sound: true };
+const CL_DETECT = [['mark', 'Am Fadenkreuz (ohne Kill-Feed)'], ['feed', 'Kill-Feed lesen']];
+const KF_AREAS = [['auto', 'Automatisch'], ['tr', 'Oben rechts'], ['tl', 'Oben links'], ['r', 'Rechts Mitte'], ['tc', 'Oben Mitte']];
+const CL_QUAL = [['low', 'Leicht', '720p · 30 FPS'], ['std', 'Standard', '1080p · 60 FPS'], ['high', 'Hoch', 'bis 1440p · 60 FPS']];
+let clSt = null; // live state of the built-in recorder
 function clFlashPng() {
   const cv = document.createElement('canvas'); cv.width = 380; cv.height = 58; const x = cv.getContext('2d');
   x.fillStyle = 'rgba(10,10,12,.9)'; x.beginPath(); x.roundRect(0, 0, 380, 58, 12); x.fill();
@@ -1077,71 +1236,224 @@ function clFlashPng() {
   x.fillStyle = a; x.fillRect(0, 10, 4, 38);
   x.fillStyle = '#FF3B3B'; x.beginPath(); x.arc(30, 29, 7, 0, Math.PI * 2); x.fill();
   x.fillStyle = '#fff'; x.font = '700 18px Geist, Inter, sans-serif'; x.fillText('CLIP GESPEICHERT', 50, 27);
-  x.fillStyle = '#A1A1AA'; x.font = '500 12px Inter, sans-serif'; x.fillText(`OrbitTweak · ${CL_RECS[CL.recorder][0]}`, 50, 44);
+  x.fillStyle = '#A1A1AA'; x.font = '500 12px Inter, sans-serif'; x.fillText(CL.recorder === 'orbit' ? 'OrbitTweak Clipper' : `OrbitTweak · ${CL_RECS[CL.recorder][0]}`, 50, 44);
   return cv.toDataURL('image/png').split(',')[1];
 }
 async function clipPush() {
-  const r = await api('clip.cfg', { key: CL.key, recorder: CL.recorder, flash: CL.flash, auto: CL.auto, sens: CL.sens, kills: CL.kills, deaths: CL.deaths, name: CL.name, area: CL.area, png: clFlashPng() }).catch(() => null);
+  const accent = getComputedStyle(document.documentElement).getPropertyValue('--a').trim();
+  const r = await api('clip.cfg', { key: CL.key, recorder: CL.recorder, flash: CL.flash, auto: CL.auto, sens: CL.sens, kills: CL.kills, detect: CL.detect, words: CL.words || '', net: CL.net, ai: CL.ai !== false, hud: CL.hud !== false, hudTime: CL.hudTime !== false, hudClock: !!CL.hudClock, banner: CL.banner !== false, autoHighlight: !!CL.autoHighlight, highlightTail: CL.highlightTail ? 8 : 0, shareMb: CL.shareMb || 10, accent: /^#[0-9a-f]{6}$/i.test(accent) ? accent : '', deaths: CL.deaths, name: CL.name, area: CL.area, before: CL.before, after: CL.after, quality: CL.quality, sound: CL.sound, png: clFlashPng() }).catch(() => null);
   if (r && r.keyOk === false) toast('Taste belegt', 'Andere Clip-Taste wählen', false);
+  // the app tidies the word list (and falls back to the usual words when it is empty)
+  if (r && r.words) { CL.words = r.words; if (document.activeElement !== $('#clWords')) $('#clWords').value = CL.words; }
+  clipStatus();
 }
 function clipUI() {
+  if (!CL_RECS[CL.recorder]) CL.recorder = 'orbit';
+  const own = CL.recorder === 'orbit';
   $('#clRecs').innerHTML = Object.entries(CL_RECS).map(([k, [n, combo]]) => `<button class="cl-rec ${CL.recorder === k ? 'on' : ''}" data-rec="${k}"><b>${n}</b><span>${combo}</span></button>`).join('');
   $('#clRecTxt').innerHTML = esc(CL_RECS[CL.recorder][2]) + (CL.recorder === 'gamebar' ? `<br><button class="btn sm mt8" onclick="clipGameBar()">${ico('zap')}Hintergrundaufnahme einschalten</button>` : '');
+  $('#clOrbit').classList.toggle('hidden', !own); $('#clExtNote').classList.toggle('hidden', own);
+  $('#clQual').innerHTML = CL_QUAL.map(([v, n, d]) => `<button class="${CL.quality === v ? 'on' : ''}" data-clq="${v}" title="${d}">${n} · ${d}</button>`).join('');
+  $('#clBefore').innerHTML = [10, 15, 20, 30, 45].map(v => `<button class="${CL.before === v ? 'on' : ''}" data-clb="${v}">${v} s</button>`).join('');
+  $('#clAfter').innerHTML = [0, 3, 5, 8, 10].map(v => `<button class="${CL.after === v ? 'on' : ''}" data-cla="${v}">${v} s</button>`).join('');
+  $('#clSound').classList.toggle('on', CL.sound);
   $('#clKey').innerHTML = KEYS.map(([n, v]) => `<button class="${CL.key === v ? 'on' : ''}" data-clk="${v}">${n}</button>`).join('');
   $('#clFlash').classList.toggle('on', CL.flash);
-  $('#clAuto').classList.toggle('on', CL.auto); $('#clAutoOpts').classList.toggle('off', !CL.auto);
+  $('#clNet').classList.toggle('on', CL.net !== false);
+  $('#clBanner').classList.toggle('on', CL.banner !== false);
+  $('#clAi').classList.toggle('on', CL.ai !== false);
+  $('#clHud').classList.toggle('on', CL.hud !== false);
+  $$('#clHudX button').forEach(b => b.classList.toggle('on', b.dataset.hx === 'hudTime' ? CL.hudTime !== false : !!CL.hudClock));
+  $('#hlAuto').classList.toggle('on', !!CL.autoHighlight);
+  $('#clShareMb').innerHTML = [[10, '10 MB'], [50, '50 MB'], [500, '500 MB']].map(([v, n]) => `<button class="${(CL.shareMb || 10) === v ? 'on' : ''}" data-shmb="${v}">${n}</button>`).join('');
+  HL.tail = CL.highlightTail ? 8 : 0; hlUI();
+  if (document.activeElement !== $('#clWords')) $('#clWords').value = CL.words || CL_WORDS;
+  // the "how many shots make a firefight" setting also counts for the safety net of the kill clipper
+  $('#clAuto').classList.toggle('on', CL.auto); $('#clAutoOpts').classList.toggle('off', !CL.auto && !(CL.kills && CL.detect !== 'feed' && CL.net !== false));
   $('#clKills').classList.toggle('on', CL.kills); $('#clKillOpts').classList.toggle('off', !CL.kills);
   $('#clDeaths').classList.toggle('on', CL.deaths);
   if (document.activeElement !== $('#clName')) $('#clName').value = CL.name || '';
+  if (document.activeElement !== $('#kcName')) $('#kcName').value = CL.name || '';
   $('#clArea').innerHTML = KF_AREAS.map(([v, n]) => `<button class="${CL.area === v ? 'on' : ''}" data-kfa="${v}">${n}</button>`).join('');
   $('#clSens').innerHTML = [[1, 'Nur große Gefechte'], [2, 'Normal'], [3, 'Jeder Schusswechsel']].map(([v, n]) => `<button class="${CL.sens === v ? 'on' : ''}" data-cls="${v}">${n}</button>`).join('');
-  const kn = (KEYS.find(k => k[1] === CL.key) || ['Aus'])[0], off = !CL.key || kn === 'Aus';
-  $('#clStat').innerHTML = `<div class="cs-i ${off ? 'warn' : ''}">${ico('keyboard')}<div><span>Clip-Taste</span><b>${off ? 'Keine Taste' : esc(kn)}</b></div></div>
-    <div class="cs-arrow">${ico("chev")}</div>
-    <div class="cs-i">${ico('film')}<div><span>Nimmt auf mit</span><b>${esc(CL_RECS[CL.recorder][0])}</b></div></div>
-    <div class="cs-arrow">${ico("chev")}</div>
-    <div class="cs-i">${ico('folder')}<div><span>Landet in</span><b>Videos</b></div></div>
-    <div class="cs-i ${CL.auto || CL.kills ? '' : 'dim'}">${ico('rec')}<div><span>Auto-Clip</span><b>${CL.kills && CL.auto ? 'Kills + Gefechte' : CL.kills ? 'Bei Kills' : CL.auto ? 'Nach Gefechten' : 'Aus'}</b></div></div>
-    <span class="sp"></span><button class="btn sm" data-goTab="clip:setup">${ico('settings')}Ändern</button>`;
+  // how kills are noticed: red X on the crosshair (default, nothing to set up) or the kill feed (needs the name)
+  if (CL.detect !== 'feed') CL.detect = 'mark';
+  const feed = CL.detect === 'feed';
+  $('#clDetect').innerHTML = CL_DETECT.map(([v, n]) => `<button class="${CL.detect === v ? 'on' : ''}" data-cld="${v}">${n}</button>`).join('');
+  $('#clMarkBox').classList.toggle('hidden', feed); $('#clFeedBox').classList.toggle('hidden', !feed);
+  // the Kill-Clipper card on top
+  const kn = (KEYS.find(k => k[1] === CL.key) || ['Aus'])[0], off = !CL.key || kn === 'Aus', nameOk = !feed || (CL.name || '').trim().length >= 3;
+  $('#kcOn').classList.toggle('on', CL.kills); $('#kcIc').classList.toggle('on', CL.kills && nameOk);
+  $('#clStat').classList.toggle('on', CL.kills && nameOk);
+  $('#kcTxt').textContent = !CL.kills ? 'Speichert jeden Kill automatisch als Clip, ohne Tastendruck und ohne Kill-Feed'
+    : !nameOk ? 'Trag deinen Ingame-Namen ein, so wie er im Kill-Feed steht. Daran erkennt OrbitTweak deine Kills.'
+    : feed ? `Aktiv: Kills von „${CL.name.trim()}“ im Kill-Feed werden automatisch gespeichert${CL.deaths ? ', Tode auch' : ''}`
+    : CL.net !== false ? 'Aktiv: Kills werden an der Kill-Meldung am Fadenkreuz erkannt. Bis der erste Kill erkannt ist, wird zur Sicherheit auch jedes Gefecht gespeichert. Kein Kill-Feed nötig.'
+    : 'Aktiv: Jeder Kill wird automatisch gespeichert. Erkannt wird die Kill-Meldung am Fadenkreuz, kein Kill-Feed nötig.';
+  $('#kcName').classList.toggle('hidden', !feed);
+  $('#kcName').classList.toggle('need', CL.kills && !nameOk);
+  $('#kcLen').innerHTML = ico('film') + (own ? `${CL.before} s davor · ${CL.after} s danach` : `${esc(CL_RECS[CL.recorder][0])} · ${esc(CL_RECS[CL.recorder][1])}`);
+  $('#kcKey').innerHTML = ico('keyboard') + (off ? 'Clip-Taste aus' : 'Clip-Taste ' + esc(kn));
+  $('#kcKey').classList.toggle('warn', off);
+  $('#kcDir').innerHTML = ico('folder') + (own ? 'Videos\\OrbitTweak' : 'Videos');
+  clipStatusUI();
 }
+const KF_NAMES = { tr: 'oben rechts', tl: 'oben links', r: 'rechts Mitte', tc: 'oben Mitte' };
+function clipStatusUI() {
+  const el = $('#kcRec'); if (!el) return;
+  const s = clSt, own = CL.recorder === 'orbit';
+  let cls = '', txt;
+  if (!own) txt = `Aufnahme über ${esc(CL_RECS[CL.recorder][0])}`;
+  else if (!s) txt = 'Aufnahme: eingebaut';
+  else if (s.supported === false) { cls = 'err'; txt = 'Aufnahme wird von diesem Windows nicht unterstützt'; }
+  else if (s.armed === false) txt = 'Aufnahme aus (Kill-Clipper und Clip-Taste sind aus)';
+  else if (s.running) { cls = 'live'; txt = `Aufnahme läuft · ${Math.min(s.buffered, CL.before + CL.after + 30)} s bereit · ${s.w}×${s.h}`; }
+  else if (s.error) { cls = 'err'; txt = 'Aufnahme: ' + esc(s.error); }
+  else txt = s.game ? 'Aufnahme startet…' : 'Wartet auf FiveM';
+  el.className = 'kc-chip ' + cls; el.innerHTML = (cls === 'live' ? '<i></i>' : ico('rec')) + txt;
+  const f = $('#clFound'); if (f) f.textContent = CL.area === 'auto' && s && s.found ? `gefunden: ${KF_NAMES[s.found] || s.found}` : '';
+  const m = $('#clMarkLast');
+  if (m) m.innerHTML = s && s.markAt ? `${s.markImg ? `<img src="${s.markImg}" alt="">` : ''}<span>Zuletzt erkannter Kill: <b>${new Date(s.markAt).toLocaleTimeString('de-DE')}</b> · ${s.markWord ? `Kill-Meldung „${esc(s.markWord)}“` : 'rotes X'}${s.netQuiet ? '<br>Die Erkennung funktioniert hier, das Sicherheitsnetz pausiert.' : ''}</span>`
+    : `<span>Seit dem Start wurde noch kein Kill erkannt. Nach deinem ersten Kill siehst du hier, woran OrbitTweak ihn erkannt hat.</span>`;
+  // AI check: is a key there, what did it say last
+  const ai = s && s.ai, ks = $('#clAiKeyState'), al = $('#clAiLast');
+  if (ks) ks.textContent = !ai ? '' : ai.key ? 'gespeichert · zum Ändern neuen Key eintragen' : 'fehlt noch · kostenlos auf openrouter.ai';
+  if (al) al.innerHTML = !ai || CL.ai === false ? '' : !ai.key ? '<span>Ohne Key bleibt die KI-Prüfung aus.</span>'
+    : `<span>KI-Prüfung ${ai.paused ? 'pausiert (Limit erreicht)' : ai.active ? 'bereit' : 'wartet'} · ${ai.asked || 0} ${ai.asked === 1 ? 'Gefecht' : 'Gefechte'} geprüft, ${ai.kills || 0} ${ai.kills === 1 ? 'Kill' : 'Kills'} gefunden${ai.last ? `<br>Zuletzt: ${esc(ai.last)}` : ''}${ai.error ? `<br>Letzter Fehler: ${esc(ai.error)}` : ''}</span>`;
+  const st = $('#clStats');
+  if (st) st.textContent = s ? `Seit dem Start: ${s.kills || 0} ${s.kills === 1 ? 'Kill' : 'Kills'} erkannt · ${s.fights || 0} ${s.fights === 1 ? 'Gefecht' : 'Gefechte'} über das Sicherheitsnetz gespeichert` : '';
+}
+async function clipStatus() {
+  try { clSt = await api('clip.status'); } catch { clSt = null; }
+  clipStatusUI();
+}
+setInterval(() => { if (curPage === 'clip') clipStatus(); }, 2000);
 async function clipGameBar() { await api('clip.gamebar'); toast('Hintergrundaufnahme an', 'Hinweis: der Tweak „Xbox Game DVR aus“ ist damit wieder rückgängig'); }
 window.clipGameBar = clipGameBar;
-async function clipTest() { await api('clip.save'); toast('Clip gespeichert', `${CL_RECS[CL.recorder][0]} · ${CL_RECS[CL.recorder][1]}`); setTimeout(clipList, 4000); }
+async function clipTest() {
+  const r = await api('clip.save').catch(e => ({ ok: false, error: e.message }));
+  // built-in recorder: the result (file name or reason) arrives as "clip" event
+  if (CL.recorder !== 'orbit') toast('Clip gespeichert', `${CL_RECS[CL.recorder][0]} · ${CL_RECS[CL.recorder][1]}`);
+  else if (!HOST && !r.ok) toast('Kein Clip gespeichert', r.error || '', false);
+  setTimeout(clipList, 4000);
+}
 window.clipTest = clipTest;
 async function clipOpen(rel) { api('clip.open', { rel }); }
 window.clipOpen = clipOpen;
-let clips = [];
+let clips = [], clFilter = 'all';
+// what kind of clip a file of the built-in recorder is, by its name: "Kill …" / "2 Kills …", "Gefecht …", "Highlights …"
+const clKind = c => c.folder !== 'OrbitTweak' ? 'other' : /^(Kill|\d+ Kills) /.test(c.name) ? 'kill' : /^Gefecht /.test(c.name) ? 'fight' : /^Highlights /.test(c.name) ? 'hl' : 'other';
+const CL_FILTERS = [['all', 'Alle'], ['kill', 'Kills'], ['fight', 'Gefechte'], ['hl', 'Highlights']];
+function clipRender() {
+  const n = k => clips.filter(c => k === 'all' || clKind(c) === k).length;
+  $('#clFilter').innerHTML = CL_FILTERS.map(([k, t]) => `<button class="${clFilter === k ? 'on' : ''}" data-clf="${k}">${t} · ${n(k)}</button>`).join('');
+  const shown = clips.map((c, i) => [c, i]).filter(([c]) => clFilter === 'all' || clKind(c) === clFilter);
+  // one button clears away all firefight clips at once (they go to the recycle bin)
+  const tb = $('#clTrash'), fights = n('fight');
+  tb.classList.toggle('hidden', clFilter !== 'fight' || !fights); tb.querySelector('span').textContent = `Alle ${fights} in den Papierkorb`;
+  $('#clGrid').innerHTML = shown.length ? shown.map(([c, i]) => {
+    const vid = `<img alt="" data-cth="${i}"><div class="noprev">${ico('film')}</div><div class="playi">${ico('play')}</div>`;
+    const del = (c.ext === '.mp4' ? `<button class="cl-del cl-share" data-clshare="${i}" title="Für Discord in die Zwischenablage (über ${CL.shareMb || 10} MB wird der Clip vorher verkleinert)">${ico('copy')}</button>` : '')
+      + (c.folder === 'OrbitTweak' ? `<button class="cl-del" data-cldel="${i}" title="In den Papierkorb">${ico('trash')}</button>` : '');
+    return `<div class="clipc" data-clip="${i}"><div class="v">${vid}${del}</div><div class="m"><b>${esc(c.name)}</b><span>${esc(c.folder || '')} · ${bytes(c.size)} · ${new Date(c.date).toLocaleDateString('de-DE')}</span></div></div>`;
+  }).join('') : `<div class="empty">${clips.length ? 'Hier gibt es noch keine Clips.' : 'Noch keine Clips gefunden. Drück im Spiel deine Clip-Taste.'}</div>`;
+  $$('#clGrid img[data-cth]').forEach(img => thumb('clip.thumb', { rel: clips[+img.dataset.cth].rel }, img));
+}
 async function clipList() {
   try { clips = await api('clip.list'); } catch { clips = []; }
   $('#clCount').textContent = clips.length;
-  $('#clGrid').innerHTML = clips.length ? clips.map((c, i) => {
-    const src = 'https://clips.orbit/' + c.rel.split('/').map(encodeURIComponent).join('/');
-    const vid = `<img alt="" data-cth="${i}"><div class="noprev">${ico('film')}</div><div class="playi">${ico('play')}</div>`;
-    return `<div class="clipc" data-clip="${i}"><div class="v">${vid}</div><div class="m"><b>${esc(c.name)}</b><span>${esc(c.folder || '')} · ${bytes(c.size)} · ${new Date(c.date).toLocaleDateString('de-DE')}</span></div></div>`;
-  }).join('') : `<div class="empty">Noch keine Clips gefunden. Drück im Spiel deine Clip-Taste.</div>`;
-  $$('#clGrid img[data-cth]').forEach(img => thumb('clip.thumb', { rel: clips[+img.dataset.cth].rel }, img));
+  clipRender();
 }
 window.clipList = clipList;
+async function clipTrash(list, what) {
+  if (!list.length || !await confirmBox(`${what} in den Papierkorb?`, 'Von dort kannst du sie wiederherstellen, solange der Papierkorb nicht geleert wird.')) return;
+  const r = await api('clip.recycle', { rels: list.map(c => c.rel) }).catch(e => ({ deleted: 0, failed: list.length, error: e.message }));
+  if (r.deleted) toast(r.deleted === 1 ? 'Clip im Papierkorb' : `${r.deleted} Clips im Papierkorb`, r.failed ? `${r.failed} ließen sich nicht verschieben` : '');
+  else toast('Nichts verschoben', r.error || 'Die Dateien ließen sich nicht in den Papierkorb legen', false);
+  clipList(); hlLoad();
+}
+/** "Share for Discord": puts the clip on the clipboard as a file; a clip over the limit is made smaller first. */
+let clSharing = false;
+async function clipShare(c) {
+  if (clSharing) return toast('Moment', 'Es wird gerade schon ein Clip vorbereitet', false);
+  clSharing = true;
+  const mb = CL.shareMb || 10, big = c.size > mb * 1048576;
+  if (big) { toast('Clip wird verkleinert', `${bytes(c.size)} sind mehr als ${mb} MB, das dauert ein paar Sekunden`); hlProgress({ pct: 1, text: 'Clip wird verkleinert…' }); }
+  const r = await api('clip.share', { rel: c.rel }).catch(e => ({ error: e.message }));
+  clSharing = false; $('#hlProg').classList.add('hidden');
+  if (r.error) return toast('Clip nicht bereit', r.error, false);
+  if (r.clipboard) passed('In der Zwischenablage', `${bytes(r.size)}${r.shrunk ? ' · verkleinert' : ''} · in Discord mit Strg+V einfügen`);
+  else toast('Zwischenablage belegt', `Die Datei liegt bereit: ${r.name}`, false);
+}
+window.clipShareRel = rel => { const c = clips.find(x => x.rel === rel); if (c) clipShare(c); };
+document.addEventListener('click', e => {
+  const sh = e.target.closest('[data-clshare]'); if (sh) { e.stopPropagation(); clipShare(clips[+sh.dataset.clshare]); return; }
+  const f = e.target.closest('[data-clf]'); if (f) { clFilter = f.dataset.clf; clipRender(); return; }
+  if (e.target.closest('#clTrash')) { const l = clips.filter(c => clKind(c) === 'fight'); clipTrash(l, `Alle ${l.length} Gefecht-Clips`); return; }
+  const d = e.target.closest('[data-cldel]'); if (d) { e.stopPropagation(); const c = clips[+d.dataset.cldel]; clipTrash([c], `„${c.name}“`); }
+}, true);
+
+/* ======================= HIGHLIGHT VIDEO (kill clips joined into one) ======================= */
+const HL = { scope: 'today', tail: 0, busy: false, n: { today: 0, all: 0 } };
+function hlUI() {
+  if (!$('#hlGo')) return;
+  $$('#hlScope button').forEach(b => b.classList.toggle('on', b.dataset.v === HL.scope));
+  $$('#hlTail button').forEach(b => b.classList.toggle('on', +b.dataset.v === HL.tail));
+  const n = HL.n[HL.scope] || 0;
+  $('#hlInfo').textContent = n >= 2 ? `Fügt ${HL.scope === 'today' ? 'deine ' + n + ' Kill-Clips von heute' : 'deine ' + n + ' Kill-Clips'} zu einem einzigen Video zusammen${HL.tail ? ', von jedem nur die letzten ' + HL.tail + ' Sekunden' : ''}.`
+    : `Fügt deine Kill-Clips zu einem einzigen Video zusammen. Dafür braucht es mindestens zwei${HL.scope === 'today' ? ' von heute' : ''}, bisher ${n === 1 ? 'ist es einer' : 'gibt es keinen'}.`;
+  const b = $('#hlGo'); b.disabled = HL.busy || n < 2; b.querySelector('span').textContent = HL.busy ? 'Wird erstellt…' : 'Erstellen';
+}
+async function hlLoad() { try { const r = await api('clip.kills'); HL.n = { today: r.today, all: r.all }; HL.busy = !!r.busy; } catch { } hlUI(); }
+function hlProgress(d) { const p = $('#hlProg'); if (!p) return; p.classList.remove('hidden'); $('#hlBar').style.width = d.pct + '%'; $('#hlTxt').textContent = d.text; }
+async function hlMake() {
+  if (HL.busy) return;
+  HL.busy = true; hlUI(); hlProgress({ pct: 1, text: 'Starte…' });
+  const r = await api('clip.highlight', { scope: HL.scope, tail: HL.tail }).catch(e => ({ error: e.message }));
+  HL.busy = false; $('#hlProg').classList.add('hidden');
+  if (r.error) toast('Kein Highlight-Video', r.error, false);
+  else passed('Highlight-Video fertig', `${r.clips} Clips · ${r.file}`);
+  clipList(); hlLoad();
+}
+document.addEventListener('click', e => {
+  const s = e.target.closest('#hlScope button'); if (s) { HL.scope = s.dataset.v; hlUI(); return; }
+  const t = e.target.closest('#hlTail button'); if (t) { HL.tail = +t.dataset.v; CL.highlightTail = HL.tail; hlUI(); clipPush(); return; }   // also counts for the automatic video
+  if (e.target.closest('#hlGo')) hlMake();
+});
 
 document.addEventListener('click', e => {
   const r = e.target.closest('[data-rec]'); if (r) { CL.recorder = r.dataset.rec; clipUI(); clipPush(); return; }
   const k = e.target.closest('[data-clk]'); if (k) { CL.key = +k.dataset.clk; clipUI(); clipPush(); return; }
+  const q = e.target.closest('[data-clq]'); if (q) { CL.quality = q.dataset.clq; clipUI(); clipPush(); return; }
+  const cb = e.target.closest('[data-clb]'); if (cb) { CL.before = +cb.dataset.clb; clipUI(); clipPush(); return; }
+  const ca = e.target.closest('[data-cla]'); if (ca) { CL.after = +ca.dataset.cla; clipUI(); clipPush(); return; }
+  if (e.target.closest('#clSound')) { CL.sound = !CL.sound; clipUI(); clipPush(); return; }
   if (e.target.closest('#clFlash')) { CL.flash = !CL.flash; clipUI(); clipPush(); return; }
   if (e.target.closest('#clAuto')) { CL.auto = !CL.auto; clipUI(); clipPush(); toast(CL.auto ? 'Auto-Clip an' : 'Auto-Clip aus', CL.auto ? 'Nach jedem Gefecht wird automatisch ein Clip gespeichert' : ''); return; }
   const cs = e.target.closest('[data-cls]'); if (cs) { CL.sens = +cs.dataset.cls; clipUI(); clipPush(); return; }
-  if (e.target.closest('#clKills')) {
+  const cd = e.target.closest('[data-cld]'); if (cd) { CL.detect = cd.dataset.cld; clipUI(); clipPush(); return; }
+  const hx = e.target.closest('#clHudX button');
+  if (hx) { if (hx.dataset.hx === 'hudTime') CL.hudTime = CL.hudTime === false; else CL.hudClock = !CL.hudClock; clipUI(); clipPush(); return; }
+  if (e.target.closest('#clHud')) { CL.hud = CL.hud === false; clipUI(); clipPush(); toast(CL.hud ? 'Zähler im Spiel an' : 'Zähler im Spiel aus', CL.hud ? 'Oben links: Aufnahme-Punkt und Kills der Runde' : ''); return; }
+  if (e.target.closest('#clAi')) { CL.ai = CL.ai === false; clipUI(); clipPush(); toast(CL.ai ? 'KI-Prüfung an' : 'KI-Prüfung aus', CL.ai ? 'Gefechte ohne erkannten Kill prüft ein KI-Modell' : 'Es entscheidet nur noch die Erkennung am Fadenkreuz'); return; }
+  if (e.target.closest('#clNet')) { CL.net = CL.net === false; clipUI(); clipPush(); toast(CL.net ? 'Sicherheitsnetz an' : 'Sicherheitsnetz aus', CL.net ? 'Bis der erste Kill erkannt ist, werden Gefechte trotzdem gespeichert' : 'Es werden nur noch erkannte Kills gespeichert'); return; }
+  const top = e.target.closest('#kcOn');
+  if (top || e.target.closest('#clKills')) {
     CL.kills = !CL.kills; clipUI(); clipPush();
-    if (CL.kills && (CL.name || '').trim().length < 3) { toast('Ingame-Namen eintragen', 'Ohne Namen weiß OrbitTweak nicht, welche Kills deine sind', false); $('#clName').focus(); }
-    else toast(CL.kills ? 'Kill-Erkennung an' : 'Kill-Erkennung aus', CL.kills ? 'Teste sie am besten einmal mit „Erkennung testen“' : '');
+    if (CL.kills && CL.detect === 'feed' && (CL.name || '').trim().length < 3) { toast('Ingame-Namen eintragen', 'Ohne Namen weiß OrbitTweak nicht, welche Kills deine sind', false); $(top ? '#kcName' : '#clName').focus(); }
+    else toast(CL.kills ? 'Kill-Clipper an' : 'Kill-Clipper aus', CL.kills ? 'Ab jetzt wird jeder Kill automatisch gespeichert' : '');
     return;
   }
   if (e.target.closest('#clDeaths')) { CL.deaths = !CL.deaths; clipUI(); clipPush(); return; }
+  if (e.target.closest('#clBanner')) { CL.banner = CL.banner === false; clipUI(); clipPush(); toast(CL.banner ? 'Kill-Einblendung an' : 'Kill-Einblendung aus', CL.banner ? 'Bei jedem erkannten Kill erscheint kurz dein Kill-Zähler · Server-Regeln beachten' : ''); return; }
+  if (e.target.closest('#hlAuto')) { CL.autoHighlight = !CL.autoHighlight; clipUI(); clipPush(); toast(CL.autoHighlight ? 'Automatisches Highlight-Video an' : 'Automatisches Highlight-Video aus', CL.autoHighlight ? 'Wird erstellt, sobald du FiveM schließt und mindestens zwei Kills geclippt wurden' : ''); return; }
+  const sm = e.target.closest('[data-shmb]'); if (sm) { CL.shareMb = +sm.dataset.shmb; clipUI(); clipPush(); return; }
   const ka = e.target.closest('[data-kfa]'); if (ka) { CL.area = ka.dataset.kfa; clipUI(); clipPush(); return; }
   if (e.target.closest('#clKfTest')) { kfTest(); return; }
   const c = e.target.closest('[data-clip]'); if (c) {
     const cl = clips[+c.dataset.clip], src = 'https://clips.orbit/' + cl.rel.split('/').map(encodeURIComponent).join('/');
     modal(`<div class="kicker">Clip</div><h1 style="margin-top:8px;font-size:20px">${esc(cl.name)}</h1><div class="player mt">${cl.ext === '.mkv' ? '<p>MKV kann hier nicht abgespielt werden.</p>' : `<video src="${src}" controls autoplay></video>`}</div>
-      <div class="act"><button class="btn" onclick="closeModal()">Schließen</button><button class="btn" onclick="clipOpen('${esc(cl.rel)}')">${ico('folder')}Im Ordner zeigen</button><button class="btn d" onclick="clipDel('${esc(cl.rel)}')">${ico('trash')}Löschen</button></div>`);
+      <div class="act"><button class="btn" onclick="closeModal()">Schließen</button><button class="btn" onclick="clipOpen('${esc(cl.rel)}')">${ico('folder')}Im Ordner zeigen</button>${cl.ext === '.mp4' ? `<button class="btn" onclick="clipShareRel('${esc(cl.rel)}')">${ico('copy')}Für Discord kopieren</button>` + `<button class="btn p" onclick="cutOpen('${esc(cl.rel)}')">${ico('film')}Schneiden</button>` : ''}<button class="btn d" onclick="clipDel('${esc(cl.rel)}')">${ico('trash')}Löschen</button></div>`);
     $('#mbox').style.width = '760px';
   }
 });
@@ -1150,7 +1462,7 @@ window.clipDel = clipDel;
 function initClip(s) { Object.assign(CL, s.clip || {}); clipUI(); clipPush(); }
 
 /* ======================= MODS ======================= */
-const MOD_CATS = { minimap: ['Minimap', 'map', 'Eigene Karten & Farben'], kill: ['Kill-Effekte', 'crosshair', 'Effekte bei Treffern & Kills'], gfx: ['Grafik-Packs', 'sun', 'Licht, Wetter, Farben'], sound: ['Sounds', 'activity', 'Waffen & Fahrzeuge'], other: ['Sonstiges', 'puzzle', 'Alles andere'] };
+const MOD_CATS = { minimap: ['Minimap', 'map', 'Eigene Karten & Farben'], kill: ['Kill-Effekte', 'crosshair', 'Effekte bei Treffern & Kills'], gfx: ['Grafik-Packs', 'sun', 'Licht, Wetter, Farben'], sound: ['Sounds', 'activity', 'Waffen & Fahrzeuge'], skin: ['Waffen-Skins', 'crosshair', 'Skins & Texturen für Waffen'], other: ['Sonstiges', 'puzzle', 'Alles andere'] };
 function modCatsUI_unused() { $('#modCats').innerHTML = Object.entries(MOD_CATS).map(([k, [n, i, d]]) => `<div class="card hov mcat" onclick="modInstall('${k}')"><div class="qi">${ico(i)}</div><b>${n}</b><span>${d}</span><div class="sub" style="font-size:11.5px;margin-top:8px;color:var(--a)">+ Installieren</div></div>`).join(''); }
 async function modInstall(cat, ok, reshade) {
   if (!S.settings.modsAck && !ok) return modal(`<div class="kicker">Hinweis</div><h1 style="margin-top:10px">Mods auf eigene <span class="grad">Verantwortung</span></h1>
@@ -1185,6 +1497,85 @@ document.addEventListener('click', e => {
   S.settings.snapTap = !S.settings.snapTap; $('#snapTg').classList.toggle('on', S.settings.snapTap);
   api('settings.set', { key: 'snapTap', value: S.settings.snapTap });
   toast(S.settings.snapTap ? 'Snap Tap an' : 'Snap Tap aus', S.settings.snapTap ? 'Nur aktiv, solange FiveM vorne ist · Server-Regeln beachten' : '');
+});
+/* ======================= WASD TWEAK ("Laggen", fast key repeat, keyboard buffer) ======================= */
+// Laggen: held movement keys are let go for "gap" ms every "every" ms while the game is in front (stop-and-go).
+// Fast key repeat: Windows keyboard filter, takes effect at once.
+// Buffer: 0 = Windows default (100), a smaller buffer needs a restart of Windows.
+const WASD_LEVELS = [[0, 'Standard'], [50, '50'], [30, '30'], [25, '25'], [20, '20'], [16, '16']];
+const WASD_TXT = { 0: 'Windows-Standard (100)', 50: 'leicht verkleinert', 30: 'mittel', 25: 'klein', 20: 'sehr klein', 16: 'kleinste Stufe, dabei können Tasten verschluckt werden' };
+const CHOP_PRE = { 1: [25, 130], 2: [35, 80], 3: [45, 60], 4: [60, 75] };   // let-go ms, ms from one let-go to the next
+let wasdSt = null, chopT = 0;
+function chopPush(wait = 250) {
+  clearTimeout(chopT);
+  chopT = setTimeout(async () => {
+    const c = wasdSt.chop; const r = await api('wasd.chop', { on: c.on, gap: c.gap, every: c.every, key: c.key || 0 }).catch(() => null);
+    if (r && r.chop) { wasdSt = r; wasdUI(); if (r.chop.key && r.chop.keyOk === false) toast('Taste belegt', 'Andere Taste für das Laggen wählen', false); }
+  }, wait);
+}
+/** The small note shown at the top of the game picture when the key switches "Laggen" on or off. */
+function chopFlashPng(on) {
+  const cv = document.createElement('canvas'); cv.width = 300; cv.height = 52; const x = cv.getContext('2d');
+  x.fillStyle = 'rgba(10,10,12,.9)'; x.beginPath(); x.roundRect(0, 0, 300, 52, 12); x.fill();
+  const a = getComputedStyle(document.documentElement).getPropertyValue('--a').trim();
+  x.fillStyle = on ? a : '#52525B'; x.fillRect(0, 9, 4, 34);
+  x.fillStyle = on ? '#3DFF8B' : '#71717A'; x.beginPath(); x.arc(28, 26, 7, 0, Math.PI * 2); x.fill();
+  x.fillStyle = '#fff'; x.font = '700 17px Geist, Inter, sans-serif'; x.fillText(on ? 'LAGGEN AN' : 'LAGGEN AUS', 48, 25);
+  x.fillStyle = '#A1A1AA'; x.font = '500 12px Inter, sans-serif'; x.fillText('OrbitTweak · WASD-Tweak', 48, 41);
+  return cv.toDataURL('image/png').split(',')[1];
+}
+function wasdUI() {
+  const el = $('#wasdSeg'); if (!el) return;
+  const s = wasdSt || (wasdSt = { size: 0, pending: false, lag: false }); s.chop ||= { on: false, gap: 30, every: 90 };
+  const c = s.chop, rng = (id, v, u) => { const r = $(id); r.value = v; r.style.setProperty('--p', (v - r.min) / (r.max - r.min) * 100 + '%'); $(id + 'V').textContent = v + u; };
+  $('#chopTg').classList.toggle('on', !!c.on);
+  $$('#chopPre button').forEach(b => { const p = CHOP_PRE[b.dataset.v]; b.classList.toggle('on', p[0] === c.gap && p[1] === c.every); });
+  rng('#chopGap', c.gap, ' ms'); rng('#chopEvery', c.every, ' ms');
+  $('#chopNote').innerHTML = `<b>${c.on ? 'An' : 'Aus'}</b>: alle ${c.every} ms zuckt die Figur für ${c.gap} ms zur Seite, abwechselnd links und rechts, und läuft dabei weiter. Stärker zucken = längerer Zucker, öfter zucken = kürzerer Abstand.`;
+  $('#chopKey').innerHTML = KEYS.map(([n, v]) => `<button class="${(c.key || 0) === v ? 'on' : ''}" data-chopk="${v}">${n}</button>`).join('');
+  const kn = (KEYS.find(k => k[1] === (c.key || 0)) || ['Aus'])[0];
+  $('#chopKeyNote').textContent = c.key ? (c.keyOk === false ? `${kn} ist schon von etwas anderem belegt, nimm eine andere Taste.` : `${kn} schaltet das Laggen im Spiel an und aus, oben im Bild erscheint kurz „LAGGEN AN“ oder „LAGGEN AUS“.`) : 'Keine Taste, nur hier umschaltbar.';
+  $('#lagTg').classList.toggle('on', !!s.lag);
+  $('#lagNote').innerHTML = s.lag ? `<b>An</b>: Tasten wiederholen sich nach ${s.delay} ms alle ${s.repeat} ms.` : '<b>Aus</b>: normale Tastenwiederholung von Windows.';
+  el.innerHTML = WASD_LEVELS.map(([v, n]) => `<button class="${s.size === v ? 'on' : ''}" data-wasd="${v}">${n}</button>`).join('');
+  $('#wasdNote').innerHTML = `<b>${s.size ? 'Puffer ' + s.size : 'Standard'}</b>: ${WASD_TXT[s.size] || 'eigener Wert'}.`
+    + (s.pending ? ' <span class="wasd-pend">Gespeichert. Wirkt erst, wenn du Windows über „Neu starten“ neu startest („Herunterfahren“ reicht nicht).</span>' : '');
+}
+async function wasdLoad() {
+  try { wasdSt = await api('wasd.get'); } catch { wasdSt = null; }
+  wasdUI();
+  api('wasd.flash', { on: chopFlashPng(true), off: chopFlashPng(false) }).catch(() => { });
+}
+document.addEventListener('click', async e => {
+  if (e.target.closest('#chopTg')) {
+    wasdSt.chop.on = !wasdSt.chop.on; wasdUI(); chopPush(0);
+    toast(wasdSt.chop.on ? 'WASD-Laggen an' : 'WASD-Laggen aus', wasdSt.chop.on ? 'Nur aktiv, solange FiveM vorne ist · Server-Regeln beachten' : '');
+    return;
+  }
+  const pre = e.target.closest('#chopPre button');
+  if (pre) { const p = CHOP_PRE[pre.dataset.v]; wasdSt.chop.gap = p[0]; wasdSt.chop.every = p[1]; wasdUI(); chopPush(0); return; }
+  const ck = e.target.closest('[data-chopk]');
+  if (ck) { wasdSt.chop.key = +ck.dataset.chopk; wasdSt.chop.keyOk = true; wasdUI(); chopPush(0); return; }
+  if (e.target.closest('#lagTg')) {
+    const on = !(wasdSt && wasdSt.lag);
+    const r = await api('wasd.lag', { on }).catch(err => ({ error: err.message }));
+    if (!r || r.error) { if (r && r.size !== undefined) { wasdSt = r; wasdUI(); } return toast('Tastenwiederholung nicht umgestellt', (r && r.error) || '', false); }
+    wasdSt = r; wasdUI();
+    toast(r.lag ? 'Schnelle Tastenwiederholung an' : 'Schnelle Tastenwiederholung aus', r.lag ? 'Wirkt sofort, auch beim Tippen' : 'Normale Tastenwiederholung');
+    return;
+  }
+  const b = e.target.closest('[data-wasd]'); if (!b) return;
+  const r = await api('wasd.set', { size: +b.dataset.wasd }).catch(err => ({ error: err.message }));
+  if (!r || r.error) return toast('Tastatur-Puffer nicht gesetzt', (r && r.error) || '', false);
+  wasdSt = r; wasdUI(); loadTweaks().catch(() => { });
+  toast(r.size ? `Tastatur-Puffer ${r.size}` : 'Tastatur-Puffer: Standard', 'Wirkt nach „Neu starten“ von Windows');
+});
+document.addEventListener('input', e => {
+  if (e.target.id !== 'chopGap' && e.target.id !== 'chopEvery') return;
+  const c = wasdSt.chop;
+  if (e.target.id === 'chopGap') c.gap = +e.target.value; else c.every = +e.target.value;
+  if (c.every < c.gap + 15) c.every = Math.ceil((c.gap + 15) / 5) * 5;   // a key has to be down for a moment between two let-goes
+  wasdUI(); chopPush();
 });
 const GP_NAMES = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'Back', 'Start', 'LS', 'RS', '↑', '↓', '←', '→', 'Guide'];
 let gpRaf = 0;
@@ -1245,13 +1636,20 @@ async function thumbNext() {
 }
 
 /* ======================= GTA BACKGROUND ======================= */
-const LA = { day: 'img/gta-1.jpg', dusk: 'img/gta-2.jpg', night: 'img/gta-1.jpg' };
-const LA_ALL = [['gta-1', 'Downtown', 'img/gta-1.jpg'], ['gta-2', 'Hafen', 'img/gta-2.jpg']];
+// official GTA V screenshots in Full HD; "auto" follows the time of day
+const LA = { day: 'img/ls-vinewood.jpg', dusk: 'img/ls-skyline.jpg', night: 'img/ls-night.jpg' };
+const LA_ALL = [['auto', 'Automatisch', null], ['skyline', 'Downtown', 'img/ls-skyline.jpg'], ['vinewood', 'Vinewood', 'img/ls-vinewood.jpg'], ['night', 'Nachtfahrt', 'img/ls-night.jpg'], ['chase', 'Verfolgung', 'img/ls-chase.jpg'],
+  ['hills', 'Blaine County', 'img/ls-hills.jpg'], ['chiliad', 'Mount Chiliad', 'img/ls-chiliad.jpg'], ['boulevard', 'Boulevard', 'img/ls-boulevard.jpg'], ['sandy', 'Sandy Shores', 'img/ls-sandy.jpg']];
+const LA_PICS = LA_ALL.filter(x => x[2]).map(x => x[2]);
+// which height of each picture matters most (%): the wide banner only shows a strip of it
+const LA_FOCUS = { 'img/ls-skyline.jpg': 30, 'img/ls-vinewood.jpg': 24, 'img/ls-night.jpg': 56, 'img/ls-chase.jpg': 42, 'img/ls-hills.jpg': 38, 'img/ls-chiliad.jpg': 42, 'img/ls-boulevard.jpg': 62, 'img/ls-sandy.jpg': 55 };
 const ownUrl = () => null;
-const bgUrl = () => (LA_ALL.find(x => x[0] === S.settings.bgPreset)?.[2]) || LA.day;
+const bgUrl = () => (LA_ALL.find(x => x[0] === S.settings.bgPreset)?.[2]) || LA[timeOfDay()];
+/** A fixed picture per name, so cards without their own preview do not all look the same. */
+const picFor = id => { let h = 0; for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return LA_PICS[h % LA_PICS.length]; };
 function applyBg() {
   const u = bgUrl();
-  const own = `<div class="own-bg" style="background-image:url('${u}')"></div>`;
+  const own = `<div class="own-bg" style="background-image:url('${u}');background-position:center ${LA_FOCUS[u] ?? 50}%"></div>`;
   $('#bnScene').innerHTML = own;
   $('#spScene').innerHTML = own;
   xhScene('day');
@@ -1267,7 +1665,7 @@ function xhScene(k) {
   xhPlace();
 }
 async function bgGrid() {
-  const g = $('#bgGrid'), cur = LA_ALL.some(x => x[0] === S.settings.bgPreset) ? S.settings.bgPreset : 'gta-1';
+  const g = $('#bgGrid'), cur = LA_ALL.some(x => x[0] === S.settings.bgPreset) ? S.settings.bgPreset : 'auto';
   g.innerHTML = LA_ALL.map(([k, n, src]) => `<button class="bgc ${cur === k ? 'on' : ''}" data-bgp="${k}"><img alt="" class="ok" src="${src || LA[timeOfDay()]}"><span>${n}</span></button>`).join('');
 }
 document.addEventListener('click', async e => {
@@ -1344,6 +1742,31 @@ function modBrowse(url, cat) {
   toast('Mod-Browser geöffnet', 'Klick auf Download, die Mod wird automatisch installiert');
 }
 window.modBrowse = modBrowse;
+// packs from Discord: open Discord in the mod browser, or install the file behind a copied link
+let dcCat = 'sound';
+document.addEventListener('click', e => { const b = e.target.closest('#dcCat button'); if (!b) return; dcCat = b.dataset.v; $$('#dcCat button').forEach(x => x.classList.toggle('on', x === b)); });
+// installs everything listed under "new in your downloads", one after the other, each as the category chosen in its row
+window.dcAll = async () => {
+  if (!S.settings.modsAck) return modInstall('__dl');
+  const rows = $$('#modDl [data-dl]'); if (!rows.length) return toast('Nichts zu installieren', 'Lade erst ein Pack in Discord herunter', false);
+  const btn = $('#dcAllBtn'); btn.disabled = true; let ok = 0, fail = '';
+  for (const b of rows) {
+    const sel = b.parentElement.querySelector('[data-dlcat]'), cat = sel && sel.value !== 'other' ? sel.value : dcCat;
+    const r = await api('mods.installDl', { name: b.dataset.dl, cat }).catch(er => ({ error: er.message }));
+    if (r.error) fail = r.error; else ok += r.count || 1;
+  }
+  btn.disabled = false;
+  if (ok) passed(`${ok} Mod-Datei${ok === 1 ? '' : 'en'} installiert`, 'Wirkt beim nächsten FiveM-Start');
+  if (fail) toast(ok ? 'Nicht alles installiert' : 'Nicht installiert', fail, false);
+  modList(); dlList('#modDl');
+};
+window.dcOpen = () => modBrowse('https://discord.com/channels/@me', dcCat);
+window.dcLink = () => {
+  const el = $('#dcLink'), u = el.value.trim();
+  if (!/^https:\/\/(cdn\.discordapp\.com|media\.discordapp\.net|[\w.-]+)\/\S+/i.test(u)) return toast('Kein Link', 'Kopier in Discord den Link der Datei (Rechtsklick → Link kopieren)', false);
+  if (!/\.(rpf|zip|rar|7z)(\?|$)/i.test(u)) return toast('Keine Mod-Datei', 'Der Link muss auf eine .rpf, .zip, .rar oder .7z zeigen', false);
+  modBrowse(u, dcCat); el.value = '';
+};
 async function modsRefresh() {
   await libLoad(); RSC = null; libRender();
   if (curPage === 'mods') { dlList('#modDl'); modList(); }
@@ -1471,7 +1894,8 @@ async function libLoad() {
 const libState = m => m.type === 'reshade' ? (RS.installed ? (RS.preset === m.preset ? 'active' : 'ready') : 'none') : (LIB.installed.has(m.id) ? 'installed' : 'none');
 function libCard(m) {
   const st = libState(m), busy = LIB.busy[m.id];
-  const thumb = m.img ? `style="background-image:url('${esc(m.img)}')"` : `style="background-image:url('${bgUrl()}')"`;
+  // ReShade looks share one picture so they can be compared, other mods get different ones
+  const thumb = m.img ? `style="background-image:url('${esc(m.img)}')"` : `style="background-image:url('${m.type === 'reshade' ? bgUrl() : picFor(m.id)}')"`;
   const cat = LIB_CATS.find(c => c[0] === m.cat) || LIB_CATS[6];
   const btn = busy != null ? `<button class="btn sm" disabled>${ico('refresh', 'i spin')}${busy > 0 ? busy + ' %' : 'Installiere…'}</button>`
     : st === 'active' ? `<button class="btn sm ok" disabled>${ico('check')}Aktiv</button>`
@@ -1493,7 +1917,7 @@ function libList(cat) {
 }
 function libRender() {
   if ($('#libCats')) $('#libCats').innerHTML = LIB_CATS.map(([k, n, i]) => { const c = k === 'all' ? LIB.items.length : LIB.items.filter(m => m.cat === k).length; if (!c && k !== LIB.cat) return ''; return `<button class="lchip ${LIB.cat === k ? 'on' : ''}" data-lc="${k}">${ico(i)}${n}<span>${c}</span></button>`; }).join('');
-  const empty = cat => `<div class="empty">${LIB.q ? 'Nichts gefunden für „' + esc(LIB.q) + '“.' : `Noch keine Mods in dieser Kategorie.<br><span style="font-size:12px">Eigene Datei über „Datei installieren“ hinzufügen. Neue Mods kommen automatisch, sobald sie in der Bibliothek (mods.json) stehen.</span>`}</div>`;
+  const empty = cat => `<div class="empty">${LIB.q ? 'Nichts gefunden für „' + esc(LIB.q) + '“.' : cat === 'minimap' ? `Noch keine fertigen Minimaps in der Bibliothek.<br><span style="font-size:12px">Du kannst dir aber aus jedem Bild deine eigene Minimap bauen.</span><br><button class="btn p mt8" onclick="modTab('mm')">${ico('map')}Eigene Minimap aus Bild erstellen</button>` : `Noch keine Mods in dieser Kategorie.<br><span style="font-size:12px">Eigene Datei über „Datei installieren“ hinzufügen. Neue Mods kommen automatisch, sobald sie in der Bibliothek (mods.json) stehen.</span>`}</div>`;
   if ($('#libGrid')) { const l = libList(LIB.cat); $('#libGrid').innerHTML = l.length ? l.map(libCard).join('') : empty(LIB.cat); }
   if ($('#mmLib')) { const l = libList('minimap'); $('#mmLib').innerHTML = l.length ? l.map(libCard).join('') : empty('minimap'); }
   rsSettings();
@@ -1778,6 +2202,7 @@ async function boot() {
   moveInd(); enterPage($('#p-home')); if (document.fonts) document.fonts.ready.then(moveInd);
   $('#uname').textContent = d.user;
   $('#verTxt').textContent = 'v' + d.version; $('#verCur').textContent = 'v' + d.version;
+  setTimeout(() => { if (!document.querySelector('.lock.show, .modal.show')) whatsNew(d.version); }, 2600);
   $('#adminTxt').textContent = d.admin ? 'Admin ✓' : 'Kein Admin';
   $('#mCpuName').textContent = d.sys.cpu;
   $('#mGpu').textContent = d.sys.gpu.replace(/^NVIDIA (GeForce )?/i, '').replace(/^AMD /i, '').replace(/^Intel\(R\) /i, '');
@@ -1795,6 +2220,7 @@ async function boot() {
   feed(d.fivem.found ? 'FiveM erkannt: ' + d.fivem.path : 'FiveM nicht gefunden: Pfad im Launcher wählen');
   renderSettings(); renderLauncher(); initFx(d.settings); initMinimap(d.settings); initClip(d.settings); libLoad().then(accLoad); if (d.settings.bgVersion) { api('bg.clear').catch(() => { }); S.settings.bgVersion = 0; } applyBg(); initPad(d.settings);
   $('#snapTg').classList.toggle('on', !!d.settings.snapTap);
+  wasdLoad();
   await loadTweaks();
   refreshCache(); ping(); setInterval(ping, 8000); curServer();
   api('health').then(h => { S.health = h; $('#hsHealth').textContent = h.score + '%'; }).catch(() => { });
@@ -1831,15 +2257,37 @@ const Mock = {
         return { user: 'Max', admin: true, version: '2.2.0', sys: { cpu: 'AMD Ryzen 7 7800X3D 8-Core Processor', gpu: 'NVIDIA GeForce RTX 4070 SUPER', os: 'Windows 11 Pro', ramGb: 32 }, fivem: { found: true, path: 'C:\\Users\\Max\\AppData\\Local\\FiveM' }, settings: M.settings };
       case 'tweaks.list': return M.tweaks;
       case 'tweak.set': { const t = M.tweaks.find(x => x.id === a.id); t.applied = a.on; return { applied: a.on }; }
+      case 'clip.recycle': return { deleted: (a.rels || []).length, failed: 0 };
+      case 'clip.share': await sleep(900); return { ok: true, name: 'Kill 2026-11-14 20-11-57 (10 MB).mp4', size: 9.4e6, shrunk: true, clipboard: true };
+      case 'wasd.flash': return null;
+      case 'clip.kills': return { today: 4, all: 11, busy: false };
+      case 'clip.highlight': for (let i = 1; i <= 8; i++) { onEvent('highlight', { pct: i * 12, text: '4 Clips werden zusammengefügt…' }); await sleep(250); } return { file: 'Highlights 2026-11-14 21-40-00.mp4', clips: 4 };
+      case 'wasd.get': case 'wasd.lag': case 'wasd.set': case 'wasd.chop':
+        if (cmd === 'wasd.lag') M.lag = a.on;
+        if (cmd === 'wasd.set') { M.wasd = a.size; M.wasdPending = true; }
+        if (cmd === 'wasd.chop') M.chop = { on: a.on, gap: a.gap, every: a.every, key: a.key || 0, keyOk: true };
+        return { size: M.wasd || 0, pending: !!M.wasdPending, lag: !!M.lag, delay: 200, repeat: 15, chop: M.chop || { on: false, gap: 30, every: 90, key: 0, keyOk: true } };
       case 'boost': for (let i = 0; i <= 10; i++) { onEvent('boost', { pct: i * 10, text: 'Schritt ' + i }); await sleep(220); } M.tweaks.forEach(t => t.rec && (t.applied = true)); return { freed: 1.4e9, restart: true, applied: 9 };
       case 'xhair.set': return { keyOk: true };
       case 'clip': return { ok: false };
       case 'net.test': await sleep(900); return { ok: true, avg: 23, min: 19, max: 31, jitter: 2.4, loss: 0, samples: Array.from({ length: 20 }, () => 19 + Math.round(Math.random() * 12)) };
       case 'minimap.set': return { ok: true, client: { w: 1920, h: 1080 } };
       case 'minimap.preview': return null;
+      case 'minimap.pick': case 'minimap.info': {
+        const c = document.createElement('canvas'); c.width = c.height = 512; const x = c.getContext('2d');
+        const g = x.createRadialGradient(256, 256, 20, 256, 256, 250); g.addColorStop(0, '#FF7A3D'); g.addColorStop(1, '#3A1466');
+        x.fillStyle = g; x.beginPath(); x.arc(256, 256, 240, 0, 7); x.fill(); x.lineWidth = 12; x.strokeStyle = '#fff'; x.stroke();
+        x.fillStyle = '#fff'; x.font = '900 200px Inter, sans-serif'; x.textAlign = 'center'; x.fillText('OT', 256, 326);
+        return { path: 'C:\\Users\\Max\\Pictures\\clan-logo.png', name: 'clan-logo.png', w: 1024, h: 1024, preview: c.toDataURL(), detail: c.toDataURL() };
+      }
+      case 'minimap.status': return { status: { found: true, installed: !!M.mm, on: true, size: 14.2e6, date: new Date().toISOString() }, cfg: { path: '', mode: 'tile', repeat: 24, res: 2048, fit: 'stretch', dim: 0 } };
+      case 'minimap.build': for (let i = 1; i <= 6; i++) { onEvent('mmbuild', { pct: i * 15, text: `Kachel ${i} von 6…` }); await sleep(260); } M.mm = true; return { size: 14.2e6 };
+      case 'minimap.remove': M.mm = false; return {};
+      case 'clip.status': return { recorder: CL.recorder, running: true, buffered: 34, w: 1920, h: 1080, error: null, game: true, supported: true, found: 'tr', armed: true, detect: CL.detect, markAt: null, markImg: null, kills: 0, fights: 0, net: CL.net !== false };
+      case 'clip.save': if (CL.recorder === 'orbit') setTimeout(() => onEvent('clip', { recorder: 'orbit', file: 'Clip 2026-11-14 16-02-11.mp4' }), 500); return { ok: true };
       case 'clip.cfg': return { keyOk: true, combo: 'Alt+F10' };
       case 'clip.kftest': return { ok: true, game: true, img: null, lines: [{ text: ((a && a.name) || 'Max_Power') + ' [Pistol] Tony_Ricci', hit: 'kill' }, { text: 'Lena_V [AP] Jimmy', hit: null }, { text: 'Ricci [Rifle] ' + ((a && a.name) || 'Max_Power'), hit: 'death' }] };
-      case 'clip.save': case 'clip.open': case 'clip.gamebar': return { ok: true };
+      case 'clip.open': case 'clip.gamebar': return { ok: true };
       case 'clip.delete': return { ok: true };
       case 'clip.list': return ['Grand Theft Auto V 2026.11.13 - 21.14.08.02', 'FiveM 2026.11.13 - 20.51.44.01', 'Gangwar Clutch', 'Grand Theft Auto V 2026.11.12 - 23.02.10.05'].map((n, i) => ({ name: n, rel: 'Grand Theft Auto V/' + n + '.mp4', folder: i === 2 ? 'Captures' : 'Grand Theft Auto V', size: 48e6 + i * 9e6, date: new Date(Date.now() - i * 864e5).toISOString(), ext: '.mp4' }));
       case 'mods.list': return { found: true, items: [{ name: 'round_minimap_dark.rpf', on: true, size: 3.4e6, cat: 'minimap' }, { name: 'killfx_red_flash.rpf', on: true, size: 1.2e6, cat: 'kill' }, { name: 'nve_lite.rpf', on: false, size: 84e6, cat: 'gfx' }] };
@@ -1910,6 +2358,8 @@ function modTab(k) {
   $$('#modTabs .tab').forEach(b => b.classList.toggle('on', b.dataset.mt === k));
   $$('#p-mods .mtab').forEach(p => p.classList.toggle('hidden', p.dataset.mtp !== k));
   const pane = $(`#p-mods [data-mtp="${k}"]`); if (pane) enterPage($('#p-mods'));
+  if (k === 'mm') { mmbOpen(); mmoUI(); }
+  else if (MMO.prev) mmoPreview(false);   // the on-screen preview of the minimap picture ends with its tab
 }
 document.addEventListener('click', e => { const b = e.target.closest('[data-mt]'); if (b) modTab(b.dataset.mt); });
 window.modTab = modTab;
@@ -1941,8 +2391,20 @@ function spProfile() {
 /* ======================= KILL FEED (2.20) ======================= */
 let kfNameT = 0;
 document.addEventListener('input', e => {
-  if (e.target.id !== 'clName') return;
+  // kill words of the server's kill message (sent a moment after typing stops)
+  if (e.target.id === 'clWords') { CL.words = e.target.value; clearTimeout(kfNameT); kfNameT = setTimeout(clipPush, 900); return; }
+  if (e.target.id !== 'clName' && e.target.id !== 'kcName') return;
   CL.name = e.target.value; clearTimeout(kfNameT); kfNameT = setTimeout(() => { clipPush(); clipUI(); }, 500);
+});
+// leaving the field shows the tidied list (an empty field goes back to the usual words)
+document.addEventListener('focusout', e => { if (e.target.id === 'clWords') { clearTimeout(kfNameT); clipPush(); } });
+// OpenRouter key for the AI check: saved when the field is left, then emptied (the key is never shown again)
+document.addEventListener('change', async e => {
+  if (e.target.id !== 'clAiKey') return;
+  const key = e.target.value.trim(); if (!key) return;
+  const r = await api('clip.aikey', { key }).catch(() => null);
+  if (r && r.ok) { e.target.value = ''; toast('Key gespeichert', 'Die KI-Prüfung ist bereit'); clipStatus(); }
+  else toast('Key nicht gespeichert', (r && r.error) || 'Bitte nochmal versuchen', false);
 });
 async function kfTest() {
   const out = $('#clKfOut'), btn = $('#clKfTest');
@@ -1954,8 +2416,469 @@ async function kfTest() {
   const lines = r.lines || [];
   const hits = lines.filter(l => l.hit).length;
   out.innerHTML = `${r.game ? '' : `<div class="kf-err">${ico('alert')}FiveM ist nicht im Vordergrund. Starte FiveM, wechsle ins Spiel und teste dann mit der Clip-Taste oder hier nochmal.</div>`}
+    ${CL.area === 'auto' && r.area ? `<p class="sub" style="font-size:12px;margin-bottom:8px">${hits ? `Kill-Feed gefunden: <b>${KF_NAMES[r.area] || r.area}</b>` : `Noch kein Kill mit deinem Namen zu sehen. Gezeigt wird die Stelle ${KF_NAMES[r.area] || r.area}, im Spiel sucht OrbitTweak alle Stellen ab.`}</p>` : ''}
     <div class="kf-cols"><div class="kf-img">${r.img ? `<img src="${r.img}" alt="">` : ''}<span>Das sieht OrbitTweak</span></div>
     <div class="kf-lines"><b>Erkannter Text</b>${lines.length ? lines.map(l => `<div class="kf-l ${l.hit || ''}">${l.hit === 'kill' ? '<em>KILL</em>' : l.hit === 'death' ? '<em>TOD</em>' : ''}<span>${esc(l.text)}</span></div>`).join('') : '<div class="sub" style="font-size:12px">Kein Text gefunden. Stimmt die Position? Steht gerade etwas im Kill-Feed?</div>'}
     ${lines.length && !hits ? `<p class="sub" style="font-size:11.5px;margin-top:8px">Dein Name „${esc(CL.name)}“ wurde nicht gefunden. Erst nach einem Kill steht er im Feed.</p>` : ''}</div></div>`;
 }
 window.kfTest = kfTest;
+
+/* ======================= CUSTOM MINIMAP FROM A PICTURE (2.21) ======================= */
+// GTA's map is 2 × 3 tiles of 4500 game units each. The radar shows roughly 360 units of it while on foot.
+const MM_W = 9000, MM_H = 13500, MM_VIEW = 360;
+const MMB = { path: '', name: '', w: 0, h: 0, img: null, det: null, mode: 'tile', repeat: 24, res: 2048, fit: 'stretch', dim: 0, busy: false, st: null, loaded: false };
+function mmbSet(i) {
+  Object.assign(MMB, { path: i.path, name: i.name, w: i.w, h: i.h, img: null, det: null });
+  const im = new Image(); im.onload = () => { MMB.img = im; mmbUI(); }; im.src = i.preview;
+  if (i.detail) { const d = new Image(); d.onload = () => { MMB.det = d; mmbDraw(); }; d.src = i.detail; }
+}
+async function mmbOpen() {
+  let r = null; try { r = await api('minimap.status'); } catch { }
+  MMB.st = r ? r.status : null;
+  if (r && r.cfg && !MMB.loaded) {
+    MMB.loaded = true; const c = r.cfg;
+    Object.assign(MMB, { mode: c.mode === 'map' ? 'map' : 'tile', repeat: Math.min(60, Math.max(6, c.repeat || 24)), res: c.res >= 3072 ? 3072 : 2048, fit: ['stretch', 'cover', 'contain'].includes(c.fit) ? c.fit : 'stretch', dim: c.dim || 0 });
+    if (c.path) { const i = await api('minimap.info', { path: c.path }).catch(() => null); if (i && !i.error) mmbSet(i); }
+  }
+  mmbUI();
+}
+function mmbUI() {
+  if (!$('#mmbPick')) return;
+  const has = !!MMB.path, st = MMB.st || {};
+  $('#mmbName').textContent = has ? MMB.name : 'Bild auswählen';
+  $('#mmbInfo').textContent = has ? `${MMB.w} × ${MMB.h} Pixel` : 'PNG, JPG oder WebP';
+  const th = $('#mmbTh'); th.style.backgroundImage = has && MMB.img ? `url('${MMB.img.src}')` : ''; th.classList.toggle('has', has && !!MMB.img);
+  $$('#mmbMode button').forEach(b => b.classList.toggle('on', b.dataset.v === MMB.mode));
+  $('#mmbTile').classList.toggle('hidden', MMB.mode !== 'tile'); $('#mmbMap').classList.toggle('hidden', MMB.mode !== 'map');
+  const rng = (el, v) => { el.value = v; el.style.setProperty('--p', (v - el.min) / (el.max - el.min) * 100 + '%'); };
+  rng($('#mmbRepeat'), 66 - MMB.repeat); $('#mmbRepeatV').textContent = Math.round(MM_W / MMB.repeat) + ' m';
+  rng($('#mmbDim'), MMB.dim); $('#mmbDimV').textContent = MMB.dim + '%';
+  $$('#mmbFit button').forEach(b => b.classList.toggle('on', b.dataset.v === MMB.fit));
+  $$('#mmbRes button').forEach(b => b.classList.toggle('on', +b.dataset.v === MMB.res));
+  const chip = $('#mmbChip'); chip.className = 'chip' + (st.installed && st.on ? ' g' : ''); chip.textContent = st.installed ? (st.on ? 'Installiert · aktiv' : 'Installiert · ausgeschaltet') : 'Nicht installiert';
+  if ($('#mtMm')) $('#mtMm').textContent = MMO.on && MMO.img ? 'Overlay aktiv' : st.installed ? (st.on ? 'Aktiv' : 'Ausgeschaltet') : 'Aus Bild';
+  $('#mmbRemove').classList.toggle('hidden', !st.installed);
+  const b = $('#mmbBuild'); b.disabled = !has || MMB.busy;
+  b.querySelector('span').textContent = MMB.busy ? 'Wird erstellt…' : st.installed ? 'Minimap neu erstellen' : 'Minimap erstellen & installieren';
+  const small = MMB.mode === 'map' && has && MMB.w < 3000;
+  $('#mmbHint').innerHTML = !has ? 'Wähl links ein Bild aus, dann siehst du hier sofort, wie dein Radar damit aussieht.'
+    : MMB.mode === 'tile' ? `Dein Bild wiederholt sich über die ganze Karte, ein Bild ist etwa <b>${Math.round(MM_W / MMB.repeat)} m</b> breit. Das Radar zeigt zu Fuß rund ${MM_VIEW} m, im Auto mehr.`
+    : `Dein Bild wird über die ganze Karte gelegt (Norden oben). Das Radar zeigt davon nur einen kleinen Ausschnitt.${small ? ` <b style="color:var(--warn)">Dein Bild ist mit ${MMB.w} Pixeln Breite dafür klein und wirkt im Radar unscharf.</b> Besser sind 4096 × 6144 Pixel oder „Bild wiederholen“.` : ''}`;
+  mmbDraw();
+}
+/** Draws the part "win" of the map (game units) into a canvas the way the mod will look. */
+function mmbPaint(cv, win) {
+  const x = cv.getContext('2d'), W = cv.width, H = cv.height;
+  x.setTransform(1, 0, 0, 1, 0, 0); x.filter = 'none'; x.imageSmoothingQuality = 'high';
+  x.fillStyle = '#35607A'; x.fillRect(0, 0, W, H);                      // the sea shows through where the picture is see-through
+  const im = MMB.img; if (!im) return false;
+  const sx = W / win.w, sy = H / win.h;
+  x.filter = MMB.dim ? `brightness(${100 - MMB.dim}%)` : 'none';
+  if (MMB.mode === 'tile') {
+    const pw = MM_W / MMB.repeat * sx, ph = pw * im.height / im.width;
+    const t = document.createElement('canvas'); t.width = Math.max(1, Math.round(pw)); t.height = Math.max(1, Math.round(ph));
+    const tx = t.getContext('2d'); tx.imageSmoothingQuality = 'high'; tx.drawImage(im, 0, 0, t.width, t.height);
+    const p = x.createPattern(t, 'repeat');
+    p.setTransform(new DOMMatrix().translate(-((win.x * sx) % t.width), -((win.y * sy) % t.height)));
+    x.fillStyle = p; x.fillRect(0, 0, W, H);
+  } else {
+    let r = { x: 0, y: 0, w: MM_W, h: MM_H };
+    if (MMB.fit !== 'stretch') {
+      const s = MMB.fit === 'cover' ? Math.max(MM_W / MMB.w, MM_H / MMB.h) : Math.min(MM_W / MMB.w, MM_H / MMB.h);
+      r = { w: MMB.w * s, h: MMB.h * s }; r.x = (MM_W - r.w) / 2; r.y = (MM_H - r.h) / 2;
+    }
+    x.save();
+    x.beginPath(); x.rect(-win.x * sx, -win.y * sy, MM_W * sx, MM_H * sy); x.clip();
+    const at = (ux, uy, uw, uh, img) => x.drawImage(img, (ux - win.x) * sx, (uy - win.y) * sy, uw * sx, uh * sy);
+    at(r.x, r.y, r.w, r.h, im);
+    // the middle 12 % in full resolution, limited to what the mod's texture can hold
+    if (MMB.det && win.w < MM_W / 4) {
+      const texel = Math.min(MMB.w, 2 * MMB.res) / MMB.w;                // 1 = nothing is lost
+      let d = MMB.det;
+      if (texel < 1) { const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(d.width * texel)); c.height = Math.max(1, Math.round(d.height * texel)); c.getContext('2d').drawImage(d, 0, 0, c.width, c.height); d = c; }
+      at(r.x + r.w * 0.44, r.y + r.h * 0.44, r.w * 0.12, r.h * 0.12, d);
+    }
+    x.restore();
+  }
+  x.filter = 'none';
+  return true;
+}
+function mmbDraw() {
+  const radar = $('#mmbRadar'), world = $('#mmbWorld'); if (!radar) return;
+  // radar: the middle of the map, like standing in the city (repeating pictures: centred on one picture)
+  const vw = MM_VIEW, vh = MM_VIEW * radar.height / radar.width;
+  let cx = MM_W / 2, cy = MM_H / 2;
+  if (MMB.mode === 'tile' && MMB.img) { const pw = MM_W / MMB.repeat, ph = pw * MMB.img.height / MMB.img.width; cx = (Math.floor(cx / pw) + .5) * pw; cy = (Math.floor(cy / ph) + .5) * ph; }
+  const has = mmbPaint(radar, { x: cx - vw / 2, y: cy - vh / 2, w: vw, h: vh });
+  let x = radar.getContext('2d'); const W = radar.width, H = radar.height;
+  if (!has) { x.fillStyle = 'rgba(255,255,255,.55)'; x.font = '600 26px Inter, sans-serif'; x.textAlign = 'center'; x.fillText('Noch kein Bild gewählt', W / 2, H / 2 + 8); }
+  // player arrow, a few blips and the health/armour bars, so it reads as the GTA radar
+  const blip = (bx, by, col, r = 11) => { x.beginPath(); x.arc(bx, by, r, 0, 7); x.fillStyle = col; x.fill(); x.lineWidth = 3; x.strokeStyle = 'rgba(0,0,0,.75)'; x.stroke(); };
+  blip(W * .72, H * .3, '#E04B4B'); blip(W * .2, H * .62, '#5BA7F0'); blip(W * .58, H * .74, '#F2C94C', 9);
+  x.save(); x.translate(W / 2, H / 2); x.beginPath(); x.moveTo(0, -20); x.lineTo(14, 16); x.lineTo(0, 8); x.lineTo(-14, 16); x.closePath();
+  x.fillStyle = '#fff'; x.fill(); x.lineWidth = 3; x.strokeStyle = 'rgba(0,0,0,.8)'; x.stroke(); x.restore();
+  x.fillStyle = 'rgba(0,0,0,.6)'; x.fillRect(0, H - 22, W, 22);
+  x.fillStyle = '#5BBF57'; x.fillRect(6, H - 16, W * .5 - 30, 10); x.fillStyle = 'rgba(91,191,87,.3)'; x.fillRect(W * .5 - 24, H - 16, 15, 10);
+  x.fillStyle = '#4A9BD8'; x.fillRect(W * .5 - 3, H - 16, W * .25 - 6, 10); x.fillStyle = '#D9C24A'; x.fillRect(W * .75 - 3, H - 16, W * .25 - 3, 10);
+  // whole map, with a marker for the size of the radar view
+  mmbPaint(world, { x: 0, y: 0, w: MM_W, h: MM_H });
+  x = world.getContext('2d');
+  const k = world.width / MM_W;
+  x.strokeStyle = '#fff'; x.lineWidth = 2; x.setLineDash([4, 3]);
+  x.strokeRect(world.width / 2 - Math.max(6, vw * k / 2), world.height / 2 - Math.max(4, vh * k / 2), Math.max(12, vw * k), Math.max(8, vh * k)); x.setLineDash([]);
+}
+function mmbProgress(d) { const p = $('#mmbProg'); if (!p) return; p.classList.remove('hidden'); $('#mmbBar').style.width = d.pct + '%'; $('#mmbProgTxt').textContent = d.text; }
+async function mmbBuild() {
+  if (!MMB.path || MMB.busy) return;
+  if (!S.settings.modsAck) return modInstall('__dl');
+  MMB.busy = true; mmbUI(); mmbProgress({ pct: 1, text: 'Starte…' });
+  const r = await api('minimap.build', { cfg: { path: MMB.path, mode: MMB.mode, repeat: MMB.repeat, res: MMB.res, fit: MMB.fit, dim: MMB.dim } }).catch(e => ({ error: e.message }));
+  MMB.busy = false; $('#mmbProg').classList.add('hidden');
+  if (r.error) toast('Minimap nicht erstellt', r.error, false);
+  else { passed('Eigene Minimap installiert', `${bytes(r.size)} · aktiv ab dem nächsten FiveM-Start`); modList(); }
+  mmbOpen();
+}
+document.addEventListener('click', async e => {
+  if (!e.target.closest('[data-mtp="mm"]')) return;
+  if (e.target.closest('#mmbPick')) {
+    const i = await api('minimap.pick').catch(er => ({ error: er.message }));
+    if (i.cancelled) return;
+    if (i.error) return toast('Bild nicht geladen', i.error, false);
+    mmbSet(i); mmbUI(); return;
+  }
+  const m = e.target.closest('#mmbMode button'); if (m) { MMB.mode = m.dataset.v; mmbUI(); return; }
+  const f = e.target.closest('#mmbFit button'); if (f) { MMB.fit = f.dataset.v; mmbUI(); return; }
+  const q = e.target.closest('#mmbRes button'); if (q) { MMB.res = +q.dataset.v; mmbUI(); return; }
+  if (e.target.closest('#mmbBuild')) return mmbBuild();
+  if (e.target.closest('#mmbRemove')) {
+    if (!await confirmBox('Eigene Minimap entfernen?', 'Im Spiel ist danach wieder die normale Karte zu sehen.')) return;
+    const r = await api('minimap.remove').catch(er => ({ error: er.message }));
+    if (r.error) toast('Nicht entfernt', r.error, false); else toast('Eigene Minimap entfernt', 'Ab dem nächsten FiveM-Start');
+    modList(); mmbOpen();
+  }
+});
+document.addEventListener('input', e => {
+  if (e.target.id === 'mmbRepeat') { MMB.repeat = 66 - +e.target.value; mmbUI(); }
+  else if (e.target.id === 'mmbDim') { MMB.dim = +e.target.value; mmbUI(); }
+});
+
+/* ======================= v1 polish: motion ======================= */
+// a ring of light from the spot a button is pressed
+document.addEventListener('pointerdown', e => {
+  const b = e.target.closest('.btn, .launch, .tab, .seg button, .nav');
+  if (!b || b.disabled) return;
+  const r = b.getBoundingClientRect(), d = Math.max(r.width, r.height) * 2.2, s = document.createElement('span');
+  s.className = 'rp'; s.style.cssText = `width:${d}px;height:${d}px;left:${e.clientX - r.left - d / 2}px;top:${e.clientY - r.top - d / 2}px`;
+  b.appendChild(s); setTimeout(() => s.remove(), 650);
+});
+// cards below the visible part of a page come in when they are scrolled to
+const rvIO = new IntersectionObserver(es => es.forEach(en => { if (en.isIntersecting) { en.target.classList.add('in'); rvIO.unobserve(en.target); } }), { threshold: .08 });
+function rvScan() {
+  const pg = document.querySelector('.page.show'); if (!pg) return;
+  pg.querySelectorAll('.card:not(.rv)').forEach(c => { if (c.getBoundingClientRect().top > innerHeight - 40) { c.classList.add('rv'); rvIO.observe(c); } });
+}
+{ const go0 = go; go = function (p) { const r = go0.apply(this, arguments); setTimeout(rvScan, 60); return r; }; }
+setTimeout(rvScan, 800);
+
+/* ======================= MINIGAMES: AIM TRAINING ======================= */
+const MG_MODES = {
+  grid: ['Gridshot', 'Drei große Ziele gleichzeitig. Triff so viele wie möglich.', 3, 34, 0],
+  flick: ['Präzision', 'Ein kleines Ziel. Jeder Fehlklick kostet Punkte.', 1, 15, 0],
+  speed: ['Tempo', 'Die Ziele verschwinden nach kurzer Zeit wieder. Sei schneller.', 2, 26, 950],
+};
+const MG = { mode: 'grid', on: false, t0: 0, end: 0, targets: [], hits: 0, shots: 0, score: 0, lastHit: 0, sum: 0, pops: [], raf: 0 };
+function mgBest() { try { return JSON.parse(localStorage.getItem('orbitAim') || '{}'); } catch { return {}; } }
+function mgIdle() {
+  const [n, d] = MG_MODES[MG.mode];
+  $('#mgTitle').textContent = n; $('#mgDesc').textContent = d;
+  $$('#mgMode button').forEach(b => b.classList.toggle('on', b.dataset.mg === MG.mode));
+  const b = mgBest()[MG.mode]; $('#mgBest').textContent = b ? b.score : 0; $('#mgBestNote').textContent = b ? `${b.acc} % Trefferquote · ${b.date}` : 'Noch kein Durchgang in diesem Modus';
+}
+function mgSpawn(cv) {
+  const r = MG_MODES[MG.mode][3] * devicePixelRatio, pad = r + 14 * devicePixelRatio;
+  for (let i = 0; i < 40; i++) {
+    const x = pad + Math.random() * (cv.width - pad * 2), y = pad + 50 * devicePixelRatio + Math.random() * (cv.height - pad * 2 - 50 * devicePixelRatio);
+    if (MG.targets.every(t => Math.hypot(t.x - x, t.y - y) > r * 2.6)) return MG.targets.push({ x, y, r, born: performance.now() });
+  }
+}
+function mgDraw() {
+  const cv = $('#mgCv'), g = cv.getContext('2d'), now = performance.now();
+  const st = getComputedStyle(document.documentElement), a = st.getPropertyValue('--a').trim(), b = st.getPropertyValue('--b').trim();
+  g.clearRect(0, 0, cv.width, cv.height);
+  const life = MG_MODES[MG.mode][4];
+  if (life) MG.targets = MG.targets.filter(t => now - t.born < life);
+  while (MG.on && MG.targets.length < MG_MODES[MG.mode][2]) mgSpawn(cv);
+  for (const t of MG.targets) {
+    const k = Math.min(1, (now - t.born) / 140), fade = life ? 1 - Math.max(0, (now - t.born - life * .6) / (life * .4)) : 1, r = t.r * (.5 + .5 * k);
+    g.globalAlpha = Math.max(.15, fade);
+    const gr = g.createRadialGradient(t.x - r * .3, t.y - r * .3, r * .1, t.x, t.y, r); gr.addColorStop(0, b); gr.addColorStop(1, a);
+    g.shadowColor = a; g.shadowBlur = 22 * devicePixelRatio; g.fillStyle = gr; g.beginPath(); g.arc(t.x, t.y, r, 0, 7); g.fill();
+    g.shadowBlur = 0; g.fillStyle = 'rgba(255,255,255,.9)'; g.beginPath(); g.arc(t.x, t.y, r * .22, 0, 7); g.fill();
+  }
+  g.globalAlpha = 1;
+  MG.pops = MG.pops.filter(p => now - p.t < 420);
+  for (const p of MG.pops) {
+    const k = (now - p.t) / 420;
+    g.strokeStyle = p.hit ? a : 'rgba(248,113,113,.9)'; g.globalAlpha = 1 - k; g.lineWidth = 2 * devicePixelRatio;
+    g.beginPath(); g.arc(p.x, p.y, p.r * (1 + k * 1.2), 0, 7); g.stroke();
+  }
+  g.globalAlpha = 1;
+  if (MG.on) {
+    const left = Math.max(0, (MG.end - now) / 1000), el = $('#mgTime');
+    el.textContent = left.toFixed(1); el.classList.toggle('low', left < 5);
+    if (left <= 0) return mgStop();
+  }
+  if (MG.on || MG.pops.length) MG.raf = requestAnimationFrame(mgDraw);
+}
+function mgStats() {
+  $('#mgScore').textContent = MG.score;
+  $('#mgAcc').textContent = MG.shots ? Math.round(MG.hits / MG.shots * 100) + ' %' : '–';
+  $('#mgAvg').textContent = MG.hits ? Math.round(MG.sum / MG.hits) + ' ms' : '–';
+}
+function mgStart() {
+  const cv = $('#mgCv'), r = cv.getBoundingClientRect();
+  cv.width = Math.round(r.width * devicePixelRatio); cv.height = Math.round(r.height * devicePixelRatio);
+  Object.assign(MG, { on: true, targets: [], hits: 0, shots: 0, score: 0, sum: 0, pops: [], lastHit: performance.now(), end: performance.now() + 30000 });
+  $('#mgOver').classList.add('off'); mgStats(); cancelAnimationFrame(MG.raf); mgDraw();
+}
+function mgStop() {
+  MG.on = false; MG.targets = [];
+  const acc = MG.shots ? Math.round(MG.hits / MG.shots * 100) : 0, all = mgBest(), old = all[MG.mode];
+  const best = !old || MG.score > old.score;
+  if (best && MG.score > 0) { all[MG.mode] = { score: MG.score, acc, date: new Date().toLocaleDateString('de-DE') }; try { localStorage.setItem('orbitAim', JSON.stringify(all)); } catch { } }
+  mgIdle();
+  $('#mgTitle').textContent = best && MG.score > 0 ? `Neuer Bestwert: ${MG.score}` : `${MG.score} Punkte`;
+  $('#mgDesc').textContent = `${MG.hits} Treffer bei ${MG.shots} Klicks, ${acc} % Trefferquote${MG.hits ? `, ${Math.round(MG.sum / MG.hits)} ms pro Treffer` : ''}.`;
+  $('#mgStart').innerHTML = `${ico('refresh')}Nochmal`;
+  $('#mgOver').classList.remove('off'); $('#mgTime').textContent = '30.0'; $('#mgTime').classList.remove('low');
+}
+document.addEventListener('pointerdown', e => {
+  if (e.target.id !== 'mgCv' || !MG.on) return;
+  const cv = e.target, r = cv.getBoundingClientRect(), x = (e.clientX - r.left) * devicePixelRatio, y = (e.clientY - r.top) * devicePixelRatio, now = performance.now();
+  MG.shots++;
+  const i = MG.targets.findIndex(t => Math.hypot(t.x - x, t.y - y) <= t.r);
+  if (i >= 0) {
+    const t = MG.targets.splice(i, 1)[0];
+    MG.hits++; MG.sum += now - MG.lastHit; MG.lastHit = now;
+    MG.score += MG.mode === 'flick' ? 3 : MG.mode === 'speed' ? 2 : 1;
+    MG.pops.push({ x: t.x, y: t.y, r: t.r, t: now, hit: true });
+  } else {
+    if (MG.mode === 'flick') MG.score = Math.max(0, MG.score - 1);
+    MG.pops.push({ x, y, r: 10 * devicePixelRatio, t: now, hit: false });
+  }
+  mgStats();
+});
+document.addEventListener('click', e => {
+  const m = e.target.closest('#mgMode button');
+  if (m && !MG.on) { MG.mode = m.dataset.mg; $('#mgStart').innerHTML = `${ico('play')}Starten`; mgIdle(); }
+  if (e.target.closest('#mgStart')) mgStart();
+});
+{ const go1 = go; go = function (p) { if (curPage === 'games' && p !== 'games' && MG.on) { MG.on = false; MG.targets = []; $('#mgOver').classList.remove('off'); } const r = go1.apply(this, arguments); if (p === 'games') mgIdle(); return r; }; window.go = go; }
+
+/* ======================= v1 polish, round three ======================= */
+// live curves for RAM and ping on the start page, small live bars in the title bar
+const LIVE = { ram: [], ping: [] };
+function liveCurve(hist, line, fill, max) {
+  if (hist.length < 2) return;
+  const n = hist.length, pts = hist.map((v, i) => [(i + 40 - n) * 200 / 39, 58 - Math.min(1, v / max) * 52]), d = smoothPath(pts);
+  $(line).setAttribute('d', d); $(fill).setAttribute('d', d + ` L200,60 L${pts[0][0].toFixed(1)},60 Z`);
+}
+setInterval(() => {
+  const cpu = parseFloat($('#tbCpu').textContent), ram = parseFloat($('#tbRam').textContent), ping = parseFloat($('#tbPing').textContent);
+  if (!isNaN(cpu)) { $('#tbCpuP').style.setProperty('--v', cpu); $('#tbCpuP').classList.toggle('hot', cpu >= 90); }
+  if (!isNaN(ram)) { $('#tbRamP').style.setProperty('--v', ram); $('#tbRamP').classList.toggle('hot', ram >= 90); LIVE.ram.push(ram); if (LIVE.ram.length > 40) LIVE.ram.shift(); }
+  if (!isNaN(ping)) { LIVE.ping.push(ping); if (LIVE.ping.length > 40) LIVE.ping.shift(); }
+  if (curPage === 'home') { liveCurve(LIVE.ram, '#sparkRL', '#sparkRF', 100); liveCurve(LIVE.ping, '#sparkPL', '#sparkPF', Math.max(60, ...LIVE.ping) * 1.2); }
+}, 1000);
+
+/* ======================= side bar: folding groups, entrance, page direction ======================= */
+{
+  const side = document.querySelector('.side-nav');
+  let folded = []; try { folded = JSON.parse(localStorage.getItem('orbitNavFold') || '[]'); } catch { }
+  const groupOf = h => { const r = []; for (let n = h.nextElementSibling; n && !n.classList.contains('nav-h'); n = n.nextElementSibling) if (n.classList.contains('nav')) r.push(n); return r; };
+  const fold = (h, on, save = true) => {
+    h.classList.toggle('cl', on);
+    // the entry of the page that is open stays visible, so the marker never points at nothing
+    groupOf(h).forEach(n => n.classList.toggle('gone', on && !n.classList.contains('active')));
+    if (save) { folded = [...side.querySelectorAll('.nav-h.cl')].map(x => x.textContent.trim()); try { localStorage.setItem('orbitNavFold', JSON.stringify(folded)); } catch { } }
+    setTimeout(moveInd, 370);
+  };
+  side.querySelectorAll('.nav-h').forEach(h => { if (folded.includes(h.textContent.trim())) fold(h, true, false); });
+  side.addEventListener('click', e => { const h = e.target.closest('.nav-h'); if (h) fold(h, !h.classList.contains('cl')); });
+  side.querySelectorAll('.nav').forEach((n, i) => { n.style.setProperty('--n', i); n.classList.add('in'); setTimeout(() => n.classList.remove('in'), 1400); });
+  // a page comes in from below when it is further down in the menu, from above otherwise; folded groups show their open page
+  const order = [...document.querySelectorAll('.nav[data-p]')].map(n => n.dataset.p);
+  const go2 = go; go = function (p) {
+    const from = order.indexOf(NAV_OF[curPage] || curPage), to = order.indexOf(NAV_OF[p] || p);
+    document.documentElement.style.setProperty('--dir', to >= from ? 1 : -1);
+    const r = go2.apply(this, arguments);
+    side.querySelectorAll('.nav-h.cl').forEach(h => groupOf(h).forEach(n => n.classList.toggle('gone', !n.classList.contains('active'))));
+    setTimeout(moveInd, 370);
+    return r;
+  }; window.go = go;
+}
+
+/* ======================= CLIP EDITOR: cut a part out of a clip ======================= */
+const CUT = { rel: '', from: 0, to: 0, dur: 0, busy: false };
+const cutFmt = t => { const m = Math.floor(t / 60), s = t - m * 60; return `${m}:${s.toFixed(1).padStart(4, '0')}`; };
+function cutUI() {
+  const bar = $('#cutBar'); if (!bar) return;
+  const a = CUT.from / CUT.dur * 100, b = CUT.to / CUT.dur * 100;
+  $('#cutSel').style.left = a + '%'; $('#cutSel').style.width = (b - a) + '%';
+  $('#cutA').style.left = a + '%'; $('#cutB').style.left = b + '%';
+  $('#cutInfo').innerHTML = `Ausschnitt <b>${cutFmt(CUT.from)}</b> bis <b>${cutFmt(CUT.to)}</b> · <b>${(CUT.to - CUT.from).toFixed(1)} s</b> von ${CUT.dur.toFixed(1)} s`;
+}
+window.cutOpen = rel => {
+  const v = $('#mbox video'); if (!v || !isFinite(v.duration)) return toast('Clip lädt noch', 'Einen Moment, dann nochmal', false);
+  Object.assign(CUT, { rel, dur: v.duration, from: 0, to: v.duration, busy: false });
+  v.removeAttribute('controls'); v.pause();
+  $('#mbox .act').outerHTML = `
+    <div class="cut">
+      <div class="cut-bar" id="cutBar"><i class="cut-sel" id="cutSel"></i><i class="cut-pos" id="cutPos"></i><b class="cut-h" id="cutA"></b><b class="cut-h" id="cutB"></b></div>
+      <div class="row mt8"><span class="sub" id="cutInfo" style="font-size:12.5px"></span><span class="sp"></span>
+        <button class="btn sm" id="cutPlay">${ico('play')}Ausschnitt abspielen</button><button class="btn sm" data-cutset="from">Anfang hier</button><button class="btn sm" data-cutset="to">Ende hier</button></div>
+      <p class="sub" style="font-size:12px;margin-top:8px">Zieh die beiden Griffe, oder klick in die Leiste, um an eine Stelle zu springen. Das Original bleibt unverändert.</p>
+    </div>
+    <div class="act"><button class="btn" onclick="closeModal()">Abbrechen</button><button class="btn" id="cutShare">${ico('copy')}Schnitt für Discord kopieren</button><button class="btn p" id="cutSave">${ico('check')}Als neuen Clip speichern</button></div>`;
+  v.ontimeupdate = () => { const p = $('#cutPos'); if (p) p.style.left = v.currentTime / CUT.dur * 100 + '%'; if (CUT.playing && v.currentTime >= CUT.to) { v.pause(); CUT.playing = false; } };
+  cutUI();
+};
+document.addEventListener('pointerdown', e => {
+  const bar = e.target.closest('#cutBar'); if (!bar) return;
+  const v = $('#mbox video'), r = bar.getBoundingClientRect(), at = x => Math.min(1, Math.max(0, (x - r.left) / r.width)) * CUT.dur;
+  const h = e.target.closest('.cut-h');
+  if (!h) { v.currentTime = at(e.clientX); return; }
+  const which = h.id === 'cutA' ? 'from' : 'to';
+  const move = ev => {
+    let t = at(ev.clientX);
+    if (which === 'from') t = Math.min(t, CUT.to - 0.5); else t = Math.max(t, CUT.from + 0.5);
+    CUT[which] = Math.max(0, Math.min(CUT.dur, t)); v.currentTime = CUT[which]; cutUI();
+  };
+  const up = () => { removeEventListener('pointermove', move); removeEventListener('pointerup', up); };
+  addEventListener('pointermove', move); addEventListener('pointerup', up); e.preventDefault();
+});
+document.addEventListener('click', async e => {
+  const v = $('#mbox video');
+  const set = e.target.closest('[data-cutset]');
+  if (set && v) {
+    const t = v.currentTime;
+    if (set.dataset.cutset === 'from') CUT.from = Math.min(t, CUT.to - 0.5); else CUT.to = Math.max(t, CUT.from + 0.5);
+    CUT.from = Math.max(0, CUT.from); CUT.to = Math.min(CUT.dur, CUT.to); cutUI(); return;
+  }
+  if (e.target.closest('#cutPlay') && v) { v.currentTime = CUT.from; CUT.playing = true; v.play(); return; }
+  const save = e.target.closest('#cutSave'), share = e.target.closest('#cutShare');
+  if ((save || share) && !CUT.busy) {
+    CUT.busy = true; const b = save || share, was = b.innerHTML; b.disabled = true; b.innerHTML = `${ico('refresh', 'i spin')}Schneide…`;
+    if (v) v.pause();
+    const r = await api('clip.cut', { rel: CUT.rel, from: +CUT.from.toFixed(2), to: +CUT.to.toFixed(2), share: !!share }).catch(er => ({ error: er.message }));
+    CUT.busy = false; b.disabled = false; b.innerHTML = was;
+    if (r.error) return toast('Nicht geschnitten', r.error, false);
+    closeModal(); $('#mbox').style.width = '';
+    if (r.share) toast(r.clipboard ? 'Schnitt kopiert' : 'Schnitt fertig', `${r.name} · ${bytes(r.size)}${r.clipboard ? ' · in Discord mit Strg+V einfügen' : ''}`);
+    else { passed('Clip geschnitten', `${r.name} · ${bytes(r.size)}`); clipList(); }
+  }
+});
+
+/* ======================= WHAT'S NEW: shown once after an update ======================= */
+const CHANGES = {
+  '2.22.0': [
+    ['zap', 'Montage mit Effekten', 'Deine neuesten Kills automatisch zu einem Video geschnitten: Titelkarte, Kill-Zähler, Blitz bei jedem Schnitt, auf Wunsch mit Musik.'],
+    ['film', 'Clip-Editor', 'Clip öffnen, „Schneiden“, Anfang und Ende setzen, als neuen Clip speichern oder klein für Discord kopieren.'],
+    ['crosshair', 'KI-Prüfung für Kills', 'Wo am Fadenkreuz kein Kill erkannt wird, schaut ein KI-Modell auf das Gefecht. Tode werden nicht mehr geclippt.'],
+    ['download', 'Packs aus Discord', 'Sound-Packs und Skins werden in deinen Downloads erkannt, richtig benannt und mit einem Klick installiert.'],
+    ['cpu', 'Neue Tweaks', '„Hintergrund ausbremsen im Spiel“ und vier weitere, dazu ein stärkeres WASD-Laggen.'],
+    ['monitor', 'Overlays', 'Zähler im Spiel mit Kills, Spielzeit und Uhrzeit, weich eingeblendete Meldungen.'],
+    ['zap', 'Minigames', 'Aim-Trainer mit drei Modi und Bestwerten.'],
+    ['sun', 'Neuer Look', 'Mehr Tiefe und Bewegung, aufgeräumte Seitenleiste, Winter-Theme mit Schnee.'],
+  ],
+};
+function whatsNew(version) {
+  let seen = null; try { seen = localStorage.getItem('orbitSeenVer'); } catch { }
+  if (seen === version) return;
+  try { localStorage.setItem('orbitSeenVer', version); } catch { }
+  let list = CHANGES[version];
+  if (!list) {
+    // no list built in for this version: the notes of the release that were shown before the update
+    try { const n = JSON.parse(localStorage.getItem('orbitNotes') || 'null'); if (n && n.v === version && n.notes.length) list = n.notes.map(t => ['zap', t, '']); } catch { }
+  }
+  if (!list) return;
+  modal(`<div class="kicker">Update</div><h1 style="margin-top:8px">Das ist neu in <span class="grad">v${esc(version)}</span></h1>
+    <div class="wn">${list.map(([ic, t, d], i) => `<div class="wn-row" style="--i:${i}"><div class="qi">${ico(ic)}</div><div><b>${t}</b><span>${d}</span></div></div>`).join('')}</div>
+    <div class="act"><button class="btn p lg" onclick="closeModal()">${ico('check')}Alles klar</button></div>`);
+  $('#mbox').style.width = '620px';
+}
+
+/* ======================= MONTAGE: the newest kills cut together with effects ======================= */
+const MO = { count: 10, music: null, busy: false, slow: true };
+try { MO.slow = localStorage.getItem('orbitMoSlow') !== '0'; } catch { }
+try { MO.count = +localStorage.getItem('orbitMoCount') || 10; } catch { }
+function moUI() {
+  if (!$('#moGo')) return;
+  $$('#moCount button').forEach(b => b.classList.toggle('on', +b.dataset.v === MO.count));
+  const n = (HL.n && HL.n.all) || 0, use = Math.min(n, MO.count);
+  $('#moSlow').classList.toggle('p', MO.slow); $('#moSlow span').textContent = MO.slow ? 'Zeitlupe an' : 'Zeitlupe aus';
+  $('#moMusic span').textContent = MO.music ? MO.music.length > 22 ? MO.music.slice(0, 20) + '…' : MO.music : 'Musik wählen';
+  $('#moMusic').title = MO.music ? 'Klick: andere Musik · Rechtsklick: ohne Musik' : 'Eine Musikdatei unter die Montage legen';
+  $('#moInfo').textContent = n >= 2 ? `Schneidet deine ${use} neuesten Kills zu einem Video von etwa ${Math.round(use * (MO.slow ? 8.5 : 6.5) + 4)} Sekunden: ${MO.slow ? 'Zeitlupe beim Kill, ' : ''}Titelkarte, „KILL 3 / ${use}“ auf jedem Clip, Blitz bei jedem Schnitt, Kino-Rahmen und Endkarte${MO.music ? ', mit deiner Musik' : ''}.`
+    : 'Schneidet deine neuesten Kills automatisch zu einem Video mit Effekten. Dafür braucht es mindestens zwei Kill-Clips.';
+  const b = $('#moGo'); b.disabled = MO.busy || HL.busy || n < 2; b.querySelector('span').textContent = MO.busy ? 'Wird geschnitten…' : 'Montage erstellen';
+}
+async function moMake() {
+  if (MO.busy || HL.busy) return;
+  MO.busy = true; moUI(); hlProgress({ pct: 1, text: 'Starte…' });
+  let r = await api('clip.montage', { count: MO.count, slowmo: MO.slow }).catch(e => ({ error: e.message }));
+  if (r.needFfmpeg) {
+    // slow motion needs a cutting program that is loaded once
+    MO.busy = false; $('#hlProg').classList.add('hidden'); moUI();
+    modal(`<div class="kicker">Montage</div><h1 style="margin-top:8px">Zeitlupe braucht ein <span class="grad">Schnittprogramm</span></h1><p style="margin-top:10px;line-height:1.55">Für Zeitlupe und Zoom lädt OrbitTweak einmalig das freie Schnittprogramm ffmpeg herunter (etwa 90 MB, von gyan.dev). Danach läuft alles auf deinem PC.</p>
+      <div class="act"><button class="btn" onclick="closeModal()">Abbrechen</button><button class="btn" onclick="closeModal();MO.slow=false;moUI();moMake()">Ohne Zeitlupe schneiden</button><button class="btn p" onclick="moGetFf()">${ico('download')}Laden und schneiden</button></div>`);
+    return;
+  }
+  MO.busy = false; $('#hlProg').classList.add('hidden');
+  if (r.error) toast('Keine Montage', r.error, false); else passed('Montage fertig', `${r.clips} Kills · ${r.file}`);
+  clipList(); hlLoad();
+}
+document.addEventListener('click', async e => {
+  const c = e.target.closest('#moCount button');
+  if (c) { MO.count = +c.dataset.v; try { localStorage.setItem('orbitMoCount', MO.count); } catch { } moUI(); return; }
+  if (e.target.closest('#moMusic')) { const r = await api('clip.montageMusic', {}).catch(() => null); if (r) { MO.music = r.music; moUI(); } return; }
+  if (e.target.closest('#moSlow')) { MO.slow = !MO.slow; try { localStorage.setItem('orbitMoSlow', MO.slow ? '1' : '0'); } catch { } moUI(); return; }
+  if (e.target.closest('#moGo')) moMake();
+});
+document.addEventListener('contextmenu', async e => {
+  if (!e.target.closest('#moMusic') || !MO.music) return;
+  e.preventDefault(); const r = await api('clip.montageMusic', { clear: true }).catch(() => null); if (r) { MO.music = null; moUI(); toast('Ohne Musik', 'Die Montage behält nur den Spielton'); }
+});
+{ const hlUI0 = hlUI; hlUI = function () { hlUI0.apply(this, arguments); moUI(); }; }
+window.moGetFf = async () => {
+  closeModal(); MO.busy = true; moUI(); hlProgress({ pct: 1, text: 'Lade Schnittprogramm …' });
+  const r = await api('clip.ffmpeg', {}).catch(e => ({ error: e.message }));
+  MO.busy = false; $('#hlProg').classList.add('hidden'); moUI();
+  if (!r.ok) return toast('Nicht geladen', r.error || '', false);
+  moMake();
+};
+
+/* a clip window also closes with Escape or a click beside it (only the player, not windows that ask something) */
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#modal').classList.contains('show') && $('#mbox .player') && !CUT.busy) closeModal(); });
+document.addEventListener('pointerdown', e => { if (e.target.id === 'modal' && $('#mbox .player') && !CUT.busy) closeModal(); });
+
+/* ======================= login: paste button, auto unlock, copy the PC id ======================= */
+{
+  const full = () => lkInputs().every(x => x.value.length === 4);
+  // a key that was pasted in one go unlocks by itself; typed keys still need Enter or the button
+  const tryAuto = () => { if (full() && !LOCK.busy && $('#lock').classList.contains('show')) setTimeout(() => { if (full() && !LOCK.busy) lkSubmit(); }, 250); };
+  $('#lkPaste') && ($('#lkPaste').onclick = async () => {
+    let text = '';
+    try { text = await navigator.clipboard.readText(); } catch { }
+    const key = (text.toUpperCase().match(/ORB[- ]?[A-Z0-9]{4}[- ]?[A-Z0-9]{4}[- ]?[A-Z0-9]{4}/) || [''])[0];
+    if (!key) { $('#lkErr').textContent = text ? 'In der Zwischenablage ist kein Key (ORB-XXXX-XXXX-XXXX).' : 'Die Zwischenablage ist leer. Kopier zuerst deinen Key.'; lkInputs()[0].focus(); return; }
+    lkFill(key); $('#lkErr').textContent = ''; $('#lkKey').classList.remove('bad'); tryAuto();
+  });
+  document.addEventListener('paste', e => { if (lkInputs().includes(e.target)) setTimeout(tryAuto, 0); });
+  $('#lkId') && ($('#lkId').onclick = async () => {
+    const id = $('#lkHwid').textContent.trim(); if (!id || id === '…') return;
+    try { await navigator.clipboard.writeText(id); } catch { return; }
+    const b = $('#lkId'); b.classList.add('ok'); const c = $('#lkHwid'); const was = c.textContent; c.textContent = 'kopiert';
+    setTimeout(() => { b.classList.remove('ok'); c.textContent = was; }, 1400);
+  });
+}

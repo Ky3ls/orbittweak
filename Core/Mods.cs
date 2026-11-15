@@ -36,6 +36,22 @@ internal static class Mods
         return new { found = true, dir = on, items };
     }
 
+    /// <summary>
+    /// The name a pack file has to have in the mods folder. A browser or Discord adds " (3)" or " - Kopie" when a file
+    /// of that name was downloaded before; FiveM only loads the pack under its real name (WEAPONS_PLAYER.rpf).
+    /// </summary>
+    public static string CleanName(string file)
+    {
+        var name = Path.GetFileNameWithoutExtension(file);
+        string before;
+        do
+        {
+            before = name;
+            name = System.Text.RegularExpressions.Regex.Replace(name, @"(\s*\(\d+\)|\s*-\s*(Kopie|Copy)(\s*\(\d+\))?|\s+copy)$", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).TrimEnd();
+        } while (name != before && name.Length > 0);
+        return (name.Length > 0 ? name : Path.GetFileNameWithoutExtension(file)) + ".rpf";
+    }
+
     public static (int count, string? error) Install(IEnumerable<string> files, string cat, Dictionary<string, string> cats)
         => InstallNamed(files, cat, cats, null);
 
@@ -50,7 +66,7 @@ internal static class Mods
             if (file.EndsWith(".rpf", StringComparison.OrdinalIgnoreCase))
             {
                 if (!IsRpf(file)) continue;
-                var name = Path.GetFileName(file);
+                var name = CleanName(file);
                 File.Copy(file, Path.Combine(dir, name), true);
                 cats[name] = cat; n++; names?.Add(name);
             }
@@ -59,10 +75,11 @@ internal static class Mods
                 using var z = ZipFile.OpenRead(file);
                 foreach (var e in z.Entries.Where(e => e.Name.EndsWith(".rpf", StringComparison.OrdinalIgnoreCase)))
                 {
-                    var target = Path.Combine(dir, Path.GetFileName(e.Name));
+                    var clean = CleanName(e.Name);
+                    var target = Path.Combine(dir, clean);
                     e.ExtractToFile(target, true);
                     if (!IsRpf(target)) { File.Delete(target); continue; }
-                    cats[Path.GetFileName(e.Name)] = cat; n++; names?.Add(Path.GetFileName(e.Name));
+                    cats[clean] = cat; n++; names?.Add(clean);
                 }
             }
         }

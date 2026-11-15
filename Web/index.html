@@ -79,8 +79,8 @@
     <div class="tb-mid" data-drag>
       <div class="pill"><i class="dot" id="tbDot"></i><span id="tbFm">FiveM offline</span></div>
       <div class="pill"><svg class="i" style="width:13px;height:13px"><use href="#wifi"/></svg><b id="tbPing">--</b>ms</div>
-      <div class="pill">CPU <b id="tbCpu">0%</b></div>
-      <div class="pill">RAM <b id="tbRam">0%</b></div>
+      <div class="pill mv" id="tbCpuP">CPU <b id="tbCpu">0%</b></div>
+      <div class="pill mv" id="tbRamP">RAM <b id="tbRam">0%</b></div>
     </div>
     <button class="upd" id="updPill" onclick="go('settings')"><svg class="i"><use href="#download"/></svg><span id="updPillTxt">UPDATE</span></button>
     <div class="wc">
@@ -106,19 +106,18 @@
     <button class="nav" data-p="clip"><svg class="i"><use href="#film"/></svg>Clipper</button>
     <button class="nav" data-p="pad"><svg class="i"><use href="#gamepad"/></svg>Controller<span class="badge hidden" id="navPad">AN</span></button>
     <button class="nav" data-p="input"><svg class="i"><use href="#keyboard"/></svg>Input-Lab</button>
+<button class="nav" data-p="games"><svg class="i"><use href="#crosshair"/></svg>Minigames</button>
     <div class="nav-h">System</div>
     <button class="nav" data-p="tweaks"><svg class="i"><use href="#zap"/></svg>Tweaks</button>
     <button class="nav" data-p="cleaner"><svg class="i"><use href="#trash"/></svg>Cleaner</button>
     <button class="nav" data-p="diag"><svg class="i"><use href="#heart"/></svg>Diagnose</button>
-    <button class="nav hidden" data-p="admin" id="navAdmin"><svg class="i"><use href="#shield"/></svg>Admin<span class="badge hidden" id="navPend">0</span></button>
-    <button class="nav" data-p="settings"><svg class="i"><use href="#settings"/></svg>Einstellungen<span class="badge hidden" id="navUpd">NEU</span></button>
-    </div>
+            </div>
     <div class="side-cta">
       <button class="launch" onclick="launch('')">
         <span class="pi"><svg class="i"><use href="#play"/></svg></span>
         <span><b>FiveM starten</b><small id="launchSub">mit Pre-Launch-Boost</small></span>
       </button>
-      <div class="side-foot"><span id="verTxt">v2.1.0</span><span id="adminTxt">ADMIN</span></div>
+      <div class="side-foot"><div class="sf-info"><span id="verTxt">v2.1.0</span><span id="adminTxt">ADMIN</span></div><span class="sp"></span><button class="nav mini hidden" data-p="admin" id="navAdmin" title="Admin"><svg class="i"><use href="#shield"/></svg><span class="badge hidden" id="navPend">0</span></button><button class="nav mini" data-p="settings" title="Einstellungen"><svg class="i"><use href="#settings"/></svg><span class="badge hidden" id="navUpd">NEU</span></button></div>
     </div>
   </nav>
 
@@ -135,6 +134,12 @@
         </div>
         <div class="bn-r"><span class="bn-chip" id="lastBoost">Noch kein Boost</span></div>
         <button class="bn-edit" onclick="go('settings');setTab('design')" title="Hintergrund ändern"><svg class="i"><use href="#monitor"/></svg>Bild ändern</button>
+      </div>
+      <div class="quick">
+        <div class="card hov qt" onclick="clearFmCache()"><div class="qi"><svg class="i"><use href="#trash"/></svg></div><div><b>Cache leeren</b><span>Hilft gegen Texture-Loss</span></div></div>
+        <div class="card hov qt" onclick="cleanRam()"><div class="qi"><svg class="i"><use href="#ram"/></svg></div><div><b>RAM freigeben</b><span>Standby + Working-Sets</span></div></div>
+        <div class="card hov qt" onclick="go('xhair')"><div class="qi"><svg class="i"><use href="#crosshair"/></svg></div><div><b>Fadenkreuz</b><span>Server-Regeln beachten</span></div></div>
+        <div class="card hov qt" onclick="go('display')"><div class="qi"><svg class="i"><use href="#sun"/></svg></div><div><b>Live-Farben</b><span>Mehr Farbe, bessere Sicht</span></div></div>
       </div>
       <div class="home">
         <div class="card gb hero">
@@ -188,11 +193,13 @@
             <div class="big" id="mRam">0<small>%</small></div>
             <div class="msub" id="mRamTxt">—</div>
             <div class="bar"><i id="mRamBar" style="width:0"></i></div>
+            <svg class="spark" viewBox="0 0 200 60" preserveAspectRatio="none"><path id="sparkRF" fill="url(#sg)"/><path id="sparkRL" fill="none" stroke="var(--a)" stroke-width="2"/></svg>
           </div>
           <div class="card metric">
             <div class="lbl"><svg class="i"><use href="#wifi"/></svg>Ping</div>
             <div class="big" id="mPing">--<small>ms</small></div>
             <div class="msub" id="mPingTxt">zu Cfx.re</div>
+            <svg class="spark" viewBox="0 0 200 60" preserveAspectRatio="none"><path id="sparkPF" fill="url(#sg)"/><path id="sparkPL" fill="none" stroke="var(--a)" stroke-width="2"/></svg>
           </div>
           <div class="card metric">
             <div class="lbl"><svg class="i"><use href="#monitor"/></svg>GPU</div>
@@ -206,12 +213,6 @@
           <div class="lbl"><svg class="i"><use href="#activity"/></svg>Letzte Aktivität</div>
           <div class="feed" id="feed"></div>
         </div>
-      </div>
-      <div class="quick">
-        <div class="card hov qt" onclick="clearFmCache()"><div class="qi"><svg class="i"><use href="#trash"/></svg></div><div><b>Cache leeren</b><span>Hilft gegen Texture-Loss</span></div></div>
-        <div class="card hov qt" onclick="cleanRam()"><div class="qi"><svg class="i"><use href="#ram"/></svg></div><div><b>RAM freigeben</b><span>Standby + Working-Sets</span></div></div>
-        <div class="card hov qt" onclick="go('xhair')"><div class="qi"><svg class="i"><use href="#crosshair"/></svg></div><div><b>Fadenkreuz</b><span>Server-Regeln beachten</span></div></div>
-        <div class="card hov qt" onclick="go('display')"><div class="qi"><svg class="i"><use href="#sun"/></svg></div><div><b>Live-Farben</b><span>Mehr Farbe, bessere Sicht</span></div></div>
       </div>
     </section>
 
@@ -319,7 +320,7 @@
       <div class="xgrid">
         <div class="col">
           <div class="card xprev-card">
-            <div class="row"><div class="lbl"><svg class="i"><use href="#eye"/></svg>Vorschau</div><span class="sp"></span><div class="seg" id="xhBg"><button class="on" data-bg="day">Stadt</button><button data-bg="dusk">Hafen</button></div></div>
+            <div class="row"><div class="lbl"><svg class="i"><use href="#eye"/></svg>Vorschau</div><span class="sp"></span><div class="seg" id="xhBg"><button class="on" data-bg="day">Tag</button><button data-bg="dusk">Abend</button><button data-bg="night">Nacht</button></div></div>
             <div class="xscene sc-day" id="xhScene"><svg class="gscene" viewBox="0 0 640 360" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
   <defs>
     <linearGradient id="gsky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--s1)"/><stop offset=".62" style="stop-color:var(--s2)"/><stop offset="1" style="stop-color:var(--s3)"/></linearGradient>
@@ -428,33 +429,97 @@
     <!-- ================= CLIPPER ================= -->
     <section class="page" id="p-clip">
       <div class="ph">
-        <div><div class="kicker">Clipper</div><h1>Clips mit <span class="grad">einer Taste</span></h1><p class="pd">Taste drücken, die letzten Sekunden landen als Clip in deinem Videos-Ordner.</p></div>
+        <div><div class="kicker">Clipper</div><h1>Kill-Clips <span class="grad">automatisch</span></h1><p class="pd">OrbitTweak nimmt dein Spiel im Hintergrund auf und speichert jeden Kill von selbst als Clip. Per Taste geht es auch.</p></div>
         <div class="ph-r"><button class="btn" onclick="clipOpen('')"><svg class="i"><use href="#folder"/></svg>Videos-Ordner</button><button class="btn p" onclick="clipTest()"><svg class="i"><use href="#rec"/></svg>Clip jetzt speichern</button></div>
       </div>
-      <div class="card clstat" id="clStat"></div>
+      <div class="card kc" id="clStat">
+        <div class="kc-row">
+          <div class="kc-ic" id="kcIc"><svg class="i"><use href="#crosshair"/></svg></div>
+          <div class="kc-tx"><b>Kill-Clipper</b><p id="kcTxt">Speichert jeden Kill automatisch als Clip, ohne Tastendruck</p></div>
+          <input class="in kc-name" id="kcName" maxlength="40" placeholder="Dein Ingame-Name" spellcheck="false" autocomplete="off">
+          <div class="tg" id="kcOn" title="Kill-Clipper an/aus"></div>
+        </div>
+        <div class="kc-chips">
+          <span class="kc-chip" id="kcRec"></span>
+          <span class="kc-chip" id="kcLen"></span>
+          <span class="kc-chip" id="kcKey"></span>
+          <span class="kc-chip" id="kcDir"></span>
+          <span class="sp"></span>
+          <button class="btn sm" data-gotab="clip:setup"><svg class="i"><use href="#settings"/></svg>Einstellungen</button>
+        </div>
+      </div>
       <div class="tabs vtabs" data-tabs="clip">
         <button class="tab on" data-tab="gal"><svg class="i"><use href="#play"/></svg>Deine Clips<span class="vt-s" id="clCount">0</span></button>
-        <button class="tab" data-tab="setup"><svg class="i"><use href="#settings"/></svg>Einrichtung<span class="vt-s">Programm, Taste, Auto-Clip</span></button>
+        <button class="tab" data-tab="setup"><svg class="i"><use href="#settings"/></svg>Einrichtung<span class="vt-s">Aufnahme, Taste, Auto-Clip</span></button>
       </div>
       <div data-pane="clip:gal">
+        <div class="card hl">
+          <div class="hl-row">
+            <div class="hl-t"><b>Highlight-Video</b><p id="hlInfo">Fügt deine Kill-Clips zu einem einzigen Video zusammen.</p></div>
+            <div class="seg" id="hlScope"><button data-v="today">Heute</button><button data-v="all">Alle</button></div>
+            <div class="seg" id="hlTail"><button data-v="0">Ganze Clips</button><button data-v="8">Nur das Ende (8 s)</button></div>
+            <button class="btn p" id="hlGo"><svg class="i"><use href="#film"/></svg><span>Erstellen</span></button>
+          </div>
+          <div class="row mo-row">
+            <div class="hl-t"><b>Montage mit Effekten</b><p id="moInfo">Schneidet deine neuesten Kills automatisch zu einem Video: Zeitlupe beim Kill, eigener Song, Titelkarte, „KILL 3 / 8“ auf jedem Clip und ein Blitz bei jedem Schnitt.</p></div>
+            <div class="seg" id="moCount"><button data-v="5">5</button><button data-v="10">10</button><button data-v="15">15</button><button data-v="20">20</button></div>
+            <button class="btn" id="moSlow" title="Der Kill läuft in Zeitlupe mit leichtem Zoom"><svg class="i"><use href="#gauge"/></svg><span>Zeitlupe an</span></button>
+            <button class="btn" id="moMusic"><svg class="i"><use href="#activity"/></svg><span>Musik wählen</span></button>
+            <button class="btn p" id="moGo"><svg class="i"><use href="#zap"/></svg><span>Montage erstellen</span></button>
+          </div>          <div class="row hl-auto"><div class="tg sm" id="hlAuto"></div><span class="sub">Nach jeder Runde automatisch erstellen: Sobald du FiveM schließt, werden die Kill-Clips dieser Runde zusammengefügt (ab zwei Kills).</span></div>
+          <div class="mmb-prog hidden" id="hlProg"><div><i id="hlBar"></i></div><span id="hlTxt"></span></div>
+        </div>
         <div class="card">
-          <div class="row"><div class="lbl"><svg class="i"><use href="#film"/></svg>Neueste zuerst</div><span class="sp"></span><button class="ib" onclick="clipList()" title="Neu laden"><svg class="i"><use href="#refresh"/></svg></button></div>
+          <div class="row" style="gap:10px;flex-wrap:wrap"><div class="lbl"><svg class="i"><use href="#film"/></svg>Neueste zuerst</div>
+            <div class="seg" id="clFilter"></div><span class="sp"></span>
+            <span class="sub cl-shl" title="Clips über dieser Größe werden beim Teilen automatisch verkleinert">Teilen bis</span><div class="seg" id="clShareMb"></div>
+            <button class="btn sm d hidden" id="clTrash"><svg class="i"><use href="#trash"/></svg><span></span></button>
+            <button class="ib" onclick="clipList()" title="Neu laden"><svg class="i"><use href="#refresh"/></svg></button></div>
           <div class="cl-grid mt8" id="clGrid"></div>
         </div>
       </div>
       <div class="hidden" data-pane="clip:setup">
         <div class="card">
-          <div class="cl-step"><span class="cl-n">1</span><div class="cl-sb"><b>Aufnahme-Programm</b><p>Womit wird aufgenommen?</p><div class="cl-recs" id="clRecs"></div><p class="sub" id="clRecTxt" style="font-size:12.5px;margin-top:10px;line-height:1.5"></p></div></div>
+          <div class="cl-step"><span class="cl-n">1</span><div class="cl-sb"><b>Aufnahme</b><p>Womit wird aufgenommen?</p><div class="cl-recs" id="clRecs"></div><p class="sub" id="clRecTxt" style="font-size:12.5px;margin-top:10px;line-height:1.5"></p>
+            <div class="cl-orbit" id="clOrbit">
+              <div class="co-row"><span>Qualität</span><div class="seg" id="clQual"></div></div>
+              <div class="co-row"><span>Sekunden vor dem Kill</span><div class="seg" id="clBefore"></div></div>
+              <div class="co-row"><span>Sekunden danach</span><div class="seg" id="clAfter"></div></div>
+              <div class="co-row"><span>Spielsound aufnehmen</span><div class="tg sm" id="clSound"></div></div>
+              <p class="muted" style="font-size:11.5px;margin-top:10px;line-height:1.5">Aufgenommen wird nur, solange FiveM läuft (Modus <b>Randlos</b> oder <b>Fenster</b>). OrbitTweak behält immer nur die letzten Sekunden im Arbeitsspeicher, erst bei einem Kill oder per Taste wird daraus eine Datei.</p>
+            </div>
+          </div></div>
           <div class="cl-step"><span class="cl-n">2</span><div class="cl-sb"><b>Clip-Taste</b><p>Diese Taste speichert im Spiel den Clip</p><div class="seg keyseg mt8" id="clKey"></div></div></div>
           <div class="cl-step"><span class="cl-n">3</span><div class="cl-sb row"><div style="flex:1"><b>Einblendung im Spiel</b><p>Kurzes „Clip gespeichert“ oben im Bild</p></div><div class="tg" id="clFlash"></div></div></div>
           <div class="cl-step"><span class="cl-n">4</span><div class="cl-sb">
             <b>Auto-Clip</b><p>OrbitTweak speichert Clips von selbst, du musst keine Taste drücken</p>
             <div class="ac-box">
-              <div class="row"><div class="ac-ic"><svg class="i"><use href="#crosshair"/></svg></div><div style="flex:1"><b>Bei Kills</b><p>Liest den Kill-Feed vom Bildschirm und clippt, wenn dein Name als Killer erscheint</p></div><div class="tg" id="clKills"></div></div>
+              <div class="row"><div class="ac-ic"><svg class="i"><use href="#crosshair"/></svg></div><div style="flex:1"><b>Bei Kills</b><p>Erkennt deine Kills von selbst und speichert sie als Clip</p></div><div class="tg" id="clKills"></div></div>
               <div id="clKillOpts" class="cl-auto">
+                <div class="co-row" style="border:0;padding-top:0"><span>Erkennung</span><div class="seg" id="clDetect"></div></div>
+                <div class="co-row"><span>Kill-Einblendung im Spiel <em class="co-hint">kurzes „KILL 3“ oben im Bild, zählt die Kills der Runde</em></span><div class="tg" id="clBanner"></div></div>
+                <div class="co-row"><span>Zähler im Spiel <em class="co-hint">kleine Anzeige oben links: Aufnahme-Punkt und Kills der Runde</em></span><div class="tg" id="clHud"></div></div>
+                <div class="co-row"><span>Im Zähler anzeigen <em class="co-hint">„LAG“ erscheint von selbst, solange das WASD-Laggen an ist</em></span><div class="seg" id="clHudX"><button data-hx="hudTime">Spielzeit</button><button data-hx="hudClock">Uhrzeit</button></div></div>
+                <div id="clMarkBox">
+                  <p class="sub" style="font-size:12.5px;line-height:1.55">Die meisten PvP-Server blenden bei einem Kill eine Meldung direkt am Fadenkreuz ein, zum Beispiel <b>„KILLED Name“</b>. OrbitTweak liest nur diesen kleinen Streifen in der Bildmitte und achtet zusätzlich auf das rote X von GTA Online: kein Kill-Feed, kein Name nötig. So wird auch ein Kill mit einem einzigen Schuss gespeichert.</p>
+                  <label class="km-words"><span>Kill-Wörter deines Servers <em>mit Komma getrennt</em></span><input class="in" id="clWords" maxlength="200" spellcheck="false" placeholder="KILLED, KILL, GETÖTET, ELIMINATED"></label>
+                  <div class="km-net">
+                    <div><b>Sicherheitsnetz</b><p>Solange auf einem Server noch kein Kill erkannt wurde, speichert OrbitTweak jedes Gefecht („Gefecht …“), damit dir nichts entgeht. Sobald die Erkennung dort einmal angeschlagen hat, werden für 30 Minuten nur noch echte Kills gespeichert („Kill …“), also keine Gefechte mehr, in denen du stirbst. Wie viele Schüsse ein Gefecht braucht, stellst du unten bei „Nach Gefechten“ ein.</p></div>
+                    <div class="tg" id="clNet"></div>
+                  </div>
+                  <div class="km-net">
+                    <div><b>KI-Prüfung</b><p>Für Server ohne lesbare Kill-Meldung: Wurde in einem Gefecht am Fadenkreuz kein Kill erkannt, schaut ein KI-Modell auf ein paar Bilder davon und entscheidet. Bei einem Kill wird der Clip gespeichert, bei deinem Tod nicht. Liest die KI dabei die Kill-Meldung des Servers, merkt sich OrbitTweak das Wort und erkennt es danach selbst. Die Bilder gehen dafür an OpenRouter. Mit kostenlosem Konto sind 50 Prüfungen am Tag möglich.</p></div>
+                    <div class="tg" id="clAi"></div>
+                  </div>
+                  <label class="km-words"><span>OpenRouter-Key <em id="clAiKeyState"></em></span><input class="in" id="clAiKey" type="password" maxlength="200" spellcheck="false" autocomplete="off" placeholder="sk-or-v1-…"></label>
+                  <div class="km-last" id="clAiLast"></div>
+                  <div class="km-last" id="clMarkLast"></div>
+                  <div class="row mt8"><span class="sub" id="clStats" style="font-size:12px"></span><span class="sp"></span><button class="btn sm" onclick="api('clip.log')"><svg class="i"><use href="#file"/></svg>Protokoll</button></div>
+                </div>
+                <div id="clFeedBox">
                 <div class="ac-grid">
                   <label><span>Dein Ingame-Name (wie im Kill-Feed)</span><input class="in" id="clName" maxlength="40" placeholder="z. B. Max_Power"></label>
-                  <label><span>Wo steht der Kill-Feed?</span><div class="seg" id="clArea"></div></label>
+                  <label><span>Wo steht der Kill-Feed? <em id="clFound"></em></span><div class="seg" id="clArea"></div></label>
                 </div>
                 <div class="row mt8" style="gap:12px;flex-wrap:wrap">
                   <div class="row" style="gap:10px"><div class="tg sm" id="clDeaths"></div><span class="sub" style="font-size:12.5px">Auch clippen, wenn ich sterbe</span></div>
@@ -463,6 +528,7 @@
                 </div>
                 <div id="clKfOut" class="kf-out hidden"></div>
                 <p class="muted" style="font-size:11.5px;margin-top:10px;line-height:1.5">Funktioniert mit FiveM im Modus <b>Randlos</b> oder <b>Fenster</b> und auf Servern, deren Kill-Feed Spielernamen als Text zeigt. Das Spiel wird nicht ausgelesen: OrbitTweak schaut nur auf den Bildschirm, wie eine Aufnahme-Software.</p>
+                </div>
               </div>
             </div>
             <div class="ac-box">
@@ -471,7 +537,7 @@
                 <div class="row" style="gap:14px;flex-wrap:wrap"><span class="sub" style="font-size:12.5px">Empfindlichkeit</span><div class="seg" id="clSens"></div></div>
               </div>
             </div>
-            <p class="muted" style="font-size:11.5px;margin-top:10px">Stell die Instant-Replay-Länge in deinem Aufnahme-Programm auf mindestens 30 Sekunden.</p>
+            <p class="muted" id="clExtNote" style="font-size:11.5px;margin-top:10px">Stell die Instant-Replay-Länge in deinem Aufnahme-Programm auf mindestens 30 Sekunden.</p>
           </div></div>
         </div>
       </div>
@@ -484,7 +550,7 @@
         <div class="ph-r"><button class="btn p hidden" id="libAdd" onclick="libAddForm()"><svg class="i"><use href="#plus"/></svg>Mod hinzufügen</button><button class="btn" onclick="modInstall('other')"><svg class="i"><use href="#file"/></svg>Datei installieren</button><button class="btn" onclick="api('mods.folder')"><svg class="i"><use href="#folder"/></svg>Mods-Ordner</button></div>
       </div>
       <div class="xwarn"><svg class="i"><use href="#alert"/></svg><div><b>Achtung: Viele Server verbieten Mods.</b> Server mit Pure-Mode lassen dich mit Mods nicht joinen oder kicken dich, manche bannen dafür. ReShade-Looks sind meist erlaubt. Die Nutzung erfolgt auf eigene Verantwortung.</div></div>
-      <div class="tabs vtabs" id="modTabs"><button class="tab on" data-mt="lib"><svg class="i"><use href="#layers"/></svg>Bibliothek<span class="vt-s" id="mtLib">Looks &amp; Mods</span></button><button class="tab" data-mt="rs"><svg class="i"><use href="#sparkle"/></svg>ReShade<span class="vt-s" id="mtRs">Tasten &amp; Optionen</span></button><button class="tab" data-mt="files"><svg class="i"><use href="#puzzle"/></svg>Meine Mods<span class="vt-s" id="mtFiles">Installiert &amp; Downloads</span></button></div>
+      <div class="tabs vtabs" id="modTabs"><button class="tab on" data-mt="lib"><svg class="i"><use href="#layers"/></svg>Bibliothek<span class="vt-s" id="mtLib">Looks &amp; Mods</span></button><button class="tab" data-mt="rs"><svg class="i"><use href="#sparkle"/></svg>ReShade<span class="vt-s" id="mtRs">Tasten &amp; Optionen</span></button><button class="tab" data-mt="mm"><svg class="i"><use href="#map"/></svg>Eigene Minimap<span class="vt-s" id="mtMm">Aus Bild</span></button><button class="tab" data-mt="files"><svg class="i"><use href="#puzzle"/></svg>Meine Mods<span class="vt-s" id="mtFiles">Installiert &amp; Downloads</span></button></div>
       <div class="mtab" data-mtp="lib">
       <div class="lib-bar">
         <div class="lib-search"><svg class="i"><use href="#target"/></svg><input class="in" id="libSearch" placeholder="Mods suchen, z. B. pvp, nacht, kill …"></div>
@@ -508,19 +574,114 @@
         <p class="muted" style="font-size:11.5px;margin-top:6px">Änderungen gelten ab dem nächsten FiveM-Start. Den aktiven Look wählst du im Tab „Bibliothek“.</p>
       </div>
       </div>
+      <div class="mtab hidden" data-mtp="mm">
+        <div class="mmo-kind"><div class="seg" id="mmKind"><button data-v="ov">Bild drüberlegen</button><button data-v="mod">Karte ersetzen (Mod)</button></div></div>
+        <!-- picture laid over the minimap: an overlay window like the crosshair, no game files are changed -->
+        <div class="mmb" id="mmOvPane">
+          <div class="card">
+            <div class="row"><div class="lbl"><svg class="i"><use href="#map"/></svg>Bild über die Minimap legen</div><span class="sp"></span><span class="chip" id="mmoChip">Aus</span></div>
+            <p class="sub mmb-p">Such dir ein Bild aus (PNG, JPG oder WebP). OrbitTweak legt es im Spiel einfach über deine Minimap, so wie das Fadenkreuz. An den Spieldateien wird nichts geändert, durchsichtige Stellen im PNG bleiben durchsichtig.</p>
+            <button class="mmb-pick" id="mmoPick"><span class="mmb-th" id="mmoTh"><svg class="i"><use href="#file"/></svg></span><span class="mmb-fn"><b id="mmoName">Bild auswählen</b><small id="mmoInfo">PNG, JPG oder WebP</small></span><span class="btn sm"><svg class="i"><use href="#folder"/></svg>Durchsuchen</span></button>
+            <div class="co-row"><span>Im Spiel anzeigen</span><div class="tg" id="mmoOn"></div></div>
+            <div class="lbl mt"><svg class="i"><use href="#layers"/></svg>Position und Größe</div>
+            <div class="xs"><span>Abstand links</span><input type="range" min="0" max="960" id="mmoX"><b id="mmoXV"></b></div>
+            <div class="xs"><span>Abstand unten</span><input type="range" min="0" max="540" id="mmoY"><b id="mmoYV"></b></div>
+            <div class="xs"><span>Breite</span><input type="range" min="60" max="960" id="mmoW"><b id="mmoWV"></b></div>
+            <div class="xs"><span>Höhe</span><input type="range" min="40" max="540" id="mmoH"><b id="mmoHV"></b></div>
+            <div class="row mt8" style="gap:8px;flex-wrap:wrap">
+              <button class="btn sm" id="mmoAuto"><svg class="i"><use href="#target"/></svg>An die Minimap anlegen</button>
+              <button class="btn sm" id="mmoPrev"><svg class="i"><use href="#eye"/></svg><span>Auf dem Bildschirm zeigen</span></button>
+            </div>
+            <div class="co-row"><span>Bild einpassen</span><div class="seg" id="mmoFit"><button data-v="cover">Füllen</button><button data-v="contain">Ganz zeigen</button><button data-v="stretch">Strecken</button></div></div>
+            <div class="co-row"><span>Form</span><div class="seg" id="mmoShape"><button data-v="rect">Eckig</button><button data-v="round">Abgerundet</button><button data-v="circle">Rund</button></div></div>
+            <div class="xs"><span>Deckkraft</span><input type="range" min="20" max="100" step="5" id="mmoOp"><b id="mmoOpV"></b></div>
+            <p class="muted" style="font-size:11.5px;margin-top:12px;line-height:1.5">Funktioniert mit FiveM im Modus <b>Randlos</b> oder <b>Fenster</b>. Das Bild ist nur zu sehen, solange FiveM vorne ist, und taucht in Clips von OrbitTweak nicht auf. Auf manchen Servern sind Minimap-Overlays verboten.</p>
+          </div>
+          <div class="card">
+            <div class="lbl"><svg class="i"><use href="#eye"/></svg>Vorschau</div>
+            <div class="mmb-prev"><div class="mmb-pv" style="flex:1"><canvas id="mmoCv" width="640" height="400"></canvas><span>Linke untere Ecke des Spielbilds</span></div></div>
+            <p class="sub" id="mmoHint" style="font-size:12px;margin-top:12px;line-height:1.5"></p>
+          </div>
+        </div>
+        <div class="mmb hidden" id="mmModPane">
+          <div class="card">
+            <div class="row"><div class="lbl"><svg class="i"><use href="#map"/></svg>Minimap aus deinem Bild</div><span class="sp"></span><span class="chip" id="mmbChip">Nicht installiert</span></div>
+            <p class="sub mmb-p">Such dir ein Bild aus (PNG, JPG oder WebP). OrbitTweak baut daraus eine echte Minimap-Mod: Dein Bild ersetzt die Karte im Radar und im Pausemenü. Durchsichtige Stellen im PNG zeigen das Meer.</p>
+            <button class="mmb-pick" id="mmbPick"><span class="mmb-th" id="mmbTh"><svg class="i"><use href="#file"/></svg></span><span class="mmb-fn"><b id="mmbName">Bild auswählen</b><small id="mmbInfo">PNG, JPG oder WebP</small></span><span class="btn sm"><svg class="i"><use href="#folder"/></svg>Durchsuchen</span></button>
+            <div class="lbl mt"><svg class="i"><use href="#layers"/></svg>Anordnung</div>
+            <div class="mmb-modes" id="mmbMode">
+              <button data-v="tile"><b>Bild wiederholen</b><span>Für Logos, Fotos und Anime-Bilder: Das Bild ist im Radar immer zu sehen</span></button>
+              <button data-v="map"><b>Bild ist die ganze Karte</b><span>Für fertige Karten von Los Santos (Format 2:3, Norden oben)</span></button>
+            </div>
+            <div id="mmbTile">
+              <div class="xs"><span>Bildgröße</span><input type="range" min="6" max="60" id="mmbRepeat"><b id="mmbRepeatV"></b></div>
+            </div>
+            <div id="mmbMap" class="hidden">
+              <div class="co-row"><span>Einpassen</span><div class="seg" id="mmbFit"><button data-v="stretch">Strecken</button><button data-v="cover">Füllen</button><button data-v="contain">Ganz zeigen</button></div></div>
+            </div>
+            <div class="xs"><span>Abdunkeln</span><input type="range" min="0" max="80" step="5" id="mmbDim"><b id="mmbDimV"></b></div>
+            <div class="co-row"><span>Schärfe</span><div class="seg" id="mmbRes"><button data-v="2048">Normal</button><button data-v="3072">Hoch</button></div></div>
+            <div class="mmb-act">
+              <button class="btn p lg" id="mmbBuild"><svg class="i"><use href="#zap"/></svg><span>Minimap erstellen &amp; installieren</span></button>
+              <button class="btn d hidden" id="mmbRemove"><svg class="i"><use href="#trash"/></svg>Entfernen</button>
+            </div>
+            <div class="mmb-prog hidden" id="mmbProg"><div><i id="mmbBar"></i></div><span id="mmbProgTxt"></span></div>
+            <p class="muted" style="font-size:11.5px;margin-top:12px;line-height:1.5">FiveM muss dafür geschlossen sein, die Minimap ist ab dem nächsten Start aktiv. Andere Minimap-Mods vorher ausschalten, sonst überschreiben sie sich gegenseitig. Auf Servern mit Pure-Mode werden Mods nicht geladen.</p>
+          </div>
+          <div class="card">
+            <div class="lbl"><svg class="i"><use href="#eye"/></svg>Vorschau</div>
+            <div class="mmb-prev">
+              <div class="mmb-pv"><canvas id="mmbRadar" width="600" height="380"></canvas><span>Radar im Spiel (zu Fuß)</span></div>
+              <div class="mmb-pv sm"><canvas id="mmbWorld" width="320" height="480"></canvas><span>Ganze Karte</span></div>
+            </div>
+            <p class="sub" id="mmbHint" style="font-size:12px;margin-top:12px;line-height:1.5"></p>
+          </div>
+        </div>
+      </div>
       <div class="mtab hidden" data-mtp="files">
+      <div class="card" style="margin-bottom:16px">
+        <div class="row"><div class="lbl"><svg class="i"><use href="#download"/></svg>Packs aus Discord</div><span class="sp"></span><div class="seg" id="dcCat"><button class="on" data-v="sound">Sound-Pack</button><button data-v="skin">Waffen-Skins</button><button data-v="kill">Kill-Effekte</button><button data-v="other">Sonstiges</button></div></div>
+        <div class="dc-steps">
+          <div class="dc-step"><i>1</i><div><b>In Discord laden</b><span>Pack in deiner normalen Discord-App herunterladen</span></div></div>
+          <div class="dc-arrow"><span>&rsaquo;</span></div>
+          <div class="dc-step"><i>2</i><div><b>Wird erkannt</b><span>OrbitTweak bemerkt die Datei sofort, ohne Anmeldung</span></div></div>
+          <div class="dc-arrow"><span>&rsaquo;</span></div>
+          <div class="dc-step"><i>3</i><div><b>Installieren</b><span>Ein Klick, der Name wird passend gemacht</span></div></div>
+        </div>
+        <div class="row" style="margin-top:16px"><div class="lbl" style="font-size:12.5px"><svg class="i"><use href="#download"/></svg>Neu in deinen Downloads</div><span class="sp"></span><button class="btn sm" onclick="api('downloads.open')"><svg class="i"><use href="#folder"/></svg>Downloads</button><button class="btn sm p" id="dcAllBtn" onclick="dcAll()"><svg class="i"><use href="#download"/></svg>Alle installieren</button></div>
+        <div id="modDl" class="mt8"></div>
+        <details class="dc-more"><summary>Lieber per Link oder im Mod-Browser?</summary>
+          <div class="row mt8" style="gap:8px"><input class="in" id="dcLink" style="flex:1" spellcheck="false" placeholder="Link der Datei aus Discord einfügen (…/pack.rpf)"><button class="btn" onclick="dcLink()"><svg class="i"><use href="#download"/></svg>Installieren</button><button class="btn" onclick="dcOpen()"><svg class="i"><use href="#globe"/></svg>Discord im Mod-Browser</button></div>
+        </details>
+      </div>
       <div class="card">
         <div class="row"><div class="lbl"><svg class="i"><use href="#puzzle"/></svg>Installierte Mod-Dateien</div><span class="chip" id="modCount">0</span><span class="sp"></span><span class="sub" style="font-size:12px">Änderungen nur bei geschlossenem FiveM</span></div>
         <div id="modList" class="mt8"></div>
-      </div>
-      <div class="card mt">
-        <div class="row"><div class="lbl"><svg class="i"><use href="#download"/></svg>Neu in deinen Downloads</div><span class="sp"></span><button class="btn sm" onclick="api('downloads.open')"><svg class="i"><use href="#folder"/></svg>Downloads</button></div>
-        <div id="modDl" class="mt8"></div>
       </div>
       </div>
     </section>
 
     <!-- ================= ADMIN ================= -->
+    <section class="page" id="p-games">
+      <div class="ph">
+        <div><div class="kicker">Minigames</div><h1>Aim <span class="grad">Training</span></h1><p class="pd">Warm werden, bevor du joinst: 30 Sekunden Ziele treffen. Dein Bestwert bleibt gespeichert.</p></div>
+        <div class="ph-r"><div class="seg" id="mgMode"><button class="on" data-mg="grid">Gridshot</button><button data-mg="flick">Präzision</button><button data-mg="speed">Tempo</button></div></div>
+      </div>
+      <div class="mg-wrap">
+        <div class="card mg-stage" id="mgStage">
+          <canvas id="mgCv"></canvas>
+          <div class="mg-over" id="mgOver"><h2 id="mgTitle">Gridshot</h2><p id="mgDesc">Drei große Ziele gleichzeitig. Triff so viele wie möglich.</p><button class="btn p lg" id="mgStart"><svg class="i"><use href="#play"/></svg>Starten</button></div>
+          <div class="mg-time" id="mgTime">30.0</div>
+        </div>
+        <div class="mg-side">
+          <div class="card"><div class="lbl"><svg class="i"><use href="#zap"/></svg>Punkte</div><div class="big num" id="mgScore">0</div></div>
+          <div class="card"><div class="lbl"><svg class="i"><use href="#crosshair"/></svg>Trefferquote</div><div class="big num" id="mgAcc">–</div></div>
+          <div class="card"><div class="lbl"><svg class="i"><use href="#activity"/></svg>Zeit pro Treffer</div><div class="big num" id="mgAvg">–</div></div>
+          <div class="card gb"><div class="lbl"><svg class="i"><use href="#heart"/></svg>Bestwert</div><div class="big num" id="mgBest">0</div><p class="sub" id="mgBestNote" style="font-size:12px;margin-top:6px"></p></div>
+        </div>
+      </div>
+    </section>
+
     <section class="page" id="p-admin">
       <div class="ph">
         <div><div class="kicker">Admin</div><h1>Keys & <span class="grad">Freigaben</span></h1><p class="pd">Lizenz-Keys erzeugen, gebundene PCs verwalten und eingereichte Mods freigeben.</p></div>
@@ -593,6 +754,24 @@
           <div class="card snap"><div class="row"><div class="lbl"><svg class="i"><use href="#zap"/></svg>Snap Tap (A/D, W/S)</div><span class="sp"></span><div class="tg" id="snapTg"></div></div>
             <p class="sub" style="font-size:12.5px;margin-top:8px;line-height:1.5">Drückst du A und D gleichzeitig, gewinnt immer die zuletzt gedrückte Taste. Schnellere Strafe-Wechsel wie bei Snap-Tap-Tastaturen, nur aktiv solange FiveM vorne ist.</p>
             <p class="warnline"><svg class="i"><use href="#alert"/></svg>Auf manchen Servern als unfair verboten. Regeln beachten.</p></div>
+          <div class="card wasd"><div class="row"><div class="lbl"><svg class="i"><use href="#keyboard"/></svg>WASD-Tweak: Laggen</div><span class="sp"></span><div class="tg" id="chopTg"></div></div>
+            <p class="sub" style="font-size:12.5px;margin-top:8px;line-height:1.5">Solange du eine Lauftaste hältst, tippt OrbitTweak im Spiel abwechselnd ganz kurz die Tasten daneben an (bei W also A, dann D). Die Figur läuft ohne Pause weiter und zuckt dabei schnell hin und her. Läufst du schräg, wechselt sie im Zickzack zwischen beiden Richtungen. Nur aktiv, solange FiveM vorne ist. Kurzes Antippen, etwa beim Schreiben im Chat, bleibt unberührt.</p>
+            <div class="seg mt8" id="chopPre"><button data-v="1">Leicht</button><button data-v="2">Mittel</button><button data-v="3">Stark</button><button data-v="4">Extrem</button></div>
+            <div class="xs"><span>Zucker</span><input type="range" min="10" max="250" step="5" id="chopGap"><b id="chopGapV"></b></div>
+            <div class="xs"><span>Abstand</span><input type="range" min="40" max="500" step="5" id="chopEvery"><b id="chopEveryV"></b></div>
+            <p class="sub wasd-note" id="chopNote"></p>
+            <div class="co-row"><span>Taste im Spiel</span><div class="seg keyseg" id="chopKey"></div></div>
+            <p class="sub wasd-note" id="chopKeyNote" style="margin-top:6px"></p>
+            <div class="wasd-sep"></div>
+            <div class="row"><b style="font-size:13px">Schnelle Tastenwiederholung</b><span class="sp"></span><div class="tg sm" id="lagTg"></div></div>
+            <p class="sub" style="font-size:12.5px;margin-top:6px;line-height:1.5">Windows-Anschlagverzögerung mit Wiederholung alle 15 ms, wie in manchen WASD-Packs. Wirkt sofort und gilt auch beim Tippen. Für das Laggen oben ist sie nicht nötig.</p>
+            <p class="sub wasd-note" id="lagNote"></p>
+            <div class="wasd-sep"></div>
+            <div class="row"><b style="font-size:13px">Tastatur-Puffer</b><span class="chip w" style="margin-left:8px;height:18px;font-size:9px">NEUSTART</span></div>
+            <p class="sub" style="font-size:12.5px;margin-top:6px;line-height:1.5">Verkleinert den Puffer des Tastaturtreibers (<code>KeyboardDataQueueSize</code>, Windows-Standard 100). Werden Tasten verschluckt, nimm eine größere Zahl.</p>
+            <div class="seg mt8" id="wasdSeg"></div>
+            <p class="sub wasd-note" id="wasdNote"></p>
+            <p class="warnline"><svg class="i"><use href="#alert"/></svg>Auf manchen Servern sind WASD-Tweaks verboten. Regeln beachten.</p></div>
           <div class="card"><div class="lbl"><svg class="i"><use href="#keyboard"/></svg>Input-Tweaks</div><div class="mt8" id="inputTweaks"></div></div>
         </div>
         <div class="col">
@@ -805,11 +984,12 @@
 </div>
 
 <div id="toasts"></div>
-<div class="splash" id="splash"><div class="sp-scene" id="spScene"></div><div class="sp-shade"></div><div class="sp-box"><svg class="sp-logo" viewBox="0 0 64 64"><circle cx="32" cy="32" r="17" fill="none" stroke="url(#rg)" stroke-width="6"/><ellipse cx="32" cy="32" rx="29" ry="10" fill="none" stroke="url(#rg)" stroke-width="3.2" transform="rotate(-28 32 32)"/><circle cx="52" cy="13" r="4" fill="#fff"/></svg><div class="sp-name">Orbit<span>Tweak</span></div><div class="sp-sub" id="spSub">Lade Los Santos…</div><div class="sp-bar"><i></i></div></div></div>
+<div class="splash" id="splash"><div class="sp-scene" id="spScene"></div><div class="sp-shade"></div><div class="sp-box"><div class="sp-orbits"><i></i><i></i><i></i></div><svg class="sp-logo" viewBox="0 0 64 64"><circle cx="32" cy="32" r="17" fill="none" stroke="url(#rg)" stroke-width="6"/><ellipse cx="32" cy="32" rx="29" ry="10" fill="none" stroke="url(#rg)" stroke-width="3.2" transform="rotate(-28 32 32)"/><circle cx="52" cy="13" r="4" fill="#fff"/></svg><div class="sp-name">Orbit<span>Tweak</span></div><div class="sp-sub" id="spSub">Lade Los Santos…</div><div class="sp-bar"><i></i></div></div></div>
 <div class="lock" id="lock">
   <div class="lk-bg"></div><div class="lk-shade"></div><div class="lk-glow"></div>
   <div class="lk-bar" data-drag><span class="lk-brand" data-drag>Orbit<b>Tweak</b></span><span class="sp" data-drag></span><button onclick="api('win.min')"><svg class="i"><use href="#minus"/></svg></button><button class="x" onclick="api('win.close')"><svg class="i"><use href="#x"/></svg></button></div>
-  <div class="lk-card" id="lkCard">
+  <div class="lk-orbits"><i></i><i></i><i></i></div>
+<div class="lk-card" id="lkCard">
     <div class="lk-ring" id="lkRing">
       <svg class="lk-svg" viewBox="0 0 120 120"><circle class="lk-track" cx="60" cy="60" r="54"/><circle class="lk-prog" id="lkProg" cx="60" cy="60" r="54"/></svg>
       <svg class="lk-logo" viewBox="0 0 64 64"><circle cx="32" cy="32" r="17" fill="none" stroke="url(#rg)" stroke-width="6"/><ellipse cx="32" cy="32" rx="29" ry="10" fill="none" stroke="url(#rg)" stroke-width="3.2" transform="rotate(-28 32 32)"/><circle cx="52" cy="13" r="4" fill="#fff"/></svg>
@@ -820,11 +1000,13 @@
     <p id="lkSub">Gib deinen Lizenz-Key ein, um OrbitTweak freizuschalten.</p>
     <div class="lk-form" id="lkForm">
       <div class="lk-key" id="lkKey"><span class="lk-pre">ORB</span><i>–</i><input id="lkIn0" maxlength="4" spellcheck="false" autocomplete="off"><i>–</i><input id="lkIn1" maxlength="4" spellcheck="false" autocomplete="off"><i>–</i><input id="lkIn2" maxlength="4" spellcheck="false" autocomplete="off"></div>
-      <button class="btn p lg lk-go" id="lkGo"><span>Freischalten</span><svg class="i"><use href="#zap"/></svg></button>
+      <button class="btn lk-paste" id="lkPaste" type="button"><svg class="i"><use href="#copy"/></svg>Key aus der Zwischenablage einfügen</button>
+<button class="btn p lg lk-go" id="lkGo"><span>Freischalten</span><svg class="i"><use href="#zap"/></svg></button>
     </div>
     <div class="lk-err" id="lkErr"></div>
     <div class="lk-loading"><span>Lade OrbitTweak …</span><div class="bar"><i></i></div></div>
-    <div class="lk-foot"><span>PC-ID <code id="lkHwid">…</code></span><span>Kein Key? Frag einen Admin.</span></div>
+    <div class="lk-feats"><span><svg class="i"><use href="#zap"/></svg>38 Tweaks</span><span><svg class="i"><use href="#film"/></svg>Kill-Clipper</span><span><svg class="i"><use href="#crosshair"/></svg>Fadenkreuz &amp; Overlays</span><span><svg class="i"><use href="#puzzle"/></svg>Mods &amp; Packs</span></div>
+    <div class="lk-foot"><button class="lk-id" id="lkId" type="button" title="PC-ID kopieren">PC-ID <code id="lkHwid">…</code><svg class="i"><use href="#copy"/></svg></button><span>Kein Key? Schick einem Admin deine PC-ID.</span></div>
   </div>
 </div>
 <div class="passed" id="passed"><div class="pa-band"><div class="pa-t" id="paT">Boost abgeschlossen</div><div class="pa-s" id="paS"></div></div></div>

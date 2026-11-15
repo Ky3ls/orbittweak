@@ -35,17 +35,36 @@ public class MinimapCfg
 public class ClipCfg
 {
     public int Key { get; set; } = 0x78;              // F9
-    public string Recorder { get; set; } = "nvidia";  // nvidia | gamebar | amd | obs
+    public string Recorder { get; set; } = "orbit";   // orbit (built-in) | nvidia | gamebar | amd | obs
     public bool Flash { get; set; } = true;
     public bool Auto { get; set; }                    // auto-clip after a firefight
     public int Sens { get; set; } = 2;                // 1 = only big fights, 2 = normal, 3 = every shot exchange
-    public bool Kills { get; set; }                   // auto-clip on kills read from the kill feed (OCR)
+    public bool Kills { get; set; }                   // kill clipper on/off
+    public string Detect { get; set; } = "mark";      // how kills are noticed: mark = at the crosshair (the server's kill message or GTA's red X, no kill feed needed), feed = read the kill feed
+    public string Words { get; set; } = KillText.DefaultWords; // kill words the message at the crosshair is searched for
+    public bool Net { get; set; } = true;             // safety net: a firefight in which no kill was noticed is clipped anyway
+    public bool Ai { get; set; } = true;              // AI check (needs an OpenRouter key): a vision model looks at firefights in which no kill was noticed
+    public string AiModels { get; set; } = KillJudge.DefaultModels;
+    public bool Banner { get; set; } = true;          // short note with the kill count of the round in the game when a kill was noticed
+    public bool Hud { get; set; } = true;             // small counter in the game: recording dot and the kills of the round
+    public string? MontageMusic { get; set; }         // music file laid under montages (null = game sound only)
+    public bool HudClock { get; set; }                // the counter also shows the time of day
+    public bool HudTime { get; set; } = true;         // … and how long the game has been running
+    public bool AutoHighlight { get; set; }           // after the game was closed: join the kill clips of that round into a highlight video
+    public int HighlightTail { get; set; } = 8;       // highlight video: only the last seconds of each clip (0 = whole clips)
+    public int ShareMb { get; set; } = 10;            // "share for Discord": clips larger than this are made smaller first
+    public DateTime? ProvenAt { get; set; }           // when a kill was last noticed at the crosshair: while that is recent the safety net stays quiet
     public bool Deaths { get; set; }
     public string Name { get; set; } = "";            // in-game name as shown in the kill feed
-    public string Area { get; set; } = "tr";          // kill feed position: tr | tl | r | tc
+    public string Area { get; set; } = "auto";        // kill feed position: auto | tr | tl | r | tc
+    // built-in recorder
+    public int Before { get; set; } = 20;             // seconds before the kill / key press
+    public int After { get; set; } = 5;               // seconds after the kill
+    public string Quality { get; set; } = "std";      // low = 720p30, std = 1080p60, high = native 60
+    public bool Sound { get; set; } = true;           // record the game sound
 }
 
-public enum Anchor { Center, BottomLeft, TopCenter }
+public enum Anchor { Center, BottomLeft, TopCenter, TopLeft }
 
 public class DisplayCfg
 {
@@ -75,10 +94,40 @@ internal static class GameFocus
     private static bool _game;
     private static IntPtr _gameWnd;
     public static uint Pid => _game ? _pid : 0;
+    /// <summary>The game window seen last (0 once it is closed).</summary>
+    public static IntPtr Window
+    {
+        get
+        {
+            if (_gameWnd != IntPtr.Zero && !IsWindow(_gameWnd)) _gameWnd = IntPtr.Zero;
+            return _gameWnd;
+        }
+    }
+    public static bool Minimized => _gameWnd != IntPtr.Zero && IsIconic(_gameWnd);
+
+#if DEBUG
+    // Test aid, debug builds only: a window of the process named in ORBIT_TEST_GAME counts as the game,
+    // even when it is not in front (lets the kill clipper be tested without starting FiveM).
+    private static readonly string? TestGame = Environment.GetEnvironmentVariable("ORBIT_TEST_GAME");
+    private static bool TestIsGame()
+    {
+        try
+        {
+            using var p = Process.GetProcessesByName(TestGame!).FirstOrDefault(x => x.MainWindowHandle != IntPtr.Zero);
+            if (p == null) { _game = false; return false; }
+            _gameWnd = p.MainWindowHandle; _pid = (uint)p.Id; _game = true;
+            return true;
+        }
+        catch { return false; }
+    }
+#endif
 
     /// <summary>True when the focused window belongs to the GTA/FiveM game process.</summary>
     public static bool IsGame()
     {
+#if DEBUG
+        if (!string.IsNullOrEmpty(TestGame)) return TestIsGame();
+#endif
         var h = GetForegroundWindow();
         if (h == IntPtr.Zero) return false;
         GetWindowThreadProcessId(h, out var pid);
@@ -150,6 +199,24 @@ internal sealed class CrosshairOverlay
     private int _pw, _ph, _ox, _oy;
     private bool _shown;
     public Anchor Anchor { get; set; } = Anchor.Center;
+    /// <summary>Notes and counters fade and grow in and fade out again instead of just appearing (never the crosshair itself).</summary>
+    public bool Animate { get; set; }
+    private bool _leaving;
+    private readonly ScaleTransform _scale = new(1, 1);
+
+    private void Play(bool show)
+    {
+        var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
+        var dur = TimeSpan.FromMilliseconds(show ? 220 : 200);
+        _img.RenderTransformOrigin = new System.Windows.Point(0.5, 0.5);
+        _img.RenderTransform = _scale;
+        var fade = new System.Windows.Media.Animation.DoubleAnimation(show ? 0 : _img.Opacity, show ? 1 : 0, dur) { EasingFunction = ease };
+        if (!show) fade.Completed += (_, _) => { if (_leaving) { ShowWindow(_h, 0); _shown = false; _leaving = false; } };
+        var size = new System.Windows.Media.Animation.DoubleAnimation(show ? 0.86 : 1, show ? 1 : 0.94, dur) { EasingFunction = ease };
+        _img.BeginAnimation(UIElement.OpacityProperty, fade);
+        _scale.BeginAnimation(ScaleTransform.ScaleXProperty, size);
+        _scale.BeginAnimation(ScaleTransform.ScaleYProperty, size);
+    }
 
     public bool HasImage => _pw > 0;
 
@@ -200,17 +267,20 @@ internal sealed class CrosshairOverlay
         if (!HasImage) visible = false;
         if (!visible)
         {
-            if (_shown) { ShowWindow(_h, 0); _shown = false; }
+            if (_shown && Animate && _h != IntPtr.Zero) { if (!_leaving) { _leaving = true; Play(false); } }
+            else if (_shown) { ShowWindow(_h, 0); _shown = false; }
             return;
         }
         Ensure();
         if (_h == IntPtr.Zero) return;
+        if (Animate && (!_shown || _leaving)) { _leaving = false; Play(true); }
         int x, y;
         if (Anchor == Anchor.Center) { var (cx, cy) = GameFocus.Center(); x = cx - _pw / 2 + _ox; y = cy - _ph / 2 + _oy; }
         else
         {
             var (l, t, r0, b) = GameFocus.Client();
             if (Anchor == Anchor.BottomLeft) { x = l + _ox; y = b - _ph - _oy; }
+            else if (Anchor == Anchor.TopLeft) { x = l + _ox; y = t + _oy; }
             else { x = (l + r0) / 2 - _pw / 2 + _ox; y = t + _oy; }
         }
         bool moved = !GetWindowRect(_h, out var r) || r.L != x || r.T != y || r.R - r.L != _pw || r.B - r.T != _ph;
@@ -542,6 +612,10 @@ internal static class ConsoleSender
     public static async Task<string?> Run(IList<string> cmds, IntPtr returnTo)
     {
         if (cmds.Count == 0) return null;
+#if DEBUG
+        // a test instance (own data folder) never types: the keys would land in whatever the user has in front
+        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ORBIT_TEST_DATA"))) return "Testlauf: es wird nichts getippt";
+#endif
         foreach (var c in cmds)
             if (!System.Text.RegularExpressions.Regex.IsMatch(c, @"^[A-Za-z0-9_]+ [A-Za-z0-9_\.\-]+$")) return "Ungültiger Befehl";
         var game = GameWindow.Find();
@@ -579,106 +653,11 @@ internal static class ConsoleSender
     }
 }
 
-// =====================================================================
-//  SNAP TAP (SOCD) – when A and D (or W and S) are held together, the last
-//  pressed key wins and the other is released, like on "Snap Tap" keyboards.
-//  Low-level keyboard hook, only active while the game is in front.
-// =====================================================================
-internal sealed class SnapTap
-{
-    private delegate IntPtr HookProc(int code, IntPtr wp, IntPtr lp);
-    [StructLayout(LayoutKind.Sequential)] private struct KBD { public uint vk, scan, flags, time; public IntPtr extra; }
-    [StructLayout(LayoutKind.Sequential)] private struct KEYBDINPUT { public ushort wVk, wScan; public uint dwFlags, time; public IntPtr dwExtraInfo; }
-    [StructLayout(LayoutKind.Explicit, Size = 40)] private struct INPUT { [FieldOffset(0)] public uint type; [FieldOffset(8)] public KEYBDINPUT ki; }
-    [StructLayout(LayoutKind.Sequential)] private struct MSG { public IntPtr hwnd; public uint message; public IntPtr wParam, lParam; public uint time; public int x, y; }
-    [DllImport("user32.dll")] private static extern IntPtr SetWindowsHookEx(int id, HookProc fn, IntPtr mod, uint thread);
-    [DllImport("user32.dll")] private static extern bool UnhookWindowsHookEx(IntPtr h);
-    [DllImport("user32.dll")] private static extern IntPtr CallNextHookEx(IntPtr h, int code, IntPtr wp, IntPtr lp);
-    [DllImport("user32.dll")] private static extern uint SendInput(uint n, INPUT[] i, int size);
-    [DllImport("user32.dll")] private static extern uint MapVirtualKey(uint code, uint type);
-    [DllImport("user32.dll")] private static extern int GetMessage(out MSG m, IntPtr h, uint min, uint max);
-    [DllImport("user32.dll")] private static extern bool PostThreadMessage(uint tid, uint msg, IntPtr wp, IntPtr lp);
-    [DllImport("kernel32.dll")] private static extern IntPtr GetModuleHandle(string? name);
-    [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
-
-    private static readonly IntPtr Marker = new(0x0B17_5A1A);
-    private static readonly Dictionary<uint, uint> Opp = new() { [0x41] = 0x44, [0x44] = 0x41, [0x57] = 0x53, [0x53] = 0x57 };
-    private readonly HookProc _proc;
-    private IntPtr _hook;
-    private Thread? _thread;
-    private uint _tid;
-    private readonly HashSet<uint> _down = new();      // physically held
-    private readonly HashSet<uint> _muted = new();     // held but released by us
-
-    /// <summary>Set by the UI timer – the hook itself never does any slow work.</summary>
-    public static volatile bool GameInFront;
-
-    public SnapTap() { _proc = Hook; }
-
-    // The hook runs on its own high-priority thread with its own message loop, so a busy UI
-    // can never delay keyboard input (that caused laggy WASD before).
-    public void Enable(bool on)
-    {
-        if (on && _thread == null)
-        {
-            _thread = new Thread(Run) { IsBackground = true, Priority = ThreadPriority.Highest, Name = "SnapTap" };
-            _thread.Start();
-        }
-        else if (!on && _thread != null)
-        {
-            PostThreadMessage(_tid, 0x12, IntPtr.Zero, IntPtr.Zero); // WM_QUIT
-            _thread.Join(500);
-            _thread = null;
-        }
-    }
-
-    private void Run()
-    {
-        _tid = GetCurrentThreadId();
-        _hook = SetWindowsHookEx(13, _proc, GetModuleHandle(null), 0);
-        while (GetMessage(out _, IntPtr.Zero, 0, 0) > 0) { }
-        if (_hook != IntPtr.Zero) UnhookWindowsHookEx(_hook);
-        _hook = IntPtr.Zero; _down.Clear(); _muted.Clear();
-    }
-
-    private static void Key(uint vk, bool up)
-    {
-        var i = new[] { new INPUT { type = 1, ki = new KEYBDINPUT { wVk = (ushort)vk, wScan = (ushort)MapVirtualKey(vk, 0), dwFlags = up ? 2u : 0u, dwExtraInfo = Marker } } };
-        SendInput(1, i, Marshal.SizeOf<INPUT>());
-    }
-
-    private IntPtr Hook(int code, IntPtr wp, IntPtr lp)
-    {
-        if (code >= 0)
-        {
-            var k = Marshal.PtrToStructure<KBD>(lp);
-            if (k.extra != Marker && (k.flags & 0x10) == 0 && Opp.TryGetValue(k.vk, out var opp))
-            {
-                int msg = wp.ToInt32();
-                bool down = msg is 0x100 or 0x104, up = msg is 0x101 or 0x105;
-                if (!GameInFront)
-                {
-                    if (up) { _down.Remove(k.vk); _muted.Remove(k.vk); } else if (down) _down.Add(k.vk);
-                }
-                else if (down)
-                {
-                    if (_muted.Contains(k.vk)) return new IntPtr(1);              // auto-repeat of a muted key
-                    if (_down.Add(k.vk) && _down.Contains(opp) && _muted.Add(opp)) Key(opp, true);
-                }
-                else if (up)
-                {
-                    _down.Remove(k.vk);
-                    if (_muted.Remove(k.vk)) return new IntPtr(1);              // already released by us
-                    if (_down.Contains(opp) && _muted.Remove(opp)) Key(opp, false); // give the other direction back
-                }
-            }
-        }
-        return CallNextHookEx(_hook, code, wp, lp);
-    }
-}
+// SNAP TAP and WASD "Laggen": see Core/SnapTap.cs (keyboard hook) and Core/WasdLogic.cs (what happens to the keys).
 
 // =====================================================================
-//  CLIPPER – presses the save-replay shortcut of the user's recorder
+//  CLIPPER – either the built-in recorder ("orbit", see Recorder.cs) or the
+//  save-replay shortcut of the user's own recorder is pressed
 //  (NVIDIA Instant Replay, Xbox Game Bar, AMD ReLive, OBS replay buffer)
 // =====================================================================
 internal static class Clipper
@@ -691,6 +670,7 @@ internal static class Clipper
     // VK lists; the last key is the "main" key
     public static readonly Dictionary<string, (string label, ushort[] keys)> Recorders = new()
     {
+        ["orbit"] = ("Eingebaut", Array.Empty<ushort>()),
         ["nvidia"] = ("Alt+F10", new ushort[] { 0x12, 0x79 }),
         ["gamebar"] = ("Win+Alt+G", new ushort[] { 0x5B, 0x12, 0x47 }),
         ["amd"] = ("Strg+Shift+S", new ushort[] { 0x11, 0x10, 0x53 }),
@@ -707,6 +687,10 @@ internal static class Clipper
     public static async Task Save(string recorder)
     {
         if (!Recorders.TryGetValue(recorder, out var r)) r = Recorders["nvidia"];
+        if (r.keys.Length == 0) return; // built-in recorder: nothing to press
+#if DEBUG
+        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ORBIT_TEST_DATA"))) return; // a test instance presses no keys
+#endif
         await Task.Delay(120); // let the user release the clip key first
         var down = r.keys.Select(k => K(k, false)).ToArray();
         var up = r.keys.Reverse().Select(k => K(k, true)).ToArray();
@@ -716,6 +700,16 @@ internal static class Clipper
     }
 
     public static string VideosDir => Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
+    /// <summary>Where the built-in recorder puts its clips.</summary>
+    public static string OwnDir => Path.Combine(VideosDir, "OrbitTweak");
+
+    /// <summary>Recording settings of the built-in recorder for a quality level.</summary>
+    public static ReplayRecorder.Options Quality(string q, bool sound) => q switch
+    {
+        "low" => new(30, 720, 6, sound),
+        "high" => new(60, 1440, 20, sound),
+        _ => new(60, 1080, 12, sound),
+    };
 
     public static List<object> List()
     {
@@ -728,7 +722,7 @@ internal static class Clipper
                 files.AddRange(new DirectoryInfo(root).EnumerateFiles(ext, opts));
         }
         catch { }
-        return files.OrderByDescending(f => f.LastWriteTime).Take(40).Select(f => (object)new
+        return files.OrderByDescending(f => f.LastWriteTime).Take(80).Select(f => (object)new
         {
             name = Path.GetFileNameWithoutExtension(f.Name),
             rel = Path.GetRelativePath(root, f.FullName).Replace('\\', '/'),
@@ -745,6 +739,28 @@ internal static class Clipper
         return full.StartsWith(Path.GetFullPath(VideosDir), StringComparison.OrdinalIgnoreCase) && File.Exists(full) ? full : null;
     }
 
+    /// <summary>
+    /// Moves clips to the recycle bin, so nothing is gone for good. Only video files directly in the folder of the
+    /// built-in recorder (Videos\OrbitTweak) are accepted; anything else is counted as failed.
+    /// </summary>
+    public static (int gone, int failed) Recycle(IEnumerable<string> rels)
+    {
+        int gone = 0, failed = 0;
+        var own = Path.GetFullPath(OwnDir).TrimEnd('\\') + "\\";
+        foreach (var rel in rels)
+        {
+            try
+            {
+                var full = Resolve(rel);
+                if (full == null || !string.Equals(Path.GetDirectoryName(full) + "\\", own, StringComparison.OrdinalIgnoreCase) || !full.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase)) { failed++; continue; }
+                Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(full, Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs, Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
+                gone++;
+            }
+            catch { failed++; }
+        }
+        return (gone, failed);
+    }
+
     public static void EnableGameBarCapture()
     {
         const string k = @"HKCU\Software\Microsoft\Windows\CurrentVersion\GameDVR";
@@ -755,20 +771,75 @@ internal static class Clipper
 }
 
 
+/// <summary>Small text file of what the clipper noticed and saved. Helps when something was not clipped as expected.</summary>
+internal static class ClipLog
+{
+    public static string File => Path.Combine(AppDirs.Local, "clipper.log");
+    private static readonly object Gate = new();
+
+    public static void Add(string text)
+    {
+        try
+        {
+            lock (Gate)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(File)!);
+                var fi = new FileInfo(File);
+                if (fi.Exists && fi.Length > 300_000)
+                {
+                    var all = System.IO.File.ReadAllLines(File);
+                    System.IO.File.WriteAllLines(File, all.Skip(all.Length / 2)); // keep the newer half
+                }
+                System.IO.File.AppendAllText(File, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss}  {text}{Environment.NewLine}");
+            }
+        }
+        catch { }
+    }
+}
+
+/// <summary>Is the player shooting right now? Left mouse button, or the right trigger of an Xbox-style controller.</summary>
+internal static class FireInput
+{
+    [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int vk);
+    [StructLayout(LayoutKind.Sequential)] private struct XINPUT_STATE { public uint Packet; public ushort Buttons; public byte Lt, Rt; public short Lx, Ly, Rx, Ry; }
+    [DllImport("xinput1_4.dll")] private static extern int XInputGetState(int index, out XINPUT_STATE state);
+    private static bool _pad; private static long _padCheck;
+#if DEBUG
+    // Test aid, debug builds only: with ORBIT_TEST_FIRE set, the player counts as shooting exactly while the file named
+    // there exists. The real mouse and controller are not looked at then, so a test is not disturbed by (and does not
+    // react to) whoever is using the PC.
+    private static readonly string? TestFire = Environment.GetEnvironmentVariable("ORBIT_TEST_FIRE");
+#endif
+
+    public static bool Held()
+    {
+#if DEBUG
+        if (!string.IsNullOrEmpty(TestFire)) return File.Exists(TestFire);
+#endif
+        if ((GetAsyncKeyState(0x01) & 0x8000) != 0) return true;
+        // a controller that is not connected is only looked for every two seconds (the query is slow then)
+        long now = Environment.TickCount64;
+        if (!_pad && now - _padCheck < 2000) return false;
+        _padCheck = now;
+        try { _pad = XInputGetState(0, out var s) == 0; return _pad && s.Rt > 40; }
+        catch { _pad = false; _padCheck = now + 60_000; return false; }
+    }
+}
+
 /// <summary>
-/// Auto-clip: watches only the user's own mouse (left button) while FiveM is in front and the cursor is hidden
-/// (= actual gameplay, not menus). A burst of shooting followed by a few quiet seconds counts as a firefight,
-/// then the normal clip hotkey of the recorder is sent. Nothing in the game is read.
+/// Auto-clip: watches only the user's own shooting (left mouse button / controller trigger) while FiveM is in front and
+/// the cursor is hidden (= actual gameplay, not menus). A burst of shooting followed by a few quiet seconds counts as a
+/// firefight. Nothing in the game is read.
 /// </summary>
 internal sealed class AutoClip
 {
-    [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int vk);
     [StructLayout(LayoutKind.Sequential)] private struct CURSORINFO { public int cbSize, flags; public IntPtr hCursor; public int x, y; }
     [DllImport("user32.dll")] private static extern bool GetCursorInfo(ref CURSORINFO ci);
 
     public static volatile bool GameInFront;
     public volatile int Sens = 2;
-    public event Action<int, double>? Fight; // shots, seconds of fire
+    /// <summary>shots, seconds of fire, seconds from the first to the last shot</summary>
+    public event Action<int, double, double>? Fight;
     private volatile bool _on;
     private Thread? _t;
     private DateTime _last = DateTime.MinValue;
@@ -783,8 +854,15 @@ internal sealed class AutoClip
         }
     }
 
+#if DEBUG
+    private static readonly bool TestGame = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ORBIT_TEST_GAME"));
+#endif
+
     private static bool CursorHidden()
     {
+#if DEBUG
+        if (TestGame) return true; // the stand-in game window has no hidden cursor
+#endif
         var ci = new CURSORINFO { cbSize = Marshal.SizeOf<CURSORINFO>() };
         return GetCursorInfo(ref ci) && (ci.flags & 1) == 0;
     }
@@ -797,7 +875,7 @@ internal sealed class AutoClip
         {
             Thread.Sleep(16);
             var now = DateTime.UtcNow;
-            bool lmb = GameInFront && (GetAsyncKeyState(0x01) & 0x8000) != 0 && CursorHidden();
+            bool lmb = GameInFront && FireInput.Held() && CursorHidden();
             if (lmb)
             {
                 if (!was) { shots++; if (start == DateTime.MinValue) start = now; }
@@ -809,10 +887,11 @@ internal sealed class AutoClip
             if ((now - lastShot).TotalSeconds >= 3 || (now - start).TotalSeconds >= 45)
             {
                 var (needShots, needFire) = Sens switch { 1 => (12, 3.0), 3 => (3, 0.6), _ => (6, 1.4) };
-                if ((shots >= needShots || fire >= needFire) && (now - _last).TotalSeconds >= 20)
+                // whether a clip is really saved (not too soon after the last one, not already saved as a kill) is decided by the listener
+                if (shots >= needShots || fire >= needFire)
                 {
                     _last = now;
-                    try { Fight?.Invoke(shots, Math.Round(fire, 1)); } catch { }
+                    try { Fight?.Invoke(shots, Math.Round(fire, 1), Math.Max(0, (lastShot - start).TotalSeconds)); } catch { }
                 }
                 start = DateTime.MinValue; shots = 0; fire = 0;
             }

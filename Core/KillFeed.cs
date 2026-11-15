@@ -40,7 +40,13 @@ internal sealed class KillFeed
     public event Action<bool>? Hit; // true = kill, false = death
     public volatile bool Deaths;
     public string Name = "";
-    public string Area = "tr";
+    public string Area = "auto";
+    /// <summary>Automatic mode: the position where the kill feed was found.</summary>
+    public string? Found { get; private set; }
+    public static readonly string[] Order = { "tr", "r", "tc", "tl" };
+    private int _scan;
+    private DateTime _foundAt;
+    private readonly HashSet<string> _primed = new();
     private volatile bool _on;
     private Task? _loop;
     private readonly Dictionary<string, DateTime> _seen = new();
@@ -67,28 +73,33 @@ internal sealed class KillFeed
 
     private async Task Loop()
     {
-        bool primed = false;
         while (_on)
         {
             await Task.Delay(300);
-            if (!AutoClip.GameInFront || Name.Trim().Length < 3) { primed = false; continue; }
+            if (!AutoClip.GameInFront || Name.Trim().Length < 3) { _primed.Clear(); continue; }
             try
             {
-                var lines = await Read(false);
+                // automatic: look at all usual positions in turn until a feed line with the player's name shows up, then stay there
+                bool auto = !Areas.ContainsKey(Area);
                 var now = DateTime.UtcNow;
+                if (auto && Found != null && (now - _foundAt).TotalMinutes > 10) Found = null; // other server, other layout
+                var area = auto ? Found ?? Order[_scan++ % Order.Length] : Area;
+                var lines = await Read(false, area);
                 foreach (var k in _seen.Where(p => (now - p.Value).TotalSeconds > 12).Select(p => p.Key).ToList()) _seen.Remove(k);
+                bool primed = _primed.Contains(area);
                 foreach (var l in lines)
                 {
                     var kind = Classify(l, Name);
                     if (kind == null) continue;
+                    if (auto) { Found = area; _foundAt = now; }
                     var key = Norm(l.text);
                     bool fresh = !_seen.Keys.Any(s => Similar(s, key));
                     _seen[key] = now;
-                    // the first read after entering the game only learns what is already on screen
+                    // the first read of a position after entering the game only learns what is already on screen
                     if (!fresh || !primed) continue;
                     if (kind == true || Deaths) Hit?.Invoke(kind.Value);
                 }
-                primed = true;
+                _primed.Add(area);
             }
             catch { await Task.Delay(1500); }
         }
@@ -96,11 +107,26 @@ internal sealed class KillFeed
 
     public record Line(string text, double rel);
 
+    /// <summary>Reads once for the "test" button. Automatic: returns the first position that shows the name.</summary>
+    public async Task<(string area, List<Line> lines, string? image)> Test(string name, string area)
+    {
+        Name = name;
+        if (Areas.ContainsKey(area)) return (area, await Read(true, area), LastImage);
+        (string area, List<Line> lines, string? image) best = default;
+        foreach (var a in Order)
+        {
+            var l = await Read(true, a);
+            if (l.Any(x => Classify(x, name) != null)) return (a, l, LastImage);
+            if (best.lines == null || l.Count > best.lines.Count) best = (a, l, LastImage);
+        }
+        return best;
+    }
+
     /// <summary>Copies the kill-feed area and reads it. rel = horizontal centre of the name inside the line (0 = left, 1 = right).</summary>
-    public async Task<List<Line>> Read(bool keepImage)
+    public async Task<List<Line>> Read(bool keepImage, string? area = null)
     {
         var eng = Engine() ?? throw new InvalidOperationException("Windows-Texterkennung nicht verfügbar. Installiere unter Windows-Einstellungen → Zeit und Sprache → Sprache ein Sprachpaket mit „Optische Zeichenerkennung“.");
-        var (w, h, px) = Capture();
+        var (w, h, px) = Capture(area ?? Area);
         LastImage = keepImage ? Png(px, w, h) : null;
         using var sb = SoftwareBitmap.CreateCopyFromBuffer(px.AsBuffer(), BitmapPixelFormat.Bgra8, w, h, BitmapAlphaMode.Premultiplied);
         var res = await eng.RecognizeAsync(sb);
@@ -140,15 +166,18 @@ internal sealed class KillFeed
         if (l.rel < 0) return null;
         var n = Norm(name); var t = Norm(l.text);
         if (t.Length < n.Length + 3) return null; // only the name (HUD, chat header) – no feed entry
+        // "Name: text" is a chat message, not a kill
+        var raw = l.text.ToLowerInvariant(); int at = raw.IndexOf(name.Trim().ToLowerInvariant(), StringComparison.Ordinal);
+        if (at >= 0 && raw[(at + name.Trim().Length)..].TrimStart(' ', ']', ')').StartsWith(':')) return null;
         // text feeds like "X was killed by Y" / "X wurde von Y getötet" name the killer on the right
         bool inverted = t.Contains("killedby") || t.Contains("wurdevon") || t.Contains("getötetvon") || t.Contains("getoetetvon") || t.Contains("eliminatedby");
         return inverted ? l.rel >= 0.5 : l.rel < 0.5;
     }
 
-    private (int w, int h, byte[] px) Capture()
+    private (int w, int h, byte[] px) Capture(string area)
     {
         var (cl, ct, cr, cb) = GameFocus.Client();
-        var a = Areas.TryGetValue(Area, out var v) ? v : Areas["tr"];
+        var a = Areas.TryGetValue(area, out var v) ? v : Areas["tr"];
         int sx = cl + (int)((cr - cl) * a.x), sy = ct + (int)((cb - ct) * a.y);
         int sw = Math.Max(40, (int)((cr - cl) * a.w)), sh = Math.Max(30, (int)((cb - ct) * a.h));
         double scale = sh < 500 ? 2 : 1;

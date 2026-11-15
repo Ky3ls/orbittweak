@@ -11,7 +11,9 @@
     <AssemblyName>OrbitTweak</AssemblyName>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>2.20.0</Version>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <StartupObject>OrbitTweak.Program</StartupObject>
+    <Version>2.22.0</Version>
     <Product>OrbitTweak</Product>
     <Description>OrbitTweak – FiveM Performance Suite</Description>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>

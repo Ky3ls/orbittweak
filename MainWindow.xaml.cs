@@ -29,7 +29,13 @@ public partial class MainWindow : Window
     private readonly SnapTap _snap = new();
     private readonly AutoClip _autoClip = new();
     private readonly KillFeed _killFeed = new();
-    private DateTime _kfSaveAt; private bool _kfPending; private int _kfKills, _kfDeaths;
+    private DateTime _kfSaveAt, _kfFirst; private bool _kfPending; private int _kfKills, _kfDeaths;
+    private readonly KillMark _killMark = new();
+    private readonly RecorderProxy _rec = new();
+    private bool _recBusy; private DateTime _recRetry; private string? _recError; private string _recKey = "";
+    private int _saving; private DateTime _recHoldAt;   // clips being written right now / since when the end of the recording is put off for them
+    private bool _hlBusy;                               // a highlight video is being put together
+    private bool _shareBusy;                            // a clip is being made smaller for sharing
     private readonly PadOverlay _pad = new();
     private CoreWebView2Environment? _env;
     private bool _padWatch;
@@ -38,9 +44,22 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _live = new() { Interval = TimeSpan.FromMilliseconds(400) };
     private bool _dispActive, _preview, _lastGame;
     private bool? _gammaOk, _vibOk;
-    private const int HK_XHAIR = 0xB00, HK_DISPLAY = 0xB01, HK_CLIP = 0xB02;
-    private readonly CrosshairOverlay _flash = new() { Anchor = Anchor.TopCenter };
+    private const int HK_XHAIR = 0xB00, HK_DISPLAY = 0xB01, HK_CLIP = 0xB02, HK_LAG = 0xB04;
+    private readonly CrosshairOverlay _flash = new() { Anchor = Anchor.TopCenter, Animate = true };
+    // small counter in a corner of the game: recording dot and kills of the round
+    private readonly CrosshairOverlay _hud = new() { Anchor = Anchor.TopLeft, Animate = true };
+    private string _hudKey = "";
+    private FileSystemWatcher? _dlWatch;
+    private DateTime? _playSince; private uint _playPid;
     private DateTime _flashUntil;
+    // short note in the game when a kill was noticed, with the kill count of the round
+    private readonly CrosshairOverlay _banner = new() { Anchor = Anchor.TopCenter, Animate = true };
+    private DateTime _bannerUntil; private int _roundKills; private uint _roundPid; private string _accentHex = "#FF7A3D";
+    // the kill clips saved since the game was started (for the automatic highlight video when it is closed)
+    private readonly List<string> _roundClips = new();
+    // short note in the game when the key switches WASD "Laggen" on or off
+    private readonly CrosshairOverlay _lagFlash = new() { Anchor = Anchor.TopCenter, Animate = true };
+    private DateTime _lagFlashUntil; private byte[]? _lagPngOn, _lagPngOff; private bool _lagKeyOk = true;
 
     [DllImport("user32.dll")] private static extern bool RegisterHotKey(IntPtr h, int id, uint mod, uint vk);
     [DllImport("user32.dll")] private static extern bool UnregisterHotKey(IntPtr h, int id);
@@ -77,31 +96,59 @@ public partial class MainWindow : Window
         AppDomain.CurrentDomain.ProcessExit += (_, _) => { ScreenColor.Restore(); NvVibrance.Restore(); };
         Application.Current.ShutdownMode = ShutdownMode.OnMainWindowClose;
         _live.Tick += (_, _) => LiveTick();
-        _autoClip.Fight += (shots, secs) => Dispatcher.InvokeAsync(async () =>
+        _autoClip.Fight += (shots, secs, span) => Dispatcher.InvokeAsync(async () =>
         {
-            if (!_authed || !S.Clip.Auto) return;
-            await SaveClip($"Auto-Clip nach Gefecht ({shots} Schüsse)");
+            if (!_authed || (!S.Clip.Auto && !NetOn && !AiOn)) return;
+            // the fight ended about 3 s ago. If a kill was noticed in it, that clip is already being saved.
+            var started = DateTime.Now.AddSeconds(-(span + 3.5));
+            var n = shots == 1 ? "1 Schuss" : $"{shots} Schüsse";
+            if (_lastKillAt > started.AddSeconds(-1)) { ClipLog.Add($"Gefecht ({n}, {span:0.0} s): schon als Kill gespeichert"); return; }
+            // AI check: where kills are not noticed at the crosshair (yet), a vision model looks at pictures of the fight.
+            // Where they are, a fight without a kill needs no look (and the free daily requests are kept for other servers).
+            if (!S.Clip.Auto && AiOn && !NetQuiet && await AiJudge(n, span, started)) return;
+            if (!S.Clip.Auto && !NetOn) return;
+            // the safety net is only for places where kills are not noticed. Where they are (a kill was noticed a short
+            // while ago), a fight without a kill is just that, mostly the player's own death, and is not saved.
+            if (!S.Clip.Auto && NetQuiet)
+            {
+                ClipLog.Add($"Gefecht ({n}, {span:0.0} s) ohne Kill: nicht gespeichert, die Kill-Erkennung funktioniert hier (letzter erkannter Kill vor {(DateTime.Now - S.Clip.ProvenAt!.Value).TotalMinutes:0} min)");
+                return;
+            }
+            // fights in quick succession: the previous clip is still fresh, wait a little before the next one
+            if ((DateTime.Now - _lastFightClip).TotalSeconds < 12) { ClipLog.Add($"Gefecht ({n}): direkt nach dem letzten Gefecht-Clip, übersprungen"); return; }
+            _lastFightClip = DateTime.Now;
+            _statFights++;
+            ClipLog.Add($"Gefecht ({n}, {span:0.0} s) ohne erkannten Kill: wird gespeichert");
+            // reach back to a few seconds before the first shot
+            await SaveClip(S.Clip.Auto ? $"Auto-Clip nach Gefecht ({n})" : $"Auto-Clip: Gefecht ohne erkannten Kill ({n})", "Gefecht", Math.Min(8, S.Clip.Before) + span + 3.5, 0);
         });
-        _killFeed.Hit += kill => Dispatcher.InvokeAsync(async () =>
+        _killFeed.Hit += kill => Dispatcher.InvokeAsync(() => OnKill(kill));
+        _killMark.Kill += how => Dispatcher.InvokeAsync(() => OnKill(true, how));
+#if DEBUG
+        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ORBIT_TEST_GAME"))) _killMark.NeedShot = false; // the stand-in game is not shot at
+#endif
+        _rec.Log += Log;
+        _rec.Log += ClipLog.Add;
+        // a pack saved from Discord (or any browser) into the Downloads folder is noticed at once and offered for installing
+        try
         {
-            if (!_authed || !S.Clip.Kills) return;
-            if (kill) _kfKills++; else _kfDeaths++;
-            Emit("kill", new { kill });
-            // several kills in a row end up in one clip: save 3 s after the last one
-            _kfSaveAt = DateTime.Now.AddSeconds(3);
-            if (_kfPending) return;
-            _kfPending = true;
-            while (DateTime.Now < _kfSaveAt) await Task.Delay(250);
-            var what = _kfKills > 1 ? $"{_kfKills} Kills" : _kfKills == 1 ? "Kill" : "Tod";
-            _kfKills = 0; _kfDeaths = 0; _kfPending = false;
-            await SaveClip($"Auto-Clip: {what} erkannt");
-        });
+            var dlw = new FileSystemWatcher(ModDownloads.Dir) { NotifyFilter = NotifyFilters.FileName, EnableRaisingEvents = true };
+            void Seen(string path)
+            {
+                if (Path.GetExtension(path).ToLowerInvariant() is ".rpf" or ".zip" or ".rar" or ".7z") Emit("dlNew", new { name = Path.GetFileName(path), cat = ModDownloads.Guess(Path.GetFileName(path)) });
+            }
+            dlw.Created += (_, e) => Seen(e.FullPath);
+            dlw.Renamed += (_, e) => Seen(e.FullPath);   // browsers write a temporary name first
+            _dlWatch = dlw;
+        }
+        catch { }
         // Snap Tap, timer resolution etc. only start after a valid key (see OnAuthed)
         _pad.Configure(S.Pad, S.Pad.Layout == "auto" ? "xbox" : S.Pad.Layout);
         _live.Start();
 
 
         Task.Run(Catalog.UndoKeyboardTurbo);
+        Task.Run(() => { int back = BgThrottle.Recover(); if (back > 0) Log($"⚡ {back} Programme liefen nach einem unsauberen Ende noch gebremst und sind wieder normal"); });
         Updater.CleanupOld();
         Background = S.Mode == "light" ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(239, 237, 231)) : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(18, 18, 17));
     }
@@ -113,7 +160,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            var data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OrbitTweak");
+            var data = AppDirs.Local;
             var env = _env = await CoreWebView2Environment.CreateAsync(null, Path.Combine(data, "WebView2"));
             Web.DefaultBackgroundColor = S.Mode == "light" ? System.Drawing.Color.FromArgb(255, 239, 237, 231) : System.Drawing.Color.FromArgb(255, 18, 18, 17);
             await Web.EnsureCoreWebView2Async(env);
@@ -212,8 +259,7 @@ public partial class MainWindow : Window
         bool first = !_authed;
         _authed = true; S.AuthRole = role ?? S.AuthRole; S.AuthOkUntil = DateTime.Now.AddDays(3); S.Save();
         if (!first) return;
-        if (S.SnapTap) _snap.Enable(true);
-        _autoClip.Sens = S.Clip.Sens; _autoClip.Enable(S.Clip.Auto);
+        SnapApply();
         KfApply();
         if (S.TimerRes) Catalog.SetTimerResolution(true);
     }
@@ -221,7 +267,93 @@ public partial class MainWindow : Window
     private void Lock()
     {
         _authed = false; S.AuthToken = null; S.AuthRole = null; S.AuthOkUntil = null; S.Save();
-        _snap.Enable(false); _autoClip.Enable(false); _killFeed.Enable(false); Catalog.SetTimerResolution(false); LiveTick();
+        _snap.Apply(false, false, 0, 0); _autoClip.Enable(false); _killFeed.Enable(false); _killMark.Enable(false); Catalog.SetTimerResolution(false); LiveTick();
+    }
+
+    // =====================================================================
+    //  BUILT-IN RECORDER (kill clipper)
+    // =====================================================================
+    private bool _recActive;
+    private IntPtr _recWnd; private DateTime _recWndAt, _recSizeAt, _recStartedAt; private (int, int) _recSize; private int _recFails;
+    /// <summary>Seconds the game window has to exist before the recording may start.</summary>
+#if DEBUG
+    private static readonly double RecDelay = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ORBIT_TEST_GAME")) ? 30 : 3;
+#else
+    private const double RecDelay = 30;
+#endif
+    /// <summary>The built-in recorder only runs when something can ask for a clip: kill clipper, fight clips or the clip key.</summary>
+    private bool RecArmed => S.Clip.Recorder == "orbit" && (S.Clip.Kills || S.Clip.Auto || S.Clip.Key > 0);
+
+    /// <summary>Keeps the built-in recorder running while the game window is there (only if it is the chosen recorder).</summary>
+    private async void RecTick()
+    {
+        if (_recBusy) return;
+        _recBusy = true;
+        try
+        {
+            var hwnd = GameFocus.Window;
+            var now = DateTime.Now;
+            // FiveM must never be touched while it is still starting up: the recording only begins once the real game
+            // window (not the small start window) has been there for half a minute and has kept its size for a few seconds
+            bool ready = false;
+            if (hwnd != IntPtr.Zero && !GameFocus.Minimized)
+            {
+                var (l, t, r, b) = GameFocus.Client();
+                var size = (r - l, b - t);
+                if (hwnd != _recWnd) { _recWnd = hwnd; _recWndAt = now; _recSize = size; _recSizeAt = now; }
+                else if (size != _recSize) { _recSize = size; _recSizeAt = now; }
+                ready = size.Item1 >= 800 && size.Item2 >= 450 && (now - _recWndAt).TotalSeconds >= RecDelay && (now - _recSizeAt).TotalSeconds >= 5;
+            }
+            else _recWnd = IntPtr.Zero;
+            bool want = _authed && RecArmed && ready;
+            // the AI check answers some seconds after a fight: the recording holds that much more
+            int hold = S.Clip.Before + S.Clip.After + 30 + (AiOn ? 40 : 0);
+            var key = $"{hwnd}|{S.Clip.Quality}|{S.Clip.Sound}|{hold}";
+            bool end = _recActive && (!want || key != _recKey || !_rec.Running);
+            // A clip that is being written, or a kill that was just noticed and is saved in a moment, still needs what the
+            // recording holds: closing the game or tabbing out right after a kill must not cost the clip.
+            if (end && (_saving > 0 || _kfPending))
+            {
+                if (_recHoldAt == default) _recHoldAt = now;
+                if ((now - _recHoldAt).TotalSeconds < 30) return;
+            }
+            _recHoldAt = default;
+            if (end)
+            {
+                // stopped by itself (window resized or closed, encoder trouble): never start again right away,
+                // and wait longer each time it happens in a row
+                if (want && !_rec.Running)
+                {
+                    _recFails++;
+                    _recError = _rec.Error == "resize" ? null : _rec.Error;
+                    _recRetry = now.AddSeconds(Math.Min(120, 8 * _recFails));
+                    ClipLog.Add($"Aufnahme hat sich beendet ({_rec.Error ?? "unbekannt"}), neuer Versuch in {Math.Min(120, 8 * _recFails)} s");
+                }
+                await _rec.Stop();
+                _recActive = false;
+                if (!want) Log("🎬 Aufnahme beendet");
+                if (GameFocus.Window == IntPtr.Zero) RoundEnded();   // the game was closed
+            }
+            if (want && !_recActive && now >= _recRetry)
+            {
+                _recKey = key;
+                bool ok = await _rec.Start(hwnd, Clipper.Quality(S.Clip.Quality, S.Clip.Sound), hold);
+                _recActive = ok;
+                _recError = ok ? null : _rec.Error;
+                if (ok) _recStartedAt = now;
+                else
+                {
+                    _recFails++;
+                    _recRetry = now.AddSeconds(Math.Min(180, 20 * _recFails));
+                    Log("🎬 Aufnahme konnte nicht starten: " + _rec.Error);
+                    ClipLog.Add($"Aufnahme konnte nicht starten: {_rec.Error}");
+                }
+            }
+            // a recording that has been running fine for a while clears the error count
+            if (_recActive && _rec.Running && _recFails > 0 && (now - _recStartedAt).TotalSeconds > 90) _recFails = 0;
+        }
+        catch (Exception ex) { _recError = ex.Message; _recRetry = DateTime.Now.AddSeconds(20); }
+        finally { _recBusy = false; }
     }
 
     private async Task<object?> Handle(string cmd, JsonElement a)
@@ -269,7 +401,7 @@ public partial class MainWindow : Window
                     case "xhairShrink": S.XhairShrink = val.GetBoolean(); break;
                     case "modsAck": S.ModsAck = val.GetBoolean(); break;
                     case "bgPreset": S.BgPreset = val.GetString(); break;
-                    case "snapTap": S.SnapTap = val.GetBoolean(); _snap.Enable(S.SnapTap); Log(S.SnapTap ? "⌨ Snap Tap aktiv (nur im Spiel)" : "⌨ Snap Tap aus"); break;
+                    case "snapTap": S.SnapTap = val.GetBoolean(); SnapApply(); Log(S.SnapTap ? "⌨ Snap Tap aktiv (nur im Spiel)" : "⌨ Snap Tap aus"); break;
                     case "launch": S.Launch = val.Deserialize<LaunchCfg>(JIn) ?? new LaunchCfg(); break;
                 }
                 S.Save();
@@ -292,6 +424,47 @@ public partial class MainWindow : Window
                 Log("↺ Alle Tweaks zurückgesetzt");
                 return null;
             case "boost": return await Boost();
+
+            // ---------- WASD tweak: "Laggen" (fast key repeat) and the size of the Windows keyboard buffer ----------
+            case "wasd.get": return WasdState();
+            case "wasd.chop":
+            {
+                // "Laggen": held movement keys are let go for a moment again and again while the game is in front
+                S.Lag.On = Bool(a, "on");
+                if (a.TryGetProperty("gap", out _) && Int(a, "gap") is >= 10 and <= 250 and var gap) S.Lag.Gap = gap;
+                if (a.TryGetProperty("every", out _) && Int(a, "every") is >= 40 and <= 500 and var every) S.Lag.Every = Math.Max(every, S.Lag.Gap + 15);
+                if (a.TryGetProperty("key", out var kv) && kv.ValueKind == JsonValueKind.Number && kv.GetInt32() is var lagKey and (0 or (>= 0x21 and <= 0x7B))) S.Lag.Key = lagKey;
+                S.Save(); SnapApply(); RegisterKeys();
+                Log(S.Lag.On ? $"⌨ WASD-Laggen an ({S.Lag.Gap} ms Aussetzer alle {S.Lag.Every} ms, nur im Spiel)" : "⌨ WASD-Laggen aus");
+                return WasdState();
+            }
+            case "wasd.flash":
+            {
+                // the two small pictures shown in the game when the key switches "Laggen" on or off (drawn by the page)
+                try { _lagPngOn = Convert.FromBase64String(Str(a, "on")); _lagPngOff = Convert.FromBase64String(Str(a, "off")); } catch { }
+                return null;
+            }
+            case "wasd.lag":
+            {
+                // fast key repeat of the Windows keyboard filter (part of some WASD packs)
+                bool on = Bool(a, "on");
+                bool ok = await Task.Run(() => { try { return WasdTweak.SetLag(on); } catch { return false; } });
+                if (ok) Log(on ? $"⌨ Schnelle Tastenwiederholung an (alle {WasdTweak.LagRepeat} ms)" : "⌨ Schnelle Tastenwiederholung aus");
+                return WasdState(ok ? null : "Windows hat die Einstellung nicht übernommen");
+            }
+            case "wasd.set":
+            {
+                int size = Int(a, "size");
+                if (size != 0 && !WasdTweak.Levels.Contains(size)) return WasdState("Unbekannte Stufe");
+                string? err = null;
+                await Task.Run(() => { try { WasdTweak.SetBuffer(size); } catch (Exception ex) { err = ex.Message; } });
+                if (err == null)
+                {
+                    S.WasdSetAt = DateTime.Now; S.Save();
+                    Log(size == 0 ? "⌨ Tastatur-Puffer: Windows-Standard (wirkt nach Neustart)" : $"⌨ Tastatur-Puffer {size} (wirkt nach Neustart)");
+                }
+                return WasdState(err);
+            }
 
             // ---------- fivem ----------
             case "fivem.cacheSize":
@@ -402,34 +575,229 @@ public partial class MainWindow : Window
             {
                 S.Clip.Key = Int(a, "key"); S.Clip.Flash = Bool(a, "flash");
                 S.Clip.Auto = Bool(a, "auto"); var sens = Int(a, "sens"); S.Clip.Sens = sens is >= 1 and <= 3 ? sens : 2;
-                _autoClip.Sens = S.Clip.Sens; _autoClip.Enable(S.Clip.Auto && _authed);
+                if (a.TryGetProperty("net", out var nv) && nv.ValueKind is JsonValueKind.True or JsonValueKind.False) S.Clip.Net = nv.GetBoolean();
                 S.Clip.Kills = Bool(a, "kills"); S.Clip.Deaths = Bool(a, "deaths");
                 S.Clip.Name = Str(a, "name").Trim(); if (S.Clip.Name.Length > 40) S.Clip.Name = S.Clip.Name[..40];
-                var area = Str(a, "area"); if (KillFeed.Areas.ContainsKey(area)) S.Clip.Area = area;
+                var area = Str(a, "area"); if (area == "auto" || KillFeed.Areas.ContainsKey(area)) S.Clip.Area = area;
+                if (Str(a, "detect") is "mark" or "feed") S.Clip.Detect = Str(a, "detect");
+                if (a.TryGetProperty("ai", out var aiv) && aiv.ValueKind is JsonValueKind.True or JsonValueKind.False) S.Clip.Ai = aiv.GetBoolean();
+                if (a.TryGetProperty("hud", out var hv) && hv.ValueKind is JsonValueKind.True or JsonValueKind.False) S.Clip.Hud = hv.GetBoolean();
+                if (a.TryGetProperty("hudClock", out var hc) && hc.ValueKind is JsonValueKind.True or JsonValueKind.False) S.Clip.HudClock = hc.GetBoolean();
+                if (a.TryGetProperty("hudTime", out var ht) && ht.ValueKind is JsonValueKind.True or JsonValueKind.False) S.Clip.HudTime = ht.GetBoolean();
+                if (a.TryGetProperty("banner", out var bn) && bn.ValueKind is JsonValueKind.True or JsonValueKind.False) S.Clip.Banner = bn.GetBoolean();
+                if (a.TryGetProperty("autoHighlight", out var ah) && ah.ValueKind is JsonValueKind.True or JsonValueKind.False) S.Clip.AutoHighlight = ah.GetBoolean();
+                if (a.TryGetProperty("highlightTail", out _) && Int(a, "highlightTail") is 0 or 8) S.Clip.HighlightTail = Int(a, "highlightTail");
+                if (a.TryGetProperty("shareMb", out _) && Int(a, "shareMb") is 10 or 50 or 500) S.Clip.ShareMb = Int(a, "shareMb");
+                // the accent colour of the page, for what is drawn here (kill note)
+                if (Str(a, "accent") is { Length: 7 } hex && hex[0] == '#') _accentHex = hex;
+                if (a.TryGetProperty("words", out var wv) && wv.ValueKind == JsonValueKind.String)
+                {
+                    var words = string.Join(", ", (wv.GetString() ?? "").Split(new[] { ',', ';', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).Where(x => x.Length is >= 3 and <= 24).Take(12));
+                    S.Clip.Words = words.Length > 0 ? words : KillText.DefaultWords;
+                }
                 KfApply();
                 var rec = Str(a, "recorder"); if (Clipper.Recorders.ContainsKey(rec)) S.Clip.Recorder = rec;
+                // built-in recorder
+                if (a.TryGetProperty("before", out _) && Int(a, "before") is >= 5 and <= 60 and var bf) S.Clip.Before = bf;
+                if (a.TryGetProperty("after", out _) && Int(a, "after") is >= 0 and <= 15 and var af) S.Clip.After = af;
+                if (Str(a, "quality") is "low" or "std" or "high") S.Clip.Quality = Str(a, "quality");
+                if (a.TryGetProperty("sound", out var snd) && snd.ValueKind is JsonValueKind.True or JsonValueKind.False) S.Clip.Sound = snd.GetBoolean();
                 var png = Str(a, "png"); if (png.Length > 0) _flash.SetImage(Convert.FromBase64String(png), 0, 40);
                 S.Save();
                 var keys = RegisterKeys();
-                return new { keyOk = keys.clip, combo = Clipper.Recorders[S.Clip.Recorder].label };
+                RecTick();
+                return new { keyOk = keys.clip, combo = Clipper.Recorders[S.Clip.Recorder].label, words = S.Clip.Words };
             }
-            case "clip.save": await SaveClip(); return new { ok = true };
+            case "clip.save": { var err = await SaveClip(); return new { ok = err == null, error = err }; }
+            case "clip.status":
+                return new
+                {
+                    recorder = S.Clip.Recorder, running = _rec.Running, buffered = (int)_rec.Buffered, w = _rec.Size.w, h = _rec.Size.h,
+                    error = _recError, game = GameFocus.Window != IntPtr.Zero, supported = ReplayRecorder.Supported, found = _killFeed.Found, armed = RecArmed,
+                    detect = S.Clip.Detect, markAt = _killMark.LastAt == default ? (DateTime?)null : _killMark.LastAt, markImg = _killMark.LastImage, markWord = _killMark.LastWord,
+                    kills = _statKills, fights = _statFights, net = NetOn, netQuiet = NetOn && NetQuiet, words = S.Clip.Words,
+                    ai = new { on = S.Clip.Ai, key = AiKey.Get() != null, active = AiOn, asked = _aiAsked, kills = _aiKills, last = _aiLast, error = _aiError, paused = DateTime.Now < _aiQuotaUntil }
+                };
+            case "clip.aikey":
+            {
+                // the OpenRouter key for the AI check: empty removes it. It is never sent back to the page.
+                var k = Str(a, "key").Trim();
+                if (k.Length > 0 && (!k.StartsWith("sk-or-") || k.Length < 30 || k.Length > 200)) return new { ok = false, error = "Das sieht nicht nach einem OpenRouter-Key aus (beginnt mit sk-or-)" };
+                AiKey.Set(k); _aiError = null; _aiQuotaUntil = default;
+                KfApply(); RecTick();
+                return new { ok = true, key = AiKey.Get() != null };
+            }
+            case "clip.log": Proc.Open(ClipLog.File); return null;
             case "clip.kftest":
             {
                 // reads the kill-feed area once and returns what the text recognition sees
-                _killFeed.Name = Str(a, "name").Trim();
-                var area = Str(a, "area"); if (KillFeed.Areas.ContainsKey(area)) _killFeed.Area = area;
                 try
                 {
-                    var lines = await _killFeed.Read(true);
-                    var res = new { ok = true, img = _killFeed.LastImage, game = GameFocus.Pid != 0, lines = lines.Select(l => new { l.text, hit = KillFeed.Classify(l, _killFeed.Name) is bool k ? (k ? "kill" : "death") : null }).ToList() };
+                    var (area, lines, img) = await _killFeed.Test(Str(a, "name").Trim(), Str(a, "area"));
+                    var res = new { ok = true, img, area, game = GameFocus.Pid != 0, lines = (lines ?? new()).Select(l => new { l.text, hit = KillFeed.Classify(l, _killFeed.Name) is bool k ? (k ? "kill" : "death") : null }).ToList() };
                     KfApply();
                     return res;
                 }
                 catch (Exception ex) { KfApply(); return new { ok = false, error = ex.Message }; }
             }
+
+            // ---------- custom minimap from a picture ----------
+            case "minimap.pick":
+            {
+                var dlg = new Microsoft.Win32.OpenFileDialog { Title = "Bild für die Minimap auswählen", Filter = "Bilder (*.png;*.jpg;*.jpeg;*.webp;*.bmp)|*.png;*.jpg;*.jpeg;*.webp;*.bmp" };
+                if (dlg.ShowDialog(this) != true) return new { cancelled = true };
+                var file = dlg.FileName;
+                return await Task.Run(() => MinimapBuilder.Info(file));
+            }
+            case "minimap.info": { var file = Str(a, "path"); return await Task.Run(() => MinimapBuilder.Info(file)); }
+            case "minimap.status": return new { status = await Task.Run(MinimapBuilder.Status), cfg = S.MinimapMod };
+            case "minimap.build":
+            {
+                var cfg = a.GetProperty("cfg").Deserialize<MinimapModCfg>(JIn) ?? new MinimapModCfg();
+                cfg.Repeat = Math.Clamp(cfg.Repeat, 1, 120); cfg.Dim = Math.Clamp(cfg.Dim, 0, 80);
+                var (size, err) = await Task.Run(() => MinimapBuilder.Install(cfg, S.ModCats, (pct, text) => Emit("mmbuild", new { pct, text })));
+                if (err != null) return new { error = err };
+                S.MinimapMod = cfg; S.Save();
+                Log($"🗺 Eigene Minimap installiert ({SysInfo.Bytes(size)})");
+                return new { size };
+            }
+            case "minimap.remove":
+            {
+                var err = Mods.Delete(MinimapBuilder.FileName);
+                if (err == null) { S.ModCats.Remove(MinimapBuilder.FileName); S.Save(); Log("🗺 Eigene Minimap entfernt"); }
+                return new { error = err };
+            }
             case "clip.list": return await Task.Run(Clipper.List);
-            case "clip.open":
+            case "clip.recycle":
+            {
+                // moves clips of the built-in recorder to the recycle bin (only files in Videos\OrbitTweak, nothing else)
+                var rels = a.TryGetProperty("rels", out var rv) && rv.ValueKind == JsonValueKind.Array ? rv.EnumerateArray().Select(x => x.GetString() ?? "").ToList() : new List<string>();
+                var (gone, failed) = await Task.Run(() => Clipper.Recycle(rels));
+                if (gone > 0) { ClipLog.Add($"{gone} Clip(s) in den Papierkorb verschoben"); Log($"🗑 {gone} Clip(s) in den Papierkorb verschoben"); }
+                return new { deleted = gone, failed };
+            }
+            // ---------- highlight video: the kill clips joined into one ----------
+            case "clip.kills": return await Task.Run(() => new { today = Highlight.KillClips(true).Count, all = Highlight.KillClips(false).Count, busy = _hlBusy });
+            case "clip.montageMusic":
+            {
+                // picks (or removes) the music that is laid under montages
+                if (Bool(a, "clear")) { S.Clip.MontageMusic = null; S.Save(); return new { music = (string?)null }; }
+                var dlg = new Microsoft.Win32.OpenFileDialog { Title = "Musik für die Montage auswählen", Filter = "Musik (*.mp3;*.m4a;*.wav;*.aac;*.wma)|*.mp3;*.m4a;*.wav;*.aac;*.wma" };
+                if (dlg.ShowDialog(this) == true) { S.Clip.MontageMusic = dlg.FileName; S.Save(); }
+                return new { music = S.Clip.MontageMusic is { } mf && File.Exists(mf) ? Path.GetFileName(mf) : null };
+            }
+            case "clip.ffmpeg":
+            {
+                // loads the cutting program for slow motion once
+                if (FfMontage.Find() != null) return new { ok = true };
+                var e2 = await FfMontage.Download((pct, text) => Emit("highlight", new { pct, text }));
+                if (e2 == null) Log("🎬 Schnittprogramm für Zeitlupe geladen");
+                return new { ok = e2 == null, error = e2 };
+            }            case "clip.montage":
+            {
+                if (_hlBusy) return new { error = "Es wird gerade schon ein Video erstellt" };
+                _hlBusy = true;
+                try
+                {
+                    var music = S.Clip.MontageMusic is { } mf && File.Exists(mf) ? mf : null;
+                    // with slow motion the cut is done by ffmpeg; without it by Windows' own video machinery
+                    bool slow = !a.TryGetProperty("slowmo", out var sm) || sm.ValueKind != JsonValueKind.False;
+                    string? file, err; int n;
+                    if (slow)
+                    {
+                        var ff = FfMontage.Find();
+                        if (ff == null) return new { needFfmpeg = true };
+                        var all = Highlight.KillClips(false);
+                        if (all.Count < 2) return new { error = "Dafür braucht es mindestens zwei Kill-Clips" };
+                        var pick = all.Skip(Math.Max(0, all.Count - Math.Clamp(Int(a, "count"), 2, 30))).ToList();
+                        (file, err, n) = await FfMontage.Make(ff, pick, S.Clip.After, music, _accentHex, (pct, text) => Emit("highlight", new { pct, text }));
+                    }
+                    else (file, err, n) = await Highlight.MakeMontage(Int(a, "count"), music, _accentHex, (pct, text) => Emit("highlight", new { pct, text }));
+                    if (file == null) { ClipLog.Add("Montage nicht erstellt: " + err); return new { error = err }; }
+                    ClipLog.Add($"Montage aus {n} Kill-Clips: {Path.GetFileName(file)}");
+                    Log($"🎬 Montage aus {n} Clips → {Path.GetFileName(file)}");
+                    return new { ok = true, file = Path.GetFileName(file), clips = n, music = music != null, slowmo = slow };
+                }
+                finally { _hlBusy = false; }
+            }            case "clip.highlight":
+            {
+                if (_hlBusy) return new { error = "Es wird gerade schon ein Highlight-Video erstellt" };
+                _hlBusy = true;
+                try
+                {
+                    bool today = Str(a, "scope") != "all";
+                    var (file, err, n) = await Highlight.Make(today, S.Clip.HighlightTail, (pct, text) => Emit("highlight", new { pct, text }));
+                    if (file != null)
+                    {
+                        ClipLog.Add($"Highlight-Video aus {n} Kill-Clips: {Path.GetFileName(file)}");
+                        Log($"🎬 Highlight-Video aus {n} Clips → {Path.GetFileName(file)}");
+                    }
+                    else ClipLog.Add($"Highlight-Video nicht erstellt: {err}");
+                    return new { file = file != null ? Path.GetFileName(file) : null, error = err, clips = n };
+                }
+                finally { _hlBusy = false; }
+            }
+            case "clip.share":
+            {
+                // "share for Discord": the clip (made smaller first if it is over the limit) is put on the clipboard as a file
+                var src = Clipper.Resolve(Str(a, "rel"));
+                if (src == null) return new { error = "Clip nicht gefunden" };
+                if (_shareBusy) return new { error = "Es wird gerade schon ein Clip vorbereitet" };
+                _shareBusy = true;
+                try
+                {
+                    long max = S.Clip.ShareMb * 1024L * 1024L;
+                    string target = src; bool shrunk = false;
+                    if (new FileInfo(src).Length > max)
+                    {
+                        var (small, err) = await Highlight.Shrink(src, max, (pct, text) => Emit("share", new { pct, text }));
+                        if (small == null) return new { error = err };
+                        target = small; shrunk = true;
+                    }
+                    bool onClipboard = false;
+                    if (!a.TryGetProperty("clipboard", out var cbv) || cbv.ValueKind != JsonValueKind.False)
+                    {
+                        var list = new System.Collections.Specialized.StringCollection { target };
+                        for (int i = 0; i < 6 && !onClipboard; i++)
+                        {
+                            try { Clipboard.SetFileDropList(list); onClipboard = true; }
+                            catch { await Task.Delay(90); } // another program has the clipboard open for a moment
+                        }
+                    }
+                    Log($"📋 Clip zum Teilen bereit: {Path.GetFileName(target)} ({SysInfo.Bytes(new FileInfo(target).Length)})");
+                    return new { ok = true, name = Path.GetFileName(target), size = new FileInfo(target).Length, shrunk, clipboard = onClipboard, path = target };
+                }
+                finally { _shareBusy = false; }
+            }
+            case "clip.cut":
+            {
+                // cuts a part out of a clip: saved as a new clip, or as a small copy on the clipboard for sharing
+                var src = Clipper.Resolve(Str(a, "rel"));
+                if (src == null || !src.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase)) return new { error = "Clip nicht gefunden" };
+                if (_shareBusy) return new { error = "Es wird gerade ein anderer Clip bearbeitet" };
+                double from = a.TryGetProperty("from", out var fv) ? fv.GetDouble() : 0, to = a.TryGetProperty("to", out var tv) ? tv.GetDouble() : 0;
+                if (to - from < 0.5) return new { error = "Der Ausschnitt ist zu kurz" };
+                bool share = Bool(a, "share");
+                _shareBusy = true;
+                try
+                {
+                    var (file, err) = await Highlight.Cut(src, from, to, share ? S.Clip.ShareMb * 1024L * 1024L : 0, (pct, text) => Emit("share", new { pct, text }));
+                    if (file == null) return new { error = err };
+                    bool onClipboard = false;
+                    if (share)
+                    {
+                        var list = new System.Collections.Specialized.StringCollection { file };
+                        for (int i = 0; i < 6 && !onClipboard; i++)
+                        {
+                            try { Clipboard.SetFileDropList(list); onClipboard = true; }
+                            catch { await Task.Delay(90); }
+                        }
+                    }
+                    Log($"✂ Clip geschnitten: {Path.GetFileName(file)} ({to - from:0.0} s, {SysInfo.Bytes(new FileInfo(file).Length)})");
+                    return new { ok = true, name = Path.GetFileName(file), size = new FileInfo(file).Length, clipboard = onClipboard, share };
+                }
+                finally { _shareBusy = false; }
+            }            case "clip.open":
             {
                 var f = Clipper.Resolve(Str(a, "rel"));
                 if (f != null) Process.Start("explorer.exe", $"/select,\"{f}\"");
@@ -825,13 +1193,18 @@ public partial class MainWindow : Window
     {
         if (!_authed)
         {
-            _xhair.Update(false); _minimap.Update(false); _flash.Update(false); _pad.Update(false);
+            _xhair.Update(false); _minimap.Update(false); _flash.Update(false); _banner.Update(false); _lagFlash.Update(false); _hud.Update(false); _pad.Update(false);
             if (_dispActive) { ScreenColor.Restore(); NvVibrance.Restore(); _dispActive = false; }
+            RecTick();
             return;
         }
         bool game = GameFocus.IsGame();
+        // since when this game has been running (for the playing time in the counter and in Discord)
+        if (GameFocus.Window == IntPtr.Zero) { _playSince = null; _playPid = 0; }
+        else if (game && GameFocus.Pid != _playPid) { _playPid = GameFocus.Pid; _playSince = DateTime.Now; }
         SnapTap.GameInFront = game;
         AutoClip.GameInFront = game;
+        RecTick();
         // after the game has been in front for 20 s, apply the saved F8 settings once per game session
         if (game)
         {
@@ -846,10 +1219,27 @@ public partial class MainWindow : Window
         }
         else _gameFgSince = null;
         _xhair.Update(S.Xhair.On && (!S.Xhair.OnlyGame || game));
-        _minimap.Update(S.Minimap.On && (game || _mmPreview));
-        _flash.Update(DateTime.Now < _flashUntil);
+        // the picture over the minimap: while the game is in front, or while it is being placed (preview)
+        _minimap.Update(_mmPreview || (S.Minimap.On && game));
+        _banner.Update(DateTime.Now < _bannerUntil);
+        _flash.Update(DateTime.Now < _flashUntil && DateTime.Now >= _bannerUntil);   // the kill note goes first, both sit in the same place
+        _lagFlash.Update(DateTime.Now < _lagFlashUntil);
+        // the counter in the corner: only in the game, while the kill clipper with the built-in recording is on
+        bool hud = S.Clip.Hud && S.Clip.Kills && S.Clip.Recorder == "orbit" && game;
+        if (hud)
+        {
+            int kills = GameFocus.Pid == _roundPid ? _roundKills : 0;
+            var extra = new List<string>();
+            if (S.Clip.HudClock) extra.Add(DateTime.Now.ToString("HH:mm"));
+            if (S.Clip.HudTime && _playSince is DateTime ps) { var m = (int)(DateTime.Now - ps).TotalMinutes; extra.Add(m < 60 ? $"{m} min" : $"{m / 60} h {m % 60:00}"); }
+            if (S.Lag.On) extra.Add("LAG");
+            var hk = $"{kills}|{_rec.Running}|{_accentHex}|{string.Join('|', extra)}";
+            if (hk != _hudKey) { try { _hud.SetImage(KillBanner.Hud(kills, _rec.Running, _accentHex, extra), 16, 44); _hudKey = hk; } catch { } }
+        }
+        _hud.Update(hud);
         _pad.Tick();
         // re-apply when the game gets focus (fullscreen games may reset the gamma ramp)
+        if (game != _lastGame) Emit("gamefront", new { on = game });   // the page stops its effects while the game is being played
         bool focusGained = game && !_lastGame;
         _lastGame = game;
         SyncDisplay(game, focusGained);
@@ -877,11 +1267,13 @@ public partial class MainWindow : Window
     private void StopLive()
     {
         _live.Stop();
-        _xhair.Close(); _minimap.Close(); _snap.Enable(false); _autoClip.Enable(false); _killFeed.Enable(false); _pad.Close();
+        BgThrottle.Restore();   // never leave other programs slowed down when the app closes
+        _xhair.Close(); _minimap.Close(); _snap.Apply(false, false, 0, 0); _autoClip.Enable(false); _killFeed.Enable(false); _killMark.Enable(false); _pad.Close();
+        _recBusy = true; _ = _rec.Stop();
         ScreenColor.Restore(); NvVibrance.Restore();
         var h = new WindowInteropHelper(this).Handle;
-        if (h != IntPtr.Zero) { UnregisterHotKey(h, HK_XHAIR); UnregisterHotKey(h, HK_DISPLAY); UnregisterHotKey(h, HK_CLIP); }
-        _flash.Close();
+        if (h != IntPtr.Zero) { UnregisterHotKey(h, HK_XHAIR); UnregisterHotKey(h, HK_DISPLAY); UnregisterHotKey(h, HK_CLIP); UnregisterHotKey(h, HK_LAG); }
+        _flash.Close(); _lagFlash.Close(); _banner.Close(); _hud.Close();
     }
 
     private (bool xhair, bool display, bool clip, bool pad) RegisterKeys()
@@ -894,6 +1286,8 @@ public partial class MainWindow : Window
         UnregisterHotKey(h, HK_CLIP); UnregisterHotKey(h, HK_PAD);
         bool pk = S.Pad.Key <= 0 || (new[] { S.Xhair.Key, S.Display.Key, S.Clip.Key }.Contains(S.Pad.Key) ? false : RegisterHotKey(h, HK_PAD, 0x4000, (uint)S.Pad.Key));
         bool c = S.Clip.Key <= 0 || (S.Clip.Key != S.Xhair.Key && S.Clip.Key != S.Display.Key && RegisterHotKey(h, HK_CLIP, 0x4000, (uint)S.Clip.Key));
+        UnregisterHotKey(h, HK_LAG);
+        _lagKeyOk = S.Lag.Key <= 0 || (!new[] { S.Xhair.Key, S.Display.Key, S.Clip.Key, S.Pad.Key }.Contains(S.Lag.Key) && RegisterHotKey(h, HK_LAG, 0x4000, (uint)S.Lag.Key));
         return (x, d, c, pk);
     }
 
@@ -904,19 +1298,226 @@ public partial class MainWindow : Window
         Emit("pad", PadInput.State);
     }
 
+    /// <summary>State of the WASD tweak (see <see cref="WasdTweak"/>). "pending": the buffer was changed here since Windows started, so the change is not active yet.</summary>
+    private object WasdState(string? error = null)
+    {
+        var (lag, delay, repeat) = WasdTweak.Lag();
+        var boot = DateTime.Now - TimeSpan.FromMilliseconds(Environment.TickCount64);
+        return new { size = WasdTweak.Buffer, pending = S.WasdSetAt is DateTime t && t > boot, lag, delay, repeat, chop = new { on = S.Lag.On, gap = S.Lag.Gap, every = S.Lag.Every, key = S.Lag.Key, keyOk = _lagKeyOk }, error };
+    }
+
+    /// <summary>Snap Tap and WASD "Laggen" share one keyboard hook; both only work with a valid key and while the game is in front.</summary>
+    private void SnapApply() => _snap.Apply(_authed && S.SnapTap, _authed && S.Lag.On, S.Lag.Gap, S.Lag.Every);
+
+    private DateTime _lastKillAt, _lastFightClip;
+    private readonly List<DateTime> _kfTimes = new();   // when the kills of the clip that is about to be saved happened
+    private int _statKills, _statFights;
+    /// <summary>Safety net of the kill clipper: a firefight in which no kill was noticed is clipped anyway.</summary>
+    private bool NetOn => S.Clip.Kills && S.Clip.Detect != "feed" && S.Clip.Net;
+    /// <summary>How long after a noticed kill the safety net keeps quiet (the detection demonstrably works where the player is).</summary>
+    private const double NetQuietMinutes = 30;
+    private bool NetQuiet => S.Clip.ProvenAt is DateTime p && (DateTime.Now - p).TotalMinutes is >= 0 and < NetQuietMinutes;
+
+    // ---------- AI check of firefights (OpenRouter) ----------
+    private readonly FightEye _eye = new();
+    private int _aiAsked, _aiKills; private string? _aiLast, _aiError; private DateTime _aiQuotaUntil;
+    /// <summary>AI check: on, a key is there, and kills are noticed at the crosshair (not by the kill feed).</summary>
+    private bool AiOn => S.Clip.Kills && S.Clip.Detect != "feed" && S.Clip.Ai && S.Clip.Recorder == "orbit" && AiKey.Get() != null;
+
+    /// <summary>
+    /// Lets the vision model look at the firefight that just ended. True = decided here (kill saved, or no kill so
+    /// nothing to save); false = no answer, the safety net decides as before.
+    /// </summary>
+    private async Task<bool> AiJudge(string n, double span, DateTime started)
+    {
+        if (DateTime.Now < _aiQuotaUntil) return false;   // the account's limit was hit a moment ago
+        var to = DateTime.UtcNow; var from = to.AddSeconds(-(span + 4.0));
+        var frames = _eye.Take(from, to);
+        if (frames.Count < 3) { ClipLog.Add($"Gefecht ({n}, {span:0.0} s): KI-Prüfung ohne Bilder nicht möglich"); return false; }
+        KillJudge.Verdict v;
+        try
+        {
+            _aiAsked++;
+            v = await KillJudge.Ask(AiKey.Get()!, S.Clip.AiModels, frames);
+            _aiError = null;
+        }
+        catch (KillJudge.JudgeException ex)
+        {
+            _aiError = ex.Message;
+            if (ex.Quota) _aiQuotaUntil = DateTime.Now.AddMinutes(10);
+            ClipLog.Add($"Gefecht ({n}, {span:0.0} s): KI-Prüfung fehlgeschlagen ({ex.Message}){(NetOn ? ", das Sicherheitsnetz entscheidet" : "")}");
+            return false;
+        }
+        catch (Exception ex) { _aiError = ex.Message; ClipLog.Add($"Gefecht ({n}, {span:0.0} s): KI-Prüfung fehlgeschlagen ({ex.Message})"); return false; }
+        var model = v.Model.Split('/').Last().Replace(":free", "");
+        if (v.Kills <= 0)
+        {
+            _aiLast = $"{DateTime.Now:HH:mm:ss} · {(v.Died ? "Tod" : "kein Kill")} · {v.Seconds:0} s";
+            ClipLog.Add($"Gefecht ({n}, {span:0.0} s): KI sieht {(v.Died ? "deinen Tod" : "keinen Kill")}, nicht gespeichert ({model}, {v.Seconds:0.0} s{(v.Reason.Length > 0 ? ": " + v.Reason : "")})");
+            return true;
+        }
+        if (_lastKillAt > started.AddSeconds(-1)) return true;   // noticed at the crosshair in the meantime: already being saved
+        _aiKills += v.Kills; _statKills += v.Kills; _lastKillAt = DateTime.Now;
+        _aiLast = $"{DateTime.Now:HH:mm:ss} · {(v.Kills == 1 ? "Kill" : v.Kills + " Kills")}{(v.Text.Length > 0 ? $" („{v.Text}“)" : "")} · {v.Seconds:0} s";
+        ClipLog.Add($"Kill erkannt (KI {model}, {v.Seconds:0.0} s: {(v.Text.Length > 0 ? $"„{v.Text}“" : v.Reason)})");
+        AiLearn(v);
+        Emit("kill", new { kill = true });
+        var pid = GameFocus.Pid;
+        if (pid != _roundPid) { _roundPid = pid; _roundKills = 0; }
+        _roundKills += v.Kills;
+        if (S.Clip.Banner)
+        {
+            try { _banner.SetImage(KillBanner.Png(_roundKills, v.Kills, _accentHex), 0, 40); _bannerUntil = DateTime.Now.AddSeconds(1.8); LiveTick(); }
+            catch { }
+        }
+        // from "Before" seconds ahead of the first kill (or of the first shot, if the model did not say when) up to now
+        var killAt = v.FirstKillT is double t ? from.AddSeconds(t - 0.6).ToLocalTime() : started;
+        await SaveClip($"Auto-Clip: {(v.Kills == 1 ? "Kill" : v.Kills + " Kills")} erkannt (KI)", v.Kills == 1 ? "Kill" : $"{v.Kills} Kills", S.Clip.Before + Math.Max(0, (DateTime.Now - killAt).TotalSeconds), 0, new List<DateTime> { killAt });
+        return true;
+    }
+
+    /// <summary>
+    /// The model read the kill message of this server: its kill word joins the word list, so from now on the message is
+    /// noticed right at the crosshair, at once and without asking the model.
+    /// </summary>
+    private void AiLearn(KillJudge.Verdict v)
+    {
+        var w = KillText.Fold(v.Word);
+        if (w.Length is < 4 or > 24 || !w.All(char.IsLetter) || !KillText.Fold(v.Text).Contains(w, StringComparison.Ordinal)) return;
+        var have = (string.IsNullOrWhiteSpace(S.Clip.Words) ? KillText.DefaultWords : S.Clip.Words).Split(',').Select(x => KillText.Fold(x)).ToList();
+        if (have.Contains(w) || have.Count >= 12) return;
+        S.Clip.Words = (string.IsNullOrWhiteSpace(S.Clip.Words) ? KillText.DefaultWords : S.Clip.Words) + ", " + v.Word.Trim().ToUpperInvariant();
+        S.Save(); KfApply();
+        ClipLog.Add($"Kill-Wort „{v.Word.Trim().ToUpperInvariant()}“ von der KI gelernt: wird ab jetzt direkt am Fadenkreuz erkannt");
+        Emit("clipwords", new { words = S.Clip.Words });
+    }
+
+    /// <summary>Switches on the chosen way of noticing kills: at the crosshair (kill message or red X, default) or the kill feed.</summary>
     private void KfApply()
     {
         _killFeed.Name = S.Clip.Name; _killFeed.Area = S.Clip.Area; _killFeed.Deaths = S.Clip.Deaths;
-        _killFeed.Enable(S.Clip.Kills && _authed && S.Clip.Name.Length >= 3);
+        _killMark.Words = string.IsNullOrWhiteSpace(S.Clip.Words) ? KillText.DefaultWords : S.Clip.Words;
+        bool feed = S.Clip.Detect == "feed";
+        _killFeed.Enable(S.Clip.Kills && feed && _authed && S.Clip.Name.Length >= 3);
+        _killMark.Enable(S.Clip.Kills && !feed && _authed);
+        // firefights are watched for "after fights" clips and for the safety net
+        _autoClip.Sens = S.Clip.Sens;
+        _autoClip.Enable(_authed && (S.Clip.Auto || NetOn || AiOn));
+        _eye.Enable(_authed && AiOn);
     }
 
-    private async Task SaveClip(string? auto = null)
+    /// <summary>A kill (or death) was noticed: several in a row end up in one clip, saved once nothing new happened for a moment.</summary>
+    private async void OnKill(bool kill, string? how = null)
     {
+        if (!_authed || !S.Clip.Kills) return;
+        if (kill) { _kfKills++; _statKills++; } else _kfDeaths++;
+        if (kill) _kfTimes.Add(DateTime.Now.AddSeconds(-0.35));   // the message appears a moment after the kill itself
+        _lastKillAt = DateTime.Now;
+        ClipLog.Add(kill ? (how != null ? $"Kill erkannt ({how})" : "Kill im Kill-Feed erkannt") : "Tod im Kill-Feed erkannt");
+        // noticed at the crosshair: the detection works here, so the safety net can keep quiet for a while
+        if (kill && how != null)
+        {
+            bool save = S.Clip.ProvenAt is not DateTime p || (DateTime.Now - p).TotalSeconds > 60;
+            S.Clip.ProvenAt = DateTime.Now;
+            if (save) S.Save();
+        }
+        Emit("kill", new { kill });
+        if (kill)
+        {
+            // kills are counted per round: a new game process starts at one again
+            var pid = GameFocus.Pid;
+            if (pid != _roundPid) { _roundPid = pid; _roundKills = 0; }
+            _roundKills++;
+            if (S.Clip.Banner)
+            {
+                try { _banner.SetImage(KillBanner.Png(_roundKills, _kfKills, _accentHex), 0, 40); _bannerUntil = DateTime.Now.AddSeconds(1.8); LiveTick(); }
+                catch { }
+            }
+        }
+        bool own = S.Clip.Recorder == "orbit";
+        _kfSaveAt = DateTime.Now.AddSeconds(own ? Math.Max(2, S.Clip.After) : 3);
+        if (_kfPending) return;
+        _kfPending = true; _kfFirst = DateTime.Now;
+        while (DateTime.Now < _kfSaveAt && DateTime.Now - _kfFirst < TimeSpan.FromSeconds(50)) await Task.Delay(250);
+        var what = _kfKills > 1 ? $"{_kfKills} Kills" : _kfKills == 1 ? "Kill" : "Tod";
+        var since = (DateTime.Now - _kfFirst).TotalSeconds;
+        _kfKills = 0; _kfDeaths = 0; _kfPending = false;
+        // built-in recorder: from "Before" seconds ahead of the first kill up to now (the seconds after are already over)
+        var killTimes = _kfTimes.ToList(); _kfTimes.Clear();
+        await SaveClip($"Auto-Clip: {what} erkannt", what, S.Clip.Before + since, 0, killTimes);
+    }
+
+    /// <summary>
+    /// The game was closed. If wanted, the kill clips saved since it was started are joined into a highlight video
+    /// (in the helper process, with low priority).
+    /// </summary>
+    private async void RoundEnded()
+    {
+        var clips = _roundClips.Where(File.Exists).Select(f => new FileInfo(f)).ToList();
+        _roundClips.Clear();
+        if (!_authed || !S.Clip.AutoHighlight || clips.Count < 2 || _hlBusy) return;
+        _hlBusy = true;
+        try
+        {
+            ClipLog.Add($"Runde beendet: Highlight-Video aus {clips.Count} Kill-Clips wird erstellt");
+            var (file, err, n) = await Highlight.Make(clips, S.Clip.HighlightTail, (pct, text) => Emit("highlight", new { pct, text }));
+            if (file != null)
+            {
+                ClipLog.Add($"Highlight-Video aus {n} Kill-Clips: {Path.GetFileName(file)}");
+                Log($"🎬 Highlight-Video der Runde aus {n} Clips → {Path.GetFileName(file)}");
+            }
+            else ClipLog.Add($"Highlight-Video nicht erstellt: {err}");
+            Emit("highlightDone", new { file = file != null ? Path.GetFileName(file) : null, error = err, clips = n });
+        }
+        catch (Exception ex) { ClipLog.Add("Highlight-Video nicht erstellt: " + ex.Message); }
+        finally { _hlBusy = false; }
+    }
+
+    /// <summary>
+    /// Saves a clip. Built-in recorder: "before" seconds back from now plus "after" seconds (0 = the usual clip length).
+    /// Other recorders: their save shortcut is pressed. Returns an error text or null.
+    /// </summary>
+    private async Task<string?> SaveClip(string? auto = null, string kind = "Clip", double before = 0, double after = 0, List<DateTime>? kills = null)
+    {
+        if (S.Clip.Recorder == "orbit")
+        {
+            // "active" also covers the moment right after the recording ended by itself (game closed or minimized):
+            // the last seconds are still there until the recording is cleared away
+            if (!_recActive && !_rec.Running)
+            {
+                var why = _recError ?? (GameFocus.Window == IntPtr.Zero ? "FiveM läuft nicht oder war noch nicht im Vordergrund" : "Die Aufnahme startet gerade, gleich nochmal versuchen");
+                Log("🎬 Kein Clip: " + why);
+                Emit("clip", new { recorder = "orbit", auto, error = why });
+                return why;
+            }
+            if (before <= 0) before = S.Clip.Before + S.Clip.After;
+            if (S.Clip.Flash) { _flashUntil = DateTime.Now.AddSeconds(1.8); LiveTick(); }
+            string? file;
+            _saving++;
+            var cutAt = DateTime.Now.AddSeconds(after);   // where the clip ends
+            try { file = await _rec.Save(Math.Min(before, 90), after, Clipper.OwnDir, $"{kind} {DateTime.Now:yyyy-MM-dd HH-mm-ss}"); }
+            finally { _saving--; }
+            if (file == null)
+            {
+                var why = _rec.Error ?? "unbekannter Fehler";
+                Log("🎬 Clip fehlgeschlagen: " + why);
+                ClipLog.Add($"Clip „{kind}“ fehlgeschlagen: {why}");
+                Emit("clip", new { recorder = "orbit", auto, error = why });
+                return why;
+            }
+            ClipLog.Add($"Clip gespeichert: {Path.GetFileName(file)} ({before:0} s davor, {after:0} s danach)");
+            if (kind == "Kill" || kind.EndsWith(" Kills")) _roundClips.Add(file);   // for the highlight video of this round
+            if (kills is { Count: > 0 }) ClipMarks.Add(file, kills.Select(k => (cutAt - k).TotalSeconds));   // where the kills sit, for the slow motion of a montage
+            Log($"🎬 {auto ?? "Clip gespeichert"} → {Path.GetFileName(file)}");
+            Emit("clip", new { recorder = "orbit", auto, file = Path.GetFileName(file) });
+            return null;
+        }
         await Clipper.Save(S.Clip.Recorder);
         Log(auto != null ? $"🎬 {auto}" : $"🎬 Clip gespeichert ({Clipper.Recorders[S.Clip.Recorder].label})");
         Emit("clip", new { recorder = S.Clip.Recorder, auto });
         if (S.Clip.Flash) _flashUntil = DateTime.Now.AddSeconds(1.8);
         LiveTick();
+        return null;
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wp, IntPtr lp, ref bool handled)
@@ -946,6 +1547,20 @@ public partial class MainWindow : Window
         {
             S.Display.On = !S.Display.On; S.Save(); SyncDisplay(GameFocus.IsGame(), true);
             Emit("display", new { on = S.Display.On, active = _dispActive });
+            handled = true;
+        }
+        else if (id == HK_LAG)
+        {
+            // WASD "Laggen" on or off from inside the game, with a short note at the top of the picture
+            if (_authed)
+            {
+                S.Lag.On = !S.Lag.On; S.Save(); SnapApply();
+                var png = S.Lag.On ? _lagPngOn : _lagPngOff;
+                if (png != null) { try { _lagFlash.SetImage(png, 0, 104); _lagFlashUntil = DateTime.Now.AddSeconds(1.4); } catch { } }
+                LiveTick();
+                Log(S.Lag.On ? "⌨ WASD-Laggen an (Taste)" : "⌨ WASD-Laggen aus (Taste)");
+                Emit("lag", new { on = S.Lag.On });
+            }
             handled = true;
         }
         return IntPtr.Zero;
@@ -1080,6 +1695,14 @@ public partial class MainWindow : Window
                                 game.PriorityClass = ProcessPriorityClass.High;
                                 Log("⚡ Auto-Priorität: GTA-Prozess auf HOCH");
                             }
+                            // heavy programs next to the game go behind it; ones started later are caught on the next look
+                            if (_authed && S.BgThrottle)
+                            {
+                                bool first = !BgThrottle.Active;
+                                if (first) BgThrottle.FullSpeed(game.Id);
+                                int slowed = BgThrottle.Apply();
+                                if (slowed > 0 && first) Log($"⚡ Hintergrund ausgebremst: {slowed} Prozesse hinter das Spiel gestellt");
+                            }
                             game.Refresh();
                             prio = game.PriorityClass switch
                             {
@@ -1097,6 +1720,12 @@ public partial class MainWindow : Window
                             var f = Native.CleanMemory(S.PurgeStandby);
                             Log($"♻ Auto-RAM-Clean: {SysInfo.Bytes(f)}");
                         }
+                    }
+                    // the game is gone (or the tweak was switched off): every program gets back what it had
+                    if (BgThrottle.Active && (game == null || !S.BgThrottle))
+                    {
+                        int back = BgThrottle.Restore();
+                        if (back > 0) Log($"⚡ Hintergrund wieder normal: {back} Prozesse zurückgestellt");
                     }
                     if (_authed && game != null && S.AutoBorderless)
                     {

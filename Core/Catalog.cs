@@ -31,6 +31,7 @@ internal static class Catalog
     {
         ("*InterruptModeration", "0"), ("*EEE", "0"), ("EnableGreenEthernet", "0"), ("PowerSavingMode", "0"),
         ("GigaLite", "0"), ("AdvancedEEE", "0"), ("EEELinkAdvertisement", "0"), ("*SelectiveSuspend", "0"), ("ULPMode", "0"),
+        ("*FlowControl", "0"), ("*LsoV2IPv4", "0"), ("*LsoV2IPv6", "0"), ("*RscIPv4", "0"), ("*RscIPv6", "0"),
     };
 
     private static IEnumerable<string> Nics()
@@ -107,6 +108,14 @@ internal static class Catalog
             Check = () => s.AutoPriority,
             Apply = () => { s.AutoPriority = true; s.Save(); },
             Revert = () => { s.AutoPriority = false; s.Save(); }
+        },
+        new Tweak
+        {
+            Id = "bgbrake", Cat = "fivem", Icon = "cpu", Badge = "LIVE", Name = "Hintergrund ausbremsen im Spiel",
+            Desc = "Solange FiveM läuft, bekommen Browser, Spotify, Launcher und Co. niedrige Priorität und den Effizienzmodus von Windows; Discord bleibt für die Sprache schnell, steht aber hinter dem Spiel an. Nichts wird geschlossen, nach dem Spiel ist alles wie vorher.",
+            Check = () => s.BgThrottle,
+            Apply = () => { s.BgThrottle = true; s.Save(); },
+            Revert = () => { s.BgThrottle = false; s.Save(); BgThrottle.Restore(); }
         },
         new Tweak
         {
@@ -305,6 +314,42 @@ internal static class Catalog
             Revert = () => { Proc.Run("sc", "config SysMain start= auto"); Proc.Run("sc", "start SysMain"); }
         },
 
+        new Tweak
+        {
+            Id = "gtimer", Cat = "fivem", Icon = "activity", Badge = "NEUSTART", Name = "Timer-Auflösung auch für das Spiel",
+            Desc = "Seit Windows 10 (2004) gilt eine feinere Timer-Auflösung nur für das Programm, das sie anfordert. Damit die 0,5 ms von OrbitTweak auch bei FiveM ankommen, stellt dieser Schalter das alte, systemweite Verhalten wieder her (Windows 11).",
+            Check = () => Reg.Is(@"HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\kernel", "GlobalTimerResolutionRequests", 1),
+            Apply = () => Reg.Set(@"HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\kernel", "GlobalTimerResolutionRequests", 1),
+            Revert = () => Reg.Del(@"HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\kernel", "GlobalTimerResolutionRequests")
+        },
+        new Tweak
+        {
+            Id = "aspm", Cat = "system", Icon = "zap", Name = "PCIe-Energiesparen aus",
+            Desc = "Grafikkarte, SSD und Netzwerkkarte gehen an ihrer Steckverbindung nicht mehr in den Sparzustand (Link State Power Management): kein kurzes Aufwachen mehr mitten im Gefecht.",
+            Check = () => Reg.Is(OWN, "AspmOff", 1),
+            Apply = () =>
+            {
+                Proc.Run("powercfg", "/setacvalueindex scheme_current 501a4d13-42af-4429-9fd1-a8218c268e20 ee12f906-d277-404b-b6da-e5fa1a576df5 0");
+                Proc.Run("powercfg", "/setdcvalueindex scheme_current 501a4d13-42af-4429-9fd1-a8218c268e20 ee12f906-d277-404b-b6da-e5fa1a576df5 0");
+                Proc.Run("powercfg", "/setactive scheme_current");
+                Reg.Set(OWN, "AspmOff", 1);
+            },
+            Revert = () =>
+            {
+                Proc.Run("powercfg", "/setacvalueindex scheme_current 501a4d13-42af-4429-9fd1-a8218c268e20 ee12f906-d277-404b-b6da-e5fa1a576df5 1");
+                Proc.Run("powercfg", "/setdcvalueindex scheme_current 501a4d13-42af-4429-9fd1-a8218c268e20 ee12f906-d277-404b-b6da-e5fa1a576df5 2");
+                Proc.Run("powercfg", "/setactive scheme_current");
+                Reg.Set(OWN, "AspmOff", 0);
+            }
+        },
+        new Tweak
+        {
+            Id = "memcomp", Cat = "system", Icon = "ram", Recommended = false, Badge = "NEUSTART", Name = "Speicher-Komprimierung aus",
+            Desc = "Windows packt selten genutzten Arbeitsspeicher zusammen und braucht dafür CPU-Zeit. Mit 16 GB oder mehr bringt das Abschalten ruhigere Frametimes; mit weniger RAM lieber an lassen.",
+            Check = () => Reg.Is(OWN, "MemCompOff", 1),
+            Apply = () => { Proc.Run("powershell", "-NoProfile -NonInteractive -Command \"Disable-MMAgent -MemoryCompression\"", 60_000); Reg.Set(OWN, "MemCompOff", 1); },
+            Revert = () => { Proc.Run("powershell", "-NoProfile -NonInteractive -Command \"Enable-MMAgent -MemoryCompression\"", 60_000); Reg.Set(OWN, "MemCompOff", 0); }
+        },
         // ============================== NETWORK ==============================
         new Tweak
         {
@@ -360,7 +405,7 @@ internal static class Catalog
         new Tweak
         {
             Id = "nic", Cat = "network", Icon = "wifi", Badge = "NEUSTART", Name = "Netzwerkkarte auf Latenz (Hitreg)",
-            Desc = "Interrupt-Moderation und Energiespar-Funktionen (EEE, Green Ethernet) der Netzwerkkarte aus: Pakete gehen ohne Verzögerung raus und rein.",
+            Desc = "Interrupt-Moderation, Energiesparen (EEE, Green Ethernet), Flusskontrolle und das Bündeln von Paketen (LSO, RSC) der Netzwerkkarte aus: Pakete gehen einzeln und ohne Verzögerung raus und rein.",
             Check = () => Reg.Is(OWN, "NicTuned", 1),
             Apply = () =>
             {
@@ -393,6 +438,14 @@ internal static class Catalog
         },
         new Tweak
         {
+            Id = "delopt", Cat = "network", Icon = "download", Name = "Update-Verteilung aus",
+            Desc = "Windows lädt Updates sonst auch an fremde PCs hoch (Übermittlungsoptimierung). Aus heißt: kein Upload im Hintergrund, der dir beim Spielen den Ping hochzieht.",
+            Check = () => Reg.Is(@"HKLM\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization", "DODownloadMode", 0),
+            Apply = () => Reg.Set(@"HKLM\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization", "DODownloadMode", 0),
+            Revert = () => Reg.Del(@"HKLM\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization", "DODownloadMode")
+        },
+        new Tweak
+        {
             Id = "netprio", Cat = "network", Icon = "globe", Name = "Namensauflösung priorisieren",
             Desc = "Lokale Auflösung, Hosts und DNS werden vor NetBIOS abgefragt: schnelleres Verbinden zu Servern.",
             Check = () => Reg.Is(@"HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\ServiceProvider", "DnsPriority", 6),
@@ -421,10 +474,13 @@ internal static class Catalog
         {
             Id = "queue", Cat = "input", Icon = "mouse", Badge = "NEUSTART", Name = "Input-Puffer optimieren",
             Desc = "Kleinere Maus- & Tastatur-Datenwarteschlange (100 → 50): Eingaben werden direkter verarbeitet.",
-            Check = () => Reg.Is(@"HKLM\SYSTEM\CurrentControlSet\Services\kbdclass\Parameters", "KeyboardDataQueueSize", 50),
+            // a smaller keyboard buffer chosen with the WASD tweak in the Input-Lab (30, 25, 20, 16) counts as applied and is left alone
+            Check = () => Reg.Get(@"HKLM\SYSTEM\CurrentControlSet\Services\kbdclass\Parameters", "KeyboardDataQueueSize") is int k && k is > 0 and <= 50
+                          && Reg.Is(@"HKLM\SYSTEM\CurrentControlSet\Services\mouclass\Parameters", "MouseDataQueueSize", 50),
             Apply = () =>
             {
-                Reg.Set(@"HKLM\SYSTEM\CurrentControlSet\Services\kbdclass\Parameters", "KeyboardDataQueueSize", 50);
+                if (!(Reg.Get(@"HKLM\SYSTEM\CurrentControlSet\Services\kbdclass\Parameters", "KeyboardDataQueueSize") is int k && k is > 0 and < 50))
+                    Reg.Set(@"HKLM\SYSTEM\CurrentControlSet\Services\kbdclass\Parameters", "KeyboardDataQueueSize", 50);
                 Reg.Set(@"HKLM\SYSTEM\CurrentControlSet\Services\mouclass\Parameters", "MouseDataQueueSize", 50);
             },
             Revert = () =>
@@ -470,13 +526,14 @@ internal static class Catalog
             {
                 Reg.SetStr(@"HKCU\Control Panel\Accessibility\StickyKeys", "Flags", "506");
                 Reg.SetStr(@"HKCU\Control Panel\Accessibility\ToggleKeys", "Flags", "58");
-                Reg.SetStr(@"HKCU\Control Panel\Accessibility\Keyboard Response", "Flags", "122");
+                // only the shortcut of the keyboard filter goes off; a running WASD "Laggen" (the filter itself) stays on
+                Reg.SetStr(@"HKCU\Control Panel\Accessibility\Keyboard Response", "Flags", WasdTweak.ResponseFlags(false));
             },
             Revert = () =>
             {
                 Reg.SetStr(@"HKCU\Control Panel\Accessibility\StickyKeys", "Flags", "510");
                 Reg.SetStr(@"HKCU\Control Panel\Accessibility\ToggleKeys", "Flags", "62");
-                Reg.SetStr(@"HKCU\Control Panel\Accessibility\Keyboard Response", "Flags", "126");
+                Reg.SetStr(@"HKCU\Control Panel\Accessibility\Keyboard Response", "Flags", WasdTweak.ResponseFlags(true));
             }
         },
         new Tweak

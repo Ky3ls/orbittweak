@@ -24,10 +24,12 @@ internal sealed class ModBrowser : Window
         ("gta5mods", "GTA5-Mods", "https://www.gta5-mods.com/"),
         ("cfx", "Cfx.re Forum", "https://forum.cfx.re/search?q=client%20mod%20rpf"),
         ("github", "GitHub", "https://github.com/search?q=fivem+rpf&type=repositories"),
+        // sound and skin packs are mostly handed out in Discord servers: the user signs in here himself, like in any browser
+        ("discord", "Discord", "https://discord.com/channels/@me"),
     };
     public static readonly (string id, string name)[] Cats =
     {
-        ("minimap", "Minimap"), ("kill", "Kill-Effekte"), ("gfx", "Grafik-Packs"), ("sound", "Sounds"), ("other", "Sonstiges"),
+        ("minimap", "Minimap"), ("kill", "Kill-Effekte"), ("gfx", "Grafik-Packs"), ("sound", "Sounds"), ("skin", "Waffen-Skins"), ("other", "Sonstiges"),
     };
 
     private static readonly SolidColorBrush Bg = new(Color.FromRgb(0x13, 0x13, 0x15)), Fg = new(Color.FromRgb(0xF4, 0xF4, 0xF5)),
