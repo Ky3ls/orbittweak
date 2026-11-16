@@ -675,9 +675,11 @@ async function gfxRestore() { const r = await api('gfx.restore'); if (r.error) r
 const W = { up: {}, down: {}, held: new Set(), reps: [], last: 0, ov: 0 };
 const OPP = { KeyA: 'KeyD', KeyD: 'KeyA', KeyW: 'KeyS', KeyS: 'KeyW' };
 const snapOn = () => !!$('#snapTg')?.classList.contains('on');
+/** A tester value: the number large, the unit small behind it. */
+const wsVal = (id, n, unit) => { $(id).innerHTML = unit ? `${n}<small>${unit}</small>` : n; };
 function resetWasd() {
   Object.assign(W, { up: {}, down: {}, held: new Set(), reps: [], last: 0, ov: 0 });
-  ['#wsSwitch', '#wsStill', '#wsRepeat'].forEach(i => $(i).textContent = '--');
+  ['#wsSwitch', '#wsStill', '#wsRepeat'].forEach(i => $(i).textContent = '–');
   $$('.key').forEach(k => k.classList.remove('dn', 'muted')); wsGame();
 }
 function wsGame() {
@@ -699,19 +701,19 @@ addEventListener('keydown', e => {
   const k = e.code, el = $(`.key[data-k="${k}"]`);
   if (el) e.preventDefault();
   if (e.repeat) {
-    if (W.last) { W.reps.push(e.timeStamp - W.last); if (W.reps.length > 20) W.reps.shift(); $('#wsRepeat').textContent = Math.round(1000 / (W.reps.reduce((a, b) => a + b, 0) / W.reps.length)) + '/s'; }
+    if (W.last) { W.reps.push(e.timeStamp - W.last); if (W.reps.length > 20) W.reps.shift(); wsVal('#wsRepeat', Math.round(1000 / (W.reps.reduce((a, b) => a + b, 0) / W.reps.length)), '/s'); }
     W.last = e.timeStamp; return;
   }
   W.last = e.timeStamp; W.held.add(k); W.down[k] = e.timeStamp;
   if (el) el.classList.add('dn');
   const o = OPP[k];
-  if (o && W.held.has(o)) { W.ov = e.timeStamp; $('#wsSwitch').textContent = 'überlappt'; }
-  else if (o && W.up[o] && e.timeStamp - W.up[o] < 300) { $('#wsSwitch').textContent = Math.round(e.timeStamp - W.up[o]) + ' ms'; $('#wsStill').textContent = '0 ms'; }
+  if (o && W.held.has(o)) { W.ov = e.timeStamp; wsVal('#wsSwitch', 'überlappt'); }
+  else if (o && W.up[o] && e.timeStamp - W.up[o] < 300) { wsVal('#wsSwitch', Math.round(e.timeStamp - W.up[o]), 'ms'); wsVal('#wsStill', 0, 'ms'); }
   wsGame();
 });
 addEventListener('keyup', e => {
   const k = e.code, o = OPP[k];
-  if (o && W.held.has(o) && W.ov) { $('#wsStill').textContent = Math.round(e.timeStamp - W.ov) + ' ms'; W.ov = 0; }
+  if (o && W.held.has(o) && W.ov) { wsVal('#wsStill', Math.round(e.timeStamp - W.ov), 'ms'); W.ov = 0; }
   W.held.delete(k); W.up[k] = e.timeStamp; W.reps = []; W.last = 0; $(`.key[data-k="${k}"]`)?.classList.remove('dn'); wsGame();
 });
 document.addEventListener('click', e => { if (e.target.closest('#chopMore')) $('#chopCard').classList.toggle('open'); });
@@ -723,13 +725,14 @@ function initLab() {
     P.max = Math.max(P.max, hz);
     $('#pollHz').innerHTML = `${hz}<small>Hz</small>`;
     $('#pollTxt').textContent = `Spitze ${P.max} Hz · ` + (P.max >= 900 ? '1000-Hz-Maus' : P.max >= 450 ? '500-Hz-Maus' : 'Polling-Rate im Maus-Tool erhöhen');
+    $('#pollMark')?.style.setProperty('--x', Math.min(1, P.max / 1000).toFixed(3)); pad.classList.add('meas');
   }, 250);
   $('#labTabs').onclick = e => { const b = e.target.closest('button'); if (!b) return; $$('#labTabs button').forEach(x => x.classList.toggle('on', x === b)); pad.classList.toggle('hidden', b.dataset.t !== 'poll'); $('#reactPad').classList.toggle('hidden', b.dataset.t !== 'react'); $('#padPad').classList.toggle('hidden', b.dataset.t !== 'pad'); if (b.dataset.t === 'pad') gpStart(); };
   const R = { st: 'idle', t: 0, to: 0, res: [] }, rp = $('#reactPad');
   rp.addEventListener('pointerdown', () => {
     if (R.st === 'idle' || R.st === 'done') {
       R.st = 'wait'; rp.className = 'react wait'; $('#reactMs').textContent = 'Warten…'; $('#reactTxt').textContent = 'Erst klicken, wenn es grün wird';
-      R.to = setTimeout(() => { R.st = 'go'; R.t = performance.now(); rp.className = 'react go'; $('#reactMs').textContent = 'JETZT!'; }, 1200 + Math.random() * 2600);
+      R.to = setTimeout(() => { R.st = 'go'; R.t = performance.now(); rp.className = 'react go'; $('#reactMs').textContent = 'Jetzt!'; }, 1200 + Math.random() * 2600);
     } else if (R.st === 'wait') { clearTimeout(R.to); R.st = 'done'; rp.className = 'react'; $('#reactMs').textContent = 'Zu früh!'; $('#reactTxt').textContent = 'Nochmal klicken'; }
     else if (R.st === 'go') {
       const ms = performance.now() - R.t; R.res.push(ms); if (R.res.length > 5) R.res.shift(); R.st = 'done'; rp.className = 'react';
@@ -1563,10 +1566,18 @@ async function clipPush() {
 function clipUI() {
   if (!CL_RECS[CL.recorder]) CL.recorder = 'orbit';
   const own = CL.recorder === 'orbit';
-  $('#clRecs').innerHTML = Object.entries(CL_RECS).map(([k, [n, combo]]) => `<button class="cl-rec ${CL.recorder === k ? 'on' : ''}" data-rec="${k}"><b>${n}</b><span>${combo}</span></button>`).join('');
+  // each recorder: its name, and the keys that save a clip with it as small key caps
+  const caps = c => /\+/.test(c) ? c.split('+').map(k => `<kbd>${esc(k)}</kbd>`).join('') : `<em>${esc(c)}</em>`;
+  $('#clRecs').innerHTML = Object.entries(CL_RECS).map(([k, [n, combo]]) => `<button class="cl-rec ${CL.recorder === k ? 'on' : ''}" data-rec="${k}"><b>${n}${ico('check', 'i cr-ck')}</b><span class="cr-k">${caps(combo)}</span></button>`).join('');
   $('#clRecTxt').innerHTML = esc(CL_RECS[CL.recorder][2]) + (CL.recorder === 'gamebar' ? `<br><button class="btn sm mt8" onclick="clipGameBar()">${ico('zap')}Hintergrundaufnahme einschalten</button>` : '');
   $('#clOrbit').classList.toggle('hidden', !own); $('#clOrbitNote').classList.toggle('hidden', !own); $('#clExtNote').classList.toggle('hidden', own);
-  $('#clQual').innerHTML = CL_QUAL.map(([v, n, d]) => `<button class="${CL.quality === v ? 'on' : ''}" data-clq="${v}" title="${d}">${n} · ${d}</button>`).join('');
+  $('#clQual').innerHTML = CL_QUAL.map(([v, n, d]) => `<button class="${CL.quality === v ? 'on' : ''}" data-clq="${v}"><b>${n}</b><span>${d}</span></button>`).join('');
+  // the clip as a strip: seconds before the kill, the kill, seconds after
+  const tl = $('#clTl'), len = CL.before + CL.after;
+  if (tl) { tl.style.setProperty('--k', (CL.before / Math.max(1, len)).toFixed(3)); tl.style.setProperty('--n', Math.max(1, len)); }
+  if (tl) tl.innerHTML = `<div class="clt-h"><span>Länge pro Clip</span><b>${len}<small>s</small></b></div>
+    <div class="clt-bar"><i class="clt-b"></i><i class="clt-k"></i><i class="clt-a"></i></div>
+    <div class="clt-l"><span>${CL.before} s davor</span><span class="clt-km">Kill</span><span>${CL.after ? CL.after + ' s danach' : 'endet beim Kill'}</span></div>`;
   $('#clBefore').innerHTML = [10, 15, 20, 30, 45].map(v => `<button class="${CL.before === v ? 'on' : ''}" data-clb="${v}">${v} s</button>`).join('');
   $('#clAfter').innerHTML = [0, 3, 5, 8, 10].map(v => `<button class="${CL.after === v ? 'on' : ''}" data-cla="${v}">${v} s</button>`).join('');
   $('#clSound').classList.toggle('on', CL.sound);
@@ -1727,7 +1738,7 @@ function clipRender() {
     return `<div class="clipc" data-clip="${i}"><div class="v"><img alt="" data-cth="${i}"><div class="noprev">${ico('film')}</div><div class="playi">${ico('play')}</div>${bd}<span class="cl-dur${d ? '' : ' hidden'}">${d ? clFmt(d) : ''}</span></div>`
       + `<div class="m"><div class="m-t"><b>${p ? clWhen(c.date) : esc(c.name)}</b><span>${p ? (p.rest ? esc(p.rest.replace(/[()]/g, '')) + ' · ' : '') + bytes(c.size) : clWhen(c.date) + ' · ' + bytes(c.size)}</span></div>${acts}</div></div>`;
   }).join('') : clips.length ? `<div class="cl-empty sm"><p>${CL_NONE[clFilter] || 'Hier gibt es noch keine Clips.'}</p></div>`
-    : `<div class="cl-empty"><div class="cl-ei">${ico('film')}</div><b>${clLoaded ? 'Noch keine Clips' : 'Clips werden geladen…'}</b>`
+    : `<div class="cl-empty"><div class="cl-ghost" aria-hidden="true"><i></i><i>${ico('play')}</i><i></i></div><b>${clLoaded ? 'Noch keine Clips' : 'Clips werden geladen…'}</b>`
       + (clLoaded ? `<p>${CL.kills ? 'Der Kill-Clipper ist an, dein nächster Kill landet hier.' : 'Schalt den Kill-Clipper an, dann wird jeder Kill von selbst gespeichert.'}${!CL.key || kn === 'Aus' ? '' : ` Oder drück im Spiel <b>${esc(kn)}</b>.`}</p>${CL.kills ? '' : `<button class="btn p" data-clkon>${ico('crosshair')}Kill-Clipper anschalten</button>`}` : '') + '</div>';
   $$('#clGrid img[data-cth]').forEach(img => thumb('clip.thumb', { rel: clips[+img.dataset.cth].rel }, img));
   clDurNext();
@@ -1838,9 +1849,14 @@ document.addEventListener('click', e => {
   if (e.target.closest('#clMkTest')) { mkTest(); return; }
   const c = e.target.closest('[data-clip]'); if (c) {
     const cl = clips[+c.dataset.clip], src = 'https://clips.orbit/' + cl.rel.split('/').map(encodeURIComponent).join('/');
-    modal(`<div class="kicker">Clip</div><h1 style="margin-top:8px;font-size:20px">${esc(cl.name)}</h1><div class="player mt">${cl.ext === '.mkv' ? '<p>MKV kann hier nicht abgespielt werden.</p>' : `<video src="${src}" controls autoplay></video>`}</div>
-      <div class="act"><button class="btn" onclick="closeModal()">Schließen</button><button class="btn" onclick="clipOpen('${esc(cl.rel)}')">${ico('folder')}Im Ordner zeigen</button>${cl.ext === '.mp4' ? `<button class="btn" onclick="clipShareRel('${esc(cl.rel)}')">${ico('copy')}Für Discord kopieren</button>` + `<button class="btn p" onclick="cutOpen('${esc(cl.rel)}')">${ico('film')}Schneiden</button>` : ''}<button class="btn d" onclick="clipDel('${esc(cl.rel)}')">${ico('trash')}Löschen</button></div>`);
-    $('#mbox').style.width = '760px';
+    // title: what the clip is and when; the preview picture stands in until the video has loaded
+    const p = clParse(cl), k = clKind(cl), d = cl.dur || clDur.get(clDurKey(cl)) || 0, poster = c.querySelector('img[data-cth]')?.getAttribute('src') || '';
+    const name = p ? p.kind + (p.rest ? ' ' + p.rest.replace(/[()]/g, '') : '') : cl.name;
+    const sub = [clWhen(cl.date), d ? clFmt(d) : '', bytes(cl.size), p ? '' : esc(cl.folder || '')].filter(Boolean).join(' · ');
+    modal(`<div class="cpl"><div class="cpl-h"><span class="cpl-ic">${ico(k === 'kill' ? 'crosshair' : k === 'fight' ? 'target' : k === 'hl' ? 'sparkle' : 'film')}</span><div class="cpl-t"><b>${esc(name)}</b><span>${sub}</span></div><button class="ib cpl-x" onclick="closeModal()" title="Schließen (Esc)">${ico('x')}</button></div>
+      <div class="player">${cl.ext === '.mkv' ? `<div class="cpl-none"${poster ? ` style="background-image:linear-gradient(rgba(8,10,16,.8),rgba(8,10,16,.88)),url('${esc(poster)}')"` : ''}>${ico('videooff')}<b>MKV kann hier nicht abgespielt werden</b><span>Zeig den Clip im Ordner und öffne ihn mit deinem Player.</span></div>` : `<video src="${src}"${poster ? ` poster="${esc(poster)}"` : ''} controls autoplay></video>`}</div>
+      <div class="act"><button class="btn${cl.ext === '.mkv' ? ' p' : ''}" onclick="clipOpen('${esc(cl.rel)}')">${ico('folder')}Im Ordner zeigen</button>${cl.ext === '.mp4' ? `<button class="btn" onclick="clipShareRel('${esc(cl.rel)}')">${ico('copy')}Für Discord kopieren</button>` : ''}<span class="sp"></span><button class="btn gh d" onclick="clipDel('${esc(cl.rel)}')">${ico('trash')}Löschen</button>${cl.ext === '.mp4' ? `<button class="btn p" onclick="cutOpen('${esc(cl.rel)}')">${ico('film')}Schneiden</button>` : ''}</div></div>`);
+    $('#mbox').style.width = '880px';
   }
 });
 async function clipDel(rel) {
@@ -2024,6 +2040,7 @@ function gpStart() {
   cancelAnimationFrame(gpRaf);
   $('#gpBtns').innerHTML = GP_NAMES.map((n, i) => `<i data-gb="${i}">${n}</i>`).join('');
   $('#gpLT').style.transition = $('#gpRT').style.transition = 'none';
+  $('#gpLT').style.transform = $('#gpRT').style.transform = 'scaleX(0)';
   const loop = () => {
     if (curPage !== 'input' || $('#padPad').classList.contains('hidden')) return;
     const gp = [...(navigator.getGamepads ? navigator.getGamepads() : [])].find(Boolean);
@@ -2031,7 +2048,7 @@ function gpStart() {
     if (gp) {
       const ax = gp.axes, mv = (el, x, y) => el.style.transform = `translate(${(x || 0) * 40}px,${(y || 0) * 40}px)`;
       mv($('#gpL'), ax[0], ax[1]); mv($('#gpR'), ax[2], ax[3]);
-      $('#gpLT').style.width = (gp.buttons[6]?.value || 0) * 100 + '%'; $('#gpRT').style.width = (gp.buttons[7]?.value || 0) * 100 + '%';
+      $('#gpLT').style.transform = `scaleX(${gp.buttons[6]?.value || 0})`; $('#gpRT').style.transform = `scaleX(${gp.buttons[7]?.value || 0})`;
       $$('#gpBtns i').forEach(i => i.classList.toggle('on', !!gp.buttons[+i.dataset.gb]?.pressed));
       const l = Math.hypot(ax[0] || 0, ax[1] || 0), r = Math.hypot(ax[2] || 0, ax[3] || 0), idle = l < .3 && r < .3;
       $('#gpDrift').textContent = `${gp.id.split('(')[0].trim().slice(0, 28)} · Drift L ${l.toFixed(2)} · R ${r.toFixed(2)}${idle ? (Math.max(l, r) > .08 ? ' · Drift erkannt!' : ' · OK') : ''}`;
@@ -2274,6 +2291,7 @@ setInterval(() => { if (curPage === 'home' || curPage === 'servers') curServer()
 /* ======================= CONTROLLER DISPLAY ======================= */
 const PAD = { cfg: { mode: 'auto', layout: 'auto', body: 'black', color: 'theme', corner: 'br', size: 75, opacity: 90, key: 0, accent: '#FF7A3D' }, r: null, state: null, active: false };
 const PAD_COLORS = ['#FF3B4E', '#FF7A18', '#F5C451', '#3DDC6B', '#3D8BFF', '#8B5CF6', '#F472B6', '#FFFFFF', '#18181B'];
+const PAD_CNAME = { '#FF3B4E': 'Rot', '#FF7A18': 'Orange', '#F5C451': 'Gelb', '#3DDC6B': 'Grün', '#3D8BFF': 'Blau', '#8B5CF6': 'Lila', '#F472B6': 'Pink', '#FFFFFF': 'Weiß', '#18181B': 'Schwarz' };
 const accHex = () => getComputedStyle(document.documentElement).getPropertyValue('--a').trim();
 const padAcc = () => PAD.cfg.color.startsWith('#') ? PAD.cfg.color : accHex();
 function padDraw() { if (PAD.r) PAD.r.draw(PAD.state, { ...PAD.cfg, accent: padAcc() }); }
@@ -2281,8 +2299,13 @@ function padUI() {
   const c = PAD.cfg;
   [['#padMode', c.mode], ['#padLayout', c.layout], ['#padBody', c.body], ['#padOpacity', String(c.opacity)]].forEach(([s, v]) => $$(s + ' button').forEach(b => b.classList.toggle('on', b.dataset.v === v)));
   $$('#padCorner button').forEach(b => b.classList.toggle('on', b.dataset.v === c.corner));
-  $('#padColors').innerHTML = `<button class="btn sm ${!c.color.startsWith('#') ? 'p' : ''}" data-pc="theme">Theme</button>` +
-    PAD_COLORS.map(x => `<button class="xcol ${c.color.toUpperCase() === x ? 'on' : ''}" data-pc="${x}" style="background:${x}"></button>`).join('') + `<label class="xcustom" title="Eigene Farbe"><input type="color" id="padPick" value="${c.color.startsWith('#') ? c.color : '#FF7A3D'}"></label>`;
+  const cn = $('#padCornerV'); if (cn) cn.textContent = { tl: 'Oben links', tr: 'Oben rechts', bl: 'Unten links', br: 'Unten rechts' }[c.corner] || '';
+  const pc = $('#padCorner'); if (pc) { pc.style.setProperty('--psz', (c.size / 100).toFixed(2)); pc.style.setProperty('--pop', (c.opacity / 100).toFixed(2)); }
+  // round swatches: the first follows the theme, the last opens a colour picker; the name of the chosen one below
+  const theme = !c.color.startsWith('#'), col = c.color.toUpperCase(), own = !theme && !PAD_COLORS.includes(col);
+  $('#padColors').innerHTML = `<button class="xcol xtheme ${theme ? 'on' : ''}" data-pc="theme" title="Theme-Farbe" aria-label="Theme-Farbe"></button>` +
+    PAD_COLORS.map(x => `<button class="xcol ${col === x ? 'on' : ''}" data-pc="${x}" style="background:${x}" title="${PAD_CNAME[x]}" aria-label="${PAD_CNAME[x]}"></button>`).join('') + `<label class="xcustom ${own ? 'on' : ''}" title="Eigene Farbe"><input type="color" id="padPick" value="${c.color.startsWith('#') ? c.color : '#FF7A3D'}"></label>`
+    + `<span class="xc-n">${theme ? '<b>Theme-Farbe</b> · wechselt mit deinem Theme' : own ? `<b>Eigene Farbe</b> · ${esc(col)}` : `<b>${PAD_CNAME[col]}</b>`}</span>`;
   $('#padSize').value = c.size; $('#padSize').style.setProperty('--p', (c.size - 40) / 120 * 100 + '%'); $('#padSizeV').textContent = c.size + '%';
   $('#padKey').innerHTML = KEYS.map(([n, v]) => `<button class="${c.key === v ? 'on' : ''}" data-pk="${v}">${n}</button>`).join('');
   $('#navPad').classList.toggle('hidden', c.mode === 'off');
@@ -2313,7 +2336,7 @@ document.addEventListener('click', e => {
   const k = e.target.closest('[data-pk]'); if (k) { PAD.cfg.key = +k.dataset.pk; padUI(); padPush(); }
 });
 document.addEventListener('input', e => {
-  if (e.target.id === 'padSize') { PAD.cfg.size = +e.target.value; e.target.style.setProperty('--p', (PAD.cfg.size - 40) / 120 * 100 + '%'); $('#padSizeV').textContent = PAD.cfg.size + '%'; padPush(); }
+  if (e.target.id === 'padSize') { PAD.cfg.size = +e.target.value; e.target.style.setProperty('--p', (PAD.cfg.size - 40) / 120 * 100 + '%'); $('#padSizeV').textContent = PAD.cfg.size + '%'; $('#padCorner')?.style.setProperty('--psz', (PAD.cfg.size / 100).toFixed(2)); padPush(); }
   if (e.target.id === 'padPick') { PAD.cfg.color = e.target.value.toUpperCase(); padDraw(); padPush(); }
 });
 document.addEventListener('change', e => { if (e.target.id === 'padPick') padUI(); });
@@ -2958,7 +2981,7 @@ async function kfTest() {
   out.innerHTML = `${r.game ? '' : `<div class="kf-err">${ico('alert')}FiveM ist nicht im Vordergrund. Starte FiveM, wechsle ins Spiel und teste dann mit der Clip-Taste oder hier nochmal.</div>`}
     ${CL.area === 'auto' && r.area ? `<p class="sub" style="font-size:12px;margin-bottom:8px">${hits ? `Kill-Feed gefunden: <b>${KF_NAMES[r.area] || r.area}</b>` : `Noch kein Kill mit deinem Namen zu sehen. Gezeigt wird die Stelle ${KF_NAMES[r.area] || r.area}, im Spiel sucht OrbitTweak alle Stellen ab.`}</p>` : ''}
     <div class="kf-cols"><div class="kf-img">${r.img ? `<img src="${r.img}" alt="">` : ''}<span>Das sieht OrbitTweak</span></div>
-    <div class="kf-lines"><b>Erkannter Text</b>${lines.length ? lines.map(l => `<div class="kf-l ${l.hit || ''}">${l.hit === 'kill' ? '<em>KILL</em>' : l.hit === 'death' ? '<em>TOD</em>' : ''}<span>${esc(l.text)}</span></div>`).join('') : '<div class="sub" style="font-size:12px">Kein Text gefunden. Stimmt die Position? Steht gerade etwas im Kill-Feed?</div>'}
+    <div class="kf-lines"><b>Erkannter Text</b>${lines.length ? lines.map(l => `<div class="kf-l ${l.hit || ''}">${l.hit === 'kill' ? '<em>Kill</em>' : l.hit === 'death' ? '<em>Tod</em>' : ''}<span>${esc(l.text)}</span></div>`).join('') : '<div class="sub" style="font-size:12px">Kein Text gefunden. Stimmt die Position? Steht gerade etwas im Kill-Feed?</div>'}
     ${lines.length && !hits ? `<p class="sub" style="font-size:11.5px;margin-top:8px">Dein Name „${esc(CL.name)}“ wurde nicht gefunden. Erst nach einem Kill steht er im Feed.</p>` : ''}</div></div>`;
 }
 window.kfTest = kfTest;
@@ -2980,7 +3003,7 @@ async function mkTest() {
     : `<div class="mk-v">${ico('eye')}<span>Gerade keine Kill-Meldung in der Bildmitte. Ohne frischen Kill ist das normal, wichtig ist: Das Bild zeigt die Mitte deines Spiels.</span></div>`;
   out.innerHTML = `${!r.game ? `<div class="kf-err">${ico('alert')}FiveM läuft nicht. Das Bild zeigt die Mitte deines Bildschirms.</div>` : !r.front ? `<div class="kf-err">${ico('alert')}FiveM war nicht im Vordergrund. Das Bild zeigt, was gerade in der Bildmitte war.</div>` : ''}${verdict}
     <div class="kf-cols"><div class="kf-img">${r.img ? `<img src="${r.img}" alt="">` : ''}<span>Das sieht OrbitTweak</span></div>
-    <div class="kf-lines"><b>Erkannter Text</b>${lines.length ? lines.map(l => `<div class="kf-l ${l.hit || ''}">${l.hit === 'kill' ? '<em>KILL</em>' : l.hit === 'death' ? '<em>TOD</em>' : ''}<span>${esc(l.text)}</span></div>`).join('') : '<div class="sub mk-none">Kein Text gefunden.</div>'}
+    <div class="kf-lines"><b>Erkannter Text</b>${lines.length ? lines.map(l => `<div class="kf-l ${l.hit || ''}">${l.hit === 'kill' ? '<em>Kill</em>' : l.hit === 'death' ? '<em>Tod</em>' : ''}<span>${esc(l.text)}</span></div>`).join('') : '<div class="sub mk-none">Kein Text gefunden.</div>'}
     ${lines.length && !r.kind ? '<p class="sub mk-none">Steht bei deinen Kills ein anderes Wort da, trag es oben bei den Kill-Wörtern ein.</p>' : ''}</div></div>`;
 }
 
@@ -3153,7 +3176,7 @@ const MG = { mode: 'grid', on: false, t0: 0, end: 0, targets: [], hits: 0, shots
 function mgBest() { try { return JSON.parse(localStorage.getItem('orbitAim') || '{}'); } catch { return {}; } }
 function mgIdle() {
   const [n, d] = MG_MODES[MG.mode];
-  $('#mgTitle').textContent = n; $('#mgDesc').textContent = d;
+  $('#mgTitle').textContent = n; $('#mgDesc').textContent = d; $('#mgOver').classList.remove('done');
   $$('#mgMode button').forEach(b => b.classList.toggle('on', b.dataset.mg === MG.mode));
   const b = mgBest()[MG.mode]; $('#mgBest').textContent = b ? b.score : 0; $('#mgBestNote').textContent = b ? `${b.acc} % Trefferquote · ${b.date}` : 'Noch kein Durchgang in diesem Modus';
 }
@@ -3171,32 +3194,40 @@ function mgDraw() {
   const life = MG_MODES[MG.mode][4];
   if (life) MG.targets = MG.targets.filter(t => now - t.born < life);
   while (MG.on && MG.targets.length < MG_MODES[MG.mode][2]) mgSpawn(cv);
+  const dp = devicePixelRatio;
   for (const t of MG.targets) {
     const k = Math.min(1, (now - t.born) / 140), fade = life ? 1 - Math.max(0, (now - t.born - life * .6) / (life * .4)) : 1, r = t.r * (.5 + .5 * k);
     g.globalAlpha = Math.max(.15, fade);
-    const gr = g.createRadialGradient(t.x - r * .3, t.y - r * .3, r * .1, t.x, t.y, r); gr.addColorStop(0, b); gr.addColorStop(1, a);
-    g.shadowColor = a; g.shadowBlur = 22 * devicePixelRatio; g.fillStyle = gr; g.beginPath(); g.arc(t.x, t.y, r, 0, 7); g.fill();
-    g.shadowBlur = 0; g.fillStyle = 'rgba(255,255,255,.9)'; g.beginPath(); g.arc(t.x, t.y, r * .22, 0, 7); g.fill();
+    // a solid disc with light from above, a soft shadow below, a fine ring and a bright centre
+    g.shadowColor = 'rgba(0,0,0,.55)'; g.shadowBlur = 18 * dp; g.shadowOffsetY = 6 * dp;
+    g.fillStyle = a; g.beginPath(); g.arc(t.x, t.y, r, 0, 7); g.fill();
+    g.shadowColor = 'transparent'; g.shadowBlur = 0; g.shadowOffsetY = 0;
+    const lt = g.createLinearGradient(0, t.y - r, 0, t.y + r); lt.addColorStop(0, 'rgba(255,255,255,.3)'); lt.addColorStop(.55, 'rgba(255,255,255,0)'); lt.addColorStop(1, 'rgba(0,0,0,.12)');
+    g.fillStyle = lt; g.beginPath(); g.arc(t.x, t.y, r, 0, 7); g.fill();
+    g.strokeStyle = 'rgba(255,255,255,.5)'; g.lineWidth = 1.25 * dp; g.beginPath(); g.arc(t.x, t.y, r * .6, 0, 7); g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,.16)'; g.lineWidth = 1 * dp; g.beginPath(); g.arc(t.x, t.y, r + 4 * dp, 0, 7); g.stroke();
+    g.fillStyle = 'rgba(255,255,255,.95)'; g.beginPath(); g.arc(t.x, t.y, r * .18, 0, 7); g.fill();
   }
   g.globalAlpha = 1;
   MG.pops = MG.pops.filter(p => now - p.t < 420);
   for (const p of MG.pops) {
     const k = (now - p.t) / 420;
-    g.strokeStyle = p.hit ? a : 'rgba(248,113,113,.9)'; g.globalAlpha = 1 - k; g.lineWidth = 2 * devicePixelRatio;
+    g.strokeStyle = p.hit ? a : 'rgba(242,139,139,.9)'; g.globalAlpha = 1 - k; g.lineWidth = 1.5 * dp;
     g.beginPath(); g.arc(p.x, p.y, p.r * (1 + k * 1.2), 0, 7); g.stroke();
   }
   g.globalAlpha = 1;
   if (MG.on) {
     const left = Math.max(0, (MG.end - now) / 1000), el = $('#mgTime');
     el.textContent = nf1.format(left); el.classList.toggle('low', left < 5);
+    const bar = $('#mgBar'); if (bar) bar.style.transform = `scaleX(${(left / 30).toFixed(4)})`;
     if (left <= 0) return mgStop();
   }
   if (MG.on || MG.pops.length) MG.raf = requestAnimationFrame(mgDraw);
 }
 function mgStats() {
   $('#mgScore').textContent = MG.score;
-  $('#mgAcc').textContent = MG.shots ? Math.round(MG.hits / MG.shots * 100) + ' %' : '–';
-  $('#mgAvg').textContent = MG.hits ? Math.round(MG.sum / MG.hits) + ' ms' : '–';
+  $('#mgAcc').innerHTML = MG.shots ? Math.round(MG.hits / MG.shots * 100) + '<small>%</small>' : '–';
+  $('#mgAvg').innerHTML = MG.hits ? Math.round(MG.sum / MG.hits) + '<small>ms</small>' : '–';
 }
 function mgStart() {
   const cv = $('#mgCv'), r = cv.getBoundingClientRect();
@@ -3210,7 +3241,8 @@ function mgStop() {
   const best = !old || MG.score > old.score;
   if (best && MG.score > 0) { all[MG.mode] = { score: MG.score, acc, date: new Date().toLocaleDateString('de-DE') }; try { localStorage.setItem('orbitAim', JSON.stringify(all)); } catch { } }
   mgIdle();
-  $('#mgTitle').textContent = best && MG.score > 0 ? `Neuer Bestwert: ${MG.score}` : `${MG.score} Punkte`;
+  $('#mgBig').textContent = MG.score; $('#mgOver').classList.add('done');
+  $('#mgTitle').textContent = best && MG.score > 0 ? 'Neuer Bestwert' : MG.score === 1 ? 'Punkt' : 'Punkte';
   $('#mgDesc').textContent = `${MG.hits} Treffer bei ${MG.shots} Klicks, ${acc} % Trefferquote${MG.hits ? `, ${Math.round(MG.sum / MG.hits)} ms pro Treffer` : ''}.`;
   $('#mgStart').innerHTML = `${ico('refresh')}Nochmal`;
   $('#mgOver').classList.remove('off'); $('#mgTime').textContent = '30,0'; $('#mgTime').classList.remove('low');
@@ -3284,13 +3316,13 @@ setInterval(() => {
 
 /* ======================= CLIP EDITOR: cut a part out of a clip ======================= */
 const CUT = { rel: '', from: 0, to: 0, dur: 0, busy: false };
-const cutFmt = t => { const m = Math.floor(t / 60), s = t - m * 60; return `${m}:${s.toFixed(1).padStart(4, '0')}`; };
+const cutFmt = t => { const m = Math.floor(t / 60), s = t - m * 60; return `${m}:${s.toFixed(1).padStart(4, '0').replace('.', ',')}`; };
 function cutUI() {
   const bar = $('#cutBar'); if (!bar) return;
   const a = CUT.from / CUT.dur * 100, b = CUT.to / CUT.dur * 100;
   $('#cutSel').style.left = a + '%'; $('#cutSel').style.width = (b - a) + '%';
   $('#cutA').style.left = a + '%'; $('#cutB').style.left = b + '%';
-  $('#cutInfo').innerHTML = `Ausschnitt <b>${cutFmt(CUT.from)}</b> bis <b>${cutFmt(CUT.to)}</b> · <b>${(CUT.to - CUT.from).toFixed(1)} s</b> von ${CUT.dur.toFixed(1)} s`;
+  $('#cutInfo').innerHTML = `<b>${cutFmt(CUT.from)}</b> bis <b>${cutFmt(CUT.to)}</b> · ${(CUT.to - CUT.from).toFixed(1).replace('.', ',')} s von ${CUT.dur.toFixed(1).replace('.', ',')} s`;
 }
 window.cutOpen = rel => {
   const v = $('#mbox video'); if (!v || !isFinite(v.duration)) return toast('Clip lädt noch', 'Einen Moment, dann nochmal', false);
@@ -3299,11 +3331,11 @@ window.cutOpen = rel => {
   $('#mbox .act').outerHTML = `
     <div class="cut">
       <div class="cut-bar" id="cutBar"><i class="cut-sel" id="cutSel"></i><i class="cut-pos" id="cutPos"></i><b class="cut-h" id="cutA"></b><b class="cut-h" id="cutB"></b></div>
-      <div class="row mt8"><span class="sub" id="cutInfo" style="font-size:12.5px"></span><span class="sp"></span>
-        <button class="btn sm" id="cutPlay">${ico('play')}Ausschnitt abspielen</button><button class="btn sm" data-cutset="from">Anfang hier</button><button class="btn sm" data-cutset="to">Ende hier</button></div>
-      <p class="sub" style="font-size:12px;margin-top:8px">Zieh die beiden Griffe, oder klick in die Leiste, um an eine Stelle zu springen. Das Original bleibt unverändert.</p>
+      <div class="cut-row"><button class="btn sm" id="cutPlay">${ico('play')}Ausschnitt abspielen</button><span class="cut-info" id="cutInfo"></span><span class="sp"></span>
+        <button class="btn sm gh" data-cutset="from">Anfang hier</button><button class="btn sm gh" data-cutset="to">Ende hier</button></div>
+      <p class="cut-hint">Zieh die beiden Griffe oder klick in die Leiste, um an eine Stelle zu springen. Das Original bleibt, wie es ist.</p>
     </div>
-    <div class="act"><button class="btn" onclick="closeModal()">Abbrechen</button><button class="btn" id="cutShare">${ico('copy')}Schnitt für Discord kopieren</button><button class="btn p" id="cutSave">${ico('check')}Als neuen Clip speichern</button></div>`;
+    <div class="act"><button class="btn gh" onclick="closeModal()">Abbrechen</button><span class="sp"></span><button class="btn" id="cutShare">${ico('copy')}Schnitt für Discord kopieren</button><button class="btn p" id="cutSave">${ico('check')}Als neuen Clip speichern</button></div>`;
   v.ontimeupdate = () => { const p = $('#cutPos'); if (p) p.style.left = v.currentTime / CUT.dur * 100 + '%'; if (CUT.playing && v.currentTime >= CUT.to) { v.pause(); CUT.playing = false; } };
   cutUI();
 };
