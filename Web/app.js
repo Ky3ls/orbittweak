@@ -2412,7 +2412,7 @@ const padAcc = () => PAD.cfg.color.startsWith('#') ? PAD.cfg.color : accHex();
 function padDraw() { if (PAD.r) PAD.r.draw(PAD.state, { ...PAD.cfg, accent: padAcc() }); }
 function padUI() {
   const c = PAD.cfg;
-  [['#padMode', c.mode], ['#padLayout', c.layout], ['#padBody', c.body], ['#padOpacity', String(c.opacity)]].forEach(([s, v]) => $$(s + ' button').forEach(b => b.classList.toggle('on', b.dataset.v === v)));
+  [['#padMode', c.mode], ['#padLayout', c.layout], ['#padBody', c.body], ['#padOpacity', String([100, 80, 55].reduce((a, b) => Math.abs(b - c.opacity) < Math.abs(a - c.opacity) ? b : a))]].forEach(([s, v]) => $$(s + ' button').forEach(b => b.classList.toggle('on', b.dataset.v === v)));
   $$('#padCorner button').forEach(b => b.classList.toggle('on', b.dataset.v === c.corner));
   const cn = $('#padCornerV'); if (cn) cn.textContent = { tl: 'Oben links', tr: 'Oben rechts', bl: 'Unten links', br: 'Unten rechts' }[c.corner] || '';
   const pc = $('#padCorner'); if (pc) { pc.style.setProperty('--psz', (c.size / 100).toFixed(2)); pc.style.setProperty('--pop', (c.opacity / 100).toFixed(2)); }
@@ -2424,7 +2424,7 @@ function padUI() {
   $('#padSize').value = c.size; $('#padSize').style.setProperty('--p', (c.size - 40) / 120 * 100 + '%'); $('#padSizeV').textContent = c.size + '%';
   $('#padKey').innerHTML = KEYS.map(([n, v]) => `<button class="${c.key === v ? 'on' : ''}" data-pk="${v}">${n}</button>`).join('');
   $('#navPad').classList.toggle('hidden', c.mode === 'off');
-  $('#navPad').textContent = c.mode === 'on' ? 'AN' : 'AUTO';
+  $('#navPad').textContent = c.mode === 'on' ? 'An' : 'Auto';
   padDraw();
 }
 let padT = 0, padArtKey = null;
@@ -3019,7 +3019,7 @@ const Mock = {
         { code: 'r2', name: '^4Blue^7Line ^5PvP ^7Arena', desc: 'Gangwar · FFA · Ranked', players: 64, max: 128, online: true, ping: 31, locale: 'DE', tags: ['pvp'] },
         { code: 'aa', name: '^2Green^7Valley RP', desc: 'Whitelist-Server', players: 0, max: 64, online: false, ping: null, locale: 'EN', tags: ['whitelist'] }];
       case 'cfx.status': return [{ name: 'Server-Liste', ok: true, ms: 41 }, { name: 'Cfx.re Web', ok: true, ms: 57 }, { name: 'Content-CDN', ok: true, ms: 23 }, { name: 'Cfx.re Forum', ok: true, ms: 64 }];
-      case 'gfx.get': return { found: true, path: 'C:\\Users\\Max\\Documents\\Rockstar Games\\GTA V\\settings.xml', values: { ...PRESETS.bal.v } };
+      case 'gfx.get': return { found: true, path: 'C:\\Users\\Max\\Documents\\Rockstar Games\\GTA V\\settings.xml', values: { ...PRESETS.bal.v, Windowed: 2 } };
       case 'ini.get': return { channel: 'production' };
       case 'clean.scan': return [['fm', 'FiveM Cache', 'cache, server-cache, server-cache-priv', 'gamepad', 3.2e9], ['logs', 'FiveM Logs & Crashes', 'Alte Logs und Crashdumps', 'file', 2.1e8], ['temp', 'Temporäre Dateien', 'Benutzer- und System-Temp', 'folder', 1.6e9], ['shader', 'Shader-Cache', 'DirectX / NVIDIA / AMD', 'monitor', 7.4e8], ['wu', 'Windows-Update Reste', 'Bereits installierte Pakete', 'download', 9.1e8], ['bin', 'Papierkorb', 'Endgültig leeren', 'trash', 2.4e8]].map(([id, name, desc, icon, size], i) => ({ id, name, desc, icon, size, sel: i < 5 }));
       case 'health': return { score: 74, items: [{ name: 'FiveM installiert', value: 'C:\\Users\\Max\\AppData\\Local\\FiveM', st: 'ok' }, { name: 'Arbeitsspeicher', value: '32 GB, perfekt für FiveM', st: 'ok' }, { name: 'Energieplan', value: 'Ausbalanciert, CPU taktet herunter', st: 'warn', fix: 'tweak:ult' }, { name: 'Xbox Game DVR', value: 'Aktiv, kostet FPS', st: 'bad', fix: 'tweak:dvr' }, { name: 'GPU-Treiber', value: 'NVIDIA 566.36 · 4 Monate alt', st: 'ok' }, { name: 'FiveM-Cache', value: '3.2 GB, leeren empfohlen', st: 'warn', fix: 'cache' }] };

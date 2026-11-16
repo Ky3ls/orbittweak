@@ -234,7 +234,7 @@
 #p-xhair .xpre:hover,#p-xhair .xst:hover{transform:none;border-color:transparent;background:rgba(255,255,255,.05);color:var(--text)}
 #p-xhair .xpre.on,#p-xhair .xst.on{border-color:transparent;color:var(--text);background:linear-gradient(180deg,rgba(255,255,255,.11),rgba(255,255,255,.07));
   box-shadow:inset 0 1px 0 rgba(255,255,255,.09),0 1px 2px rgba(0,0,0,.45),0 6px 14px -8px rgba(0,0,0,.7)}
-#p-xhair .xpre canvas{max-height:28px}
+#p-xhair .xpre canvas{flex:none;width:44px;height:28px;max-height:none;object-fit:scale-down}   /* one box for every preview, so the names line up */
 #p-xhair .xst svg{width:20px;height:20px;stroke-width:1.8}
 #p-xhair .xcolors{gap:10px;margin-top:0;padding:2px 0}
 #p-xhair .xcol,#p-xhair .xcustom{width:28px;height:28px;border:0;box-shadow:inset 0 1px 0 rgba(255,255,255,.32),inset 0 0 0 1px rgba(0,0,0,.22),0 1px 2px rgba(0,0,0,.4);transition:transform .3s var(--ease),box-shadow .25s}
@@ -389,6 +389,7 @@
 #p-mods .mmb-pv canvas{border:0;border-radius:14px;box-shadow:0 1px 2px rgba(0,0,0,.4),0 16px 32px -20px #000}
 #p-mods .mmb-pv span{margin-top:8px;font-size:12px;color:var(--mute)}
 #p-mods .mmb .muted,#p-mods .mmb .sub{color:var(--mute)}
+#p-mods .mmb .muted b{font-weight:600;color:var(--sub)}
 
 /* my mods: Discord packs as three steps in one well, then the lists */
 #p-mods .dcpack{margin-bottom:20px;padding:22px}

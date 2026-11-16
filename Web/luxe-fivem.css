@@ -343,7 +343,7 @@
 .lk-form{gap:10px;margin-top:26px;text-align:left}
 .lk-cap{padding-left:2px;font-size:12px;font-weight:500;color:var(--mute)}
 .lk-key{justify-content:space-between;gap:6px;padding:6px;border:0;border-radius:15px;background:var(--well);box-shadow:var(--well-edge)}
-.lk-key:focus-within{border-color:transparent;box-shadow:var(--well-edge),0 0 0 3px rgba(var(--a-rgb),.2)}
+.lk-key:focus-within{border-color:transparent;box-shadow:var(--well-edge)}   /* the focused field shows it; one ring is enough */
 .lk-key.bad{border-color:transparent;box-shadow:var(--well-edge),0 0 0 3px rgba(242,139,139,.28)}
 .lk-pre{padding:0 4px 0 10px;font-size:16px;font-weight:600;letter-spacing:.06em;color:var(--mute)}
 .lk-key i{font-size:15px;color:rgba(255,255,255,.16)}
