@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="design.css">
 <link rel="stylesheet" href="uhq.css">
 <link rel="stylesheet" href="luxe-fivem.css">
+<link rel="stylesheet" href="luxe-optik.css">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute">
@@ -302,28 +303,33 @@
       </div>
       <div class="tabs vtabs"><button class="tab on" onclick="go('gfx')"><svg class="i"><use href="#monitor"/></svg>Spiel-Grafik<span class="vt-s">Fenster & Presets</span></button><button class="tab" onclick="go('display')"><svg class="i"><use href="#sun"/></svg>Live-Farben<span class="vt-s">Farbe, Helligkeit, Gamma</span></button></div>
       <div class="card gb glive">
-        <div class="gl-top"><div class="lbl"><svg class="i"><use href="#zap"/></svg>Live: sofort, ohne Neustart</div><span class="sp"></span><span class="chip" id="gwState">FiveM nicht gestartet</span></div>
-        <div class="gl-acts">
-          <button class="btn p" onclick="gwSet('borderless')"><svg class="i"><use href="#max"/></svg>Randloses Vollbild jetzt</button>
-          <button class="btn" onclick="gwSet('windowed')"><svg class="i"><use href="#square"/></svg>Zurück zum Fenster</button>
-          <span class="sp"></span>
-          <div class="row" style="gap:12px"><span class="sub" style="font-size:12.5px">Automatisch randlos beim Start</span><div class="tg" id="gwAuto"></div></div>
+        <div class="gl-head">
+          <span class="gl-ic"><svg class="i"><use href="#max"/></svg></span>
+          <div class="gl-t"><b>Fenstermodus</b><p id="gwHint">Sofort und ohne Neustart. Läuft FiveM im Vollbild, drück im Spiel erst Alt+Enter.</p></div>
+          <div class="gl-acts">
+            <button class="btn" onclick="gwSet('windowed')"><svg class="i"><use href="#square"/></svg>Fenster</button>
+            <button class="btn p" onclick="gwSet('borderless')"><svg class="i"><use href="#max"/></svg>Randloses Vollbild</button>
+          </div>
         </div>
-        <p class="sub" style="font-size:12px;margin-top:10px" id="gwHint">Läuft das Spiel im Vollbild? Drück im Spiel einmal Alt+Enter, dann hier auf „Randloses Vollbild“. Ideal fürs Fadenkreuz und schnelles Alt-Tab.</p>
+        <div class="gl-stats">
+          <div class="gl-st" id="gwSt"><span class="gl-k">Modus</span><b class="gl-v"><i class="gl-dot"></i><span id="gwState">Nicht gestartet</span></b><span class="gl-s" id="gwStateS">FiveM läuft gerade nicht</span></div>
+          <div class="gl-st"><span class="gl-k">Auflösung</span><b class="gl-v" id="gwRes">—</b><span class="gl-s">Fenster von FiveM</span></div>
+          <div class="gl-st gl-auto"><span class="gl-k">Beim Start</span><div class="gl-ar"><b>Automatisch randlos</b><div class="tg" id="gwAuto"></div></div><span class="gl-s">Sobald FiveM im Fenster startet</span></div>
+        </div>
         <div class="gl-quick">
           <button onclick="go('xhair')"><span class="qi"><svg class="i"><use href="#crosshair"/></svg></span><span><b>Fadenkreuz</b><span>Eigenes Overlay</span></span></button>
           <button onclick="f8Quick('cl_drawfps',true)"><span class="qi"><svg class="i"><use href="#activity"/></svg></span><span><b>FPS-Anzeige an</b><span>Live in FiveM</span></span></button>
           <button onclick="go('f8')"><span class="qi"><svg class="i"><use href="#terminal"/></svg></span><span><b>F8-Befehle</b><span>Kamera, Texturen, Audio</span></span></button>
         </div>
       </div>
-      <div class="gsec">Beim nächsten Spielstart (settings.xml)</div>
+      <div class="gsec"><b>Für den nächsten Spielstart</b><span>Wird in settings.xml gespeichert, mit Backup</span></div>
       <div class="presets" id="presets"></div>
-      <div class="card">
-        <div class="row" style="margin-bottom:6px"><div class="lbl"><svg class="i"><use href="#sliders"/></svg>Feintuning</div><span class="sp"></span><span class="chip a hidden" id="gfxDirty">Ungespeichert</span></div>
+      <div class="card gtune">
+        <div class="row gt-head"><div class="gt-t"><b>Feintuning</b><p>Jede Einstellung einzeln, ein Preset oben setzt alle auf einmal.</p></div><span class="sp"></span><span class="chip a hidden" id="gfxDirty">Ungespeichert</span></div>
         <div class="gctl" id="gctl"></div>
       </div>
       <div class="savebar">
-        <span class="sp" id="gfxPath">—</span>
+        <span class="sb-path"><svg class="i"><use href="#file"/></svg><span id="gfxPath">—</span></span><span class="sp"></span>
         <button class="btn" onclick="gfxRestore()"><svg class="i"><use href="#undo"/></svg>Backup wiederherstellen</button>
         <button class="btn p" onclick="gfxSave()"><svg class="i"><use href="#check"/></svg>Speichern</button>
       </div>
@@ -339,7 +345,7 @@
       <div class="xgrid">
         <div class="col">
           <div class="card xprev-card">
-            <div class="row"><div class="lbl"><svg class="i"><use href="#eye"/></svg>Vorschau</div><span class="sp"></span><div class="seg" id="xhBg"><button class="on" data-bg="day">Tag</button><button data-bg="dusk">Abend</button><button data-bg="night">Nacht</button></div></div>
+            <div class="row xp-head"><div class="ot"><b>Vorschau</b><span class="chip" id="xhLive">Aus</span></div><span class="sp"></span><div class="seg" id="xhBg"><button class="on" data-bg="day">Tag</button><button data-bg="dusk">Abend</button><button data-bg="night">Nacht</button></div></div>
             <div class="xscene sc-day" id="xhScene"><svg class="gscene" viewBox="0 0 640 360" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
   <defs>
     <linearGradient id="gsky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--s1)"/><stop offset=".62" style="stop-color:var(--s2)"/><stop offset="1" style="stop-color:var(--s3)"/></linearGradient>
@@ -372,23 +378,22 @@
     <rect x="73" y="345" width="55" height="5" fill="rgba(0,0,0,.55)"/><rect x="73" y="345" width="30" height="5" fill="#4A9BD8"/>
   </g>
 </svg><canvas id="xhCanvas"></canvas><div class="xcenter">Bildmitte</div><div class="xzoom"><canvas id="xhZoom" width="96" height="96"></canvas><span>4×</span></div></div>
+            <p class="xcap">Pixelgenau wie im Spiel, die Lupe zeigt die Mitte vierfach.</p>
           </div>
-          <div class="card">
-            <div class="lbl"><svg class="i"><use href="#settings"/></svg>Anzeige</div>
+          <div class="card xshow">
+            <div class="ot"><b>Anzeige</b><span>Wann das Overlay sichtbar ist</span></div>
             <div class="srow"><div><b>Beim Raustabben ausblenden</b><p>Aus: Das Fadenkreuz bleibt immer sichtbar, auch beim Alt-Tab</p></div><div class="tg" id="xhOnly" data-xt="onlyGame"></div></div>
             <div class="srow"><div><b>Ein/Aus-Taste</b><p id="xhKeyTxt">Globale Taste, funktioniert im Spiel</p></div></div>
             <div class="seg keyseg" id="xhKey"></div>
-            <div class="xgame"><div class="row"><b>GTA-Fadenkreuz klein machen</b></div><p>Das eigene Fadenkreuz von GTA wird auf die kleinste Größe gestellt, OrbitTweak sendet den F8-Befehl für dich. Ganz abschalten kann es nur der Server. Tipp: Mit <b>Mittelpunkt</b> an überdeckt dein Fadenkreuz den GTA-Punkt.</p><div class="f8line"><code>profile_reticuleSize 0</code><button class="btn sm p" onclick="f8Quick('profile_reticuleSize',0)"><svg class="i"><use href="#zap"/></svg>Jetzt setzen</button></div><div class="srow" style="padding:10px 0 0;border:0"><div><b style="font-size:13px">Automatisch beim Einschalten</b><p>OrbitTweak minimiert das GTA-Fadenkreuz, sobald dein Fadenkreuz angeht</p></div><div class="tg" id="xhShrink"></div></div></div>
-            <div class="xnote"><svg class="i"><use href="#alert"/></svg><div><p>Overlays sind nur im Modus <b>Randlos</b> oder <b>Fenster</b> sichtbar, nicht im exklusiven Vollbild.</p><button class="btn sm" onclick="setBorderless()">Randlos einstellen</button></div></div>
+            <div class="xgame"><div class="xg-h"><span class="xg-ic"><svg class="i"><use href="#crosshair"/></svg></span><div><b>GTA-Fadenkreuz klein machen</b><p>OrbitTweak stellt das Fadenkreuz von GTA per F8-Befehl auf die kleinste Größe. Ganz abschalten kann es nur der Server. Tipp: Mit <b>Mittelpunkt</b> an überdeckt dein Fadenkreuz den GTA-Punkt.</p></div></div><div class="f8line"><code>profile_reticuleSize 0</code><button class="btn sm" onclick="f8Quick('profile_reticuleSize',0)"><svg class="i"><use href="#zap"/></svg>Jetzt setzen</button></div><div class="srow"><div><b>Automatisch beim Einschalten</b><p>Sobald dein Fadenkreuz angeht, wird das von GTA minimiert</p></div><div class="tg" id="xhShrink"></div></div></div>
+            <div class="xnote"><svg class="i"><use href="#alert"/></svg><div><p>Overlays sind nur im Modus <b>Randlos</b> oder <b>Fenster</b> sichtbar, nicht im exklusiven Vollbild.</p></div><button class="btn sm" onclick="setBorderless()">Randlos einstellen</button></div>
           </div>
         </div>
-        <div class="card">
-          <div class="lbl"><svg class="i"><use href="#sparkle"/></svg>Presets</div>
-          <div class="xpresets" id="xhPresets"></div>
-          <div class="lbl mt"><svg class="i"><use href="#crosshair"/></svg>Form</div>
-          <div class="xstyles" id="xhStyles"></div>
-          <div class="lbl mt"><svg class="i"><use href="#sun"/></svg>Farbe</div>
-          <div class="xcolors" id="xhColors"></div>
+        <div class="card xdesign">
+          <div class="ot"><b>Gestalten</b><span>Preset nehmen oder selbst bauen</span></div>
+          <div class="xsec"><div class="xsec-h">Presets</div><div class="xpresets" id="xhPresets"></div></div>
+          <div class="xsec"><div class="xsec-h">Form</div><div class="xstyles" id="xhStyles"></div></div>
+          <div class="xsec"><div class="xsec-h">Farbe</div><div class="xcolors" id="xhColors"></div></div>
           <div class="xsliders" id="xhSliders"></div>
         </div>
       </div>
@@ -403,24 +408,25 @@
       <div class="tabs vtabs"><button class="tab" onclick="go('gfx')"><svg class="i"><use href="#monitor"/></svg>Spiel-Grafik<span class="vt-s">Fenster & Presets</span></button><button class="tab on" onclick="go('display')"><svg class="i"><use href="#sun"/></svg>Live-Farben<span class="vt-s">Farbe, Helligkeit, Gamma</span></button></div>
       <div class="dpgrid">
         <div class="col">
-          <div class="dpresets" id="dpPresets"></div>
-          <div class="card">
-            <div class="row"><div class="lbl"><svg class="i"><use href="#sliders"/></svg>Feinregler</div><span class="sp"></span><span class="chip" id="dpLive">Aus</span></div>
-            <div id="dpSliders" class="mt8"></div>
+          <div class="card dpprev">
+            <div class="row xp-head"><div class="ot"><b>Vorschau</b><span class="chip" id="dpLive">Aus</span></div><span class="sp"></span><span class="dp-tip">Linie ziehen zum Vergleichen</span></div>
+            <div class="dpview" id="dpView"><div class="dpimg" id="dpBefore"><span>Vorher</span></div><div class="dpimg" id="dpAfter"><span>Nachher</span></div><i class="dp-split"></i></div>
+            <div class="dp-looks"><div class="xsec-h">Looks</div><div class="dpresets" id="dpPresets"></div></div>
           </div>
         </div>
         <div class="col">
-          <div class="card">
-            <div class="lbl"><svg class="i"><use href="#eye"/></svg>Vorschau</div>
-            <div class="dpview"><div class="dpimg" id="dpBefore"><span>Vorher</span></div><div class="dpimg" id="dpAfter"><span>Nachher</span></div></div>
+          <div class="card dptune">
+            <div class="ot"><b>Feinregler</b><span>Wirkt sofort auf den ganzen Bildschirm</span></div>
+            <div id="dpSliders"></div>
           </div>
-          <div class="card">
-            <div class="lbl"><svg class="i"><use href="#settings"/></svg>Verhalten</div>
+        </div>
+        <div class="card dpbeh">
+          <div class="ot"><b>Verhalten</b><span>Wann das Farbprofil wirkt und wie du es im Spiel umschaltest</span></div>
+          <div class="dpb-grid">
             <div class="srow"><div><b>Nur wenn FiveM im Vordergrund ist</b><p>Auf dem Desktop bleiben die normalen Farben</p></div><div class="tg" id="dpOnly"></div></div>
-            <div class="srow"><div><b>Ein/Aus-Taste</b><p id="dpKeyTxt">Profil im Spiel schnell umschalten</p></div></div>
-            <div class="seg keyseg" id="dpKey"></div>
-            <div id="dpStatus" class="mt8"></div>
+            <div class="dpb-key"><div class="srow"><div><b>Ein/Aus-Taste</b><p id="dpKeyTxt">Profil im Spiel schnell umschalten</p></div></div><div class="seg keyseg" id="dpKey"></div></div>
           </div>
+          <div id="dpStatus" class="dp-status"></div>
         </div>
       </div>
     </section>
@@ -606,18 +612,21 @@
       <div class="lib-grid" id="libGrid"></div>
       </div>
       <div class="mtab hidden" data-mtp="rs">
-        <div class="empty rs-none" id="rsNone"><span class="en-ic"><svg class="i"><use href="#sparkle"/></svg></span><b>ReShade ist noch nicht installiert</b><span>Such dir einen Look aus, ReShade kommt automatisch mit.</span><button class="btn p" onclick="rsPick()"><svg class="i"><use href="#sparkle"/></svg>ReShade-Look aussuchen</button></div>
+        <div class="empty rs-none" id="rsNone"><span class="en-ic"><svg class="i"><use href="#sparkle"/></svg></span><b>ReShade ist noch nicht installiert</b><span>Such dir einen Look aus, ReShade kommt automatisch mit. Ein Klick, kein Setup.</span><button class="btn p" onclick="rsPick()"><svg class="i"><use href="#sparkle"/></svg>ReShade-Look aussuchen</button></div>
       <div class="card hidden" id="rsSet">
-        <div class="row"><div class="lbl"><svg class="i"><use href="#sparkle"/></svg>ReShade-Einstellungen</div><span class="chip g" id="rsVer">installiert</span><span class="sp"></span><button class="btn sm" onclick="api('reshade.shots')"><svg class="i"><use href="#folder"/></svg>Screenshots</button><button class="btn sm d" onclick="rsUninstall()"><svg class="i"><use href="#trash"/></svg>ReShade entfernen</button></div>
-        <div class="rs-grid mt">
+        <div class="rs-head"><span class="rs-ic"><svg class="i"><use href="#sparkle"/></svg></span><div class="ot"><b>ReShade</b><span class="chip g" id="rsVer">installiert</span></div><span class="sp"></span><button class="btn sm" onclick="api('reshade.shots')"><svg class="i"><use href="#folder"/></svg>Screenshots</button><button class="btn sm d" onclick="rsUninstall()"><svg class="i"><use href="#trash"/></svg>Entfernen</button></div>
+        <div class="rs-look" id="rsLook"></div>
+        <div class="xsec-h rs-sh">Tasten im Spiel</div>
+        <div class="rs-grid">
           <div><span class="rs-l">Menü öffnen</span><select class="in sel" data-rk="keyOverlay"></select></div>
           <div><span class="rs-l">Effekte an/aus</span><select class="in sel" data-rk="keyEffects"></select></div>
           <div><span class="rs-l">Screenshot</span><select class="in sel" data-rk="keyScreenshot"></select></div>
           <div><span class="rs-l">Nächster Look</span><select class="in sel" data-rk="keyNext"></select></div>
         </div>
+        <div class="xsec-h rs-sh">Optionen</div>
         <div class="srow"><div><b>FPS im ReShade-Overlay anzeigen</b><p>Kleine FPS-Anzeige oben in der Ecke</p></div><div class="tg" id="rsFps"></div></div>
         <div class="srow"><div><b>Performance-Modus</b><p>Mehr FPS, Effekte lassen sich im Spiel dann nicht mehr verstellen</p></div><div class="tg" id="rsPerf"></div></div>
-        <p class="muted" style="font-size:11.5px;margin-top:6px">Änderungen gelten ab dem nächsten FiveM-Start. Den aktiven Look wählst du im Tab „Bibliothek“.</p>
+        <p class="rs-foot">Änderungen gelten ab dem nächsten FiveM-Start.</p>
       </div>
       </div>
       <div class="mtab hidden" data-mtp="mm">
@@ -625,11 +634,11 @@
         <!-- picture laid over the minimap: an overlay window like the crosshair, no game files are changed -->
         <div class="mmb" id="mmOvPane">
           <div class="card">
-            <div class="row"><div class="lbl"><svg class="i"><use href="#map"/></svg>Bild über die Minimap legen</div><span class="sp"></span><span class="chip" id="mmoChip">Aus</span></div>
+            <div class="row"><div class="ot"><b>Bild über die Minimap legen</b></div><span class="sp"></span><span class="chip" id="mmoChip">Aus</span></div>
             <p class="sub mmb-p">Such dir ein Bild aus (PNG, JPG oder WebP). OrbitTweak legt es im Spiel einfach über deine Minimap, so wie das Fadenkreuz. An den Spieldateien wird nichts geändert, durchsichtige Stellen im PNG bleiben durchsichtig.</p>
             <button class="mmb-pick" id="mmoPick"><span class="mmb-th" id="mmoTh"><svg class="i"><use href="#file"/></svg></span><span class="mmb-fn"><b id="mmoName">Bild auswählen</b><small id="mmoInfo">PNG, JPG oder WebP</small></span><span class="btn sm"><svg class="i"><use href="#folder"/></svg>Durchsuchen</span></button>
             <div class="co-row"><span>Im Spiel anzeigen</span><div class="tg" id="mmoOn"></div></div>
-            <div class="lbl mt"><svg class="i"><use href="#layers"/></svg>Position und Größe</div>
+            <div class="xsec-h mmb-sh">Position und Größe</div>
             <div class="xs"><span>Abstand links</span><input type="range" min="0" max="960" id="mmoX"><b id="mmoXV"></b></div>
             <div class="xs"><span>Abstand unten</span><input type="range" min="0" max="540" id="mmoY"><b id="mmoYV"></b></div>
             <div class="xs"><span>Breite</span><input type="range" min="60" max="960" id="mmoW"><b id="mmoWV"></b></div>
@@ -644,17 +653,17 @@
             <p class="muted" style="font-size:11.5px;margin-top:12px;line-height:1.5">Funktioniert mit FiveM im Modus <b>Randlos</b> oder <b>Fenster</b>. Das Bild ist nur zu sehen, solange FiveM vorne ist, und taucht in Clips von OrbitTweak nicht auf. Auf manchen Servern sind Minimap-Overlays verboten.</p>
           </div>
           <div class="card">
-            <div class="lbl"><svg class="i"><use href="#eye"/></svg>Vorschau</div>
+            <div class="ot"><b>Vorschau</b></div>
             <div class="mmb-prev"><div class="mmb-pv" style="flex:1"><canvas id="mmoCv" width="640" height="400"></canvas><span>Linke untere Ecke des Spielbilds</span></div></div>
             <p class="sub" id="mmoHint" style="font-size:12px;margin-top:12px;line-height:1.5"></p>
           </div>
         </div>
         <div class="mmb hidden" id="mmModPane">
           <div class="card">
-            <div class="row"><div class="lbl"><svg class="i"><use href="#map"/></svg>Minimap aus deinem Bild</div><span class="sp"></span><span class="chip" id="mmbChip">Nicht installiert</span></div>
+            <div class="row"><div class="ot"><b>Minimap aus deinem Bild</b></div><span class="sp"></span><span class="chip" id="mmbChip">Nicht installiert</span></div>
             <p class="sub mmb-p">Such dir ein Bild aus (PNG, JPG oder WebP). OrbitTweak baut daraus eine echte Minimap-Mod: Dein Bild ersetzt die Karte im Radar und im Pausemenü. Durchsichtige Stellen im PNG zeigen das Meer.</p>
             <button class="mmb-pick" id="mmbPick"><span class="mmb-th" id="mmbTh"><svg class="i"><use href="#file"/></svg></span><span class="mmb-fn"><b id="mmbName">Bild auswählen</b><small id="mmbInfo">PNG, JPG oder WebP</small></span><span class="btn sm"><svg class="i"><use href="#folder"/></svg>Durchsuchen</span></button>
-            <div class="lbl mt"><svg class="i"><use href="#layers"/></svg>Anordnung</div>
+            <div class="xsec-h mmb-sh">Anordnung</div>
             <div class="mmb-modes" id="mmbMode">
               <button data-v="tile"><b>Bild wiederholen</b><span>Für Logos, Fotos und Anime-Bilder: Das Bild ist im Radar immer zu sehen</span></button>
               <button data-v="map"><b>Bild ist die ganze Karte</b><span>Für fertige Karten von Los Santos (Format 2:3, Norden oben)</span></button>
@@ -676,7 +685,7 @@
             <p class="muted" style="font-size:11.5px;margin-top:12px;line-height:1.5">FiveM muss dafür geschlossen sein, die Minimap ist ab dem nächsten Start aktiv. Andere Minimap-Mods vorher ausschalten, sonst überschreiben sie sich gegenseitig. Auf Servern mit Pure-Mode werden Mods nicht geladen.</p>
           </div>
           <div class="card">
-            <div class="lbl"><svg class="i"><use href="#eye"/></svg>Vorschau</div>
+            <div class="ot"><b>Vorschau</b></div>
             <div class="mmb-prev">
               <div class="mmb-pv"><canvas id="mmbRadar" width="600" height="380"></canvas><span>Radar im Spiel (zu Fuß)</span></div>
               <div class="mmb-pv sm"><canvas id="mmbWorld" width="320" height="480"></canvas><span>Ganze Karte</span></div>
@@ -686,23 +695,23 @@
         </div>
       </div>
       <div class="mtab hidden" data-mtp="files">
-      <div class="card" style="margin-bottom:16px">
-        <div class="row"><div class="lbl"><svg class="i"><use href="#download"/></svg>Packs aus Discord</div><span class="sp"></span><div class="seg" id="dcCat"><button class="on" data-v="sound">Sound-Pack</button><button data-v="skin">Waffen-Skins</button><button data-v="kill">Kill-Effekte</button><button data-v="other">Sonstiges</button></div></div>
+      <div class="card dcpack">
+        <div class="row"><div class="ot"><b>Packs aus Discord</b><span>Herunterladen, OrbitTweak erledigt den Rest</span></div><span class="sp"></span><div class="seg" id="dcCat"><button class="on" data-v="sound">Sound-Pack</button><button data-v="skin">Waffen-Skins</button><button data-v="kill">Kill-Effekte</button><button data-v="other">Sonstiges</button></div></div>
         <div class="dc-steps">
           <div class="dc-step"><i>1</i><div><b>In Discord laden</b><span>Pack in deiner normalen Discord-App herunterladen</span></div></div>
-          <div class="dc-arrow"><span>&rsaquo;</span></div>
+          <div class="dc-arrow"><span></span></div>
           <div class="dc-step"><i>2</i><div><b>Wird erkannt</b><span>OrbitTweak bemerkt die Datei sofort, ohne Anmeldung</span></div></div>
-          <div class="dc-arrow"><span>&rsaquo;</span></div>
-          <div class="dc-step"><i>3</i><div><b>Installieren</b><span>Ein Klick – OrbitTweak erkennt den Inhalt und legt alles an die richtige Stelle</span></div></div>
+          <div class="dc-arrow"><span></span></div>
+          <div class="dc-step"><i>3</i><div><b>Installieren</b><span>Ein Klick, alles landet an der richtigen Stelle</span></div></div>
         </div>
-        <div class="row" style="margin-top:16px"><div class="lbl" style="font-size:12.5px"><svg class="i"><use href="#download"/></svg>Neu in deinen Downloads</div><span class="sp"></span><button class="btn sm" onclick="api('downloads.open')"><svg class="i"><use href="#folder"/></svg>Downloads</button><button class="btn sm p" id="dcAllBtn" onclick="dcAll()"><svg class="i"><use href="#download"/></svg>Alle installieren</button></div>
+        <div class="row dc-dlh"><div class="xsec-h">Neu in deinen Downloads</div><span class="sp"></span><button class="btn sm" onclick="api('downloads.open')"><svg class="i"><use href="#folder"/></svg>Downloads</button><button class="btn sm p" id="dcAllBtn" onclick="dcAll()"><svg class="i"><use href="#download"/></svg>Alle installieren</button></div>
         <div id="modDl" class="mt8"></div>
         <details class="dc-more"><summary><svg class="i"><use href="#chev"/></svg>Lieber per Link oder im Mod-Browser?</summary>
           <div class="row mt8" style="gap:8px"><input class="in" id="dcLink" style="flex:1" spellcheck="false" placeholder="Link der Datei aus Discord einfügen (…/pack.rpf, .zip, .oiv)"><button class="btn" onclick="dcLink()"><svg class="i"><use href="#download"/></svg>Installieren</button><button class="btn" onclick="dcOpen()"><svg class="i"><use href="#globe"/></svg>Discord im Mod-Browser</button></div>
         </details>
       </div>
       <div class="card">
-        <div class="row"><div class="lbl"><svg class="i"><use href="#puzzle"/></svg>Installierte Mod-Dateien</div><span class="chip" id="modCount">0</span><span class="sp"></span><span class="sub" style="font-size:12px">Änderungen nur bei geschlossenem FiveM</span></div>
+        <div class="row"><div class="ot"><b>Installierte Mods</b><span class="chip" id="modCount">0</span></div><span class="sp"></span><span class="ot-note">Änderungen nur bei geschlossenem FiveM</span></div>
         <div id="modList" class="mt8"></div>
         <div class="srow mods-opt"><div><b>Sounds auch auf Pure-Servern</b><p>Ersetzt die Sound-Dateien im GTA-V-Ordner, Originale werden gesichert. Wirkt dann auch auf Servern mit Pure 1. Steam/Rockstar „Dateien überprüfen“ setzt sie zurück. Gilt für neu installierte Sound-Packs.</p><p class="mods-hint" id="modGtaHint"></p></div><div class="tg" id="modGta"></div></div>
         <p class="mfoot">Aktiv beim nächsten FiveM-Start. Ab zwei Paketen steht unten links „N mod packs loaded“. Server mit Pure-Mode ignorieren Mods aus dem FiveM-Ordner.</p>
