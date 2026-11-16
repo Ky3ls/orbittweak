@@ -333,6 +333,9 @@ Check(!KillLogic.SameText("ZM Blaze killed Kronos77", "ZM Blaze killed Viper_12"
     Check(late.Count >= 3 && late.All(x => x.c.A == usual.Parts[x.i].A), $"no beats past the end of the music ({late.Count} clips after it)");
     var (_, bg) = MontageCut.Build(MontageCut.Make(src, new MontageCut.Options(After: 5), new MontageBeat.Grid(120, 0.5, 0.37, 300)), new MontageCut.Art(null, null, new Dictionary<int, string>(), new Dictionary<int, string>()), "m.mp3", "g.txt", "out.mp4", true);
     Check(bg.Contains("atrim=start=0.37:duration=") && bg.Contains("afade=t=in:d=0.02"), "the music starts on its first hit");
+    // without slow motion the time of the first picture after the seek is kept as well (else the kill came a frame early)
+    var (_, pg) = MontageCut.Build(MontageCut.Make(src, new MontageCut.Options(After: 5, Intro: false, Slow: 1), new MontageBeat.Grid(120, 0.5, 0.37, 300)), new MontageCut.Art(null, null, new Dictionary<int, string>(), new Dictionary<int, string>()), "m.mp3", "g.txt", "out.mp4", true);
+    Check(System.Text.RegularExpressions.Regex.Matches(pg, @"setpts='PTS',framerate=").Count == src.Count && !pg.Contains("setpts='PTS-STARTPTS'"), "no slow motion: the clips keep their picture times");
 }
 
 Console.WriteLine($"{passed} passed, {failed} failed");

@@ -70,7 +70,9 @@ internal static class MontageCut
         /// <summary>The same as an ffmpeg setpts expression (T = seconds of the frame from the start of the part).</summary>
         public string SetPts()
         {
-            if (K <= 1) return "PTS-STARTPTS";
+            // (the time of the first picture after the seek is kept here too: fps fills the start, else the kill came
+            // up to one source frame early)
+            if (K <= 1) return "PTS";
             double rin = B - P1, rout = P4 - C;
             double fb = Out(B), fc = Out(C), f4 = Out(P4);
             string k1 = N((K - 1) / (2 * rin)), k2 = N((K - 1) / (2 * rout));
