@@ -92,7 +92,7 @@ internal sealed class KillMark
                     var (kind, text, word, strip) = ReadMessage((now - msgSeen).TotalSeconds < 1.0);
                     if (kind == KillText.Kind.Kill) msgSeen = now;
                     if (_msg.Read(now, kind == KillText.Kind.Kill, kind == KillText.Kind.Death, text, word))
-                        Report(now.AddSeconds(-KillLogic.LagMessage), "text", $"Kill-Meldung „{word}“ am Fadenkreuz", word, strip.px != null ? Png(strip.px, strip.w, strip.h, Math.Min(1, 480.0 / strip.w)) : null);
+                        Report(now.AddSeconds(-KillLogic.LagMessage), "text", $"Kill-Meldung „{word}“ am Fadenkreuz", word, strip.px != null ? Png(strip.px, strip.w, strip.h, Math.Min(1, 240.0 / strip.w)) : null);
                     if (_msg.NewDeath) try { Death?.Invoke(text); } catch { }
                 }
                 catch { }

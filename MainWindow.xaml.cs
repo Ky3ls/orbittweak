@@ -121,10 +121,13 @@ public partial class MainWindow : Window
             if (_lastKillAt > started.AddSeconds(-1)) { ClipLog.Add($"Gefecht ({n}, {span:0.0} s): schon als Kill gespeichert"); return; }
             // AI check: where kills are not noticed at the crosshair (yet), a vision model looks at pictures of the fight.
             // Where they are, a fight without a kill needs no look (and the free daily requests are kept for other servers).
-            if (!S.Clip.Auto && AiOn && !NetQuiet && await AiJudge(n, span, started)) return;
+            // the player's own death was read in this fight: taken now, the AI check can take half a minute and a death
+            // in the next fight must not count for this one
+            bool died = _lastDeathAt > started.AddSeconds(-1);
+            if (!S.Clip.Auto && AiOn && !NetQuiet && await AiJudge(n, span, started, died)) return;
             if (!S.Clip.Auto && !NetOn) return;
-            // the player's own death was read in this fight: a fight lost, not worth a safety-net clip
-            if (!S.Clip.Auto && _lastDeathAt > started.AddSeconds(-1)) { ClipLog.Add($"Gefecht ({n}, {span:0.0} s) ohne Kill, dein Tod erkannt: nicht gespeichert"); return; }
+            // a fight lost, not worth a safety-net clip
+            if (!S.Clip.Auto && died) { ClipLog.Add($"Gefecht ({n}, {span:0.0} s) ohne Kill, dein Tod erkannt: nicht gespeichert"); return; }
             // the safety net is only for places where kills are not noticed. Where they are (a kill was noticed a short
             // while ago), a fight without a kill is just that, mostly the player's own death, and is not saved.
             if (!S.Clip.Auto && NetQuiet)
@@ -1449,7 +1452,7 @@ public partial class MainWindow : Window
     /// Lets the vision model look at the firefight that just ended. True = decided here (kill saved, or no kill so
     /// nothing to save); false = no answer, the safety net decides as before.
     /// </summary>
-    private async Task<bool> AiJudge(string n, double span, DateTime started)
+    private async Task<bool> AiJudge(string n, double span, DateTime started, bool died)
     {
         if (DateTime.Now < _aiQuotaUntil) return false;   // the account's limit was hit a moment ago
         var to = DateTime.UtcNow; var from = to.AddSeconds(-(span + 4.0));
@@ -1499,7 +1502,7 @@ public partial class MainWindow : Window
         var endAt = (killAt > fightEnd ? killAt : fightEnd).AddSeconds(Math.Max(2, S.Clip.After));
         double after = Math.Min(S.Clip.After, (endAt - DateTime.Now).TotalSeconds);
         // the player died in this fight as well (the model saw it, or the death message was read)
-        var what = (v.Kills == 1 ? "Kill" : $"{v.Kills} Kills") + (v.Died || _lastDeathAt > started.AddSeconds(-1) ? " + Tod" : "");
+        var what = (v.Kills == 1 ? "Kill" : $"{v.Kills} Kills") + (v.Died || died ? " + Tod" : "");
         await SaveClip($"Auto-Clip: {what} erkannt (KI)", what,
             S.Clip.Before + Math.Max(0, (DateTime.Now - killAt).TotalSeconds), after, new List<DateTime> { killAt });
         return true;
