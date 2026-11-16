@@ -520,7 +520,8 @@ public partial class MainWindow : Window
                     {
                         foreach (var t in _tweaks)
                             if (t.SafeCheck() && (t.IsOwned || Marks.Has(t.Id))) try { t.Revert(); Marks.Clear(t.Id); } catch { }
-                        foreach (var l in Catalog.Old) if (l.SafeCheck()) try { l.Revert(); } catch { }
+                        // removed tweaks match by value only and may be the user's or another tool's: just the ones under our own flag
+                        foreach (var l in Catalog.Old) if (l.Own && l.SafeCheck()) try { l.Revert(); } catch { }
                     }
                     finally { TweakRun.All = false; }
                 });

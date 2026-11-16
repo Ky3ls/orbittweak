@@ -24,6 +24,9 @@ internal static class BgThrottle
         "wallpaper32", "wallpaper64", "msedgewebview2",
     };
 
+    /// <summary>Processes that draw the window of another program (WebView2 in the new Teams/Outlook, CEF in the Epic and Steam clients).</summary>
+    private static readonly HashSet<string> Helpers = new(StringComparer.OrdinalIgnoreCase) { "msedgewebview2", "epicwebhelper", "steamwebhelper" };
+
     /// <summary>What a slowed program had before: priority, and whether (and with which masks) its efficiency setting was changed.</summary>
     private readonly record struct Was(string Name, ProcessPriorityClass Prio, bool Eco, uint Ctl, uint St);
     private static readonly Dictionary<int, Was> Saved = new();
@@ -41,13 +44,18 @@ internal static class BgThrottle
         // session is not always the one that decodes it
         var loud = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var pid in AudioSessions.ActivePids()) { try { using var p = Process.GetProcessById(pid); loud.Add(p.ProcessName); } catch { } }
-        var front = ForegroundName();
-        bool Spared(string name) => loud.Contains(name) || name.Equals(front, StringComparison.OrdinalIgnoreCase);
+        var (front, frontPid) = Foreground();
+        // the window in use can be drawn by helper processes under it: they count as that program
+        var frontKids = new HashSet<int>();
+        if (frontPid > 0)
+            foreach (var hn in Helpers)
+                try { foreach (var p in Process.GetProcessesByName(hn)) using (p) if (p.Id != frontPid && ParentIs(p, frontPid)) frontKids.Add(p.Id); } catch { }
+        bool Spared(int pid, string name) => loud.Contains(name) || name.Equals(front, StringComparison.OrdinalIgnoreCase) || frontKids.Contains(pid);
         lock (Saved)
         {
             bool changed = false;
             // alt-tabbed to it, or it started playing sound: its speed back at once (it is slowed again once that is over)
-            foreach (var pid in Saved.Where(x => Spared(x.Value.Name)).Select(x => x.Key).ToList())
+            foreach (var pid in Saved.Where(x => Spared(x.Key, x.Value.Name)).Select(x => x.Key).ToList())
             {
                 Give(pid, Saved[pid]); Saved.Remove(pid); changed = true;
             }
@@ -56,7 +64,7 @@ internal static class BgThrottle
                 {
                     try
                     {
-                        if (!Heavy.Contains(p.ProcessName) || Spared(p.ProcessName)) continue;
+                        if (!Heavy.Contains(p.ProcessName) || Spared(p.Id, p.ProcessName)) continue;
                         if (p.Id == own || mine.Contains(p.Id) || Saved.ContainsKey(p.Id)) continue;
                         var prio = p.PriorityClass;
                         if (prio is ProcessPriorityClass.Idle or ProcessPriorityClass.BelowNormal) continue;   // already low: leave it alone
@@ -144,18 +152,19 @@ internal static class BgThrottle
         catch { return false; }
     }
 
-    private static string? ForegroundName()
+    /// <summary>Name and id of the process that owns the window in use; (null, 0) when there is none.</summary>
+    private static (string? name, int pid) Foreground()
     {
         try
         {
             var h = GetForegroundWindow();
-            if (h == IntPtr.Zero) return null;
+            if (h == IntPtr.Zero) return (null, 0);
             GetWindowThreadProcessId(h, out var pid);
-            if (pid == 0) return null;
+            if (pid == 0) return (null, 0);
             using var p = Process.GetProcessById((int)pid);
-            return p.ProcessName;
+            return (p.ProcessName, (int)pid);
         }
-        catch { return null; }
+        catch { return (null, 0); }
     }
 
     [StructLayout(LayoutKind.Sequential)] private struct PBI { public IntPtr Reserved1, Peb, Reserved2a, Reserved2b, UniquePid, ParentPid; }

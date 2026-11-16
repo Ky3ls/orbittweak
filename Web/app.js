@@ -456,7 +456,7 @@ async function refreshCache() { try { const r = await api('fivem.cacheSize'); $(
 /* ======================= SCORE / BOOST ======================= */
 function score() {
   // the share of the tweaks recommended for this PC that are on: optional ones never pull the score down
-  const t = S.tweaks.filter(x => x.rec), on = t.filter(x => x.applied).length, pct = t.length ? Math.round(on * 100 / t.length) : 100;
+  const t = S.tweaks.filter(x => x.rec && (x.usable !== false || x.applied)), on = t.filter(x => x.applied).length, pct = t.length ? Math.round(on * 100 / t.length) : 100;
   $('#hsTweaks').textContent = `${on}/${t.length}`;
   if (!S.boosting) { setRing(pct); $('#scoreChip').textContent = pct >= 90 ? 'Optimal' : 'Bereit'; $('#scoreChip').className = 'chip ' + (pct >= 90 ? 'g' : ''); }
 }
@@ -510,12 +510,14 @@ async function boost(fromWizard) {
 
 /* ======================= TWEAKS ======================= */
 const CATS = { fivem: ['FiveM', 'gamepad', 'GPU, Bildausgabe und Vorrang fürs Spiel'], system: ['System', 'cpu', 'Windows-Einstellungen, die beim Spielen zählen'], network: ['Netzwerk', 'wifi', 'Weniger Aussetzer durch Stromsparen, WLAN-Scans und Update-Uploads'], input: ['Input', 'keyboard', 'Maus, Tastatur und störende Windows-Kürzel'] };
-let curTab = 'fivem';
+let curTab = 'fivem', twMigSeen = false;
 async function loadTweaks() {
   S.tweaks = await api('tweaks.list'); renderTweaks(); score();
   // removed tweaks that are still active (System tab), and once after the update: what was undone by itself
   try {
-    const l = await api('tweaks.legacy'); S.legacy = l.items || []; renderTweaks();
+    const l = await api('tweaks.legacy'); S.legacy = l.items || [];
+    if (!twMigSeen) { twMigSeen = true; S.tweaks = await api('tweaks.list'); score(); }
+    renderTweaks();
     const n = l.note;
     if (n && n.undone && n.undone.length) toast('Veraltete Tweaks zurückgesetzt', n.undone.join(', ') + (n.reboot ? ' · wirkt nach einem Neustart' : ''));
     if (n && n.active) setTimeout(() => toast(n.active === 1 ? '1 alter Tweak ist noch aktiv' : `${n.active} alte Tweaks sind noch aktiv`, 'Unter Tweaks › System › Entfernte Tweaks prüfen'), n.undone && n.undone.length ? 4200 : 0);
@@ -898,7 +900,11 @@ function renderHealth(h) {
   if ($('#hRing')) $('#hRing').style.strokeDashoffset = 678.6 * (1 - Math.max(0, Math.min(100, h.score)) / 100);
   const cnt = st => h.items.filter(i => i.st === st).length, warn = cnt('warn'), worse = cnt('bad'), bad = h.items.length - cnt('ok');
   $('#hScoreTxt').textContent = bad ? `${bad} ${bad === 1 ? 'Punkt' : 'Punkte'} verbesserbar` : 'Alles im grünen Bereich';
-  if ($('#hScoreSub')) $('#hScoreSub').textContent = bad ? 'Mit „Beheben“ stellst du sie mit einem Klick richtig.' : 'FiveM hat hier alles, was es braucht.';
+  const fixable = h.items.filter(i => i.fix && i.st !== 'ok').length;
+  if ($('#hScoreSub')) $('#hScoreSub').textContent = !bad ? 'FiveM hat hier alles, was es braucht.'
+    : fixable === bad ? 'Mit „Beheben“ stellst du sie mit einem Klick richtig.'
+    : fixable ? `${fixable} davon behebst du mit „Beheben“, für die anderen steht dabei, was zu tun ist.`
+    : 'Was zu tun ist, steht bei jedem Punkt dabei.';
   if ($('#hChip')) { $('#hChip').textContent = bad ? (worse ? `${worse} ${worse === 1 ? 'Problem' : 'Probleme'}` : 'Hinweise') : 'Optimal'; $('#hChip').className = 'chip ' + (bad ? (worse ? 'r' : 'w') : 'g'); }
   if ($('#hOk')) { $('#hOk').textContent = cnt('ok'); $('#hWarn').textContent = warn; $('#hBad').textContent = worse; }
   // problems first, then hints, then what is fine

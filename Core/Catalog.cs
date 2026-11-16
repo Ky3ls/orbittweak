@@ -435,8 +435,11 @@ internal static class Catalog
                 },
                 Revert = () =>
                 {
-                    Spi.SetParam(0x0017, uint.TryParse(Bk.Take("kbd.delay"), out var d) ? d : 1);
-                    Spi.SetParam(0x000B, uint.TryParse(Bk.Take("kbd.speed"), out var sp) ? sp : 31);
+                    // a value without a backup already was at the target before Apply (Bk.Keep skips those): it stays;
+                    // with no backup at all (set by hand or by an older version) both go back to Windows' defaults
+                    bool any = Bk.Has("kbd.delay") || Bk.Has("kbd.speed");
+                    if (!any || Bk.Has("kbd.delay")) Spi.SetParam(0x0017, uint.TryParse(Bk.Take("kbd.delay"), out var d) ? d : 1);
+                    if (!any || Bk.Has("kbd.speed")) Spi.SetParam(0x000B, uint.TryParse(Bk.Take("kbd.speed"), out var sp) ? sp : 31);
                     Bk.Drop("kbd.delay"); Bk.Drop("kbd.speed");
                 }
             },
@@ -471,8 +474,12 @@ internal static class Catalog
                 },
                 Revert = () =>
                 {
+                    // a value without a backup already was "3" before Apply (Bk.Keep skips those): it stays;
+                    // with no backup at all every value goes back to the Windows default (deleted)
+                    bool any = Bk.HasPrefix("langkey.");
                     foreach (var n in LangNames)
                     {
+                        if (any && !Bk.Has("langkey." + n)) continue;
                         var v = Bk.Take("langkey." + n);
                         if (v == null) Reg.Del(LANG, n); else Reg.SetStr(LANG, n, v);
                         Bk.Drop("langkey." + n);
@@ -537,17 +544,20 @@ internal static class Catalog
 
     private static void UltRevert()
     {
+        var g = Reg.Get(OWN, "UltScheme") as string;
+        // decided before anything is deleted: when "USB-Energiesparen aus" is on in the plan that goes away
+        // (its backup may only exist for that plan), it stays on in the plan that comes back
+        bool usbOn = UsbOwned() || (g != null && Power.Exists(g) && UsbAc(g) == 0 && Marks.Has("usb"));
         var prev = Reg.Get(OWN, "UltPrev") as string;
         if (prev == null || !Power.Exists(prev)) prev = Power.BALANCED;
         Proc.Run("powercfg", $"/setactive {prev}");
-        var g = Reg.Get(OWN, "UltScheme") as string;
         if (Power.Active() == prev)
         {
             if (g != null && !BuiltIn(g) && Power.Exists(g)) Proc.Run("powercfg", $"/delete {g}");
             if (g != null) Reg.Del(Bk.Machine, "usb." + g);
             Reg.Del(OWN, "UltScheme"); Reg.Del(OWN, "UltPrev");
         }
-        if (!TweakRun.All && UsbOwned()) try { UsbApplyTo(prev); } catch { }
+        if (!TweakRun.All && usbOn) try { UsbApplyTo(prev); } catch { }
     }
 
     /// <summary>Plans of Windows itself (Balanced, High performance, Ultimate, Power saver): never deleted.</summary>
@@ -704,12 +714,13 @@ internal static class Catalog
     // ======================================================================================================
     //  REMOVED TWEAKS: still active ones are shown under System › "Entfernte Tweaks" with a reset button
     // ======================================================================================================
-    public sealed record Legacy(string Id, string Name, string Desc, Func<bool> Check, Action Revert, string? Hint = null)
+    /// <param name="Own">true when Check reads OrbitTweak's own flag, so the value is surely ours; only those are part of "Alle zurücksetzen"</param>
+    public sealed record Legacy(string Id, string Name, string Desc, Func<bool> Check, Action Revert, string? Hint = null, bool Own = false)
     {
         public bool SafeCheck() { try { return Check(); } catch { return false; } }
     }
 
-    /// <summary>In this order for "Alle zurücksetzen": SysMain before the memory compression, which needs it.</summary>
+    /// <summary>SysMain comes before the memory compression, which needs it. "Alle zurücksetzen" only takes the <see cref="Legacy.Own"/> ones.</summary>
     public static readonly List<Legacy> Old = new()
     {
         new("sysmain", "SysMain aus (entfernt)",
@@ -729,7 +740,7 @@ internal static class Catalog
                 if (Reg.Is(SYSMAIN, "Start", 4)) throw new InvalidOperationException("Erst „SysMain aus“ zurücksetzen");
                 if (!EnableMemoryCompression()) throw new InvalidOperationException("Windows hat die Speicher-Komprimierung nicht eingeschaltet");
                 Reg.Del(OWN, "MemCompOff");
-            }, "Wirkt nach einem Neustart"),
+            }, "Wirkt nach einem Neustart", Own: true),
         new("bgapps", "Hintergrund-Apps blockieren (entfernt)",
             "Entfernt, weil es nur Store-Apps traf (nicht Discord, Browser oder Launcher) und dir dabei Benachrichtigungen abschalten konnte – ist es bei dir noch aktiv, kannst du es hier zurücksetzen.",
             () => Reg.Is(@"HKCU\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications", "GlobalUserDisabled", 1),
