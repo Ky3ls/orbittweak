@@ -32,4 +32,9 @@
   <ItemGroup>
     <EmbeddedResource Include="Web\**\*" LogicalName="web/%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- checks that run on their own (tests/ClipLogic.Tests), not part of the app -->
+    <Compile Remove="tests\**" />
+    <None Remove="tests\**" />
+  </ItemGroup>
 </Project>

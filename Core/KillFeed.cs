@@ -93,7 +93,7 @@ internal sealed class KillFeed
                     if (kind == null) continue;
                     if (auto) { Found = area; _foundAt = now; }
                     var key = Norm(l.text);
-                    bool fresh = !_seen.Keys.Any(s => Similar(s, key));
+                    bool fresh = !_seen.Keys.Any(s => KillLogic.SameText(s, key));
                     _seen[key] = now;
                     // the first read of a position after entering the game only learns what is already on screen
                     if (!fresh || !primed) continue;
@@ -224,14 +224,5 @@ internal sealed class KillFeed
             if (diff <= 1) return true;
         }
         return false;
-    }
-
-    private static bool Similar(string a, string b)
-    {
-        if (a == b) return true;
-        if (Math.Abs(a.Length - b.Length) > 2) return false;
-        int same = 0, len = Math.Min(a.Length, b.Length);
-        for (int i = 0; i < len; i++) if (a[i] == b[i]) same++;
-        return len > 0 && same >= len * 0.85;
     }
 }

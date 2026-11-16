@@ -131,8 +131,10 @@ public partial class MainWindow : Window
             // reach back to a few seconds before the first shot
             await SaveClip(S.Clip.Auto ? $"Auto-Clip nach Gefecht ({n})" : $"Auto-Clip: Gefecht ohne erkannten Kill ({n})", "Gefecht", Math.Min(8, S.Clip.Before) + span + 3.5, 0);
         });
-        _killFeed.Hit += kill => Dispatcher.InvokeAsync(() => OnKill(kill));
-        _killMark.Kill += how => Dispatcher.InvokeAsync(() => OnKill(true, how));
+        // when the kill happened is taken where it was noticed (the main thread may be busy for a moment)
+        _killFeed.Hit += kill => { var at = DateTime.Now.AddSeconds(-KillLogic.LagFeed); Dispatcher.InvokeAsync(() => OnKill(kill, null, at)); };
+        _killMark.Kill += (how, at) => Dispatcher.InvokeAsync(() => OnKill(true, how, at));
+        _killMark.Note += ClipLog.Add;
 #if DEBUG
         if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ORBIT_TEST_GAME"))) _killMark.NeedShot = false; // the stand-in game is not shot at
 #endif
@@ -726,17 +728,24 @@ public partial class MainWindow : Window
                 try
                 {
                     var music = S.Clip.MontageMusic is { } mf && File.Exists(mf) ? mf : null;
-                    // with slow motion the cut is done by ffmpeg; without it by Windows' own video machinery
+                    // the cut is done by ffmpeg (slow motion needs it, so it is loaded for that); without slow motion and
+                    // without ffmpeg, Windows' own video machinery makes a plainer montage
                     bool slow = !a.TryGetProperty("slowmo", out var sm) || sm.ValueKind != JsonValueKind.False;
                     string? file, err; int n;
-                    if (slow)
+                    var ff = FfMontage.Find();
+                    if (slow && ff == null) return new { needFfmpeg = true };
+                    if (ff != null)
                     {
-                        var ff = FfMontage.Find();
-                        if (ff == null) return new { needFfmpeg = true };
                         var all = Highlight.KillClips(false);
                         if (all.Count < 2) return new { error = "Dafür braucht es mindestens zwei Kill-Clips" };
                         var pick = all.Skip(Math.Max(0, all.Count - Math.Clamp(Int(a, "count"), 2, 30))).ToList();
-                        (file, err, n) = await FfMontage.Make(ff, pick, S.Clip.After, music, _accentHex, (pct, text) => Emit("highlight", new { pct, text }));
+                        // optional, kept for next time: the big line of the intro, intro/outro on or off, the kill counter on or off
+                        if (a.TryGetProperty("title", out var mt) && mt.ValueKind == JsonValueKind.String) { var t = (mt.GetString() ?? "").Trim(); S.Clip.MontageTitle = t.Length > 32 ? t[..32] : t; }
+                        if (a.TryGetProperty("intro", out var mi) && mi.ValueKind is JsonValueKind.True or JsonValueKind.False) S.Clip.MontageIntro = mi.GetBoolean();
+                        if (a.TryGetProperty("counter", out var mc) && mc.ValueKind is JsonValueKind.True or JsonValueKind.False) S.Clip.MontageCounter = mc.GetBoolean();
+                        S.Save();
+                        var title = S.Clip.MontageTitle.Length > 0 ? S.Clip.MontageTitle : S.Clip.Name;
+                        (file, err, n) = await FfMontage.Make(ff, pick, S.Clip.After, music, _accentHex, (pct, text) => Emit("highlight", new { pct, text }), title, S.Clip.MontageIntro, S.Clip.MontageCounter, slow);
                     }
                     else (file, err, n) = await Highlight.MakeMontage(Int(a, "count"), music, _accentHex, (pct, text) => Emit("highlight", new { pct, text }));
                     if (file == null) { ClipLog.Add("Montage nicht erstellt: " + err); return new { error = err }; }
@@ -1360,7 +1369,7 @@ public partial class MainWindow : Window
     {
         if (DateTime.Now < _aiQuotaUntil) return false;   // the account's limit was hit a moment ago
         var to = DateTime.UtcNow; var from = to.AddSeconds(-(span + 4.0));
-        var frames = _eye.Take(from, to);
+        var frames = _eye.Take(from, to);   // their times count from "from"
         if (frames.Count < 3) { ClipLog.Add($"Gefecht ({n}, {span:0.0} s): KI-Prüfung ohne Bilder nicht möglich"); return false; }
         KillJudge.Verdict v;
         try
@@ -1435,11 +1444,11 @@ public partial class MainWindow : Window
     }
 
     /// <summary>A kill (or death) was noticed: several in a row end up in one clip, saved once nothing new happened for a moment.</summary>
-    private async void OnKill(bool kill, string? how = null)
+    private async void OnKill(bool kill, string? how = null, DateTime? at = null)
     {
         if (!_authed || !S.Clip.Kills) return;
         if (kill) { _kfKills++; _statKills++; } else _kfDeaths++;
-        if (kill) _kfTimes.Add(DateTime.Now.AddSeconds(-0.35));   // the message appears a moment after the kill itself
+        if (kill) _kfTimes.Add(at ?? DateTime.Now.AddSeconds(-KillLogic.LagMessage));   // when the kill itself happened, a moment before it was noticed
         _lastKillAt = DateTime.Now;
         ClipLog.Add(kill ? (how != null ? $"Kill erkannt ({how})" : "Kill im Kill-Feed erkannt") : "Tod im Kill-Feed erkannt");
         // noticed at the crosshair: the detection works here, so the safety net can keep quiet for a while
