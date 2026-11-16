@@ -691,7 +691,8 @@
         <div class="card">
           <div class="lbl"><svg class="i"><use href="#plus"/></svg>Neuen Code erzeugen</div>
           <div class="adm-new mt8"><div class="seg" id="admRole"><button class="on" data-v="user">Nutzer</button><button data-v="editor">Editor</button><button data-v="admin">Admin</button></div><input class="in" id="admNote" placeholder="Notiz, z. B. Name des Nutzers" maxlength="60"><button class="btn p" onclick="admCreate()"><svg class="i"><use href="#zap"/></svg>Erzeugen</button></div>
-          <p class="sub" style="font-size:12px;margin-top:8px">Nutzer: darf OrbitTweak benutzen. Editor: zusätzlich Mods einreichen (werden geprüft). Admin: darf alles.</p>
+          <div class="adm-new adm-plan mt8"><span class="sub">Laufzeit</span><div class="seg" id="admDays"><button data-v="1">1 Tag</button><button data-v="7">7 Tage</button><button data-v="30">30 Tage</button><button class="on" data-v="0">Lifetime</button></div><span class="sub">Anzahl</span><input class="in" id="admNum" type="number" min="1" max="50" value="1"></div>
+          <p class="sub" style="font-size:12px;margin-top:8px">Nutzer: darf OrbitTweak benutzen. Editor: zusätzlich Mods einreichen (werden geprüft). Admin: darf alles. Die Laufzeit startet, wenn der Key zum ersten Mal eingelöst wird; „PC lösen“ startet sie nicht neu. Für einen Shop-Vorrat bis zu 50 Keys auf einmal.</p>
           <div class="adm-code hidden" id="admNewCode"></div>
         </div>
         <div class="card mt"><div class="row"><div class="lbl"><svg class="i"><use href="#users"/></svg>Alle Codes</div><span class="chip" id="admCount">0</span><span class="sp"></span><button class="ib" onclick="admLoad()"><svg class="i"><use href="#refresh"/></svg></button></div><div id="admCodes" class="mt8"></div></div>

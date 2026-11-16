@@ -99,6 +99,8 @@ public class Settings
     public string? AuthToken { get; set; }
     public string? AuthRole { get; set; }
     public DateTime? AuthOkUntil { get; set; }
+    public DateTime? AuthExp { get; set; }           // when the key runs out (UTC), null = lifetime
+    public int? AuthDays { get; set; }
     public int XhairRev { get; set; }
     public DisplayCfg Display { get; set; } = new();
     public MinimapModCfg MinimapMod { get; set; } = new();

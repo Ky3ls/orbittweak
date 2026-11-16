@@ -300,7 +300,7 @@ function onEvent(ev, d) {
   else if (ev === 'update') updProgress(d);
   else if (ev === 'xhair') { XH.on = d.on; xhState(); toast(d.on ? 'Fadenkreuz an' : 'Fadenkreuz aus', d.on ? 'per Taste · Server-Regeln beachten' : 'per Taste'); }
   else if (ev === 'display') { DP.cfg.on = d.on; dpState(); }
-  else if (ev === 'locked') gate('Dein Key wurde gesperrt oder ist auf einem anderen PC aktiv.');
+  else if (ev === 'locked') gate(d && d.reason === 'expired' ? 'Dein Key ist abgelaufen. Mit einem neuen Key geht es sofort weiter.' : 'Dein Key wurde gesperrt oder ist auf einem anderen PC aktiv.');
   else if (ev === 'pad') padState(d);
   else if (ev === 'padon') { PAD.cfg.mode = d.mode; padUI(); toast(d.mode === 'off' ? 'Controller-Anzeige aus' : 'Controller-Anzeige automatisch', 'per Taste'); }
   else if (ev === 'modInstalled') { passed('Mod installiert', `${MOD_CATS[d.cat]?.[0] || 'Mod'} · ${d.name}`); modList(); }
@@ -2205,7 +2205,7 @@ async function accLoad() {
   accUI();
   if (ACC.loggedIn && LIB.api) {
     const me = await srv('GET', '/api/me').catch(() => null);
-    if (!me || me.error) { ACC.loggedIn = false; ACC.role = null; } else ACC.role = me.role;
+    if (!me || me.error) { ACC.loggedIn = false; ACC.role = null; } else { ACC.role = me.role; ACC.plan = { days: me.days, exp: me.exp }; }
     accUI();
     if (ACC.role === 'admin') admPendingCount();
   }
@@ -2217,7 +2217,8 @@ function accUI() {
   $('#accRole').textContent = r === 'admin' ? 'Admin' : r === 'editor' ? 'Editor' : r ? 'Nutzer' : 'Nicht angemeldet';
   $('#accLogin').classList.toggle('hidden', r === 'admin'); $('#accIn').classList.toggle('hidden', !r);
   $('#accTitle').textContent = r === 'admin' ? 'Lizenz aktiv · Admin' : r === 'editor' ? 'Lizenz aktiv · Editor' : 'Lizenz aktiv';
-  $('#accText').textContent = r === 'admin' ? 'Du kannst Keys erzeugen, Mods direkt live stellen und Einreichungen freigeben.' : r === 'editor' ? 'Du kannst Mods einreichen. Ein Admin gibt sie frei.' : 'OrbitTweak ist auf diesem PC freigeschaltet.';
+  $('#accText').textContent = (r === 'admin' ? 'Du kannst Keys erzeugen, Mods direkt live stellen und Einreichungen freigeben.' : r === 'editor' ? 'Du kannst Mods einreichen. Ein Admin gibt sie frei.' : 'OrbitTweak ist auf diesem PC freigeschaltet.')
+    + (r ? ' ' + planText(ACC.plan) : '');
   $('#accNoSrv').classList.add('hidden');
   $('#navAdmin').classList.toggle('hidden', r !== 'admin');
   moveInd();
@@ -2283,7 +2284,7 @@ async function admLoad() {
     $('#admCount').textContent = r.codes.length;
     $('#admCodes').innerHTML = r.codes.length ? r.codes.map(c => `<div class="crow2 ${c.revoked ? 'off' : ''}">
       <code class="cc">${esc(c.code)}</code><button class="ib" title="Kopieren" onclick="copyCmd('${esc(c.code)}')">${ico('copy')}</button>
-      <span class="chip ${c.role === 'admin' ? 'a' : c.role === 'editor' ? 'g' : ''}">${c.role === 'admin' ? 'Admin' : c.role === 'editor' ? 'Editor' : 'Nutzer'}</span>
+      <span class="chip ${c.role === 'admin' ? 'a' : c.role === 'editor' ? 'g' : ''}">${c.role === 'admin' ? 'Admin' : c.role === 'editor' ? 'Editor' : 'Nutzer'}</span>${planChip(c)}
       <span class="cn">${esc(c.note || '')}${c.self ? ' <span class="muted">(du)</span>' : ''}</span>
       <span class="cs">${c.revoked ? '<span class="chip r">Gesperrt</span>' : c.hwid ? `<span class="chip g">Gebunden</span><span class="muted"> PC ${esc(c.hwid)} · aktiv vor ${ago(c.last_seen || c.bound_at)}</span>` : '<span class="chip w">Noch frei</span>'}</span>
       ${c.self ? '' : `${c.hwid ? `<button class="btn sm" onclick="admAct('unbind','${esc(c.code)}')">PC lösen</button>` : ''}<button class="btn sm ${c.revoked ? '' : 'd'}" onclick="admAct('revoke','${esc(c.code)}',${c.revoked ? 1 : 0})">${c.revoked ? 'Entsperren' : 'Sperren'}</button>`}
@@ -2301,15 +2302,38 @@ async function admLoad() {
     $('#admMods').innerHTML = r.mods.length ? r.mods.map(m => `<div class="mod"><div class="tx"><b>${esc(m.name)}</b><p>${esc(m.cat)} · ${bytes(m.size)} · ${esc(m.url)}</p></div><button class="btn sm d" onclick="admMod('delete','${esc(m.id)}')">${ico('trash')}Löschen</button></div>`).join('') : '<div class="empty">Noch keine Server-Mods.</div>';
   }
 }
+/** Runtime of a key in words: "Lifetime", "30-Tage-Key · noch 12 Tage (bis 28.12.2026)", "abgelaufen am …". */
+const daysName = d => d ? (d === 1 ? '1-Tag-Key' : `${d}-Tage-Key`) : 'Lifetime-Key';
+function planText(p) {
+  if (!p || !p.days) return 'Lifetime-Key, läuft nicht ab.';
+  if (!p.exp) return `${daysName(p.days)}, die Laufzeit startet beim Einlösen.`;
+  const ms = p.exp * 1000 - Date.now(), date = new Date(p.exp * 1000).toLocaleDateString('de-DE');
+  if (ms <= 0) return `${daysName(p.days)}, abgelaufen am ${date}.`;
+  const left = ms < 86400000 ? `noch ${Math.max(1, Math.round(ms / 3600000))} Std.` : `noch ${Math.round(ms / 86400000)} Tage`;
+  return `${daysName(p.days)}, ${left} (bis ${date}).`;
+}
+function planChip(c) {
+  if (!c.days) return '<span class="chip">Lifetime</span>';
+  const name = c.days === 1 ? '1 Tag' : c.days + ' Tage';
+  if (!c.expires_at) return `<span class="chip">${name}</span>`;
+  const ms = c.expires_at * 1000 - Date.now();
+  return ms <= 0 ? `<span class="chip r">${name} · abgelaufen</span>` : `<span class="chip w">${name} · noch ${ms < 86400000 ? Math.max(1, Math.round(ms / 3600000)) + ' Std.' : Math.round(ms / 86400000) + ' T.'}</span>`;
+}
 async function admCreate() {
-  const role = $('#admRole .on')?.dataset.v || 'user';
-  const r = await srv('POST', '/api/codes', { role, note: $('#admNote').value });
+  const role = $('#admRole .on')?.dataset.v || 'user', days = +($('#admDays .on')?.dataset.v || 0);
+  const count = Math.max(1, Math.min(50, parseInt($('#admNum').value) || 1));
+  const r = await srv('POST', '/api/codes', { role, note: $('#admNote').value, days, count });
   if (r.error) return toast('Fehler', r.error, false);
-  $('#admNote').value = '';
+  const codes = r.codes || [r.code];
+  $('#admNote').value = ''; $('#admNum').value = 1;
+  const kind = `${role === 'admin' ? 'Admin' : role === 'editor' ? 'Editor' : 'Nutzer'}-Key${codes.length > 1 ? 's' : ''} · ${days ? (days === 1 ? '1 Tag' : days + ' Tage') : 'Lifetime'}`;
+  ADM_NEW = codes.join('\n');
   $('#admNewCode').classList.remove('hidden');
-  $('#admNewCode').innerHTML = `<div><span class="sub" style="font-size:12px">Neuer ${role === 'admin' ? 'Admin' : role === 'editor' ? 'Editor' : 'Nutzer'}-Key, wird an den ersten PC gebunden:</span><code>${esc(r.code)}</code></div><button class="btn p" onclick="copyCmd('${esc(r.code)}')">${ico('copy')}Kopieren</button>`;
+  $('#admNewCode').innerHTML = `<div><span class="sub" style="font-size:12px">${codes.length > 1 ? codes.length + ' neue ' : 'Neuer '}${kind}, jeder wird an den ersten PC gebunden:</span>${codes.map(c => `<code>${esc(c)}</code>`).join('')}</div><button class="btn p" onclick="copyCmd(ADM_NEW)">${ico('copy')}${codes.length > 1 ? 'Alle kopieren' : 'Kopieren'}</button>`;
   admLoad();
 }
+let ADM_NEW = '';
+document.addEventListener('click', e => { const b = e.target.closest('#admDays button'); if (b) $$('#admDays button').forEach(x => x.classList.toggle('on', x === b)); });
 async function admAct(kind, code, undo) {
   if (kind === 'revoke' && !undo && !await confirmBox('Code sperren?', code + ' funktioniert danach nicht mehr.')) return;
   const r = await srv('POST', '/api/codes/' + kind, { code, undo: !!undo });
@@ -2560,7 +2584,7 @@ function MOCKSRV(a) {
   if (p === '/api/mods' && a.method === 'GET') return { mods: [{ id: 'm-demo1', type: 'file', name: 'Red Flash Kill-Effekt', cat: 'kill', url: 'https://example.com/redflash.zip', size: 2.1e6, author: 'Community', desc: 'Kurzer roter Blitz bei jedem Kill.', tags: ['pvp', 'kill'], popular: 90, added: '2026-11-14', status: 'live' }] };
   if (p === '/api/mods/pending') return { mods: [{ id: 'm-p1', name: 'Dark Satellite Minimap', cat: 'minimap', url: 'https://example.com/darksat.zip', size: 18e6, author: 'MapMaker', desc: 'Satellitenkarte in dunkel.', status: 'pending' }] };
   if (p === '/api/codes' && a.method === 'GET') return { codes: [{ code: 'ORB-7K2D-QX9M-4HTP', role: 'admin', note: 'Ky3ls', hwid: '3fa9c1e07b', last_seen: Date.now() / 1000 - 30, self: true }, { code: 'ORB-M8VN-2CKE-W7RJ', role: 'editor', note: 'Max', hwid: '9b1e44a2c0', last_seen: Date.now() / 1000 - 7200 }, { code: 'ORB-T4QH-8ZPA-3NXD', role: 'editor', note: 'Lena', hwid: null }] };
-  if (p === '/api/codes' && a.method === 'POST') return { code: 'ORB-N3WC-0D3X-YZ12', role: a.body.role };
+  if (p === '/api/codes' && a.method === 'POST') { const n = a.body.count || 1, codes = Array.from({ length: n }, (_, i) => 'ORB-N3WC-0D3X-YZ' + String(10 + i).slice(-2)); return { code: codes[0], codes, role: a.body.role, days: a.body.days || null }; }
   return { ok: true, status: 'pending' };
 }
 

@@ -8,7 +8,9 @@ CREATE TABLE IF NOT EXISTS codes (
   bound_at    INTEGER,
   last_seen   INTEGER,
   created_by  TEXT,
-  revoked     INTEGER NOT NULL DEFAULT 0
+  revoked     INTEGER NOT NULL DEFAULT 0,
+  days        INTEGER,               -- runtime in days, NULL = lifetime
+  expires_at  INTEGER                -- set on first redeem: bound_at + days
 );
 CREATE TABLE IF NOT EXISTS mods (
   id          TEXT PRIMARY KEY,

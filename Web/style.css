@@ -1589,3 +1589,9 @@ html.th-winter .launch::after{display:none}   /* its shine would show beside the
 .key{position:relative}
 .key.muted{opacity:.35}
 .key.muted::after{content:'';position:absolute;left:14%;right:14%;top:50%;height:2px;border-radius:2px;background:var(--bad);transform:rotate(-20deg)}
+
+/* admin: runtime and number of keys */
+.adm-plan{align-items:center;gap:10px}
+.adm-plan #admNum{width:76px;flex:none}
+.adm-code code{display:block}
+.adm-code code+code{margin-top:4px}

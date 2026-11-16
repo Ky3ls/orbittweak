@@ -279,10 +279,22 @@ public partial class MainWindow : Window
     };
     private bool _authed;
 
+    /// <summary>Takes the key's runtime from a server answer ("days", "exp" in Unix seconds; missing = lifetime).</summary>
+    private void TakePlan(JsonElement j)
+    {
+        S.AuthDays = j.TryGetProperty("days", out var d) && d.ValueKind == JsonValueKind.Number ? d.GetInt32() : null;
+        S.AuthExp = j.TryGetProperty("exp", out var e) && e.ValueKind == JsonValueKind.Number ? DateTimeOffset.FromUnixTimeSeconds(e.GetInt64()).UtcDateTime : null;
+    }
+    private bool KeyExpired => S.AuthExp is DateTime ex && DateTime.UtcNow > ex;
+    private object PlanInfo => new { days = S.AuthDays, exp = S.AuthExp is DateTime ex ? new DateTimeOffset(ex, TimeSpan.Zero).ToUnixTimeSeconds() : (long?)null };
+
     private void OnAuthed(string? role)
     {
         bool first = !_authed;
-        _authed = true; S.AuthRole = role ?? S.AuthRole; S.AuthOkUntil = DateTime.Now.AddDays(3); S.Save();
+        // offline grace: three days, but never past the end of the key
+        var grace = DateTime.Now.AddDays(3);
+        if (S.AuthExp is DateTime ex && ex.ToLocalTime() < grace) grace = ex.ToLocalTime();
+        _authed = true; S.AuthRole = role ?? S.AuthRole; S.AuthOkUntil = grace; S.Save();
         if (!first) return;
         SnapApply();
         KfApply();
@@ -291,7 +303,7 @@ public partial class MainWindow : Window
 
     private void Lock()
     {
-        _authed = false; S.AuthToken = null; S.AuthRole = null; S.AuthOkUntil = null; S.Save();
+        _authed = false; S.AuthToken = null; S.AuthRole = null; S.AuthOkUntil = null; S.AuthExp = null; S.AuthDays = null; S.Save();
         _snap.Apply(false, false, 0, 0); _autoClip.Enable(false); _killFeed.Enable(false); _killMark.Enable(false); Catalog.SetTimerResolution(false); LiveTick();
     }
 
@@ -898,21 +910,22 @@ public partial class MainWindow : Window
                 return new { error = err };
             }
             // ---------- account (access code + HWID) ----------
-            case "auth.info": return new { hwid = Account.Hwid[..12], role = S.AuthRole, loggedIn = _authed };
+            case "auth.info": return new { hwid = Account.Hwid[..12], role = S.AuthRole, loggedIn = _authed, plan = PlanInfo };
             case "auth.check":
             {
                 if (string.IsNullOrEmpty(S.AuthToken)) return new { ok = false };
                 var res = await Account.Call(Account.Api, "GET", "/api/me", null, S.AuthToken);
                 if (res is JsonElement me && me.TryGetProperty("role", out var role))
                 {
+                    TakePlan(me);
                     OnAuthed(role.GetString());
-                    return new { ok = true, role = S.AuthRole, note = me.TryGetProperty("note", out var nt) ? nt.GetString() : null };
+                    return new { ok = true, role = S.AuthRole, note = me.TryGetProperty("note", out var nt) ? nt.GetString() : null, plan = PlanInfo };
                 }
                 var msg = res is JsonElement e3 && e3.TryGetProperty("error", out var er3) ? er3.GetString() : null;
-                // server unreachable: keep working for a few days with the last confirmed login
-                if (msg != null && msg.StartsWith("Server nicht erreichbar") && S.AuthOkUntil > DateTime.Now)
-                { _authed = true; OnAuthed(S.AuthRole); return new { ok = true, role = S.AuthRole, offline = true }; }
-                if (msg == "Nicht angemeldet") Lock();
+                // server unreachable: keep working for a few days with the last confirmed login (never past the key's end)
+                if (msg != null && msg.StartsWith("Server nicht erreichbar") && S.AuthOkUntil > DateTime.Now && !KeyExpired)
+                { _authed = true; OnAuthed(S.AuthRole); return new { ok = true, role = S.AuthRole, offline = true, plan = PlanInfo }; }
+                if (msg == "Nicht angemeldet" || msg == "Dein Key ist abgelaufen") Lock();
                 return new { ok = false, error = msg };
             }
             case "auth.redeem":
@@ -922,8 +935,9 @@ public partial class MainWindow : Window
                 if (res is JsonElement je && je.TryGetProperty("token", out var tk))
                 {
                     S.AuthToken = tk.GetString();
+                    TakePlan(je);
                     OnAuthed(je.TryGetProperty("role", out var rl) ? rl.GetString() : "user");
-                    return new { ok = true, role = S.AuthRole, note = je.TryGetProperty("note", out var nt) ? nt.GetString() : null };
+                    return new { ok = true, role = S.AuthRole, note = je.TryGetProperty("note", out var nt) ? nt.GetString() : null, plan = PlanInfo };
                 }
                 return res;
             }
@@ -933,8 +947,8 @@ public partial class MainWindow : Window
                 var res = await Account.Call(Account.Api, Str(a, "method") == "POST" ? "POST" : "GET", Str(a, "path"),
                     a.TryGetProperty("body", out var bd) ? bd : null, S.AuthToken);
                 // token no longer valid (revoked / other PC) -> sign out locally
-                if (res is JsonElement e2 && e2.TryGetProperty("error", out var er) && er.GetString() == "Nicht angemeldet" && S.AuthToken != null)
-                { Lock(); Emit("locked", new { }); }
+                if (res is JsonElement e2 && e2.TryGetProperty("error", out var er) && er.GetString() is "Nicht angemeldet" or "Dein Key ist abgelaufen" && S.AuthToken != null)
+                { bool exp = er.GetString() != "Nicht angemeldet"; Lock(); Emit("locked", new { reason = exp ? "expired" : "revoked" }); }
                 return res;
             }
 
@@ -1219,6 +1233,8 @@ public partial class MainWindow : Window
 
     private void LiveTick()
     {
+        // a key with a runtime ends while the app is open: lock right away (the server refuses it from now on as well)
+        if (_authed && KeyExpired) { Lock(); Emit("locked", new { reason = "expired" }); }
         if (!_authed)
         {
             _xhair.Update(false); _minimap.Update(false); _flash.Update(false); _banner.Update(false); _lagFlash.Update(false); _hud.Update(false); _pad.Update(false);

@@ -18,8 +18,10 @@ async function hmac(secret, msg) {
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   return b64u(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(msg)));
 }
-async function makeToken(env, code, hwid, role) {
-  const body = b64uStr(JSON.stringify({ c: code, h: hwid, r: role, e: now() + TOKEN_DAYS * 86400 }));
+async function makeToken(env, code, hwid, role, expiresAt) {
+  // a token never outlives its key
+  const e = Math.min(now() + TOKEN_DAYS * 86400, expiresAt || Infinity);
+  const body = b64uStr(JSON.stringify({ c: code, h: hwid, r: role, e }));
   return body + '.' + await hmac(env.TOKEN_SECRET, body);
 }
 function newCode() {
@@ -30,7 +32,10 @@ function newCode() {
 const validHwid = h => typeof h === 'string' && /^[a-f0-9]{64}$/.test(h);
 const clean = (s, max) => (typeof s === 'string' ? s : '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, max);
 
-/** Resolves the caller from "Authorization: Bearer <token>" + "X-HWID". */
+const EXPIRED = 'Dein Key ist abgelaufen';
+const planOf = r => ({ days: r.days || null, exp: r.expires_at || null });
+
+/** Resolves the caller from "Authorization: Bearer <token>" + "X-HWID". Returns 'expired' for a key whose time is up. */
 async function auth(req, env) {
   const t = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
   const hwid = req.headers.get('x-hwid') || '';
@@ -38,8 +43,9 @@ async function auth(req, env) {
   if (!body || !sig || sig !== await hmac(env.TOKEN_SECRET, body)) return null;
   let p; try { p = JSON.parse(unb64u(body)); } catch { return null; }
   if (!p.e || p.e < now() || p.h !== hwid) return null;
-  const row = await env.DB.prepare('SELECT code, role, hwid, revoked, note FROM codes WHERE code = ?').bind(p.c).first();
+  const row = await env.DB.prepare('SELECT code, role, hwid, revoked, note, days, expires_at FROM codes WHERE code = ?').bind(p.c).first();
   if (!row || row.revoked || row.hwid !== hwid) return null;
+  if (row.expires_at && row.expires_at < now()) return 'expired';
   await env.DB.prepare('UPDATE codes SET last_seen = ? WHERE code = ?').bind(now(), row.code).run();
   return row;
 }
@@ -95,12 +101,19 @@ export default {
         const row = await env.DB.prepare('SELECT * FROM codes WHERE code = ?').bind(code).first();
         if (!row || row.revoked) return err('Code ungültig oder gesperrt', 403);
         if (row.hwid && row.hwid !== hwid) return err('Dieser Code ist schon an einen anderen PC gebunden', 403);
+        if (row.expires_at && row.expires_at < now()) return err(EXPIRED, 403);
         if (!row.hwid) await env.DB.prepare('UPDATE codes SET hwid = ?, bound_at = ? WHERE code = ? AND hwid IS NULL').bind(hwid, now(), code).run();
-        return json({ token: await makeToken(env, code, hwid, row.role), role: row.role, note: row.note });
+        // the runtime starts with the first redeem; moving the key to another PC later does not restart it
+        if (row.days && !row.expires_at) {
+          row.expires_at = now() + row.days * 86400;
+          await env.DB.prepare('UPDATE codes SET expires_at = ? WHERE code = ? AND expires_at IS NULL').bind(row.expires_at, code).run();
+        }
+        return json({ token: await makeToken(env, code, hwid, row.role, row.expires_at), role: row.role, note: row.note, ...planOf(row) });
       }
 
       const me = await auth(req, env);
-      if (path === '/api/me') return me ? json({ role: me.role, note: me.note, code: me.code.slice(0, 8) + '-••••-••••' }) : err('Nicht angemeldet', 401);
+      if (me === 'expired') return err(EXPIRED, 401);
+      if (path === '/api/me') return me ? json({ role: me.role, note: me.note, code: me.code.slice(0, 8) + '-••••-••••', ...planOf(me) }) : err('Nicht angemeldet', 401);
       if (!me) return err('Nicht angemeldet', 401);
       const admin = me.role === 'admin';
 
@@ -147,14 +160,21 @@ export default {
         return json({ ok: true });
       }
       if (path === '/api/codes' && req.method === 'GET') {
-        const { results } = await env.DB.prepare('SELECT code, role, note, hwid, created_at, bound_at, last_seen, revoked FROM codes ORDER BY created_at DESC').all();
+        const { results } = await env.DB.prepare('SELECT code, role, note, hwid, created_at, bound_at, last_seen, revoked, days, expires_at FROM codes ORDER BY created_at DESC').all();
         return json({ codes: results.map(c => ({ ...c, hwid: c.hwid ? c.hwid.slice(0, 10) : null, self: c.code === me.code })) });
       }
       if (path === '/api/codes' && req.method === 'POST') {
         const role = ['admin', 'editor', 'user'].includes(body.role) ? body.role : 'user';
-        const code = newCode();
-        await env.DB.prepare('INSERT INTO codes (code, role, note, created_at, created_by) VALUES (?, ?, ?, ?, ?)').bind(code, role, clean(body.note, 60), now(), me.code).run();
-        return json({ code, role });
+        // runtime in days (0 / empty = lifetime) and how many keys at once, e.g. stock for a shop
+        const days = Math.max(0, Math.min(3650, parseInt(body.days) || 0)) || null;
+        const count = Math.max(1, Math.min(50, parseInt(body.count) || 1));
+        const codes = [];
+        for (let i = 0; i < count; i++) {
+          const code = newCode();
+          await env.DB.prepare('INSERT INTO codes (code, role, note, created_at, created_by, days) VALUES (?, ?, ?, ?, ?, ?)').bind(code, role, clean(body.note, 60), now(), me.code, days).run();
+          codes.push(code);
+        }
+        return json({ code: codes[0], codes, role, days });
       }
       if (path === '/api/codes/revoke' && req.method === 'POST') {
         const code = clean(body.code, 32);
