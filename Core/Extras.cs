@@ -752,6 +752,26 @@ internal static class Account
         }
     }
 
+    private static string? _hw2;
+    /// <summary>Second fingerprint from hardware only (see HwId), sent next to the HWID: the server moves the key over by
+    /// itself after a Windows reinstall on the same PC. Empty when the PC has no real serial.</summary>
+    public static string Hw2
+    {
+        get
+        {
+            if (_hw2 != null) return _hw2;
+            try
+            {
+                var cpu = Reg.Get(@"HKLM\HARDWARE\DESCRIPTION\System\CentralProcessor\0", "ProcessorNameString") as string ?? "";
+                var maker = Reg.Get(@"HKLM\HARDWARE\DESCRIPTION\System\BIOS", "BaseBoardManufacturer") as string ?? "";
+                var board = Reg.Get(@"HKLM\HARDWARE\DESCRIPTION\System\BIOS", "BaseBoardProduct") as string ?? "";
+                var table = HwId.ReadSmbios();
+                return _hw2 = table == null ? "" : HwId.Hash(HwId.Parse(table), cpu, maker, board);
+            }
+            catch { return _hw2 = ""; }
+        }
+    }
+
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(5) };
 
     /// <summary>Calls the API (base URL comes from the library file) with this PC's token.</summary>
@@ -762,6 +782,7 @@ internal static class Account
         using var req = new HttpRequestMessage(method == "POST" ? HttpMethod.Post : HttpMethod.Get, baseUrl.TrimEnd('/') + path);
         req.Headers.UserAgent.ParseAdd("OrbitTweak");
         req.Headers.Add("X-HWID", Hwid);
+        if (Hw2 != "") req.Headers.Add("X-HW2", Hw2);
         if (!string.IsNullOrEmpty(token)) req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
         if (method == "POST") req.Content = new StringContent(body?.GetRawText() ?? "{}", Encoding.UTF8, "application/json");
         try
