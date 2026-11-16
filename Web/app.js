@@ -506,7 +506,7 @@ async function revertAll() {
 
 /* ======================= FIVEM ACTIONS ======================= */
 async function clearFmCache() { const r = await api('fivem.cache'); if (r.error) return toast('Cache nicht geleert', r.error, false); addFreed(r.freed); refreshCache(); toast('FiveM-Cache geleert', bytes(r.freed) + ' freigegeben'); }
-async function cleanRam() { const r = await api('ram.clean'); addFreed(r.freed); toast('RAM freigegeben', bytes(r.freed) + ' zurückgewonnen'); }
+async function cleanRam() { const r = await api('ram.clean'); addFreed(r.freed); if ($('#cFreed')) $('#cFreed').textContent = bytes(S.freed); toast('RAM freigegeben', bytes(r.freed) + ' zurückgewonnen'); }
 async function killFiveM() { if (!await confirmBox('FiveM beenden?', 'Das Spiel wird sofort geschlossen. Was nicht gespeichert ist, geht verloren.', { ok: 'FiveM beenden', danger: true })) return; const r = await api('fivem.kill'); toast(r.count ? 'FiveM beendet' : 'FiveM lief nicht', r.count ? r.count + ' Prozesse geschlossen' : '', !!r.count); }
 async function pickFiveM() { const r = await api('fivem.pick'); if (r.found) { S.fivem = r; renderCmd(); refreshCache(); toast('FiveM-Pfad gesetzt', r.path); } }
 
@@ -758,29 +758,55 @@ function initLab() {
 }
 
 /* ======================= CLEANER ======================= */
-async function scan() { $('#cTotal').textContent = '…'; $('#cTotalSub').textContent = 'wird gescannt…'; S.clean = await api('clean.scan'); renderClean(); }
+async function scan() { $('#cTotal').textContent = '…'; $('#cTotal').classList.remove('long'); $('#cTotalSub').textContent = 'wird gescannt…'; S.clean = await api('clean.scan'); renderClean(); }
+/** "6,2 GB" as a large number with a small unit. */
+const sizeHtml = b => { const t = bytes(b), i = t.lastIndexOf(' '); return i < 0 ? esc(t) : `${esc(t.slice(0, i))}<small>${esc(t.slice(i + 1))}</small>`; };
 function renderClean() {
-  $('#cleanList').innerHTML = S.clean.map(c => `<div class="card hov crow"><div class="cb ${c.sel ? 'on' : ''}" data-cid="${c.id}"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></div><div class="ti">${ico(c.icon || 'trash')}</div><div class="tx"><b>${esc(c.name)}</b><p>${esc(c.desc)}</p></div><div class="sz ${c.size > 0 ? '' : 'muted'}">${bytes(c.size)}</div></div>`).join('');
-  const tot = S.clean.filter(c => c.sel).reduce((a, c) => a + Math.max(0, c.size), 0);
-  $('#cTotal').textContent = bytes(tot); $('#cTotalSub').textContent = 'ausgewählt zum Löschen';
-  $('#donutV').style.strokeDashoffset = 540.4 * (1 - Math.min(1, tot / (5 * 1073741824) + (tot > 0 ? .08 : 0)));
+  // one surface: every area is a row (a click anywhere on it selects), its share of the largest area as a fine bar
+  const max = Math.max(1, ...S.clean.map(c => Math.max(0, c.size)));
+  $('#cleanList').innerHTML = S.clean.map(c => `<div class="crow ${c.sel ? 'sel' : ''}" data-cid="${c.id}" role="checkbox" aria-checked="${!!c.sel}" tabindex="0"><div class="cb ${c.sel ? 'on' : ''}"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></div><div class="ti">${ico(c.icon || 'trash')}</div><div class="tx"><b>${esc(c.name)}</b><p>${esc(c.desc)}</p></div><div class="sz ${c.size > 0 ? '' : 'muted'}"><b>${sizeHtml(c.size)}</b><span class="lx-share"><i style="transform:scaleX(${(Math.max(0, c.size) / max).toFixed(3)})"></i></span></div></div>`).join('') || `<div class="lx-empty ok">${ico('check')}<b>Nichts zu bereinigen</b><span>Keine Caches oder Reste gefunden</span></div>`;
+  const sel = S.clean.filter(c => c.sel), tot = sel.reduce((a, c) => a + Math.max(0, c.size), 0), all = S.clean.reduce((a, c) => a + Math.max(0, c.size), 0);
+  const num = bytes(tot); $('#cTotal').innerHTML = sizeHtml(tot); $('#cTotal').classList.toggle('long', num.length > 6);
+  $('#cTotalSub').textContent = 'ausgewählt';
+  // the ring: how much of what was found is chosen
+  $('#donutV').style.strokeDashoffset = 678.6 * (1 - (all > 0 ? Math.min(1, tot / all) : 0));
+  $('#cSelN').textContent = `${sel.length}/${S.clean.length}`; $('#cFound').textContent = bytes(all); $('#cFreed').textContent = S.freed ? bytes(S.freed) : '0 MB';
+  $('#cSelChip').textContent = sel.length ? (tot > 1073741824 ? 'Lohnt sich' : 'Bereit') : 'Nichts gewählt';
+  $('#cSelTxt').textContent = sel.length ? `${sel.length} von ${S.clean.length} ausgewählt` : 'Wähle aus, was weg darf';
+  $('#cAll').textContent = sel.length === S.clean.length ? 'Keine auswählen' : 'Alle auswählen';
+  $('#cleanBtn').disabled = !sel.length;
 }
-document.addEventListener('click', e => { const c = e.target.closest('[data-cid]'); if (!c) return; const t = S.clean.find(x => x.id === c.dataset.cid); t.sel = !t.sel; renderClean(); });
+function cleanToggle(c) { const t = S.clean.find(x => x.id === c.dataset.cid); if (!t) return; t.sel = !t.sel; renderClean(); $(`#cleanList [data-cid="${t.id}"]`)?.focus({ preventScroll: true }); }
+document.addEventListener('click', e => {
+  if (e.target.closest('#cAll')) { const on = !S.clean.every(c => c.sel); S.clean.forEach(c => c.sel = on); renderClean(); return; }
+  const c = e.target.closest('#cleanList [data-cid]'); if (c) cleanToggle(c);
+});
+document.addEventListener('keydown', e => { const c = e.target.closest?.('#cleanList [data-cid]'); if (c && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); cleanToggle(c); } });
 async function clean() {
   const ids = S.clean.filter(c => c.sel).map(c => c.id); if (!ids.length) return;
-  $('#cleanBtn').disabled = true; $('#cTotalSub').textContent = 'bereinige…';
+  $('#cleanBtn').disabled = true; $('#cTotalSub').textContent = 'wird bereinigt…';
   const r = await api('clean.run', { ids });
   addFreed(r.freed); toast('Bereinigung fertig', bytes(r.freed) + ' freigegeben' + (r.skipped ? ' · FiveM-Cache übersprungen (Spiel läuft)' : ''));
   $('#cleanBtn').disabled = false; await scan(); $('#cTotalSub').textContent = bytes(r.freed) + ' freigegeben';
 }
 
 /* ======================= DIAGNOSE ======================= */
-async function runHealth() { $('#hList').innerHTML = '<div class="sub" style="padding:10px 0">Analysiere System…</div>'; const h = S.health = await api('health'); renderHealth(h); return h; }
+async function runHealth() {
+  $('#hList').innerHTML = `<div class="lx-empty lx-wait">${ico('heart')}<b>Prüfe dein System</b><span>Treiber, Energieplan, Cache und mehr</span></div>`;
+  $('#hScoreTxt').textContent = 'Wird geprüft…';
+  const h = S.health = await api('health'); renderHealth(h); return h;
+}
 function renderHealth(h) {
   $('#hScore').textContent = h.score; $('#hsHealth').textContent = h.score + '%';
-  const bad = h.items.filter(i => i.st !== 'ok').length;
-  $('#hScoreTxt').textContent = bad ? `${bad} Punkte können verbessert werden` : 'Alles im grünen Bereich';
-  $('#hList').innerHTML = h.items.map((i, n) => `<div class="hc"><div class="st ${i.st}">${ico(i.st === 'ok' ? 'check' : 'alert')}</div><div class="tx"><b>${esc(i.name)}</b><p>${esc(i.value)}</p></div>${i.fix && i.st !== 'ok' ? `<button class="btn sm o" data-fix="${n}">Beheben</button>` : ''}</div>`).join('');
+  if ($('#hRing')) $('#hRing').style.strokeDashoffset = 678.6 * (1 - Math.max(0, Math.min(100, h.score)) / 100);
+  const cnt = st => h.items.filter(i => i.st === st).length, warn = cnt('warn'), worse = cnt('bad'), bad = h.items.length - cnt('ok');
+  $('#hScoreTxt').textContent = bad ? `${bad} ${bad === 1 ? 'Punkt' : 'Punkte'} verbesserbar` : 'Alles im grünen Bereich';
+  if ($('#hScoreSub')) $('#hScoreSub').textContent = bad ? 'Mit „Beheben“ stellst du sie mit einem Klick richtig.' : 'FiveM hat hier alles, was es braucht.';
+  if ($('#hChip')) { $('#hChip').textContent = bad ? (worse ? `${worse} ${worse === 1 ? 'Problem' : 'Probleme'}` : 'Hinweise') : 'Optimal'; $('#hChip').className = 'chip ' + (bad ? (worse ? 'r' : 'w') : 'g'); }
+  if ($('#hOk')) { $('#hOk').textContent = cnt('ok'); $('#hWarn').textContent = warn; $('#hBad').textContent = worse; }
+  // problems first, then hints, then what is fine
+  const order = { bad: 0, warn: 1, ok: 2 };
+  $('#hList').innerHTML = h.items.map((i, n) => [i, n]).sort((a, b) => (order[a[0].st] ?? 1) - (order[b[0].st] ?? 1)).map(([i, n]) => `<div class="hc ${i.st}"><div class="st ${i.st}">${ico(i.st === 'ok' ? 'check' : 'alert')}</div><div class="tx"><b>${esc(i.name)}</b><p>${esc(i.value)}</p></div>${i.fix && i.st !== 'ok' ? `<button class="btn sm o" data-fix="${n}">Beheben</button>` : i.st === 'ok' ? '<span class="hc-ok">In Ordnung</span>' : ''}</div>`).join('');
   const hb = $('#hBtn'); if (hb) { hb.classList.remove('p'); hb.querySelector('span').textContent = 'Erneut prüfen'; }
 }
 document.addEventListener('click', async e => {
@@ -794,8 +820,8 @@ async function loadLogs() {
   try { logData = await api('logs'); } catch { }
   renderLogs();
   $('#crashList').innerHTML = (logData.crashes || []).length
-    ? logData.crashes.slice(0, 5).map(c => `<div class="svc"><span class="nm" style="font-size:12px">${esc(c.name)}</span><span class="chip">${esc(c.date)}</span><b class="muted" style="font-family:var(--disp)">${bytes(c.size)}</b></div>`).join('')
-    : `<div class="ok-line">${ico('check')}Keine Abstürze gefunden</div>`;
+    ? logData.crashes.slice(0, 5).map(c => `<div class="svc"><span class="nm" title="${esc(c.name)}">${esc(c.name)}</span><span class="cr-m">${esc(c.date)} · ${bytes(c.size)}</span></div>`).join('')
+    : `<div class="lx-empty ok">${ico('check')}<b>Keine Abstürze</b><span>FiveM ist zuletzt sauber gelaufen</span></div>`;
 }
 function renderLogs() {
   const l = (logData.lines || []).filter(x => logFilter === 'all' || isErr(x));
@@ -870,7 +896,7 @@ const SETS = [
 ];
 function renderSettings() {
   const cur = themeKey(S.settings.accent);
-  $('#themes').innerHTML = Object.entries(THEMES).filter(([k]) => !SCENE_THEMES.includes(k)).map(([k, [n, a, b]]) => `<div class="sw ${k === cur ? 'on' : ''}" data-th="${k}"><i style="background:linear-gradient(135deg,${a},${b})"></i>${n}</div>`).join('');
+  $('#themes').innerHTML = Object.entries(THEMES).filter(([k]) => !SCENE_THEMES.includes(k)).map(([k, [n, a, b]]) => `<div class="sw ${k === cur ? 'on' : ''}" data-th="${k}" title="${n}"><i style="--sa:${a};--sb:${b}"></i>${n}</div>`).join('');
   const SCN = { winter: 'Nordlicht, Raureif, Schnee', anime: 'Abendhimmel, Kirschblüten' };
   if ($('#sceneThemes')) $('#sceneThemes').innerHTML = SCENE_THEMES.map(k => `<button class="scn-c scn-${k} ${k === cur ? 'on' : ''}" data-th="${k}"><i></i><span><b>${THEMES[k][0]}</b><small>${SCN[k] || ''}</small></span>${k === cur ? ico('check', 'i scn-ck') : ''}</button>`).join('');
   $('#fxTg')?.classList.toggle('on', S.settings.fx !== false);
@@ -2110,8 +2136,8 @@ async function netTest() {
   const btn = $('#ntBtn'); btn.disabled = true; $('#ntTxt').textContent = 'Messe…'; $('#ntBars').innerHTML = '';
   try {
     const r = await api('net.test', { target });
-    if (!r.ok) { $('#ntAvg').textContent = '--'; $('#ntJit').textContent = '--'; $('#ntLoss').textContent = '100%'; $('#ntTxt').textContent = 'Keine Verbindung'; return; }
-    countTo($('#ntAvg'), r.avg, ' ms'); $('#ntJit').textContent = r.jitter + ' ms'; $('#ntLoss').textContent = r.loss + '%';
+    if (!r.ok) { $('#ntAvg').textContent = '--'; $('#ntJit').textContent = '--'; $('#ntLoss').innerHTML = '100<small>%</small>'; $('#ntTxt').textContent = 'Keine Verbindung'; return; }
+    countTo($('#ntAvg'), r.avg, '<small>ms</small>'); $('#ntJit').innerHTML = `${nf1.format(r.jitter)}<small>ms</small>`; $('#ntLoss').innerHTML = `${r.loss}<small>%</small>`;
     const mx = Math.max(...r.samples, 1);
     $('#ntBars').innerHTML = r.samples.map((s, i) => `<i style="height:${Math.max(8, s / mx * 100)}%;animation-delay:${i * 25}ms" title="${s} ms"></i>`).join('') + Array.from({ length: r.loss / 5 }, () => '<i class="lost" style="height:100%"></i>').join('');
     const good = r.avg < 60 && r.jitter < 6 && r.loss === 0, ok = r.avg < 110 && r.jitter < 15 && r.loss <= 5;
@@ -2566,7 +2592,14 @@ async function accRedeem() {
   passed(r.role === 'admin' ? 'Admin freigeschaltet' : 'Zugang freigeschaltet', r.rebound ? 'Neuinstallation erkannt, dein Key läuft auf diesem PC weiter' : 'Code ist jetzt an diesen PC gebunden');
 }
 async function accLogout() { if (!await confirmBox('Abmelden?', 'OrbitTweak wird gesperrt, bis du deinen Key wieder eingibst.', { ok: 'Abmelden' })) return; await api('auth.logout'); ACC.loggedIn = false; ACC.role = null; accUI(); go('home'); gate('Abgemeldet. Gib deinen Key ein, um weiterzumachen.'); }
-window.accRedeem = accRedeem; window.accLogout = accLogout;
+async function accCopyId() {
+  const id = ACC.hwid || $('#accHwid').textContent.trim(); if (!id || id === '…') return;
+  let ok = false;
+  try { const r = await api('clip', { text: id }); ok = r && r.ok; } catch { }
+  if (!ok) try { await navigator.clipboard.writeText(id); ok = true; } catch { }
+  toast(ok ? 'PC-ID kopiert' : 'Kopieren fehlgeschlagen', id, ok);
+}
+window.accRedeem = accRedeem; window.accLogout = accLogout; window.accCopyId = accCopyId;
 document.addEventListener('input', e => { if (e.target.id === 'accCode') { let v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); if (v.startsWith('ORB')) v = v.slice(3); v = v.slice(0, 12); e.target.value = v ? 'ORB-' + v.match(/.{1,4}/g).join('-') : ''; } });
 
 /* ---- add mod ---- */
@@ -2617,25 +2650,25 @@ async function admLoad() {
     const r = await srv('GET', '/api/codes'); if (r.error) return toast('Fehler', r.error, false);
     $('#admCount').textContent = r.codes.length;
     // fixed columns: code, copy, role, runtime, note, status (with PC and last seen below), actions
-    $('#admCodes').innerHTML = r.codes.length ? r.codes.map(c => `<div class="crow2 ${c.revoked ? 'off' : ''}">
+    $('#admCodes').innerHTML = r.codes.length ? '<div class="crow2 crh"><span>Key</span><span></span><span>Rolle</span><span>Laufzeit</span><span>Notiz</span><span>Status</span><span></span></div>' + r.codes.map(c => `<div class="crow2 ${c.revoked ? 'off' : ''}">
       <code class="cc">${esc(c.code)}</code><button class="ib" title="Kopieren" onclick="copyCmd('${esc(c.code)}')">${ico('copy')}</button>
       <span class="c-role"><span class="chip ${c.role === 'admin' ? 'a' : c.role === 'editor' ? 'g' : ''}">${c.role === 'admin' ? 'Admin' : c.role === 'editor' ? 'Editor' : 'Nutzer'}</span></span><span class="c-plan">${planChip(c)}</span>
       <span class="cn">${esc(c.note || '')}${c.self ? ' <span class="muted">(du)</span>' : ''}</span>
       <span class="cs">${c.revoked ? '<span class="chip r">Gesperrt</span>' : c.hwid ? `<span class="chip g">Gebunden</span><small>PC ${esc(c.hwid)} · ${ago(c.last_seen || c.bound_at)}${c.rebinds ? ` · <span title="Neuinstallation erkannt: Windows wurde auf demselben PC neu installiert, der Key ist automatisch mitgezogen (${c.rebinds}×)">neu installiert</span>` : ''}</small>` : '<span class="chip w">Noch frei</span>'}</span>
       <span class="c-act">${c.self ? '' : `${c.hwid ? `<button class="btn sm" onclick="admAct('unbind','${esc(c.code)}')">PC lösen</button>` : ''}<button class="btn sm ${c.revoked ? '' : 'd'}" onclick="admAct('revoke','${esc(c.code)}',${c.revoked ? 1 : 0})">${c.revoked ? 'Entsperren' : 'Sperren'}</button>`}</span>
-    </div>`).join('') : '<div class="empty">Noch keine Codes.</div>';
+    </div>`).join('') : `<div class="lx-empty">${ico('users')}<b>Noch keine Codes</b><span>Erzeug oben den ersten Key</span></div>`;
   } else if (admTab === 'pending') {
     const r = await srv('GET', '/api/mods/pending'); if (r.error) return toast('Fehler', r.error, false);
     $('#admPendC').textContent = r.mods.length;
     $('#admPending').innerHTML = r.mods.length ? r.mods.map(m => `<div class="lcard"><div class="lthumb" style="background-image:url('${esc(m.img || bgUrl())}')"></div>
       <div class="lbody"><b>${esc(m.name)}</b><span class="lby">${esc((LIB_CATS.find(c => c[0] === m.cat) || [0, 'Sonstiges'])[1])} · ${bytes(m.size)} · von ${esc(m.author)}</span><p>${esc(m.desc || '')}</p>
-      <code class="cc" style="font-size:10.5px;word-break:break-all">${esc(m.url)}</code>
+      <code class="cc lurl" title="${esc(m.url)}">${esc(m.url)}</code>
       <div class="lact"><button class="btn sm d" onclick="admMod('delete','${esc(m.id)}')">${ico('trash')}Ablehnen</button><button class="btn p sm" onclick="admMod('approve','${esc(m.id)}')">${ico('check')}Freigeben</button></div></div></div>`).join('')
-      : '<div class="empty">Keine offenen Einreichungen.</div>';
+      : `<div class="lx-empty ok">${ico('check')}<b>Alles erledigt</b><span>Keine offenen Einreichungen</span></div>`;
   } else {
     const r = await srv('GET', '/api/mods'); if (r.error) return toast('Fehler', r.error, false);
     if ($('#admModCount')) $('#admModCount').textContent = r.mods.length;
-    $('#admMods').innerHTML = r.mods.length ? r.mods.map(m => `<div class="mod adm-mod"><span class="am-th" style="background-image:url('${esc(m.img || picFor(m.id))}')"></span><div class="tx"><b>${esc(m.name)}</b><p>${esc((LIB_CATS.find(c => c[0] === m.cat) || [0, 'Sonstiges'])[1])} · ${bytes(m.size)}${m.author ? ' · von ' + esc(m.author) : ''}</p></div><button class="ib" title="Download-Link kopieren: ${esc(m.url)}" onclick="copyCmd('${esc(m.url)}')">${ico('link')}</button><button class="btn sm d" onclick="admMod('delete','${esc(m.id)}')">${ico('trash')}Löschen</button></div>`).join('') : '<div class="empty">Noch keine Server-Mods.</div>';
+    $('#admMods').innerHTML = r.mods.length ? r.mods.map(m => `<div class="mod adm-mod"><span class="am-th" style="background-image:url('${esc(m.img || picFor(m.id))}')"></span><div class="tx"><b>${esc(m.name)}</b><p>${esc((LIB_CATS.find(c => c[0] === m.cat) || [0, 'Sonstiges'])[1])} · ${bytes(m.size)}${m.author ? ' · von ' + esc(m.author) : ''}</p></div><button class="ib" title="Download-Link kopieren: ${esc(m.url)}" onclick="copyCmd('${esc(m.url)}')">${ico('link')}</button><button class="btn sm d" onclick="admMod('delete','${esc(m.id)}')">${ico('trash')}Löschen</button></div>`).join('') : `<div class="lx-empty">${ico('puzzle')}<b>Noch keine Server-Mods</b><span>Mods von Admins und freigegebene Einreichungen landen hier</span></div>`;
   }
 }
 /** Runtime of a key in words: "Lifetime", "30-Tage-Key · noch 12 Tage (bis 28.12.2026)", "abgelaufen am …". */
@@ -2667,7 +2700,7 @@ async function admCreate() {
   const kind = `${role === 'admin' ? 'Admin' : role === 'editor' ? 'Editor' : 'Nutzer'}-Key${codes.length > 1 ? 's' : ''} · ${days ? (days === 1 ? '1 Tag' : days + ' Tage') : 'unbegrenzt'}`;
   ADM_NEW = codes.join('\n');
   $('#admNewCode').classList.remove('hidden');
-  $('#admNewCode').innerHTML = `<div><span class="sub" style="font-size:12px">${codes.length > 1 ? codes.length + ' neue ' : 'Neuer '}${kind}, jeder wird an den ersten PC gebunden:</span>${codes.map(c => `<code>${esc(c)}</code>`).join('')}</div><button class="btn p" onclick="copyCmd(ADM_NEW)">${ico('copy')}${codes.length > 1 ? 'Alle kopieren' : 'Kopieren'}</button>`;
+  $('#admNewCode').innerHTML = `<div><span class="ac-k">${ico('check')}${codes.length > 1 ? codes.length + ' neue ' : 'Neuer '}${kind}</span>${codes.map(c => `<code>${esc(c)}</code>`).join('')}</div><button class="btn" onclick="copyCmd(ADM_NEW)">${ico('copy')}${codes.length > 1 ? 'Alle kopieren' : 'Kopieren'}</button>`;
   admLoad();
 }
 let ADM_NEW = '';

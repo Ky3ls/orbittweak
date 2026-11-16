@@ -13,6 +13,7 @@
 <link rel="stylesheet" href="luxe-fivem.css">
 <link rel="stylesheet" href="luxe-optik.css">
 <link rel="stylesheet" href="luxe-tools.css">
+<link rel="stylesheet" href="luxe-system.css">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute">
@@ -759,8 +760,8 @@
       </div>
       <div class="tabs" id="admTabs"><button class="tab on" data-at="codes">Codes</button><button class="tab" data-at="pending">Freigaben<span class="c" id="admPendC">0</span></button><button class="tab" data-at="mods">Mods</button></div>
       <div id="adm-codes">
-        <div class="card">
-          <div class="lbl"><svg class="i"><use href="#plus"/></svg>Neuen Code erzeugen</div>
+        <div class="card lx-admnew">
+          <div class="sh"><b>Neuen Code erzeugen</b><span class="sub">Jeder Key wird an den ersten PC gebunden, der ihn einlöst</span></div>
           <div class="adm-form">
             <div class="af"><span>Rolle</span><div class="seg" id="admRole"><button class="on" data-v="user">Nutzer</button><button data-v="editor">Editor</button><button data-v="admin">Admin</button></div><small id="admRoleHint">Darf OrbitTweak benutzen.</small></div>
             <div class="af"><span>Laufzeit</span><div class="seg" id="admDays" title="Die Laufzeit startet, wenn der Key zum ersten Mal eingelöst wird. „PC lösen“ startet sie nicht neu."><button data-v="1">1 Tag</button><button data-v="7">7 Tage</button><button data-v="30">30 Tage</button><button class="on" data-v="0">Unbegrenzt</button></div><small>Startet beim ersten Einlösen.</small></div>
@@ -770,10 +771,10 @@
           </div>
           <div class="adm-code hidden" id="admNewCode"></div>
         </div>
-        <div class="card mt"><div class="row"><div class="lbl"><svg class="i"><use href="#users"/></svg>Alle Codes</div><span class="chip" id="admCount">0</span><span class="sp"></span><button class="ib" onclick="admLoad()"><svg class="i"><use href="#refresh"/></svg></button></div><div id="admCodes" class="mt8"></div></div>
+        <div class="card mt lx-admlist"><div class="sh"><b>Alle Codes</b><span class="chip" id="admCount">0</span><span class="sp"></span><button class="ib" onclick="admLoad()" title="Neu laden"><svg class="i"><use href="#refresh"/></svg></button></div><div id="admCodes"></div></div>
       </div>
       <div id="adm-pending" class="hidden"><div class="lib-grid" id="admPending"></div></div>
-      <div id="adm-mods" class="hidden"><div class="card"><div class="row"><div class="lbl"><svg class="i"><use href="#puzzle"/></svg>Server-Mods</div><span class="chip" id="admModCount">0</span><span class="sp"></span><button class="ib" onclick="admLoad()" title="Neu laden"><svg class="i"><use href="#refresh"/></svg></button></div><div id="admMods" class="mt8"></div></div></div>
+      <div id="adm-mods" class="hidden"><div class="card lx-admlist"><div class="sh"><b>Server-Mods</b><span class="chip" id="admModCount">0</span><span class="sp"></span><button class="ib" onclick="admLoad()" title="Neu laden"><svg class="i"><use href="#refresh"/></svg></button></div><div id="admMods"></div></div></div>
     </section>
 
     <!-- ================= F8 ================= -->
@@ -939,21 +940,37 @@
         <div><div class="kicker">Cleaner</div><h1>Speicher <span class="grad">freiräumen</span></h1><p class="pd">Caches und Reste entfernen. Die Spieldaten von FiveM bleiben unangetastet.</p></div>
         <div class="ph-r"><button class="btn" onclick="scan()"><svg class="i"><use href="#refresh"/></svg>Neu scannen</button></div>
       </div>
-      <div class="cgrid">
-        <div id="cleanList"></div>
+      <div class="cgrid lx-clean">
         <div class="col">
-          <div class="card gb" style="text-align:center">
-            <div class="lbl" style="justify-content:center"><svg class="i"><use href="#trash"/></svg>Bereinigbar</div>
-            <div class="donut"><svg viewBox="0 0 200 200" width="190" height="190"><circle cx="100" cy="100" r="86" stroke="rgba(255,255,255,.06)"/><circle id="donutV" cx="100" cy="100" r="86" stroke="url(#rg)" stroke-dasharray="540.4" stroke-dashoffset="540.4" style="transition:stroke-dashoffset 1s"/></svg>
-              <div class="c"><div><div class="big" id="cTotal" style="font-size:30px">—</div><div class="sub c-sub" id="cTotalSub">wird gescannt…</div></div></div></div>
-            <button class="btn p lg" style="width:100%;justify-content:center;margin-top:10px" id="cleanBtn" onclick="clean()"><svg class="i"><use href="#sparkle"/></svg>Bereinigen</button>
+          <div class="card lx-list">
+            <div class="lx-lh"><div><b>Bereiche</b><p id="cSelTxt">Wähle aus, was weg darf</p></div><button class="btn sm gh" id="cAll" type="button">Alle auswählen</button></div>
+            <div id="cleanList"><div class="lx-empty lx-wait"><svg class="i"><use href="#search"/></svg><b>Suche Caches und Reste</b><span>Dauert nur einen Moment</span></div></div>
           </div>
-          <div class="card">
-            <div class="lbl"><svg class="i"><use href="#ram"/></svg>RAM-Cleaner</div>
-            <div class="row" style="margin-top:10px;align-items:flex-end"><div class="big" id="cRam">0<small>%</small></div><span class="sub" id="cRamTxt" style="margin-bottom:3px"></span></div>
-            <div class="bar mt8"><i id="cRamBar" style="width:0"></i></div>
-            <button class="btn mt" style="width:100%;justify-content:center" onclick="cleanRam()"><svg class="i"><use href="#zap"/></svg>RAM jetzt freigeben</button>
+          <div class="card lx-ram">
+            <div class="lx-ramh"><span class="lbl"><svg class="i"><use href="#ram"/></svg>Arbeitsspeicher</span><span class="lx-cap" id="cRamTxt"></span></div>
+            <div class="big" id="cRam">0<small>%</small></div>
+            <div class="bar"><i id="cRamBar" style="width:0"></i></div>
+            <button class="btn" onclick="cleanRam()"><svg class="i"><use href="#zap"/></svg>RAM freigeben</button>
           </div>
+        </div>
+        <div class="card gb lx-inst">
+          <div class="lx-ih"><span class="lbl"><svg class="i"><use href="#trash"/></svg>Bereinigbar</span><span class="chip" id="cSelChip">Scan</span></div>
+          <div class="lx-ic">
+            <div class="gauge lx-g">
+              <svg viewBox="0 0 250 250">
+                <circle class="tick" cx="125" cy="125" r="121" stroke-dasharray="1 11.671"/>
+                <circle class="tick big" cx="125" cy="125" r="121.5" stroke-dasharray="1.6 62.016"/>
+                <circle class="trk" cx="125" cy="125" r="108"/>
+                <circle class="inner" cx="125" cy="125" r="88"/>
+                <circle class="val" id="donutV" cx="125" cy="125" r="108" stroke-dasharray="678.6" stroke-dashoffset="678.6"/>
+              </svg>
+              <div class="mid"><b id="cTotal">—</b><span id="cTotalSub">wird gescannt…</span></div>
+            </div>
+            <h3>Bereit zum Aufräumen</h3>
+            <p>Löscht nur Caches und Reste. Läuft FiveM gerade, bleibt sein Cache liegen.</p>
+            <button class="btn p lg lx-go" id="cleanBtn" onclick="clean()"><svg class="i"><use href="#sparkle"/></svg>Bereinigen</button>
+          </div>
+          <div class="lx-stats"><div><b id="cSelN">–</b><span>Bereiche</span></div><div><b id="cFound">–</b><span>Gefunden</span></div><div><b id="cFreed">0 MB</b><span>Freigegeben</span></div></div>
         </div>
       </div>
     </section>
@@ -962,33 +979,47 @@
     <section class="page" id="p-diag">
       <div class="ph">
         <div><div class="kicker">Diagnose</div><h1>FiveM-<span class="grad">Systemcheck</span></h1><p class="pd">Findet typische Ursachen für Ruckler, Abstürze und Ladeprobleme.</p></div>
-        <div class="ph-r"><button class="btn p" id="hBtn" onclick="runHealth()"><svg class="i"><use href="#heart"/></svg><span>Check starten</span></button></div>
       </div>
-      <div class="dgrid">
-        <div class="col">
-        <div class="card">
-          <div class="hscore"><div class="big grad" id="hScore">--</div><div><b>System-Zustand</b><div class="sub" style="font-size:11.5px" id="hScoreTxt">Noch nicht geprüft</div></div></div>
+      <div class="dgrid lx-diag">
+        <div class="card lx-list lx-checks">
+          <div class="lx-lh"><div><b>Prüfpunkte</b><p>Was FiveM ausbremsen oder abstürzen lassen kann</p></div></div>
           <div id="hList"></div>
         </div>
-        <div class="card">
-          <div class="row"><div class="lbl"><svg class="i"><use href="#alert"/></svg>Abstürze</div><span class="sp"></span><button class="btn sm" onclick="api('fivem.crashes')"><svg class="i"><use href="#folder"/></svg>Ordner</button></div>
-          <div class="mt8" id="crashList"></div>
-        </div>
-        </div>
-        <div class="col">
-          <div class="card">
-            <div class="row"><div class="lbl"><svg class="i"><use href="#wifi"/></svg>Verbindungstest (Hitreg)</div><span class="sp"></span><div class="seg" id="ntTarget"><button class="on" data-nt="cfx">Cfx.re</button><button data-nt="cloudflare">Internet</button><button data-nt="custom">Server</button></div></div>
-            <input class="in mt8 hidden" id="ntHost" placeholder="IP:Port deines Servers, z. B. 123.45.67.89:30120">
-            <div class="nt-res" id="ntRes"><div><b id="ntAvg">--</b><span>Ping</span></div><div><b id="ntJit">--</b><span>Jitter</span></div><div><b id="ntLoss">--</b><span>Verlust</span></div></div>
-            <div class="nt-bars" id="ntBars"></div>
-            <div class="row mt8"><span class="sub" id="ntTxt" style="font-size:12px">20 Messungen, dauert ca. 3 Sekunden</span><span class="sp"></span><button class="btn sm" id="ntBtn" onclick="netTest()"><svg class="i"><use href="#activity"/></svg>Test starten</button></div>
+        <div class="card gb lx-inst" id="hInst">
+          <div class="lx-ih"><span class="lbl"><svg class="i"><use href="#heart"/></svg>System-Zustand</span><span class="chip" id="hChip">Ungeprüft</span></div>
+          <div class="lx-ic">
+            <div class="gauge lx-g">
+              <svg viewBox="0 0 250 250">
+                <circle class="tick" cx="125" cy="125" r="121" stroke-dasharray="1 11.671"/>
+                <circle class="tick big" cx="125" cy="125" r="121.5" stroke-dasharray="1.6 62.016"/>
+                <circle class="trk" cx="125" cy="125" r="108"/>
+                <circle class="inner" cx="125" cy="125" r="88"/>
+                <circle class="val" id="hRing" cx="125" cy="125" r="108" stroke-dasharray="678.6" stroke-dashoffset="678.6"/>
+              </svg>
+              <div class="mid"><b id="hScore">--</b><span>von 100</span></div>
+            </div>
+            <h3 id="hScoreTxt">Noch nicht geprüft</h3>
+            <p id="hScoreSub">Dauert ein paar Sekunden und ändert nichts an deinem System.</p>
+            <button class="btn p lg lx-go" id="hBtn" onclick="runHealth()"><svg class="i"><use href="#heart"/></svg><span>Check starten</span></button>
           </div>
-          <div class="card">
-            <div class="row"><div class="lbl"><svg class="i"><use href="#file"/></svg>FiveM-Log</div><span class="sp"></span>
-              <div class="seg" id="logSeg"><button class="on" data-f="all">Alles</button><button data-f="err">Nur Fehler</button></div>
-              <button class="ib" onclick="loadLogs()"><svg class="i"><use href="#refresh"/></svg></button></div>
-            <div class="logv mt8" id="logView">Lade…</div>
-          </div>
+          <div class="lx-stats"><div><b id="hOk">–</b><span>In Ordnung</span></div><div><b id="hWarn">–</b><span>Hinweise</span></div><div><b id="hBad">–</b><span>Probleme</span></div></div>
+        </div>
+        <div class="card lx-net">
+          <div class="lx-ih"><div class="lbl"><svg class="i"><use href="#wifi"/></svg>Verbindungstest</div><div class="seg" id="ntTarget"><button class="on" data-nt="cfx">Cfx.re</button><button data-nt="cloudflare">Internet</button><button data-nt="custom">Server</button></div></div>
+          <input class="in hidden" id="ntHost" placeholder="IP:Port deines Servers, z. B. 123.45.67.89:30120">
+          <div class="nt-res" id="ntRes"><div><span>Ping</span><b id="ntAvg">--</b></div><div><span>Jitter</span><b id="ntJit">--</b></div><div><span>Verlust</span><b id="ntLoss">--</b></div></div>
+          <div class="nt-bars" id="ntBars"></div>
+          <div class="lx-nf"><span class="sub" id="ntTxt">20 Messungen, dauert ca. 3 Sekunden</span><button class="btn" id="ntBtn" onclick="netTest()"><svg class="i"><use href="#activity"/></svg>Test starten</button></div>
+        </div>
+        <div class="card lx-crash">
+          <div class="lx-ih"><div class="lbl"><svg class="i"><use href="#alert"/></svg>Abstürze</div><button class="btn sm gh" onclick="api('fivem.crashes')"><svg class="i"><use href="#folder"/></svg>Ordner</button></div>
+          <div id="crashList"></div>
+        </div>
+        <div class="card lx-log">
+          <div class="lx-ih"><div class="lbl"><svg class="i"><use href="#file"/></svg>FiveM-Log</div>
+            <div class="row"><div class="seg" id="logSeg"><button class="on" data-f="all">Alles</button><button data-f="err">Nur Fehler</button></div>
+            <button class="ib" onclick="loadLogs()" title="Neu laden"><svg class="i"><use href="#refresh"/></svg></button></div></div>
+          <div class="logv" id="logView">Lade…</div>
         </div>
       </div>
     </section>
@@ -997,30 +1028,30 @@
     <section class="page" id="p-settings">
       <div class="ph"><div><div class="kicker">Einstellungen</div><h1>OrbitTweak <span class="grad">einrichten</span></h1><p class="pd">Konto, Aussehen, Verhalten und Updates.</p></div></div>
 
-      <div class="card sprof">
-        <div class="sp-av" id="spAv"><svg class="i"><use href="#shield"/></svg></div>
-        <div class="sp-tx"><b id="spTitle">Lizenz aktiv</b><p id="spSub">OrbitTweak ist auf diesem PC freigeschaltet</p></div>
-        <span class="sp"></span>
-        <div class="sp-m"><span>Version</span><b id="spVer">–</b></div>
-        <div class="sp-m"><span>Updates</span><b id="spUpd">–</b></div>
-      </div>
-
       <div class="sgrid">
+        <aside class="sside">
+        <div class="card sprof">
+          <div class="sp-top"><div class="sp-av" id="spAv"><svg class="i"><use href="#shield"/></svg></div>
+          <div class="sp-tx"><b id="spTitle">Lizenz aktiv</b><p id="spSub">OrbitTweak ist auf diesem PC freigeschaltet</p></div></div>
+          <div class="sp-ms"><div class="sp-m"><span>Version</span><b id="spVer">–</b></div><div class="sp-m"><span>Updates</span><b id="spUpd">–</b></div></div>
+        </div>
         <nav class="snav" id="setTabs">
           <button class="tab on" data-st="account"><svg class="i"><use href="#shield"/></svg><span>Konto<small>Lizenz &amp; PC</small></span></button>
           <button class="tab" data-st="design"><svg class="i"><use href="#sparkle"/></svg><span>Design<small>Farbe &amp; Hintergrund</small></span></button>
           <button class="tab" data-st="general"><svg class="i"><use href="#sliders"/></svg><span>Verhalten<small>Leistung &amp; Boost</small></span></button>
-          <button class="tab" data-st="updates"><svg class="i"><use href="#download"/></svg><span>Updates<small>Version &amp; Automatik</small></span><em class="c hidden" id="setUpdC">NEU</em></button>
+          <button class="tab" data-st="updates"><svg class="i"><use href="#download"/></svg><span>Updates<small>Version &amp; Automatik</small></span><em class="c hidden" id="setUpdC">Neu</em></button>
           <button class="tab" data-st="safety"><svg class="i"><use href="#undo"/></svg><span>Sicherheit<small>Wiederherstellen</small></span></button>
           <button class="tab" data-st="about"><svg class="i"><use href="#heart"/></svg><span>Über<small>Hinweise &amp; Credits</small></span></button>
         </nav>
+        </aside>
 
         <div class="sbody">
           <div class="stab" id="st-account">
             <div class="card">
               <div class="sh"><b>Lizenz</b></div>
               <div id="accIn" class="hidden"><div class="acc-ok"><svg class="i"><use href="#check"/></svg><div><b id="accTitle">Angemeldet</b><p id="accText"></p></div><span class="sp"></span><button class="btn sm" onclick="accLogout()">Abmelden</button></div></div>
-              <div class="srow"><div><b>PC-ID</b><p>Dein Key ist fest an diesen PC gebunden</p></div><code id="accHwid" class="hwid">…</code></div>
+              <div class="srow"><div><b>Rolle</b><p>Bestimmt, was du in OrbitTweak darfst</p></div><span class="chip" id="accRole">…</span></div>
+              <div class="srow"><div><b>PC-ID</b><p>Dein Key ist fest an diesen PC gebunden</p></div><code id="accHwid" class="hwid">…</code><button class="ib" title="PC-ID kopieren" onclick="accCopyId()"><svg class="i"><use href="#copy"/></svg></button></div>
               <p class="warnline hidden" id="accNoSrv"><svg class="i"><use href="#alert"/></svg>Der OrbitTweak-Server ist gerade nicht erreichbar.</p>
             </div>
             <div class="card mt" id="accLogin">
