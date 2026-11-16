@@ -163,7 +163,7 @@ internal static class BgThrottle
             if (pid == 0) return (null, 0, null);
             using var p = Process.GetProcessById((int)pid);
             DateTime? start = null;
-            try { start = p.StartTime; } catch { }   // elevated or protected: its name still counts, its helpers are not looked for
+            try { start = p.StartTime.ToUniversalTime(); } catch { }   // elevated or protected: its name still counts, its helpers are not looked for
             return (p.ProcessName, (int)pid, start);
         }
         catch { return (null, 0, null); }
@@ -179,11 +179,11 @@ internal static class BgThrottle
         {
             int pp = ParentPid(p);
             if (pp <= 0) return false;
-            var start = p.StartTime;
+            var start = p.StartTime.ToUniversalTime();   // UTC: local times run backwards in the night the clocks go back
             if (pp == front) return frontStart <= start;
             using var up = Process.GetProcessById(pp);
             if (!Helpers.Contains(up.ProcessName)) return false;
-            var upStart = up.StartTime;
+            var upStart = up.StartTime.ToUniversalTime();
             return upStart <= start && frontStart <= upStart && ParentPid(up) == front;
         }
         catch { return false; }

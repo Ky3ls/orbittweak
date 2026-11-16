@@ -568,7 +568,7 @@ document.addEventListener('click', async e => {
     lg.disabled = true;
     const r = await api('tweak.legacyRevert', { id: lg.dataset.legacy }).catch(er => ({ ok: false, error: er.message }));
     const it = (S.legacy || []).find(x => x.id === lg.dataset.legacy);
-    if (r.ok) { S.legacy = S.legacy.filter(x => x !== it); toast('Zurückgesetzt', (it ? it.name.replace(/ \(.*\)$/, '') : '') + (it && it.hint ? ' · ' + it.hint : '')); }
+    if (r.ok) { S.legacy = S.legacy.filter(x => x !== it); toast('Zurückgesetzt', (it ? it.name.replace(/ \((entfernt|alte Version)\)$/, '') : '') + (it && it.hint ? ' · ' + it.hint : '')); }
     else { lg.disabled = false; toast('Nicht zurückgesetzt', r.error || '', false); }
     renderTweaks(); return;
   }
@@ -607,7 +607,7 @@ async function revertAll() {
   // removed tweaks are only reset here when they surely came from OrbitTweak: the rest is named, with where to reset it
   const left = (r && r.left) || [];
   if (left.length) setTimeout(() => toast(left.length === 1 ? '1 entfernter Tweak ist noch aktiv' : `${left.length} entfernte Tweaks sind noch aktiv`,
-    left.map(n => n.replace(/ \(.*\)$/, '')).join(', ') + ' · einzeln unter Tweaks › System › Entfernte Tweaks'), 4200);
+    left.map(n => n.replace(/ \((entfernt|alte Version)\)$/, '')).join(', ') + ' · einzeln zurücksetzen unter Tweaks › System › Entfernte Tweaks'), 4200);
 }
 
 /* ======================= FIVEM ACTIONS ======================= */
@@ -907,11 +907,12 @@ function renderHealth(h) {
   if ($('#hRing')) $('#hRing').style.strokeDashoffset = 678.6 * (1 - Math.max(0, Math.min(100, h.score)) / 100);
   const cnt = st => h.items.filter(i => i.st === st).length, warn = cnt('warn'), worse = cnt('bad'), bad = h.items.length - cnt('ok');
   $('#hScoreTxt').textContent = bad ? `${bad} ${bad === 1 ? 'Punkt' : 'Punkte'} verbesserbar` : 'Alles im grünen Bereich';
-  const fixable = h.items.filter(i => i.fix && i.st !== 'ok').length;
+  const fixable = h.items.filter(i => i.fix && i.st !== 'ok').length, rest = h.items.filter(i => !i.fix && i.st !== 'ok');
   if ($('#hScoreSub')) $('#hScoreSub').textContent = !bad ? 'FiveM hat hier alles, was es braucht.'
     : fixable === bad ? 'Mit „Beheben“ stellst du sie mit einem Klick richtig.'
-    : fixable ? `${fixable} davon behebst du mit „Beheben“, ${bad - fixable === 1 ? 'der andere ist ein Hinweis' : 'die anderen sind Hinweise'}.`
-    : bad === 1 ? 'Ein Hinweis, den OrbitTweak nicht selbst beheben kann.' : 'Hinweise, die OrbitTweak nicht selbst beheben kann.';
+    : rest.some(i => i.st === 'bad') ? (fixable ? `${fixable} davon behebst du mit „Beheben“, ${rest.length === 1 ? 'den anderen' : 'die anderen'} musst du selbst angehen.` : 'OrbitTweak kann das nicht selbst beheben, die Liste zeigt, woran es liegt.')
+    : fixable ? `${fixable} davon behebst du mit „Beheben“, ${rest.length === 1 ? 'der andere ist ein Hinweis' : 'die anderen sind Hinweise'}.`
+    : rest.length === 1 ? 'Ein Hinweis, den OrbitTweak nicht selbst beheben kann.' : 'Hinweise, die OrbitTweak nicht selbst beheben kann.';
   if ($('#hChip')) { $('#hChip').textContent = bad ? (worse ? `${worse} ${worse === 1 ? 'Problem' : 'Probleme'}` : 'Hinweise') : 'Optimal'; $('#hChip').className = 'chip ' + (bad ? (worse ? 'r' : 'w') : 'g'); }
   if ($('#hOk')) { $('#hOk').textContent = cnt('ok'); $('#hWarn').textContent = warn; $('#hBad').textContent = worse; }
   // problems first, then hints, then what is fine
@@ -3575,6 +3576,12 @@ document.addEventListener('click', async e => {
 
 /* ======================= WHAT'S NEW: shown once after an update ======================= */
 const CHANGES = {
+  '2.26.1': [
+    ['undo', '„Alles zurücksetzen“ genauer', 'Setzt nur noch zurück, was sicher von OrbitTweak stammt. Entfernte Tweaks, die noch aktiv sind, werden danach genannt, damit du sie einzeln zurücksetzen kannst.'],
+    ['keyboard', 'Ausschalten wie vorher', 'Tastatur-Tweaks und Bedienungshilfe-Popups: Was schon vor dem Einschalten so eingestellt war, bleibt beim Ausschalten so. Beim Energieplan bleibt „USB-Energiesparen aus“ im zurückgeholten Plan an.'],
+    ['cpu', 'Hintergrund-Apps ausbremsen', 'Epic, Steam, das neue Teams und Outlook bleiben schnell, solange du sie benutzt.'],
+    ['heart', 'Anzeige korrigiert', 'Der Energieplan-Schalter stimmt schon beim ersten Start nach dem Update, der Zustand erreicht 100 %, auch wenn ein empfohlener Tweak auf deinem PC nicht geht, und die Diagnose verspricht „Beheben“ nur, wo es den Knopf gibt.'],
+  ],
   '2.26.0': [
     ['sparkle', 'Neues Design', 'Jede Seite neu gestaltet: ruhige Flächen mit feiner Lichtkante, große leichte Zahlen, Akzentfarbe nur noch für die eine Hauptaktion. Dialoge, Startbildschirm und Lizenz-Seite passen dazu.'],
     ['sun', 'Winter und Anime neu', 'Winter mit Nordlicht, Eiszapfen und Schneekanten, Anime mit neu gemalter Abendbucht. Beide behalten das ruhige neue Design.'],
