@@ -83,7 +83,7 @@ internal static class HwId
 
     private static readonly string[] Junk =
     {
-        "TO BE FILLED", "FILLED BY", "O.E.M", "DEFAULT STRING", "NOT SPECIFIED", "NOT APPLICABLE", "NOT AVAILABLE", "SERIAL NUMBER",
+        "TO BE FILLED", "FILLED BY", "FILL BY", "O.E.M", "OEM", "DEFAULT STRING", "NOT SPECIFIED", "NOT APPLICABLE", "NOT AVAILABLE", "SERIAL NUMBER",
         "SYSTEM SERIAL", "BASE BOARD", "BASEBOARD", "CHASSIS", "SYSTEM PRODUCT", "NONE", "N/A", "UNKNOWN", "INVALID", "EMPTY", "DEFAULT"
     };
 
