@@ -10,7 +10,9 @@ CREATE TABLE IF NOT EXISTS codes (
   created_by  TEXT,
   revoked     INTEGER NOT NULL DEFAULT 0,
   days        INTEGER,               -- runtime in days, NULL = lifetime
-  expires_at  INTEGER                -- set on first redeem: bound_at + days
+  expires_at  INTEGER,               -- set on first redeem: bound_at + days
+  hw2         TEXT,                  -- hardware-only hash of the bound PC (survives a Windows reinstall), NULL if unknown
+  rebinds     INTEGER NOT NULL DEFAULT 0  -- how often the key moved to a new HWID of the same PC (reinstall)
 );
 CREATE TABLE IF NOT EXISTS mods (
   id          TEXT PRIMARY KEY,

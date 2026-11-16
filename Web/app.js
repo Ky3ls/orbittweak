@@ -2415,7 +2415,7 @@ async function accRedeem() {
   const r = await api('auth.redeem', { code });
   if (r.error) return toast('Code nicht angenommen', r.error, false);
   ACC.loggedIn = true; ACC.role = r.role; $('#accCode').value = ''; accUI();
-  passed(r.role === 'admin' ? 'Admin freigeschaltet' : 'Zugang freigeschaltet', 'Code ist jetzt an diesen PC gebunden');
+  passed(r.role === 'admin' ? 'Admin freigeschaltet' : 'Zugang freigeschaltet', r.rebound ? 'Neuinstallation erkannt, dein Key läuft auf diesem PC weiter' : 'Code ist jetzt an diesen PC gebunden');
 }
 async function accLogout() { if (!await confirmBox('Abmelden?', 'OrbitTweak wird gesperrt, bis du deinen Key wieder eingibst.')) return; await api('auth.logout'); ACC.loggedIn = false; ACC.role = null; accUI(); go('home'); gate('Abgemeldet. Gib deinen Key ein, um weiterzumachen.'); }
 window.accRedeem = accRedeem; window.accLogout = accLogout;
@@ -2470,7 +2470,7 @@ async function admLoad() {
       <code class="cc">${esc(c.code)}</code><button class="ib" title="Kopieren" onclick="copyCmd('${esc(c.code)}')">${ico('copy')}</button>
       <span class="chip ${c.role === 'admin' ? 'a' : c.role === 'editor' ? 'g' : ''}">${c.role === 'admin' ? 'Admin' : c.role === 'editor' ? 'Editor' : 'Nutzer'}</span>${planChip(c)}
       <span class="cn">${esc(c.note || '')}${c.self ? ' <span class="muted">(du)</span>' : ''}</span>
-      <span class="cs">${c.revoked ? '<span class="chip r">Gesperrt</span>' : c.hwid ? `<span class="chip g">Gebunden</span><span class="muted"> PC ${esc(c.hwid)} · aktiv vor ${ago(c.last_seen || c.bound_at)}</span>` : '<span class="chip w">Noch frei</span>'}</span>
+      <span class="cs">${c.revoked ? '<span class="chip r">Gesperrt</span>' : c.hwid ? `<span class="chip g">Gebunden</span><span class="muted"> PC ${esc(c.hwid)} · aktiv vor ${ago(c.last_seen || c.bound_at)}${c.rebinds ? ` · <span title="Neuinstallation erkannt: Windows wurde auf demselben PC neu installiert, der Key ist automatisch mitgezogen (${c.rebinds}×)">neu installiert</span>` : ''}</span>` : '<span class="chip w">Noch frei</span>'}</span>
       ${c.self ? '' : `${c.hwid ? `<button class="btn sm" onclick="admAct('unbind','${esc(c.code)}')">PC lösen</button>` : ''}<button class="btn sm ${c.revoked ? '' : 'd'}" onclick="admAct('revoke','${esc(c.code)}',${c.revoked ? 1 : 0})">${c.revoked ? 'Entsperren' : 'Sperren'}</button>`}
     </div>`).join('') : '<div class="empty">Noch keine Codes.</div>';
   } else if (admTab === 'pending') {
@@ -2578,16 +2578,16 @@ async function lkSubmit() {
   await sleep(Math.max(0, 900 - (performance.now() - t0)));   // let the scan animation breathe
   $('#lkCard').classList.remove('busy'); LOCK.busy = false;
   if (!r || r.error) return lkFail(r && r.error || 'Unbekannter Fehler');
-  await lkSuccess(r.note, r.role);
+  await lkSuccess(r.note, r.role, r.rebound);
 }
 function lkFail(msg) {
   const c = $('#lkCard'); c.classList.remove('shake'); void c.offsetWidth; c.classList.add('shake');
   $('#lkKey').classList.add('bad'); $('#lkErr').textContent = msg;
 }
-async function lkSuccess(note, role) {
+async function lkSuccess(note, role, rebound) {
   const c = $('#lkCard'); c.classList.add('done');
   $('#lkTitle').innerHTML = 'Freigeschaltet';
-  $('#lkSub').textContent = (note ? `Willkommen, ${note}!` : 'Willkommen!') + (role === 'admin' ? ' Admin-Rechte aktiv.' : role === 'editor' ? ' Editor-Rechte aktiv.' : '');
+  $('#lkSub').textContent = (note ? `Willkommen, ${note}!` : 'Willkommen!') + (role === 'admin' ? ' Admin-Rechte aktiv.' : role === 'editor' ? ' Editor-Rechte aktiv.' : '') + (rebound ? ' Neuinstallation erkannt, dein Key läuft weiter.' : '');
   ACC.loggedIn = true; ACC.role = role;
   await sleep(1500);
   $('#lock').classList.add('out');
@@ -2729,7 +2729,7 @@ const Mock = {
       case 'mods.lib': return { installed: [] };
       case 'auth.info': return { hwid: '3fa9c1e07b2d', role: 'admin', loggedIn: true };
       case 'auth.check': return /lock/.test(location.search) ? { ok: false } : { ok: true, role: 'admin', note: 'Ky3ls' };
-      case 'auth.redeem': await sleep(400); return a.code.endsWith('0000') ? { error: 'Code ungültig oder gesperrt' } : { ok: true, role: 'admin', note: 'Ky3ls' };
+      case 'auth.redeem': await sleep(400); return a.code.endsWith('0000') ? { error: 'Code ungültig oder gesperrt' } : { ok: true, role: 'admin', note: 'Ky3ls', rebound: a.code.endsWith('1111') };
       case 'auth.logout': return { ok: true };
       case 'srv': return MOCKSRV(a);
       case 'reshade.cfg.get': return { found: true, keyOverlay: 36, keyEffects: 145, keyScreenshot: 44, keyNext: 0, showFps: false, perf: true };
@@ -2786,7 +2786,7 @@ function MOCKSRV(a) {
   if (p === '/api/me') return { role: 'admin' };
   if (p === '/api/mods' && a.method === 'GET') return { mods: [{ id: 'm-demo1', type: 'file', name: 'Red Flash Kill-Effekt', cat: 'kill', url: 'https://example.com/redflash.zip', size: 2.1e6, author: 'Community', desc: 'Kurzer roter Blitz bei jedem Kill.', tags: ['pvp', 'kill'], popular: 90, added: '2026-11-14', status: 'live' }] };
   if (p === '/api/mods/pending') return { mods: [{ id: 'm-p1', name: 'Dark Satellite Minimap', cat: 'minimap', url: 'https://example.com/darksat.zip', size: 18e6, author: 'MapMaker', desc: 'Satellitenkarte in dunkel.', status: 'pending' }] };
-  if (p === '/api/codes' && a.method === 'GET') return { codes: [{ code: 'ORB-7K2D-QX9M-4HTP', role: 'admin', note: 'Ky3ls', hwid: '3fa9c1e07b', last_seen: Date.now() / 1000 - 30, self: true }, { code: 'ORB-M8VN-2CKE-W7RJ', role: 'editor', note: 'Max', hwid: '9b1e44a2c0', last_seen: Date.now() / 1000 - 7200 }, { code: 'ORB-T4QH-8ZPA-3NXD', role: 'editor', note: 'Lena', hwid: null }] };
+  if (p === '/api/codes' && a.method === 'GET') return { codes: [{ code: 'ORB-7K2D-QX9M-4HTP', role: 'admin', note: 'Ky3ls', hwid: '3fa9c1e07b', last_seen: Date.now() / 1000 - 30, self: true }, { code: 'ORB-M8VN-2CKE-W7RJ', role: 'editor', note: 'Max', hwid: '9b1e44a2c0', last_seen: Date.now() / 1000 - 7200, rebinds: 1 }, { code: 'ORB-T4QH-8ZPA-3NXD', role: 'editor', note: 'Lena', hwid: null }] };
   if (p === '/api/codes' && a.method === 'POST') { const n = a.body.count || 1, codes = Array.from({ length: n }, (_, i) => 'ORB-N3WC-0D3X-YZ' + String(10 + i).slice(-2)); return { code: codes[0], codes, role: a.body.role, days: a.body.days || null }; }
   return { ok: true, status: 'pending' };
 }

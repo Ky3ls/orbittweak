@@ -963,6 +963,8 @@ public partial class MainWindow : Window
                 var res = await Account.Call(Account.Api, "GET", "/api/me", null, S.AuthToken);
                 if (res is JsonElement me && me.TryGetProperty("role", out var role))
                 {
+                    // Windows reinstalled on the same PC: the server moved the key over and sends a token for the new HWID
+                    if (me.TryGetProperty("token", out var nt0) && nt0.ValueKind == JsonValueKind.String) S.AuthToken = nt0.GetString();
                     TakePlan(me);
                     OnAuthed(role.GetString());
                     return new { ok = true, role = S.AuthRole, note = me.TryGetProperty("note", out var nt) ? nt.GetString() : null, plan = PlanInfo };
@@ -976,14 +978,15 @@ public partial class MainWindow : Window
             }
             case "auth.redeem":
             {
-                var payload = JsonSerializer.SerializeToElement(new { code = Str(a, "code").Trim().ToUpperInvariant(), hwid = Account.Hwid });
+                var payload = JsonSerializer.SerializeToElement(new { code = Str(a, "code").Trim().ToUpperInvariant(), hwid = Account.Hwid, hw2 = Account.Hw2 });
                 var res = await Account.Call(Account.Api, "POST", "/api/redeem", payload, null);
                 if (res is JsonElement je && je.TryGetProperty("token", out var tk))
                 {
                     S.AuthToken = tk.GetString();
                     TakePlan(je);
                     OnAuthed(je.TryGetProperty("role", out var rl) ? rl.GetString() : "user");
-                    return new { ok = true, role = S.AuthRole, note = je.TryGetProperty("note", out var nt) ? nt.GetString() : null, plan = PlanInfo };
+                    return new { ok = true, role = S.AuthRole, note = je.TryGetProperty("note", out var nt) ? nt.GetString() : null, plan = PlanInfo,
+                        rebound = je.TryGetProperty("rebound", out var rb) && rb.ValueKind == JsonValueKind.True };
                 }
                 return res;
             }
