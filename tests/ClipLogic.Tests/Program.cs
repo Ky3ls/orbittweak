@@ -240,6 +240,8 @@ Check(!KillLogic.SameText("ZM Blaze killed Kronos77", "ZM Blaze killed Viper_12"
     Check(graph.Contains("interp_start=0") && graph.Contains("settb=1/60"), "blended slow motion, xfade inputs on one time base");
     var (oargs, _) = MontageCut.Build(p, new MontageCut.Art(null, null, new Dictionary<int, string>(), new Dictionary<int, string>()), null, "g.txt", "out.mp4", false);
     Check(oargs.Contains("-filter_complex_script \"g.txt\"") && oargs.Contains("-vsync cfr") && !oargs.Contains("-/filter_complex"), "ffmpeg before 7: the old options");
+    // zoompan ends a stream with a time in the wrong time base: without a trim after fps the montage never finished
+    Check(System.Text.RegularExpressions.Regex.Matches(graph, @"fps=60,settb=1/60,trim=duration=").Count == p.Parts.Count + 2, "every clip, intro and outro end where planned");
     Check(!graph.Contains("NaN") && !graph.Contains("Infinity") && !graph.Contains("∞"), "no broken numbers in the graph");
 }
 

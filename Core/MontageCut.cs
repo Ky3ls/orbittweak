@@ -261,7 +261,9 @@ internal static class MontageCut
                     cur = $"c{i}s{j}";
                 }
             }
-            g.Append($"[{cur}]fps={Fps},settb=1/{Fps},format=yuv420p,setsar=1[v{i}];\n");
+            // (trim again after fps: zoompan hands on the end of the clip with a time in the wrong time base, and fps
+            // would fill up to it with copies of the last picture, hundreds of seconds of them)
+            g.Append($"[{cur}]fps={Fps},settb=1/{Fps},trim=duration={N(c.Len)},format=yuv420p,setsar=1[v{i}];\n");
             // sound: normal, slowed (and so lower) through the slow motion, normal again
             if (s.Audio)
             {
@@ -299,7 +301,7 @@ internal static class MontageCut
                 g.Append($"{Still(it, IntroLen)},fade=t=in:st=0.15:d=0.5:alpha=1[it];[ib][it]overlay=x=0:y='{N(28 * u)}*pow(1-{Clip01("(t-0.15)/0.6")},3)':shortest=1");
             }
             else g.Append("[ib]null");
-            g.Append($",fade=t=in:st=0:d=0.25,fps={Fps},settb=1/{Fps},format=yuv420p,setsar=1[vin];\n");
+            g.Append($",fade=t=in:st=0:d=0.25,fps={Fps},settb=1/{Fps},trim=duration={N(IntroLen)},format=yuv420p,setsar=1[vin];\n");
             if (!hasMusic && f.Src.Audio)
                 g.Append($"[{ib}:a]asetpts=PTS-STARTPTS,aresample=48000,{AFmt},lowpass=f=700,volume=0.55,afade=t=in:d=0.8,apad=whole_dur={N(IntroLen)},atrim=duration={N(IntroLen)}[ain];\n");
             else g.Append($"{Silence},atrim=duration={N(IntroLen)}[ain];\n");
@@ -313,7 +315,7 @@ internal static class MontageCut
                 g.Append($"{Still(ot, OutroLen)},fade=t=in:st=0.25:d=0.5:alpha=1[ot];[ob][ot]overlay=x=0:y='{N(28 * u)}*pow(1-{Clip01("(t-0.25)/0.6")},3)':shortest=1");
             }
             else g.Append("[ob]null");
-            g.Append($",fade=t=out:st={N(OutroLen - 0.7)}:d=0.7,fps={Fps},settb=1/{Fps},format=yuv420p,setsar=1[vout];\n");
+            g.Append($",fade=t=out:st={N(OutroLen - 0.7)}:d=0.7,fps={Fps},settb=1/{Fps},trim=duration={N(OutroLen)},format=yuv420p,setsar=1[vout];\n");
             if (!hasMusic && l.Src.Audio)
                 g.Append($"[{ob}:a]asetpts=PTS-STARTPTS,aresample=48000,{AFmt},lowpass=f=900,volume=0.5,afade=t=out:st={N(OutroLen - 1.2)}:d=1.2,apad=whole_dur={N(OutroLen)},atrim=duration={N(OutroLen)}[aout];\n");
             else g.Append($"{Silence},atrim=duration={N(OutroLen)}[aout];\n");
