@@ -110,6 +110,31 @@ internal static class FfMontage
         return (p.ExitCode, line != null ? err.ToString() : sb.ToString());
     }
 
+    /// <summary>
+    /// The music as mono 16-bit samples at <see cref="MontageBeat.Rate"/> (for finding its beat), at most "seconds" of
+    /// it; empty if it can not be read.
+    /// </summary>
+    private static async Task<short[]> Pcm(string exe, string file, double seconds)
+    {
+        var psi = new ProcessStartInfo(exe, $"-hide_banner -nostdin -v error -i \"{file}\" -t {seconds.ToString("0.###", Inv)} -vn -f s16le -ac 1 -ar {MontageBeat.Rate} pipe:1")
+            { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+        try
+        {
+            using var p = Process.Start(psi);
+            if (p == null) return Array.Empty<short>();
+            p.ErrorDataReceived += (_, _) => { };
+            p.BeginErrorReadLine();
+            using var ms = new MemoryStream();
+            await p.StandardOutput.BaseStream.CopyToAsync(ms);
+            await p.WaitForExitAsync();
+            var bytes = ms.GetBuffer();
+            var pcm = new short[ms.Length / 2];
+            Buffer.BlockCopy(bytes, 0, pcm, 0, pcm.Length * 2);
+            return pcm;
+        }
+        catch { return Array.Empty<short>(); }
+    }
+
     /// <summary>Length of a clip in seconds, whether it has sound, and its picture size.</summary>
     private static async Task<(double dur, bool audio, int w, int h)> Probe(string probe, string file)
     {
@@ -136,15 +161,16 @@ internal static class FfMontage
     /// <summary>
     /// Cuts the montage (see <see cref="MontageCut"/> for what it does). "after" = the seconds the clipper keeps after a
     /// kill (where clips have no kill marks, the kill is guessed from it). title = the big line of the intro (empty =
-    /// "HIGHLIGHTS"); counter = kill chips and streak tags; slow = slow motion on the kills.
+    /// "HIGHLIGHTS"); counter = kill chips and streak tags; slow = slow motion on the kills. With music, its beat is
+    /// looked for and the kills are put on it (bpm in the result: 0 = no clear beat or no music).
     /// Has to be called on the app's main thread (the pictures are drawn there).
     /// </summary>
-    public static async Task<(string? file, string? error, int clips)> Make(string ffmpeg, List<FileInfo> clips, double after, string? music, string? accentHex, Action<int, string> progress,
+    public static async Task<(string? file, string? error, int clips, double bpm)> Make(string ffmpeg, List<FileInfo> clips, double after, string? music, string? accentHex, Action<int, string> progress,
         string? title = null, bool intro = true, bool counter = true, bool slow = true)
     {
         var probe = Path.Combine(Path.GetDirectoryName(ffmpeg)!, "ffprobe.exe");
         var tmp = Path.Combine(Path.GetTempPath(), "OrbitTweak-montage-" + Guid.NewGuid().ToString("N")[..8]);
-        var target = Path.Combine(Clipper.OwnDir, $"Montage {DateTime.Now:yyyy-MM-dd HH-mm-ss}.mp4");
+        string target = "";
         try
         {
             Directory.CreateDirectory(tmp);
@@ -159,9 +185,18 @@ internal static class FfMontage
                 src.Add(new MontageCut.Source(c.FullName, d, a, w, h, kills, Math.Max(KillsInName(c.Name), kills.Length)));
                 used.Add(c);
             }
-            if (src.Count < 2) return (null, "Zu wenige lesbare Kill-Clips", src.Count);
+            if (src.Count < 2) return (null, "Zu wenige lesbare Kill-Clips", src.Count, 0);
             int n = src.Count;
-            var plan = MontageCut.Make(src, new MontageCut.Options(after, intro, slow ? 2 : 1));
+            var opts = new MontageCut.Options(after, intro, slow ? 2 : 1);
+            var plan = MontageCut.Make(src, opts);
+            // the beat of the music: the kills are put on it
+            if (music is { Length: > 0 } && File.Exists(music))
+            {
+                progress(2, "Takt der Musik wird gesucht …");
+                var pcm = await Pcm(ffmpeg, music, Math.Min(900, 60 + plan.Total * 1.3));
+                var beat = pcm.Length > MontageBeat.Rate * 4 ? await Task.Run(() => MontageBeat.Find(pcm, MontageBeat.Rate, plan.Total + 30)) : null;
+                if (beat != null) plan = MontageCut.Make(src, opts, beat);
+            }
 
             // the pictures, at the size of the video
             string? introPng = null, outroPng = null, shade = Path.Combine(tmp, "shade.png");
@@ -189,6 +224,7 @@ internal static class FfMontage
             }
 
             var script = Path.Combine(tmp, "graph.txt");
+            target = Clipper.NewFile("Montage");
             var (args, graph) = MontageCut.Build(plan, new MontageCut.Art(introPng, outroPng, chips, tags, shade), music is { Length: > 0 } && File.Exists(music) ? music : null,
                 script, target, Major(ffmpeg) >= 7);
             File.WriteAllText(script, graph, new UTF8Encoding(false));
@@ -202,11 +238,11 @@ internal static class FfMontage
             {
                 try { if (File.Exists(target)) File.Delete(target); } catch { }
                 var lastLine = err.Split('\n', StringSplitOptions.RemoveEmptyEntries).LastOrDefault(x => x.Trim().Length > 0)?.Trim() ?? "unbekannter Fehler";
-                return (null, "Schnitt fehlgeschlagen: " + (lastLine.Length > 160 ? lastLine[..160] : lastLine), n);
+                return (null, "Schnitt fehlgeschlagen: " + (lastLine.Length > 160 ? lastLine[..160] : lastLine), n, 0);
             }
-            return (target, null, n);
+            return (target, null, n, plan.Beat?.Bpm ?? 0);
         }
-        catch (Exception ex) { return (null, ex.Message, clips.Count); }
+        catch (Exception ex) { return (null, ex.Message, clips.Count, 0); }
         finally { try { Directory.Delete(tmp, true); } catch { } }
     }
 }

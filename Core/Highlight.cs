@@ -272,7 +272,7 @@ internal static class Highlight
             var files = clips.Select(c => c.FullName).ToList();
             // every clip from 3 s before its first kill to 2 s after its last (not simply its last seconds: with the
             // usual 5 s kept after a kill that left hardly anything before it)
-            var job = new Job { Files = files, Tail = 6.5, Cuts = KillCuts(files, after, 3.0, 2.0, 9), Montage = true, Music = music, Out = Path.Combine(Clipper.OwnDir, $"Montage {DateTime.Now:yyyy-MM-dd HH-mm-ss}.mp4") };
+            var job = new Job { Files = files, Tail = 6.5, Cuts = KillCuts(files, after, 3.0, 2.0, 9), Montage = true, Music = music, Out = Clipper.NewFile("Montage") };
             job.Intro = Path.Combine(tmp, "intro.png"); job.Outro = Path.Combine(tmp, "outro.png"); job.Vignette = Path.Combine(tmp, "frame.png");
             var first = clips[0].LastWriteTime; var last = clips[^1].LastWriteTime;
             MontageArt.Card(job.Intro, "HIGHLIGHTS", $"{clips.Count} Kills · {(first.Date == last.Date ? last.ToString("dd.MM.yyyy") : first.ToString("dd.MM.") + " bis " + last.ToString("dd.MM.yyyy"))}", accentHex);
@@ -331,7 +331,7 @@ internal static class Highlight
     public static async Task<(string? file, string? error, int clips)> Make(List<FileInfo> clips, double tail, Action<int, string> progress, double after = 5)
     {
         if (clips.Count > 40) clips = clips.Skip(clips.Count - 40).ToList(); // the newest 40
-        var target = Path.Combine(Clipper.OwnDir, $"Highlights {DateTime.Now:yyyy-MM-dd HH-mm-ss}.mp4");
+        var target = Clipper.NewFile("Highlights");
         var files = clips.Select(c => c.FullName).ToList();
         var job = new Job { Files = files, Tail = tail, Out = target };
         if (tail > 0) job.Cuts = KillCuts(files, after, Math.Max(1, tail - 2.5), Math.Min(2.5, tail / 2), tail + 4);

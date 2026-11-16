@@ -1483,7 +1483,7 @@ const CL_RECS = {
   obs: ['OBS', 'Strg+Alt+F12', 'In OBS den Replay-Puffer starten und unter Einstellungen → Hotkeys „Wiederholung speichern“ auf Strg+Alt+F12 legen.'],
 };
 const CL_WORDS = 'KILLED, KILL, GETÖTET, ELIMINATED, ELIMINIERT, ERLEDIGT';
-const CL = { key: 0x78, recorder: 'orbit', flash: true, auto: false, sens: 2, kills: false, detect: 'mark', words: CL_WORDS, net: true, banner: true, autoHighlight: false, highlightTail: 8, shareMb: 10, deaths: false, name: '', area: 'auto', before: 20, after: 5, quality: 'std', sound: true };
+const CL = { key: 0x78, recorder: 'orbit', flash: true, auto: false, sens: 2, kills: false, detect: 'mark', words: CL_WORDS, net: true, banner: true, autoHighlight: false, highlightTail: 8, shareMb: 10, deaths: false, name: '', area: 'auto', before: 20, after: 5, quality: 'std', sound: true, montageTitle: '', montageIntro: true, montageCounter: true };
 // how kills are noticed: [value, name, plain explanation, icon, tag]
 const CL_DETECT = [['mark', 'Am Fadenkreuz', 'Liest die Kill-Meldung in der Bildmitte und das rote X. Kein Name, kein Kill-Feed nötig.', 'crosshair', 'Empfohlen'],
   ['feed', 'Im Kill-Feed', 'Sucht deinen Ingame-Namen im Kill-Feed am Bildrand. Für Server, die Namen als Text zeigen.', 'eye', '']];
@@ -1502,7 +1502,7 @@ function clFlashPng() {
 }
 async function clipPush() {
   const accent = getComputedStyle(document.documentElement).getPropertyValue('--a').trim();
-  const r = await api('clip.cfg', { key: CL.key, recorder: CL.recorder, flash: CL.flash, auto: CL.auto, sens: CL.sens, kills: CL.kills, detect: CL.detect, words: CL.words || '', net: CL.net, ai: CL.ai !== false, hud: CL.hud !== false, hudTime: CL.hudTime !== false, hudClock: !!CL.hudClock, banner: CL.banner !== false, autoHighlight: !!CL.autoHighlight, highlightTail: CL.highlightTail ? 8 : 0, shareMb: CL.shareMb || 10, accent: /^#[0-9a-f]{6}$/i.test(accent) ? accent : '', deaths: CL.deaths, name: CL.name, area: CL.area, before: CL.before, after: CL.after, quality: CL.quality, sound: CL.sound, png: clFlashPng() }).catch(() => null);
+  const r = await api('clip.cfg', { key: CL.key, recorder: CL.recorder, flash: CL.flash, auto: CL.auto, sens: CL.sens, kills: CL.kills, detect: CL.detect, words: CL.words || '', net: CL.net, ai: CL.ai !== false, hud: CL.hud !== false, hudTime: CL.hudTime !== false, hudClock: !!CL.hudClock, banner: CL.banner !== false, autoHighlight: !!CL.autoHighlight, highlightTail: CL.highlightTail ? 8 : 0, shareMb: CL.shareMb || 10, accent: /^#[0-9a-f]{6}$/i.test(accent) ? accent : '', deaths: CL.deaths, name: CL.name, area: CL.area, before: CL.before, after: CL.after, quality: CL.quality, sound: CL.sound, montageTitle: (CL.montageTitle || '').trim(), montageIntro: CL.montageIntro !== false, montageCounter: CL.montageCounter !== false, png: clFlashPng() }).catch(() => null);
   if (r && r.keyOk === false) toast('Taste belegt', 'Andere Clip-Taste wählen', false);
   // the app tidies the word list (and falls back to the usual words when it is empty)
   if (r && r.words) { CL.words = r.words; if (document.activeElement !== $('#clWords')) $('#clWords').value = CL.words; }
@@ -1790,9 +1790,13 @@ document.addEventListener('click', e => {
     $('#mbox').style.width = '760px';
   }
 });
-async function clipDel(rel) { clDurPause(true); const r = await api('clip.delete', { rel }).catch(e => ({ ok: false, error: e.message })); clDurPause(false); closeModal(); $('#mbox').style.width = ''; toast(r.ok ? 'Clip gelöscht' : 'Löschen fehlgeschlagen', r.error || '', r.ok); clipList(); }
+async function clipDel(rel) {
+  // the clip still playing in the window holds its file open, and Windows deletes no file in use: stop it and let go first
+  const v = $('#mbox video');
+  if (v) { try { v.pause(); v.removeAttribute('src'); v.load(); } catch { } await sleep(400); }
+  clDurPause(true); const r = await api('clip.delete', { rel }).catch(e => ({ ok: false, error: e.message })); clDurPause(false); closeModal(); $('#mbox').style.width = ''; toast(r.ok ? 'Clip gelöscht' : 'Löschen fehlgeschlagen', r.error || '', r.ok); clipList(); }
 window.clipDel = clipDel;
-function initClip(s) { Object.assign(CL, s.clip || {}); clipUI(); clipPush(); }
+function initClip(s) { Object.assign(CL, s.clip || {}); MO.music = CL.montageMusic ? CL.montageMusic.split(/[\\/]/).pop() : null; clipUI(); clipPush(); }
 
 /* ======================= MODS ======================= */
 const MOD_CATS = { minimap: ['Minimap', 'map', 'Eigene Karten & Farben'], kill: ['Kill-Effekte', 'crosshair', 'Effekte bei Treffern & Kills'], gfx: ['Grafik-Packs', 'sun', 'Licht, Wetter, Farben'], sound: ['Sounds', 'activity', 'Waffen & Fahrzeuge'], skin: ['Waffen-Skins', 'crosshair', 'Skins & Texturen für Waffen'], other: ['Sonstiges', 'puzzle', 'Alles andere'] };
@@ -2713,7 +2717,7 @@ const Mock = {
         const own = [['Kill', .1, 25], ['2 Kills', .6, 31], ['Montage', 1.2, 89], ['Gefecht', 2, 25], ['Kill', 26, 25], ['Clip', 27, 25]].map(([k, h, dur]) => { const d = at(h), n = nm(k, d); return { name: n, rel: 'OrbitTweak/' + n + '.mp4', folder: 'OrbitTweak', size: dur * 7.2e5, date: d.toISOString(), ext: '.mp4', dur }; });
         return own.concat(['Grand Theft Auto V 2026.11.13 - 21.14.08.02', 'Gangwar Clutch'].map((n, i) => ({ name: n, rel: 'Grand Theft Auto V/' + n + '.mp4', folder: i ? 'Captures' : 'Grand Theft Auto V', size: 48e6 + i * 9e6, date: at(50 + i * 24).toISOString(), ext: '.mp4' })));
       }
-      case 'clip.montage': for (let i = 1; i <= 8; i++) { onEvent('highlight', { pct: i * 12, text: `Kill ${Math.min(i, 10)} von 10 wird geschnitten…` }); await sleep(250); } return { file: 'Montage 2026-11-14 21-40-00.mp4', clips: 10 };
+      case 'clip.montage': for (let i = 1; i <= 8; i++) { onEvent('highlight', { pct: i * 12, text: `Kill ${Math.min(i, 10)} von 10 wird geschnitten…` }); await sleep(250); } return { ok: true, file: 'Montage 2026-11-14 21-40-00.mp4', clips: 10, bpm: MO.music ? 128 : 0 };
       case 'clip.montageMusic': return a.clear ? { music: null } : { music: 'Phonk Drift.mp3' };
       case 'mods.list': return { found: true, gta: true, items: [
         { id: 'a1', name: 'Gun Sounds V2', on: true, size: 212e6, cat: 'sound', places: ['citizen'], paths: ['FiveM.app\\citizen\\platform\\audio\\sfx\\WEAPONS_PLAYER.rpf', 'FiveM.app\\citizen\\platform\\audio\\sfx\\RESIDENT.rpf'], pure: 0 },
@@ -3273,10 +3277,17 @@ function moUI() {
   $$('#moCount button').forEach(b => b.classList.toggle('on', +b.dataset.v === MO.count));
   const n = (HL.n && HL.n.all) || 0, use = Math.min(n, MO.count);
   $('#moSlow').classList.toggle('on', MO.slow);
+  // intro and kill counter are kept with the clip settings; the title only shows with the intro
+  const intro = CL.montageIntro !== false, counter = CL.montageCounter !== false, t = $('#moTitle');
+  $('#moIntro').classList.toggle('on', intro); $('#moCounter').classList.toggle('on', counter);
+  if (document.activeElement !== t) t.value = CL.montageTitle || '';
+  t.placeholder = (CL.name || '').trim() || 'HIGHLIGHTS'; t.disabled = !intro;
+  $('#moTitleBox').classList.toggle('off', !intro); $('#moTitleBox').title = intro ? 'Leer lassen: dein Ingame-Name, ohne Namen „HIGHLIGHTS“' : 'Nur mit Intro';
   $('#moMusic span').textContent = MO.music ? MO.music.length > 22 ? MO.music.slice(0, 20) + '…' : MO.music : 'Musik wählen';
   $('#moMusic').classList.toggle('on', !!MO.music);
   $('#moMusic').title = MO.music ? 'Klick: andere Musik · Rechtsklick: ohne Musik' : 'Eine Musikdatei unter die Montage legen';
-  $('#moInfo').innerHTML = n >= 2 ? `<b>${use} Kills, etwa ${Math.round(use * (MO.slow ? 4.75 : 3.9) + 3)} Sekunden.</b> ${MO.slow ? 'Zeitlupe und Zoom genau beim Kill, ' : 'Zoom genau beim Kill, '}Intro, Kill-Zähler im Killfeed-Stil, weiche Übergänge${MO.music ? ', deine Musik' : ''}.`
+  const what = [MO.slow ? 'Zeitlupe und Zoom genau beim Kill' : 'Zoom genau beim Kill', intro && 'Intro', counter && 'Kill-Zähler im Killfeed-Stil', 'weiche Übergänge', MO.music && 'jeder Kill im Takt deiner Musik'].filter(Boolean);
+  $('#moInfo').innerHTML = n >= 2 ? `<b>${use} Kills, etwa ${Math.round(use * (MO.slow ? 4.75 : 3.9) + (intro ? 3 : 0))} Sekunden.</b> ${what.join(', ')}.`
     : `Dafür braucht es mindestens zwei Kill-Clips, bisher ${n === 1 ? 'ist es einer' : 'gibt es keinen'}.`;
   const b = $('#moGo'); b.disabled = MO.busy || HL.busy || n < 2; b.innerHTML = MO.busy ? `${ico('refresh', 'i spin')}<span>Wird geschnitten…</span>` : `${ico('zap')}<span>Montage erstellen</span>`;
   if (MO.busy) $('#hlGo').disabled = true;
@@ -3285,7 +3296,7 @@ function moUI() {
 async function moMake() {
   if (MO.busy || HL.busy) return;
   MO.busy = true; moUI(); hlProgress({ pct: 1, text: 'Starte…' });
-  let r = await api('clip.montage', { count: MO.count, slowmo: MO.slow }).catch(e => ({ error: e.message }));
+  let r = await api('clip.montage', { count: MO.count, slowmo: MO.slow, title: (CL.montageTitle || '').trim(), intro: CL.montageIntro !== false, counter: CL.montageCounter !== false }).catch(e => ({ error: e.message }));
   if (r.needFfmpeg) {
     // slow motion needs a cutting program that is loaded once
     MO.busy = false; $('#hlProg').classList.add('hidden'); moUI();
@@ -3294,7 +3305,7 @@ async function moMake() {
     return;
   }
   MO.busy = false; $('#hlProg').classList.add('hidden');
-  if (r.error) toast('Keine Montage', r.error, false); else passed('Montage fertig', `${r.clips} Kills · ${r.file}`);
+  if (r.error) toast('Keine Montage', r.error, false); else passed('Montage fertig', `${r.clips} Kills${r.bpm ? ` im Takt (${r.bpm} BPM)` : ''} · ${r.file}`);
   clipList(); hlLoad();
 }
 document.addEventListener('click', async e => {
@@ -3302,8 +3313,13 @@ document.addEventListener('click', async e => {
   if (c) { MO.count = +c.dataset.v; try { localStorage.setItem('orbitMoCount', MO.count); } catch { } moUI(); return; }
   if (e.target.closest('#moMusic')) { const r = await api('clip.montageMusic', {}).catch(() => null); if (r) { MO.music = r.music; moUI(); } return; }
   if (e.target.closest('#moSlow')) { MO.slow = !MO.slow; try { localStorage.setItem('orbitMoSlow', MO.slow ? '1' : '0'); } catch { } moUI(); return; }
+  if (e.target.closest('#moIntro')) { CL.montageIntro = CL.montageIntro === false; moUI(); clipPush(); return; }
+  if (e.target.closest('#moCounter')) { CL.montageCounter = CL.montageCounter === false; moUI(); clipPush(); return; }
   if (e.target.closest('#moGo')) moMake();
 });
+// the title of the intro is kept a moment after typing stops
+let moTitleT = 0;
+document.addEventListener('input', e => { if (e.target.id !== 'moTitle') return; CL.montageTitle = e.target.value; clearTimeout(moTitleT); moTitleT = setTimeout(clipPush, 700); });
 document.addEventListener('contextmenu', async e => {
   if (!e.target.closest('#moMusic') || !MO.music) return;
   e.preventDefault(); const r = await api('clip.montageMusic', { clear: true }).catch(() => null); if (r) { MO.music = null; moUI(); toast('Ohne Musik', 'Die Montage behält nur den Spielton'); }

@@ -706,6 +706,15 @@ internal static class Clipper
     /// <summary>Where the built-in recorder puts its clips.</summary>
     public static string OwnDir => Path.Combine(VideosDir, "OrbitTweak");
 
+    /// <summary>A new file in the clips folder: "Montage 2026-11-16 20-15-03.mp4", with " (2)" and so on if that name is taken.</summary>
+    public static string NewFile(string kind)
+    {
+        var stem = $"{kind} {DateTime.Now:yyyy-MM-dd HH-mm-ss}";
+        var f = Path.Combine(OwnDir, stem + ".mp4");
+        for (int n = 2; File.Exists(f); n++) f = Path.Combine(OwnDir, $"{stem} ({n}).mp4");
+        return f;
+    }
+
     /// <summary>Recording settings of the built-in recorder for a quality level.</summary>
     public static ReplayRecorder.Options Quality(string q, bool sound) => q switch
     {
