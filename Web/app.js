@@ -3220,6 +3220,11 @@ document.addEventListener('click', async e => {
 
 /* ======================= WHAT'S NEW: shown once after an update ======================= */
 const CHANGES = {
+  '2.24.0': [
+    ['puzzle', 'Sound-Packs funktionieren', 'Mods landen jetzt dort, wo FiveM sie wirklich lädt: Sound-Packs im citizen-Ordner, Skins und Effekte als echtes Mod-Paket. Alte, wirkungslose Installationen repariert „Meine Mods“ mit einem Klick.'],
+    ['sparkle', 'Discord-Status', 'Dein Discord-Profil zeigt, dass du FiveM mit OrbitTweak spielst: Server, Spielzeit und Kills, alles einzeln abschaltbar.'],
+    ['film', 'Clipper neu aufgebaut', 'Status oben, deine Clips als Raster mit Länge und Kill-Abzeichen, ein Video-Baustein für Highlights und Montage, Kill-Erkennung nach Methode sortiert.'],
+  ],
   '2.23.0': [
     ['gauge', 'Viel sparsamer', 'Die App zeichnet nur noch, was sich bewegt: kein Weichzeichner hinter jeder Karte, keine Dauer-Animationen. Im Spiel, im Hintergrund und minimiert ruht sie fast ganz.'],
     ['gamepad', 'Controller-Erkennung entlastet', 'Ohne Controller wird nur noch alle zwei Sekunden nachgesehen statt 160-mal pro Sekunde.'],
