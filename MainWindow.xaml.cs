@@ -443,7 +443,7 @@ public partial class MainWindow : Window
                     {
                         // the Application ID is a Discord snowflake: 17 to 20 digits (a pasted line around it is fine)
                         var raw = val.GetString()?.Trim() ?? "";
-                        var m = System.Text.RegularExpressions.Regex.Match(raw, @"\d{17,20}");
+                        var m = System.Text.RegularExpressions.Regex.Match(raw, @"(?<!\d)\d{17,20}(?!\d)");
                         if (raw.Length > 0 && !m.Success) throw new InvalidOperationException("Das ist keine Application ID (17 bis 20 Ziffern)");
                         if (m.Success && S.DiscordAppId.Length == 0) S.DiscordOn = true;   // on by default once there is an ID
                         S.DiscordAppId = m.Success ? m.Value : "";

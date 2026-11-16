@@ -831,10 +831,12 @@ async function dcLoad() { try { DC = await api('discord.state'); } catch { retur
 function dcRender() {
   if (!$('#dcCard')) return;
   const noId = DC ? DC.status === 'noid' || (!DC.builtIn && !S.settings.discordAppId) : !S.settings.discordAppId;
-  $('#dcSets').innerHTML = DC_SETS.map(([k, n, d]) => `<div class="srow sclick ${k !== 'discordOn' && !dcOn('discordOn') ? 'dis' : ''}" data-dcset="${k}"><div><b>${n}</b><p>${d}</p></div><div class="tg ${dcOn(k) ? 'on' : ''}"></div></div>`).join('');
+  // only when something changed: swapping the rows every 3 s would swallow a click that lands in between
+  const rows = DC_SETS.map(([k, n, d]) => `<div class="srow sclick ${k !== 'discordOn' && !dcOn('discordOn') ? 'dis' : ''}" data-dcset="${k}"><div><b>${n}</b><p>${d}</p></div><div class="tg ${dcOn(k) ? 'on' : ''}"></div></div>`).join('');
+  if ($('#dcSets').dataset.html !== rows) { $('#dcSets').innerHTML = rows; $('#dcSets').dataset.html = rows; }
   $('#dcGuide').classList.toggle('hidden', !noId);
   const inp = $('#dcAppId');
-  if (document.activeElement !== inp) inp.value = S.settings.discordAppId || '';
+  if (document.activeElement !== inp && !inp.dataset.dirty) inp.value = S.settings.discordAppId || '';   // keeps a typed, unsaved ID
   if (DC?.builtIn) inp.placeholder = 'Leer: App von OrbitTweak';
   if (!DC) return;
   const v = DC.preview, min = v?.since ? Math.max(0, Math.round((Date.now() - new Date(v.since)) / 60000)) : null;
@@ -852,12 +854,12 @@ function dcRender() {
     + (DC.error && DC.status !== 'off' && DC.status !== 'noid' ? `<small class="dc-err">Discord: ${esc(DC.error)}</small>` : '');
 }
 async function dcSaveId() {
-  const raw = $('#dcAppId').value.trim(), m = raw.match(/\d{17,20}/);
+  const raw = $('#dcAppId').value.trim(), m = raw.match(/(?<!\d)\d{17,20}(?!\d)/);
   if (raw && !m) return toast('Keine gültige App-ID', 'Die Application ID hat 17 bis 20 Ziffern', false);
   const id = m ? m[0] : '';
-  if (id && !S.settings.discordAppId) S.settings.discordOn = true;   // on by default once there is an ID
   try { await api('settings.set', { key: 'discordAppId', value: id }); } catch (e) { return toast('Nicht gespeichert', e.message, false); }
-  S.settings.discordAppId = id; $('#dcAppId').value = id;
+  if (id && !S.settings.discordAppId) S.settings.discordOn = true;   // on by default once there is an ID (the host does the same)
+  S.settings.discordAppId = id; $('#dcAppId').value = id; delete $('#dcAppId').dataset.dirty;
   toast(id ? 'App-ID gespeichert' : 'App-ID entfernt', id ? 'OrbitTweak verbindet sich mit Discord' : '');
   dcLoad();
 }
@@ -869,6 +871,7 @@ document.addEventListener('click', async e => {
   dcLoad();
 });
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'dcAppId') dcSaveId(); });
+document.addEventListener('input', e => { if (e.target.id === 'dcAppId') e.target.dataset.dirty = 1; });
 // the status line stays current while the card is open (Discord started or closed, game state, kills)
 setInterval(() => { if (curPage === 'settings' && !$('#st-general')?.classList.contains('hidden')) dcLoad(); }, 3000);
 
