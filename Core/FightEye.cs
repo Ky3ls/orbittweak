@@ -27,7 +27,8 @@ internal sealed class FightEye
     [DllImport("gdi32.dll")] private static extern bool DeleteObject(IntPtr o);
     [DllImport("gdi32.dll")] private static extern bool DeleteDC(IntPtr dc);
 
-    private sealed record Shot(DateTime At, bool Full, byte[] Jpeg);
+    /// <summary>One picture; Text = share of bright text pixels in it (crosshair strips only), see <see cref="KillText.TextShare"/>.</summary>
+    private sealed record Shot(DateTime At, bool Full, byte[] Jpeg, double Text = 0);
     private readonly List<Shot> _ring = new();
     private volatile bool _on;
     private Thread? _t;
@@ -64,13 +65,14 @@ internal sealed class FightEye
                     // the strip the kill message appears in, at most 648 × 324 so the text stays readable but small to send
                     int w = (int)(H * KillText.HalfW) * 2, h = (int)(H * KillText.HalfH) * 2;
                     double s = Math.Min(1, 648.0 / w);
-                    Add(new Shot(now, false, Grab(l + W / 2 - w / 2, t + H / 2 - h / 2, w, h, (int)(w * s), (int)(h * s), 82)));
+                    var jpeg = Grab(l + W / 2 - w / 2, t + H / 2 - h / 2, w, h, (int)(w * s), (int)(h * s), 82, out var text);
+                    Add(new Shot(now, false, jpeg, text));
                 }
                 if ((now - full).TotalMilliseconds >= 1200)
                 {
                     full = now;
                     int ow = 768, oh = Math.Max(1, (int)Math.Round(768.0 * H / W));
-                    Add(new Shot(now, true, Grab(l, t, W, H, ow, oh, 72)));
+                    Add(new Shot(now, true, Grab(l, t, W, H, ow, oh, 72, out _)));
                 }
             }
             catch { Thread.Sleep(500); }
@@ -88,10 +90,10 @@ internal sealed class FightEye
     }
 
     /// <summary>
-    /// The pictures of one firefight, in time order: crosshair strips spread evenly over it and a few whole pictures,
-    /// the last one always among them (it shows a kill cam, if the player died). Their times are seconds after fromUtc
-    /// (not after the first picture, which is only taken at the first shot), so a kill seen in one of them can be put
-    /// at the right place in the clip.
+    /// The pictures of one firefight, in time order: crosshair strips where text comes and goes (a kill message) plus
+    /// some spread over the rest, and a few whole pictures, the last one always among them (it shows a kill cam, if the
+    /// player died). Their times are seconds after fromUtc (not after the first picture, which is only taken at the first
+    /// shot), so a kill seen in one of them can be put at the right place in the clip.
     /// </summary>
     public List<KillJudge.Frame> Take(DateTime fromUtc, DateTime toUtc, int maxCrops = 14, int maxFulls = 4)
     {
@@ -99,7 +101,8 @@ internal sealed class FightEye
         lock (_ring) all = _ring.Where(x => x.At >= fromUtc && x.At <= toUtc).ToList();
         if (all.Count == 0) return new();
         var t0 = fromUtc;
-        var pick = Spread(all.Where(x => !x.Full).ToList(), maxCrops).Concat(Spread(all.Where(x => x.Full).ToList(), maxFulls));
+        var crops = all.Where(x => !x.Full).ToList();
+        var pick = KillLogic.PickFrames(crops.Select(x => x.Text).ToList(), maxCrops).Select(i => crops[i]).Concat(Spread(all.Where(x => x.Full).ToList(), maxFulls));
         return pick.OrderBy(x => x.At).ThenBy(x => x.Full).Select(x => new KillJudge.Frame(Math.Round((x.At - t0).TotalSeconds, 1), x.Full, x.Jpeg)).ToList();
     }
 
@@ -111,8 +114,8 @@ internal sealed class FightEye
         return res.Distinct();
     }
 
-    /// <summary>Copies a part of the screen, made smaller if asked, as a JPEG.</summary>
-    private static byte[] Grab(int x, int y, int w, int h, int ow, int oh, int quality)
+    /// <summary>Copies a part of the screen, made smaller if asked, as a JPEG; text = its share of bright text pixels.</summary>
+    private static byte[] Grab(int x, int y, int w, int h, int ow, int oh, int quality, out double text)
     {
         var screen = GetDC(IntPtr.Zero);
         var mem = CreateCompatibleDC(screen);
@@ -125,6 +128,7 @@ internal sealed class FightEye
             StretchBlt(mem, 0, 0, ow, oh, screen, x, y, w, h, 0x00CC0020);
             var px = new byte[ow * oh * 4];
             Marshal.Copy(bits, px, 0, px.Length);
+            text = KillText.TextShare(px, ow, oh, 3);
             return Jpeg(px, ow, oh, quality);
         }
         finally { SelectObject(mem, old); DeleteObject(bmp); DeleteDC(mem); ReleaseDC(IntPtr.Zero, screen); }

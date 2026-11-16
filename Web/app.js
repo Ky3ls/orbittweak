@@ -1593,7 +1593,7 @@ function clipStatusUI() {
   kcTiles();
   const f = $('#clFound'); if (f) f.textContent = CL.area === 'auto' && s && s.found ? `gefunden: ${KF_NAMES[s.found] || s.found}` : '';
   const m = $('#clMarkLast');
-  if (m) m.innerHTML = s && s.markAt ? `${s.markImg ? `<img src="${s.markImg}" alt="">` : ''}<span>Zuletzt erkannter Kill: <b>${new Date(s.markAt).toLocaleTimeString('de-DE')}</b> · ${s.markWord ? `Kill-Meldung „${esc(s.markWord)}“` : 'rotes X'}${s.netQuiet ? '<br>Die Erkennung funktioniert hier, das Sicherheitsnetz pausiert.' : ''}</span>`
+  if (m) m.innerHTML = s && s.markAt ? `${s.markImg ? `<img src="${s.markImg}" alt=""${s.markWord ? ' class="strip"' : ''}>` : ''}<span>Zuletzt erkannter Kill: <b>${new Date(s.markAt).toLocaleTimeString('de-DE')}</b> · ${s.markWord ? `Kill-Meldung „${esc(s.markWord)}“` : 'rotes X'}${s.netQuiet ? '<br>Die Erkennung funktioniert hier, das Sicherheitsnetz pausiert.' : ''}</span>`
     : `<span>Seit dem Start noch kein Kill erkannt. Danach siehst du hier, woran OrbitTweak ihn erkannt hat.</span>`;
   // AI check: is a key there, what did it say last
   const ai = s && s.ai, ks = $('#clAiKeyState'), al = $('#clAiLast');
@@ -1783,6 +1783,7 @@ document.addEventListener('click', e => {
   const sm = e.target.closest('[data-shmb]'); if (sm) { CL.shareMb = +sm.dataset.shmb; clipUI(); clipPush(); return; }
   const ka = e.target.closest('[data-kfa]'); if (ka) { CL.area = ka.dataset.kfa; clipUI(); clipPush(); return; }
   if (e.target.closest('#clKfTest')) { kfTest(); return; }
+  if (e.target.closest('#clMkTest')) { mkTest(); return; }
   const c = e.target.closest('[data-clip]'); if (c) {
     const cl = clips[+c.dataset.clip], src = 'https://clips.orbit/' + cl.rel.split('/').map(encodeURIComponent).join('/');
     modal(`<div class="kicker">Clip</div><h1 style="margin-top:8px;font-size:20px">${esc(cl.name)}</h1><div class="player mt">${cl.ext === '.mkv' ? '<p>MKV kann hier nicht abgespielt werden.</p>' : `<video src="${src}" controls autoplay></video>`}</div>
@@ -2709,6 +2710,14 @@ const Mock = {
       case 'clip.status': return { recorder: CL.recorder, running: true, buffered: 34, w: 1920, h: 1080, error: null, game: true, supported: true, found: 'tr', armed: true, detect: CL.detect, markAt: null, markImg: null, kills: 0, fights: 0, net: CL.net !== false };
       case 'clip.save': if (CL.recorder === 'orbit') setTimeout(() => onEvent('clip', { recorder: 'orbit', file: 'Clip 2026-11-14 16-02-11.mp4' }), 500); return { ok: true };
       case 'clip.cfg': return { keyOk: true, combo: 'Alt+F10' };
+      case 'clip.marktest': {
+        await sleep(1800);
+        const c = document.createElement('canvas'); c.width = 480; c.height = 240; const g = c.getContext('2d'), gr = g.createLinearGradient(0, 0, 0, 240);
+        gr.addColorStop(0, '#6d8299'); gr.addColorStop(.55, '#4a4f50'); gr.addColorStop(1, '#262521'); g.fillStyle = gr; g.fillRect(0, 0, 480, 240);
+        g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath(); g.moveTo(232, 120); g.lineTo(248, 120); g.moveTo(240, 112); g.lineTo(240, 128); g.stroke();
+        g.font = '700 22px sans-serif'; g.textAlign = 'left'; g.fillStyle = '#ff4d4d'; g.fillText('KILLED', 150, 172); g.fillStyle = '#fff'; g.fillText('Tony_Ricci', 242, 172);
+        return { ok: true, game: true, front: true, img: c.toDataURL(), kind: 'kill', word: 'KILLED', text: 'KILLED Tony_Ricci', how: 'nur helle und farbige Schrift', lines: [{ text: 'KILLED Tony_Ricci', hit: 'kill' }, { text: '+1 STREAK', hit: null }] };
+      }
       case 'clip.kftest': return { ok: true, game: true, img: null, lines: [{ text: ((a && a.name) || 'Max_Power') + ' [Pistol] Tony_Ricci', hit: 'kill' }, { text: 'Lena_V [AP] Jimmy', hit: null }, { text: 'Ricci [Rifle] ' + ((a && a.name) || 'Max_Power'), hit: 'death' }] };
       case 'clip.open': case 'clip.gamebar': return { ok: true };
       case 'clip.delete': return { ok: true };
@@ -2864,6 +2873,27 @@ async function kfTest() {
     ${lines.length && !hits ? `<p class="sub" style="font-size:11.5px;margin-top:8px">Dein Name „${esc(CL.name)}“ wurde nicht gefunden. Erst nach einem Kill steht er im Feed.</p>` : ''}</div></div>`;
 }
 window.kfTest = kfTest;
+// the same for the crosshair: the host gives FiveM a few seconds to come to the front, then reads the strip around the
+// crosshair once, all three ways (picture as it is, white text, bright and coloured text)
+async function mkTest() {
+  const out = $('#clMkOut'), btn = $('#clMkTest');
+  let left = 6;
+  const wait = () => `<div class="mk-wait">${ico('refresh', 'i spin')}<span>Wechsle jetzt ins Spiel. OrbitTweak liest gleich einmal die Bildmitte${left > 0 ? ` (noch ${left} s)` : ''}…</span></div>`;
+  out.classList.remove('hidden'); out.innerHTML = wait();
+  const tick = setInterval(() => { if (--left >= 0) out.innerHTML = wait(); }, 1000);
+  btn.disabled = true;
+  let r; try { r = await api('clip.marktest', { wait: 6 }); } catch (err) { r = { ok: false, error: err.message }; }
+  clearInterval(tick); btn.disabled = false;
+  if (!r || !r.ok) { out.innerHTML = `<div class="kf-err">${ico('alert')}${esc((r && r.error) || 'Test fehlgeschlagen')}</div>`; return; }
+  const lines = r.lines || [];
+  const verdict = r.kind === 'kill' ? `<div class="mk-v kill">${ico('check')}<span>Kill-Meldung erkannt: <b>${esc(r.word)}</b> in „${esc(r.text)}“ · gelesen über ${esc(r.how)}</span></div>`
+    : r.kind === 'death' ? `<div class="mk-v death">${ico('alert')}<span>Dein Tod erkannt: „${esc(r.text)}“. Zählt nicht als Kill.</span></div>`
+    : `<div class="mk-v">${ico('eye')}<span>Gerade keine Kill-Meldung in der Bildmitte. Ohne frischen Kill ist das normal, wichtig ist: Das Bild zeigt die Mitte deines Spiels.</span></div>`;
+  out.innerHTML = `${!r.game ? `<div class="kf-err">${ico('alert')}FiveM läuft nicht. Das Bild zeigt die Mitte deines Bildschirms.</div>` : !r.front ? `<div class="kf-err">${ico('alert')}FiveM war nicht im Vordergrund. Das Bild zeigt, was gerade in der Bildmitte war.</div>` : ''}${verdict}
+    <div class="kf-cols"><div class="kf-img">${r.img ? `<img src="${r.img}" alt="">` : ''}<span>Das sieht OrbitTweak</span></div>
+    <div class="kf-lines"><b>Erkannter Text</b>${lines.length ? lines.map(l => `<div class="kf-l ${l.hit || ''}">${l.hit === 'kill' ? '<em>KILL</em>' : l.hit === 'death' ? '<em>TOD</em>' : ''}<span>${esc(l.text)}</span></div>`).join('') : '<div class="sub mk-none">Kein Text gefunden.</div>'}
+    ${lines.length && !r.kind ? '<p class="sub mk-none">Steht bei deinen Kills ein anderes Wort da, trag es oben bei den Kill-Wörtern ein.</p>' : ''}</div></div>`;
+}
 
 /* ======================= CUSTOM MINIMAP FROM A PICTURE (2.21) ======================= */
 // GTA's map is 2 × 3 tiles of 4500 game units each. The radar shows roughly 360 units of it while on foot.

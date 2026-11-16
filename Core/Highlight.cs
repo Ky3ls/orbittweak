@@ -40,7 +40,7 @@ internal static class Highlight
         public string? Music { get; set; }
     }
 
-    /// <summary>The kill clips in the clips folder, oldest first: "Kill …" and "2 Kills …", not "Gefecht …" and not highlight videos.</summary>
+    /// <summary>The kill clips in the clips folder, oldest first: "Kill …", "2 Kills …" and "Kill + Tod …", not "Gefecht …" and not highlight videos.</summary>
     public static List<FileInfo> KillClips(bool todayOnly)
     {
         var dir = new DirectoryInfo(Clipper.OwnDir);
@@ -48,7 +48,7 @@ internal static class Highlight
         var all = dir.EnumerateFiles("*.mp4").ToList();
         var names = new HashSet<string>(all.Select(f => f.Name), StringComparer.OrdinalIgnoreCase);
         return all
-            .Where(f => Regex.IsMatch(f.Name, @"^(Kill|\d+ Kills) \d{4}-\d{2}-\d{2} \d{2}-\d{2}-\d{2}( \(\d+\))?\.mp4$", RegexOptions.IgnoreCase))
+            .Where(f => Regex.IsMatch(f.Name, @"^(Kill|\d+ Kills)( \+ Tod)? \d{4}-\d{2}-\d{2} \d{2}-\d{2}-\d{2}( \(\d+\))?\.mp4$", RegexOptions.IgnoreCase))
             .Where(f => f.Length > 200_000)                                   // an empty file is a clip whose saving was cut off
             // "name (2).mp4" next to "name.mp4" is the same kill saved twice
             .Where(f => !(Regex.Match(f.Name, @"^(.*) \(\d+\)\.mp4$", RegexOptions.IgnoreCase) is { Success: true } m && names.Contains(m.Groups[1].Value + ".mp4")))

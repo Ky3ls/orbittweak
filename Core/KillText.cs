@@ -57,23 +57,6 @@ internal static partial class KillText
         return dst;
     }
 
-    /// <summary>
-    /// Keeps only the (nearly) white parts of a picture, as dark letters on white. Kill messages are mostly white text
-    /// laid over the game picture; without the busy picture behind it the text recognition finds the letters far more often.
-    /// </summary>
-    public static byte[] WhiteOnly(byte[] src, int min = 205)
-    {
-        var dst = new byte[src.Length];
-        for (int i = 0; i < src.Length; i += 4)
-        {
-            int lo = Math.Min(src[i], Math.Min(src[i + 1], src[i + 2]));
-            // soft edge: fully dark from "min" upwards, fading out over the 30 steps below it
-            byte v = (byte)(255 - Math.Clamp((lo - (min - 30)) * 255 / 30, 0, 255));
-            dst[i] = dst[i + 1] = dst[i + 2] = v; dst[i + 3] = 255;
-        }
-        return dst;
-    }
-
     /// <summary>Reads the text lines of a BGRA picture.</summary>
     public static async Task<List<string>> Read(byte[] bgra, int w, int h)
     {

@@ -182,10 +182,70 @@ Check(!KillLogic.SameText("ZM Blaze killed Kronos77", "ZM Blaze killed Viper_12"
         ("KILLS 12", null), ("Overkill", null),
         ("KILLED BY Max", "DEATH"), ("You have been eliminated", "DEATH"), ("You have been killed", "DEATH"), ("Max killed you", "DEATH"),
         ("Max killed you!", "DEATH"), ("WASTED", "DEATH"), ("Du wurdest getötet", "DEATH"),
+        // a death phrase counts only where a word ends after it, and never inside the name after a kill word
+        ("ELIMINATED Byron", "ELIMINATED"), ("GETÖTET Vonda", "GETOTET"), ("KILLED Wasted_Max", "KILLED"), ("KILLED Wasted Max", "KILLED"),
+        ("KILLED Max_Wasted", "KILLED"), ("KILLED Youssef", "KILLED"), ("ERLEDIGT Vongola", "ERLEDIGT"), ("ELIMINATEO Byron", "ELIMINATED"),
+        ("KILLED Bylo", "KILLED"), ("ELIMINATED BY Byron", "DEATH"), ("GETÖTET VON Vonda", "DEATH"), ("KILLEDBY Max", "DEATH"),
+        ("HEADSHOT! KILLED BY Max", "DEATH"), ("KILLCAM You died", "DEATH"), ("You were killed by Wasted_Max", "DEATH"),
+        ("Max hat dich getötet", "DEATH"), ("Du hast Max getötet", "GETOTET"),
     })
         Check(K(line) == want, $"\"{line}\" is {want ?? "nothing"} (got {K(line) ?? "nothing"})");
     // a word of the user's own that starts like a look-alike still works
     Check(KillText.Classify(new[] { "KILLERSTREAK 3" }, "KILLERSTREAK").kind == KillText.Kind.Kill, "own word KILLERSTREAK counts");
+}
+
+// ---------- a death message is reported once ----------
+{
+    var k = new KillMessages(); int deaths = 0, kills = 0;
+    k.Read(T(0), false, false);
+    // a kill, then "KILLED BY …" on screen for 2 s, then again after a respawn
+    for (double s = 0.2; s < 12; s += 0.2)
+    {
+        bool kill = s >= 1 && s < 2, death = (s >= 3 && s < 5) || (s >= 10 && s < 11);
+        if (k.Read(T(s), kill, death, kill ? "KILLED Kronos77" : death ? "KILLED BY Max" : "", kill ? "KILLED" : "")) kills++;
+        if (k.NewDeath) deaths++;
+    }
+    Check(kills == 1 && deaths == 2, $"one kill, two deaths, each once ({kills}, {deaths})");
+}
+
+// ---------- three ways of reading in turns ----------
+{
+    var r = new ReadTurns();
+    var ways = Enumerable.Range(0, 6).Select(_ => r.Next(false)).ToList();
+    Check(ways.Select(x => x.first).SequenceEqual(new[] { 0, 1, 2, 0, 1, 2 }) && ways.All(x => x.second < 0), "one way per reading, in turns");
+    r.Found(2);
+    var (a, b) = r.Next(true);
+    Check(a == 2 && b >= 0 && b != 2, $"with a message on screen the way that found it goes first, then another ({a}, {b})");
+}
+
+// ---------- masks for white and coloured kill text ----------
+{
+    // a strip with red text, white text, a pale sky, a blue sky, grey road and dark scenery (BGRA, one pixel each)
+    var px = new byte[] { 50, 40, 235, 255,   245, 245, 245, 255,   225, 205, 175, 255,   200, 120, 60, 255,   128, 128, 128, 255,   30, 40, 35, 255,   0, 215, 255, 255 };
+    var white = KillText.WhiteOnly(px); var bright = KillText.BrightOnly(px);
+    byte W(int i) => white[i * 4];
+    byte B(int i) => bright[i * 4];
+    Check(W(0) == 255 && B(0) < 40, $"red text: dropped by the white look, kept by the bright one ({W(0)}, {B(0)})");
+    Check(B(6) < 40, $"yellow text kept by the bright look ({B(6)})");
+    Check(W(1) < 40 && B(1) < 40, "white text kept by both");
+    Check(B(2) > 200 && B(4) == 255 && B(5) == 255, $"pale sky, grey road and dark scenery dropped ({B(2)}, {B(4)}, {B(5)})");
+    // the share of text pixels in a picture: 2 of 7 pixels are no text in any way; the blue sky (3) counts as coloured
+    double share = KillText.TextShare(px, 7, 1, 1);
+    Check(Math.Abs(share - 4 / 7.0) < 1e-9, $"share of bright text pixels ({share:0.000})");
+}
+
+// ---------- which pictures of a fight the AI gets ----------
+{
+    // 100 crosshair pictures (40 s), a little bright noise, a kill message on four of them (1.6 s)
+    var share = Enumerable.Range(0, 100).Select(i => 0.010 + 0.0004 * ((i * 7) % 5) + (i >= 40 && i <= 43 ? 0.04 : 0)).ToList();
+    var even = Enumerable.Range(0, 14).Select(i => (int)Math.Round(i * 99.0 / 13)).ToList();
+    var pick = KillLogic.PickFrames(share, 14);
+    Check(!even.Any(i => i >= 40 && i <= 43), "spread evenly, the message is missed (the old way)");
+    Check(pick.Any(i => i >= 40 && i <= 43) && pick.Contains(40), $"the message and its first picture are among the chosen ones ({string.Join(",", pick)})");
+    Check(pick.Count == 14 && pick.SequenceEqual(pick.OrderBy(x => x).Distinct()) && pick[0] == 0 && pick[^1] == 99, "14 pictures in time order, first and last included");
+    int maxGap = pick.Zip(pick.Skip(1), (x, y) => y - x).Max();
+    Check(maxGap <= 20, $"no long stretch without a picture (longest gap {maxGap})");
+    Check(KillLogic.PickFrames(share.Take(10).ToList(), 14).Count == 10, "short fights: every picture");
 }
 
 // ---------- the part of a clip kept without ffmpeg ----------
