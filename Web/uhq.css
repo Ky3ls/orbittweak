@@ -265,7 +265,7 @@ input[type=range][disabled]{cursor:default}
 .page.enter .banner{animation:luxIn .55s var(--ease) both}
 
 /* boost: one instrument. The number is large and light, the ring fine, the button wide */
-.hero{padding:22px 24px 0;display:flex;flex-direction:column;align-items:stretch;overflow:hidden;
+.hero{padding:22px 22px 0;display:flex;flex-direction:column;align-items:stretch;overflow:hidden;
   background:radial-gradient(90% 46% at 50% 36%,rgba(var(--a-rgb),.075),transparent 70%),var(--plat)}
 .hero .hk{margin-bottom:0}
 .hero .hk .chip{background:rgba(255,255,255,.05);color:var(--sub)}
@@ -294,7 +294,7 @@ input[type=range][disabled]{cursor:default}
 .boostbtn svg.i{width:17px;height:17px;stroke-width:2}
 .boostbtn.run{background:rgba(255,255,255,.05);color:var(--text);box-shadow:var(--edge)}
 .boostbtn.done{background:linear-gradient(180deg,rgba(255,255,255,.2),rgba(255,255,255,0) 58%),#3FBF8A;color:#04140C;box-shadow:var(--fill-edge),0 16px 32px -16px rgba(63,191,138,.8)}
-.hstats{margin:0 -24px;width:auto;gap:0;border-top:1px solid var(--line)}
+.hstats{margin:0 -22px;width:auto;gap:0;border-top:1px solid var(--line)}
 .hstats div{background:none;border:0;border-radius:0;padding:16px 8px 18px}
 .hstats div+div{box-shadow:inset 1px 0 0 var(--line)}
 .hstats b{font-family:var(--disp);font-size:19px;font-weight:420;letter-spacing:-.025em}
@@ -337,7 +337,7 @@ input[type=range][disabled]{cursor:default}
 /* quick actions: four quiet buttons on one surface (two by two, one row on wide windows) */
 .quick{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px;margin:0;padding:6px}
 .quick::before{display:none}
-.qt{display:flex;align-items:center;gap:12px;min-width:0;min-height:0;padding:12px 12px;border-radius:15px;text-align:left;background:none;
+.qt{display:flex;align-items:center;gap:12px;min-width:0;min-height:0;padding:12px 16px;border-radius:15px;text-align:left;background:none;
   transition:background .25s}
 .qt::after{display:none}
 .qt:hover{background:rgba(255,255,255,.04)}
@@ -393,11 +393,11 @@ input[type=range][disabled]{cursor:default}
 
 /* the list: rows on one surface, a hairline from the text edge */
 .tlist{padding:6px 8px 8px}
-.tl-h{padding:14px 16px 8px;border-bottom:0}
+.tl-h{padding:14px 14px 8px;border-bottom:0}
 .tl-h p{font-size:12.5px;color:var(--mute)}
-.tlist .tw{position:relative;gap:16px;padding:15px 16px;margin:0;border-radius:14px;border:0;transition:background .2s}
+.tlist .tw{position:relative;gap:16px;padding:15px 14px;margin:0;border-radius:14px;border:0;transition:background .2s}
 .tlist .tw+.tw{border-top:0}
-.tlist .tw+.tw::before{content:'';position:absolute;left:72px;right:16px;top:0;height:1px;background:var(--line)}
+.tlist .tw+.tw::before{content:'';position:absolute;left:70px;right:14px;top:0;height:1px;background:var(--line)}
 .tlist .tw:hover{background:rgba(255,255,255,.028)}
 .tlist .tw:hover::before,.tlist .tw:hover+.tw::before{opacity:0}
 .tlist .tw .ti{width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,.045);color:var(--mute);box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
@@ -435,7 +435,7 @@ button.kc-st:hover{background:rgba(255,255,255,.022);border-color:transparent}
 #p-clip .vtabs .tab{height:42px;padding:0 16px;gap:10px}
 
 /* the video card */
-#p-clip .card.hl{padding:22px 24px;margin-bottom:0}
+#p-clip .card.hl{padding:22px;margin-bottom:0}
 .ac-ic{width:40px;height:40px;border-radius:13px;background:rgba(255,255,255,.045);color:var(--sub);box-shadow:var(--edge)}
 .ac-ic svg.i{width:18px;height:18px}
 .hl-head{gap:14px}
@@ -482,7 +482,7 @@ button.kc-st:hover{background:rgba(255,255,255,.022);border-color:transparent}
 .cl-ei{border-radius:50%;background:rgba(255,255,255,.05);color:var(--sub)}
 
 /* kill detection and recording tabs: same surfaces, quieter edges */
-#p-clip .ke{padding:22px 24px;margin-bottom:20px}
+#p-clip .ke{padding:22px;margin-bottom:20px}
 .ke-m{border:0;border-radius:16px;background:rgba(255,255,255,.025);box-shadow:inset 0 0 0 1px rgba(255,255,255,.045)}
 .ke-m:hover{border-color:transparent;background:rgba(255,255,255,.04)}
 .ke-m.on{border-color:transparent;background:rgba(var(--a-rgb),.07);box-shadow:inset 0 0 0 1px rgba(var(--a-rgb),.4)}

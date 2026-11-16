@@ -115,7 +115,7 @@
 #p-gfx .preset.sel .pips i.on{background:var(--a)}
 
 /* fine tuning: grouped like a settings app, two columns, hairlines from row to row */
-#p-gfx .gtune{padding:22px 24px 12px}
+#p-gfx .gtune{padding:22px 22px 12px}
 .gt-head{align-items:flex-start;gap:16px}
 .gt-t b{display:block;font-family:var(--disp);font-size:17px;font-weight:580;letter-spacing:-.02em}
 .gt-t p{margin-top:3px;font-size:13px;color:var(--sub)}
@@ -190,7 +190,7 @@
 #p-display .dps>b{grid-area:v;align-self:start;font-family:var(--disp);font-size:22px;font-weight:300;letter-spacing:-.035em;line-height:1.05;color:var(--text);font-variant-numeric:tabular-nums}
 #p-display .dps.off{opacity:.5}
 /* behaviour: one row under both columns */
-#p-display .dpbeh{grid-column:1/-1;padding:22px 24px 8px}
+#p-display .dpbeh{grid-column:1/-1;padding:22px 22px 8px}
 #p-display .dpbeh .ot{margin-bottom:4px}
 .dpb-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);column-gap:44px;align-items:start}
 .dpb-grid>.srow{border-bottom:0}
@@ -338,7 +338,7 @@
 #p-mods .rs-none .btn{margin-top:16px;height:42px;padding:0 18px;border-radius:12px}
 
 /* ReShade installed: head, the active look as a picture, keys, options */
-#p-mods #rsSet{padding:22px 24px 12px}
+#p-mods #rsSet{padding:22px 22px 12px}
 #p-mods .rs-head{display:flex;align-items:center;gap:14px}
 .rs-ic{width:46px;height:46px;flex:none;border-radius:15px;display:grid;place-items:center;background:rgba(var(--a-rgb),.12);color:var(--a);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),inset 0 0 0 1px rgba(var(--a-rgb),.16)}
 .rs-ic svg.i{width:21px;height:21px}
@@ -391,7 +391,7 @@
 #p-mods .mmb .muted,#p-mods .mmb .sub{color:var(--mute)}
 
 /* my mods: Discord packs as three steps in one well, then the lists */
-#p-mods .dcpack{margin-bottom:20px;padding:22px 24px}
+#p-mods .dcpack{margin-bottom:20px;padding:22px}
 #p-mods .dc-steps{gap:0;margin-top:18px;padding:4px;border-radius:16px;background:var(--well);box-shadow:var(--well-edge)}
 #p-mods .dc-step{gap:12px;padding:14px 16px;border:0;border-radius:12px;background:none;animation:none}
 #p-mods .dc-step:hover{transform:none;border-color:transparent;background:rgba(255,255,255,.025)}

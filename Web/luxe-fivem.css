@@ -24,7 +24,7 @@
   -webkit-mask:linear-gradient(180deg,#000 25%,transparent);mask:linear-gradient(180deg,#000 25%,transparent)}
 .cs-hero .cs-bn::after{display:none}
 .cs-hero .cs-bn.nobn{height:0;margin:0;background:none}
-.cs-hero .cs-body,.cs-hero .cs-bn.nobn+.cs-body{margin-top:0;padding:24px 24px 0}
+.cs-hero .cs-body,.cs-hero .cs-bn.nobn+.cs-body{margin-top:0;padding:24px 22px 0}
 .cs-hero .cs-top{align-items:center;gap:18px}
 .cs-hero .cs-icon{width:60px;height:60px;border-radius:18px;font-size:22px;font-weight:550;color:var(--sub);background-color:#171C27;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.08),inset 0 0 0 1px rgba(255,255,255,.05),0 10px 24px -12px rgba(0,0,0,.9)}
@@ -34,9 +34,9 @@
 .cs-hero .cs-tags{gap:6px;margin-top:18px;max-height:24px;overflow:hidden}
 .cs-hero .cs-tags .chip{height:24px;padding:0 10px;font-size:11.5px;background:rgba(255,255,255,.045);color:var(--sub)}
 /* the numbers: one row of columns, large and light, divided by hairlines */
-.cs-hero .cs-stats{display:flex;flex-wrap:nowrap;gap:0;margin:20px -24px 0;border-top:1px solid var(--line)}
+.cs-hero .cs-stats{display:flex;flex-wrap:nowrap;gap:0;margin:20px -22px 0;border-top:1px solid var(--line)}
 .cs-hero .cs-stats>div{flex:1 1 auto;min-width:0;padding:16px 18px 18px}
-.cs-hero .cs-stats>div:first-child{padding-left:24px}
+.cs-hero .cs-stats>div:first-child{padding-left:22px}
 .cs-hero .cs-stats>div+div{box-shadow:inset 1px 0 0 var(--line)}
 .cs-hero .cs-stats span{font-size:12px;color:var(--mute)}
 .cs-hero .cs-stats b{display:block;margin-top:9px;font-family:var(--disp);font-size:24px;font-weight:300;letter-spacing:-.04em;line-height:1.1;
@@ -48,7 +48,7 @@
 .cs-hero .cs-pb{display:block;height:3px;margin-top:10px;border-radius:3px;background:rgba(255,255,255,.06);overflow:hidden}
 .cs-pb i{display:block;height:100%;border-radius:3px;background:rgba(255,255,255,.3);transform-origin:left}
 /* actions on a darker band at the foot; connecting (the one main action) sits on the right */
-.cs-hero .cs-act{gap:8px;margin:0 -24px;padding:14px 24px 16px;border-top:1px solid var(--line);background:rgba(0,0,0,.12)}
+.cs-hero .cs-act{gap:8px;margin:0 -22px;padding:14px 22px 16px;border-top:1px solid var(--line);background:rgba(0,0,0,.12)}
 .cs-hero .cs-act .btn.sm{height:32px;padding:0 12px;border-radius:10px}
 .cs-hero .cs-act .btn.p{margin-left:auto}
 .cs-hero .cs-act .btn.p svg.i{fill:currentColor;stroke:none;width:11px;height:11px}
@@ -148,7 +148,7 @@
 #p-launcher .lhero{display:grid;grid-template-columns:minmax(0,1fr) 252px;gap:0;padding:0;overflow:hidden;align-items:stretch;
   background:radial-gradient(55% 130% at 100% 0%,rgba(var(--a-rgb),.07),transparent 60%),var(--plat)}
 #p-launcher .lh-l{display:flex;flex-direction:column;gap:0;padding:0;min-width:0}
-.lh-h{display:flex;align-items:center;gap:10px;padding:20px 24px 0}
+.lh-h{display:flex;align-items:center;gap:10px;padding:20px 22px 0}
 #p-launcher .lh-h .lbl{font-family:var(--disp);font-size:15.5px;font-weight:580;letter-spacing:-.015em;color:var(--text);gap:10px}
 #p-launcher .lh-h .lbl svg.i{width:16px;height:16px;color:var(--mute)}
 .lh-h .chip{margin-left:auto}
@@ -156,15 +156,15 @@
 #p-launcher .lh-sum{grid-template-columns:repeat(5,minmax(0,1fr));gap:0;margin-top:18px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
 #p-launcher .lh-i{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;column-gap:7px;min-width:0;padding:15px 16px 17px;
   border:0;border-radius:0;background:none;text-align:left;transition:background .25s}
-#p-launcher .lh-i:first-child{padding-left:24px}
+#p-launcher .lh-i:first-child{padding-left:22px}
 #p-launcher .lh-i+.lh-i{box-shadow:inset 1px 0 0 var(--line)}
 #p-launcher .lh-i:hover{transform:none;border-color:transparent;background:rgba(255,255,255,.025)}
 #p-launcher .lh-i svg.i{width:14px;height:14px;margin:0;color:var(--mute)}
 #p-launcher .lh-i span{font-size:12px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #p-launcher .lh-i b{grid-column:1/-1;margin-top:9px;font-family:var(--disp);font-size:17px;font-weight:450;letter-spacing:-.018em;color:var(--text)}
 #p-launcher .lh-i.dim b{color:var(--sub)}
-#p-launcher .lh-con{padding:18px 24px 22px}
-#p-launcher .lh-con svg.i{left:38px}
+#p-launcher .lh-con{padding:18px 22px 22px}
+#p-launcher .lh-con svg.i{left:36px}
 #p-launcher .lh-con .in{height:44px;padding-left:40px}
 /* the launch tile: accent, light from above; calm and neutral while FiveM already runs */
 #p-launcher .lh-go{width:auto;height:auto;margin:14px 14px 14px 0;padding:22px 18px;border-radius:18px;gap:14px;font-size:19px;font-weight:600;letter-spacing:-.02em}
