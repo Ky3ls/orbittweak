@@ -630,24 +630,18 @@ internal static class Backgrounds
 }
 
 // =====================================================================
-//  MOD DOWNLOADS – finds freshly downloaded mods and unpacks .rar/.7z
+//  MOD DOWNLOADS – finds freshly downloaded mods and tells what is inside
 // =====================================================================
 internal static class ModDownloads
 {
     public static string Dir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
-    private static readonly string[] Ext = { ".rpf", ".zip", ".rar", ".7z" };
+    public static readonly string[] Ext = { ".rpf", ".zip", ".rar", ".7z", ".oiv" };
 
-    public static string Guess(string name)
-    {
-        var n = name.ToLowerInvariant();
-        if (Regex.IsMatch(n, "minimap|radar|map|atlas|satellite|postal")) return "minimap";
-        if (Regex.IsMatch(n, "kill|blood|hit|tracer|impact|effect|fx")) return "kill";
-        // the two files of a gun sound pack carry the names of the game's own sound archives
-        if (Regex.IsMatch(n, "sound|audio|sfx|gunshot|weapons_player|resident")) return "sound";
-        if (Regex.IsMatch(n, "skin|camo|weapons?\\b|gun")) return "skin";
-        if (Regex.IsMatch(n, "graphic|visual|nve|reshade|enb|weather|timecycle|light|preset")) return "gfx";
-        return "other";
-    }
+    /// <summary>Category from the file name only (for a file that is still being written).</summary>
+    public static string Guess(string name) => ModClassifier.GuessByName(name);
+
+    // what is inside a file, by path + size + time: an archive is only looked into once
+    private static readonly Dictionary<string, (int count, string cat, string? what)> Seen = new();
 
     public static List<object> List()
     {
@@ -658,39 +652,80 @@ internal static class ModDownloads
             foreach (var f in new DirectoryInfo(Dir).EnumerateFiles().Where(f => Ext.Contains(f.Extension.ToLowerInvariant()) && f.LastWriteTime > DateTime.Now.AddDays(-30))
                          .OrderByDescending(f => f.LastWriteTime).Take(40))
             {
-                int rpfs = -1;
-                if (f.Extension.Equals(".zip", StringComparison.OrdinalIgnoreCase))
-                {
-                    try { using var z = ZipFile.OpenRead(f.FullName); rpfs = z.Entries.Count(e => e.Name.EndsWith(".rpf", StringComparison.OrdinalIgnoreCase)); }
-                    catch { continue; }
-                    if (rpfs == 0) continue;
-                }
-                else if (f.Extension.Equals(".rpf", StringComparison.OrdinalIgnoreCase)) rpfs = 1;
-                res.Add(new { name = f.Name, size = f.Length, date = f.LastWriteTime, rpfs, cat = Guess(f.Name) });
+                var key = $"{f.FullName}|{f.Length}|{f.LastWriteTimeUtc.Ticks}";
+                (int count, string cat, string? what) p;
+                lock (Seen) if (!Seen.TryGetValue(key, out p)) Seen[key] = p = Peek(f);
+                if (p.count == 0) continue;                   // nothing FiveM could use
+                res.Add(new { name = f.Name, size = f.Length, date = f.LastWriteTime, rpfs = p.count, cat = p.cat, what = p.what });
             }
         }
         catch { }
         return res;
     }
 
-    /// <summary>Returns the files to hand to Mods.Install (unpacks .rar/.7z with Windows' tar).</summary>
-    public static (List<string> files, string? temp, string? error) Prepare(string name) => PrepareFile(Path.Combine(Dir, Path.GetFileName(name)));
-
-    public static (List<string> files, string? temp, string? error) PrepareFile(string path)
+    private static string Describe(RpfInfo i) => i.Kind switch
     {
-        if (!File.Exists(path)) return (new(), null, "Datei nicht gefunden");
-        var ext = Path.GetExtension(path).ToLowerInvariant();
-        if (ext is ".rpf" or ".zip") return (new() { path }, null, null);
-        var temp = Path.Combine(Path.GetTempPath(), "OrbitTweak-mod-" + Guid.NewGuid().ToString("N")[..8]);
-        Directory.CreateDirectory(temp);
-        var tar = Path.Combine(Environment.SystemDirectory, "tar.exe");
-        var o = Proc.Run(tar, $"-xf \"{path}\" -C \"{temp}\"", 180_000);
-        var rpfs = Directory.GetFiles(temp, "*.rpf", SearchOption.AllDirectories).ToList();
-        if (rpfs.Count == 0)
-            return (new(), temp, ext == ".rar" || ext == ".7z"
-                ? "Archiv konnte nicht entpackt werden oder enthält keine .rpf. Unter älterem Windows bitte als .zip entpacken."
-                : "Keine .rpf gefunden");
-        return (rpfs, temp, null);
+        RpfKind.Package => i.Problem == null ? "FiveM-Paket" : "Paket mit Fehler",
+        RpfKind.AudioArchive when i.Encrypted => "Sound-Pack: " + Path.GetFileNameWithoutExtension(i.Canon),
+        RpfKind.AudioArchive => "Sound-Archiv, nicht FiveM-fertig",
+        RpfKind.StreamArchive => "Rohes Archiv, wird verpackt",
+        RpfKind.DlcPack => "DLC-Pack, wird verpackt",
+        _ => "Nicht installierbar",
+    };
+
+    /// <summary>Looks into a download: number of usable files (-1 = unknown, 0 = nothing), category, short description.</summary>
+    private static (int count, string cat, string? what) Peek(FileInfo f)
+    {
+        var byName = ModClassifier.GuessByName(f.Name);
+        var ext = f.Extension.ToLowerInvariant();
+        try
+        {
+            if (ext == ".rpf")
+            {
+                var i = ModClassifier.Classify(f.FullName, f.Name);
+                return (1, i.Cat ?? byName, Describe(i));
+            }
+            List<string> names;
+            var sounds = new List<string>();
+            if (ext is ".zip" or ".oiv")
+            {
+                using var z = ZipFile.OpenRead(f.FullName);
+                names = z.Entries.Where(e => e.Name.Length > 0).Select(e => e.FullName.Replace('\\', '/')).ToList();
+                // an encrypted sound archive inside is told by its 16-byte header and its name
+                foreach (var e in z.Entries.Where(e => e.Name.EndsWith(".rpf", StringComparison.OrdinalIgnoreCase)).Take(20))
+                    try
+                    {
+                        using var s = e.Open(); var h = new byte[16];
+                        if (s.ReadAtLeast(h, 16, false) == 16 && BitConverter.ToUInt32(h, 0) == RpfToc.Magic && BitConverter.ToUInt32(h, 12) is RpfToc.NG or RpfToc.AES
+                            && ModClassifier.SoundPack(Path.GetFileNameWithoutExtension(Mods.CleanName(e.Name))) is { } pk && !sounds.Contains(pk)) sounds.Add(pk);
+                    }
+                    catch { }
+            }
+            else
+            {
+                // .rar / .7z: list the content with Windows' tar (Windows 11), without unpacking
+                var tar = Path.Combine(Environment.SystemDirectory, "tar.exe");
+                if (!File.Exists(tar)) return (-1, byName, null);
+                var o = Proc.Run(tar, $"-tf \"{f.FullName}\"", 20_000);
+                if (o == "Timeout" || o.Contains("tar.exe:") || o.Contains("Error")) return (-1, byName, null);
+                names = o.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(x => x.Replace('\\', '/')).Where(x => !x.EndsWith('/')).ToList();
+            }
+            static bool Usable(string n)
+            {
+                var l = n.ToLowerInvariant(); var e = Path.GetExtension(l);
+                return e is ".rpf" or ".zip" or ".rar" or ".7z" or ".oiv" || ModClassifier.StreamExt.Contains(e) || l.EndsWith("assembly.xml")
+                    || l.Contains("common/data/") || l.Contains("x64/data/") || l.Contains("citizen/");
+            }
+            int count = names.Count(Usable);
+            int awc = names.Count(n => n.EndsWith(".awc", StringComparison.OrdinalIgnoreCase));
+            var cat = sounds.Count > 0 ? "sound" : ModClassifier.GuessByTargets(Array.Empty<string>(), names) ?? byName;
+            string? what = sounds.Count > 0 ? "Sound-Pack: " + string.Join(", ", sounds)
+                : names.Any(n => Path.GetFileName(n).Equals("assembly.xml", StringComparison.OrdinalIgnoreCase)) ? (ext == ".oiv" ? "OpenIV-Paket, wird umgepackt" : "FiveM-Paket")
+                : count > 0 ? $"{count} Mod-Datei{(count == 1 ? "" : "en")}"
+                : awc > 0 ? "Nur lose Sound-Dateien, nicht installierbar" : null;
+            return (count > 0 ? count : awc > 0 ? -1 : 0, cat, what);
+        }
+        catch { return (-1, byName, null); }
     }
 }
 

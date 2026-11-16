@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>OrbitTweak</title>
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="mods.css">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute">
@@ -646,17 +647,19 @@
           <div class="dc-arrow"><span>&rsaquo;</span></div>
           <div class="dc-step"><i>2</i><div><b>Wird erkannt</b><span>OrbitTweak bemerkt die Datei sofort, ohne Anmeldung</span></div></div>
           <div class="dc-arrow"><span>&rsaquo;</span></div>
-          <div class="dc-step"><i>3</i><div><b>Installieren</b><span>Ein Klick, der Name wird passend gemacht</span></div></div>
+          <div class="dc-step"><i>3</i><div><b>Installieren</b><span>Ein Klick – OrbitTweak erkennt den Inhalt und legt alles an die richtige Stelle</span></div></div>
         </div>
         <div class="row" style="margin-top:16px"><div class="lbl" style="font-size:12.5px"><svg class="i"><use href="#download"/></svg>Neu in deinen Downloads</div><span class="sp"></span><button class="btn sm" onclick="api('downloads.open')"><svg class="i"><use href="#folder"/></svg>Downloads</button><button class="btn sm p" id="dcAllBtn" onclick="dcAll()"><svg class="i"><use href="#download"/></svg>Alle installieren</button></div>
         <div id="modDl" class="mt8"></div>
         <details class="dc-more"><summary>Lieber per Link oder im Mod-Browser?</summary>
-          <div class="row mt8" style="gap:8px"><input class="in" id="dcLink" style="flex:1" spellcheck="false" placeholder="Link der Datei aus Discord einfügen (…/pack.rpf)"><button class="btn" onclick="dcLink()"><svg class="i"><use href="#download"/></svg>Installieren</button><button class="btn" onclick="dcOpen()"><svg class="i"><use href="#globe"/></svg>Discord im Mod-Browser</button></div>
+          <div class="row mt8" style="gap:8px"><input class="in" id="dcLink" style="flex:1" spellcheck="false" placeholder="Link der Datei aus Discord einfügen (…/pack.rpf, .zip, .oiv)"><button class="btn" onclick="dcLink()"><svg class="i"><use href="#download"/></svg>Installieren</button><button class="btn" onclick="dcOpen()"><svg class="i"><use href="#globe"/></svg>Discord im Mod-Browser</button></div>
         </details>
       </div>
       <div class="card">
         <div class="row"><div class="lbl"><svg class="i"><use href="#puzzle"/></svg>Installierte Mod-Dateien</div><span class="chip" id="modCount">0</span><span class="sp"></span><span class="sub" style="font-size:12px">Änderungen nur bei geschlossenem FiveM</span></div>
         <div id="modList" class="mt8"></div>
+        <div class="srow mods-opt"><div><b>Sounds auch auf Pure-Servern</b><p>Ersetzt die Sound-Dateien im GTA-V-Ordner, Originale werden gesichert. Wirkt dann auch auf Servern mit Pure 1. Steam/Rockstar „Dateien überprüfen“ setzt sie zurück. Gilt für neu installierte Sound-Packs.</p><p class="mods-hint" id="modGtaHint"></p></div><div class="tg" id="modGta"></div></div>
+        <p class="mfoot">Aktiv beim nächsten FiveM-Start. Ab zwei Paketen steht unten links „N mod packs loaded“. Server mit Pure-Mode ignorieren Mods aus dem FiveM-Ordner.</p>
       </div>
       </div>
     </section>
