@@ -5,7 +5,8 @@ const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ico = (id, cls = 'i') => `<svg class="${cls}"><use href="#${id}"/></svg>`;
-const bytes = b => { if (b == null || b < 0) return '—'; const u = ['B', 'KB', 'MB', 'GB', 'TB']; let i = 0; while (b >= 1024 && i < 4) { b /= 1024; i++; } return (i ? b.toFixed(1) : b) + ' ' + u[i]; };
+const nf1 = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const bytes = b => { if (b == null || b < 0) return '—'; const u = ['B', 'KB', 'MB', 'GB', 'TB']; let i = 0; while (b >= 1024 && i < 4) { b /= 1024; i++; } return (i ? nf1.format(b) : b) + ' ' + u[i]; };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const HOST = !!(window.chrome && window.chrome.webview);
@@ -125,7 +126,7 @@ function icicles() {
     if (R() < .5 && x - nx > 8) d += `L${f1(cx + 2.4)} 6L${f1(cx)} ${f1(10 + R() * 12)}L${f1(cx - 2.4)} 6`;
     d += `Q${f1(cx)} ${f1(6 + R() * 4)} ${f1(nx)} 5`; x = nx;
   }
-  return svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="420" height="26" viewBox="0 0 420 26"><defs><linearGradient id="i" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".28" stop-color="#F3FAFF"/><stop offset="1" stop-color="#BFE3FF" stop-opacity=".8"/></linearGradient></defs><path d="${d}H0V0Z" fill="url(#i)"/></svg>`);
+  return svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="420" height="26" viewBox="0 0 420 26" preserveAspectRatio="none"><defs><linearGradient id="i" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".28" stop-color="#F3FAFF"/><stop offset="1" stop-color="#BFE3FF" stop-opacity=".8"/></linearGradient></defs><path d="${d}H0V0Z" fill="url(#i)"/></svg>`);
 }
 /** A snow cap for the start button: a bumpy top and a few short icicles (one 200 px piece that repeats). */
 let SNOWCAP = null;
@@ -138,7 +139,7 @@ function snowCap() {
     if (R() < .45 && x - nx > 7) d += `L${f1(cx + 1.8)} 9L${f1(cx)} ${f1(11 + R() * 4)}L${f1(cx - 1.8)} 9`;
     d += `Q${f1(cx)} ${f1(9 + R() * 2)} ${f1(nx)} 8`; x = nx;
   }
-  return svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="16" viewBox="0 0 200 16"><defs><linearGradient id="i" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".5" stop-color="#F3FAFF"/><stop offset="1" stop-color="#C6E6FF"/></linearGradient></defs><path d="${d}Z" fill="url(#i)"/></svg>`);
+  return svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="16" viewBox="0 0 200 16" preserveAspectRatio="none"><defs><linearGradient id="i" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".5" stop-color="#F3FAFF"/><stop offset="1" stop-color="#C6E6FF"/></linearGradient></defs><path d="${d}Z" fill="url(#i)"/></svg>`);
 }
 /** The anime start banner: an original painted dusk over a city, with clouds lit from below, power lines and a
  *  sakura branch. Drawn once as a picture, so it costs no more than a photo. */
@@ -237,7 +238,8 @@ function moveInd() {
 }
 function enterPage(el) {
   el.classList.remove('enter'); void el.offsetWidth;
-  el.querySelectorAll('.card,.tabs,.addbar,.savebar,.empty').forEach((c, i) => c.style.setProperty('--i', Math.min(i, 12)));
+  // only what is shown counts for the stagger (cards in hidden tabs would push the visible ones back)
+  [...el.querySelectorAll('.card,.tabs,.addbar,.savebar,.empty')].filter(c => c.offsetParent).forEach((c, i) => c.style.setProperty('--i', Math.min(i, 12)));
   el.classList.add('enter');
   clearTimeout(el._et); el._et = setTimeout(() => el.classList.remove('enter'), 1400);
 }
@@ -269,7 +271,7 @@ function go(p) {
   if ((p === 'display') !== (curPage === 'display')) api('display.preview', { on: p === 'display' }).catch(() => { });
   if ((p === 'pad') !== (curPage === 'pad')) api('pad.watch', { on: p === 'pad' }).then(r => r && padState(r.state, r.active)).catch(() => { });
   if (p !== 'mods' && MMO.prev) mmoPreview(false);
-  curPage = p;
+  curPage = p; document.documentElement.dataset.page = p;
   $$('.nav').forEach(n => n.classList.toggle('active', n.dataset.p === (NAV_OF[p] || p)));
   $$('.page').forEach(s => s.classList.toggle('show', s.id === 'p-' + p));
   moveInd(); enterPage($('#p-' + p));
@@ -332,19 +334,19 @@ function onEvent(ev, d) {
 /** A live value that changes every second: set at once (counting up to it would redraw the page for most of every second). */
 function setNum(el, v, suffix) { if (!el || el._v === v) return; el._v = v; el.innerHTML = Math.round(v) + suffix; }
 function stats(d) {
+  if (!S.cpuHist.length) S.cpuHist = Array(39).fill(d.cpu);   // the curve starts flat at the first real value
   S.cpuHist.push(d.cpu); if (S.cpuHist.length > 40) S.cpuHist.shift();
   // (also while FiveM is in front: OrbitTweak may be open on a second screen; a few numbers once a second cost nothing)
   $('#tbCpu').textContent = d.cpu + '%'; $('#tbRam').textContent = d.ram + '%';
   setNum($('#mCpu'), d.cpu, '<small>%</small>');
   setNum($('#mRam'), d.ram, '<small>%</small>');
-  $('#mRamTxt').textContent = `${d.ramUsed.toFixed(1)} / ${d.ramTotal.toFixed(0)} GB`;
-  $('#mRamBar').style.width = d.ram + '%';
+  $('#mRamTxt').textContent = `${nf1.format(d.ramUsed)} / ${d.ramTotal.toFixed(0)} GB`;
   setNum($('#cRam'), d.ram, '<small>%</small>'); $('#cRamBar').style.width = d.ram + '%';
-  $('#cRamTxt').textContent = `${d.ramUsed.toFixed(1)} / ${d.ramTotal.toFixed(0)} GB`;
-  const n = S.cpuHist.length, pts = S.cpuHist.map((v, i) => [(i + 40 - n) * 200 / 39, 58 - v / 100 * 52]);
-  const line = pts.length > 1 ? smoothPath(pts) : `M0,${pts[0][1]} L200,${pts[0][1]}`;
+  $('#cRamTxt').textContent = `${nf1.format(d.ramUsed)} / ${d.ramTotal.toFixed(0)} GB`;
+  const n = S.cpuHist.length, pts = S.cpuHist.map((v, i) => [i * 200 / (n - 1), 58 - v / 100 * 52]);
+  const line = smoothPath(pts);
   $('#sparkL').setAttribute('d', line);
-  $('#sparkF').setAttribute('d', line + ` L200,60 L${pts.length > 1 ? pts[0][0].toFixed(1) : 0},60 Z`);
+  $('#sparkF').setAttribute('d', line + ' L200,60 L0,60 Z');
   fmState(d.fm);
 }
 function fmState(f) {
@@ -359,7 +361,31 @@ function fmState(f) {
   $('#fmBuild').textContent = f.build || '—';
   $('#fmPrio').textContent = f.prio || '—';
   $('#fmRam').textContent = f.game ? bytes(f.gameRam) : '—';
+  // while the game runs there is nothing to start: one way out instead, and the big start buttons calm down
+  if (S.fmOn === on && S.fmGame === !!f.game) return;
+  S.fmOn = on; S.fmGame = !!f.game;
+  $('#fmStart')?.classList.toggle('hidden', on); $('#fmStop')?.classList.toggle('hidden', !on);
+  $('#sideLaunch')?.classList.toggle('calm', on);
+  if ($('#launchTxt')) $('#launchTxt').textContent = on ? 'FiveM läuft' : 'FiveM starten';
+  if ($('#launchSub')) $('#launchSub').textContent = on ? (f.game ? 'Im Spiel · zur Übersicht' : 'Launcher offen · zur Übersicht') : S.fivem && S.fivem.found === false ? 'FiveM nicht gefunden' : 'mit Pre-Launch-Boost';
+  lhState();
 }
+/** Side bar button: starts FiveM, or shows the start page while it already runs. */
+function sideLaunch() { if (S.fmOn) return go('home'); launch(''); }
+window.sideLaunch = sideLaunch;
+/** The big tile on the launcher page: start, or connect the running game to the address typed in. */
+function lhState() {
+  const b = $('#lhGo'); if (!b) return;
+  const con = ($('#lConnect')?.value || '').trim();
+  b.classList.toggle('calm', !!S.fmOn && !con);
+  $('#lhTxt').textContent = S.fmOn ? (con ? 'Verbinden' : 'FiveM läuft') : 'FiveM starten';
+  $('#lhSub').textContent = S.fmOn ? (con ? 'mit ' + con : 'Adresse eintragen, um zu verbinden') : con ? 'Boost anwenden und verbinden' : 'Boost anwenden und Spiel starten';
+}
+function lhLaunch() {
+  if (S.fmOn && !($('#lConnect')?.value || '').trim()) return toast('FiveM läuft schon', 'Trag eine Adresse ein, um direkt zu verbinden');
+  launch();
+}
+window.lhLaunch = lhLaunch;
 async function ping() {
   try {
     const p = await api('ping');
@@ -406,7 +432,7 @@ async function boost(fromWizard) {
     $('#scoreChip').textContent = 'Fertig'; $('#scoreChip').className = 'chip g';
     $('#heroTitle').textContent = 'Boost abgeschlossen';
     $('#heroText').textContent = r.restart ? 'Fertig. Starte den PC neu, damit alle Tweaks greifen.' : 'Fertig. Dein System ist bereit für FiveM.';
-    $('#lastBoost').textContent = 'Letzter Boost: gerade eben';
+    $('#lastBoost').textContent = 'Letzter Boost: gerade eben'; $('#lastBoost').classList.remove('hidden');
     if (!fromWizard) passed('Boost abgeschlossen', `${r.applied} Tweaks · ${bytes(r.freed)} frei${r.restart ? ' · Neustart empfohlen' : ''}`);
     if (!fromWizard) toast('Boost abgeschlossen', `${r.applied} Tweaks · ${bytes(r.freed)} freigegeben${r.restart ? ' · Neustart empfohlen' : ''}`);
     feed(`Boost fertig: ${r.applied} Tweaks, ${bytes(r.freed)} frei`);
@@ -419,7 +445,7 @@ async function boost(fromWizard) {
     setTimeout(() => {
       if (S.boosting) return;
       btn.classList.remove('done'); $('#boostTxt').textContent = 'Boost starten'; $('#boostIco').innerHTML = '<use href="#zap"/>';
-      $('#heroTitle').textContent = 'FiveM Full Boost'; $('#boostSub').textContent = 'optimiert'; score();
+      $('#heroTitle').textContent = 'Kompletter FiveM-Boost'; $('#boostSub').textContent = 'optimiert'; score();
     }, 2800);
   }
 }
@@ -429,20 +455,20 @@ const CATS = { fivem: ['FiveM', 'gamepad', 'Spiel-Priorität, GPU und Frametimes
 let curTab = 'fivem';
 async function loadTweaks() { S.tweaks = await api('tweaks.list'); renderTweaks(); score(); }
 function tweakHtml(t, compact) {
-  const badge = t.badge ? `<span class="chip ${t.badge === 'NEUSTART' ? 'w' : 'a'}" style="margin-left:8px;height:18px;font-size:9px">${esc(t.badge)}</span>` : '';
-  const rec = !compact && t.rec ? `<span class="chip" style="margin-left:6px;height:18px;font-size:9px">EMPFOHLEN</span>` : '';
+  const badge = !t.badge ? '' : t.badge === 'NEUSTART' ? '<span class="eff w">Neustart</span>' : t.badge === 'LIVE' ? '<span class="eff a" title="Wirkt sofort, solange OrbitTweak läuft">Live</span>' : `<span class="eff">${esc(t.badge)}</span>`;
+  // most tweaks are recommended, so only the exceptions are marked
+  const rec = !compact && !t.rec ? '<span class="eff">Optional</span>' : '';
   const body = `<div class="ti">${ico(t.icon)}</div><div class="tx"><b>${esc(t.name)}</b>${badge}${rec}<p>${esc(t.desc)}</p></div><div class="tg ${t.applied ? 'on' : ''}" data-id="${t.id}"></div>`;
   return `<div class="tw ${t.applied ? 'on' : ''}">${body}</div>`;
 }
 function renderTweaks() {
-  $('#tabs').innerHTML = Object.entries(CATS).map(([k, [n, i]]) => { const l = S.tweaks.filter(t => t.cat === k); return `<button class="tab ${k === curTab ? 'on' : ''}" data-c="${k}">${ico(i)}${n}<span class="vt-s">${l.filter(t => t.applied).length} / ${l.length} an</span></button>`; }).join('');
+  $('#tabs').innerHTML = Object.entries(CATS).map(([k, [n, i]]) => { const l = S.tweaks.filter(t => t.cat === k); return `<button class="tab ${k === curTab ? 'on' : ''}" data-c="${k}">${ico(i)}${n}<span class="vt-s">${l.filter(t => t.applied).length}/${l.length} aktiv</span></button>`; }).join('');
   const cur = S.tweaks.filter(t => t.cat === curTab);
-  $('#tlTitle').textContent = CATS[curTab][0]; $('#tlDesc').textContent = CATS[curTab][2];
-  $('#tlCount').textContent = `${cur.filter(t => t.applied).length} von ${cur.length} aktiv`;
+  $('#tlDesc').textContent = CATS[curTab][2];
   $('#tgrid').innerHTML = cur.map(t => tweakHtml(t)).join('');
   const inp = S.tweaks.filter(t => t.cat === 'input');
   $('#inputTweaks').innerHTML = inp.map(t => tweakHtml(t, true)).join('');
-  $('#inputTwCount').textContent = `${inp.filter(t => t.applied).length} / ${inp.length} an`;
+  $('#inputTwCount').textContent = `${inp.filter(t => t.applied).length}/${inp.length} aktiv`;
 }
 document.addEventListener('click', async e => {
   const tab = e.target.closest('#tabs .tab'); if (tab) { curTab = tab.dataset.c; renderTweaks(); return; }
@@ -465,14 +491,14 @@ async function applyCat(cat) {
   score(); toast(`${CATS[cat][0]} optimiert`, `${list.length} Tweaks angewendet`);
 }
 async function revertAll() {
-  if (!await confirmBox('Alle Tweaks zurücksetzen?', 'Windows, Netzwerk, Input und FiveM werden auf Standard zurückgesetzt.')) return;
+  if (!await confirmBox('Alle Tweaks zurücksetzen?', 'Windows, Netzwerk, Input und FiveM werden auf Standard zurückgesetzt.', { ok: 'Alles zurücksetzen', danger: true })) return;
   await api('tweaks.revertAll'); await loadTweaks(); toast('Alles zurückgesetzt', 'Neustart empfohlen');
 }
 
 /* ======================= FIVEM ACTIONS ======================= */
 async function clearFmCache() { const r = await api('fivem.cache'); if (r.error) return toast('Cache nicht geleert', r.error, false); addFreed(r.freed); refreshCache(); toast('FiveM-Cache geleert', bytes(r.freed) + ' freigegeben'); }
 async function cleanRam() { const r = await api('ram.clean'); addFreed(r.freed); toast('RAM freigegeben', bytes(r.freed) + ' zurückgewonnen'); }
-async function killFiveM() { const r = await api('fivem.kill'); toast(r.count ? 'FiveM beendet' : 'FiveM lief nicht', r.count ? r.count + ' Prozesse geschlossen' : '', !!r.count); }
+async function killFiveM() { if (!await confirmBox('FiveM beenden?', 'Das Spiel wird sofort geschlossen. Was nicht gespeichert ist, geht verloren.', { ok: 'FiveM beenden', danger: true })) return; const r = await api('fivem.kill'); toast(r.count ? 'FiveM beendet' : 'FiveM lief nicht', r.count ? r.count + ' Prozesse geschlossen' : '', !!r.count); }
 async function pickFiveM() { const r = await api('fivem.pick'); if (r.found) { S.fivem = r; renderCmd(); refreshCache(); toast('FiveM-Pfad gesetzt', r.path); } }
 
 /* ======================= LAUNCHER ======================= */
@@ -496,7 +522,7 @@ async function renderLauncher() {
 function saveLaunch() { api('settings.set', { key: 'launch', value: cfg() }); renderCmd(); }
 function renderCmd() {
   const c = cfg(), con = ($('#lConnect')?.value || '').trim();
-  let s = `"${esc((S.fivem && S.fivem.path) || '%LocalAppData%\\FiveM')}\\FiveM.exe"`;
+  let s = `<span class="ca">"${esc((S.fivem && S.fivem.path) || '%LocalAppData%\\FiveM')}\\FiveM.exe"</span>`;
   if (c.build !== 'Auto') s += ` <em>-b${esc(c.build)}</em>`;
   if (+c.pure) s += ` <em>-pure_${c.pure}</em>`;
   if (con) s += ` <em>+connect ${esc(con)}</em>`;
@@ -504,14 +530,23 @@ function renderCmd() {
   const on = PRE.filter(([k]) => c.pre[k]);
   if ($('#preCount')) $('#preCount').textContent = on.length + ' aktiv';
   const chan = { production: 'Release', beta: 'Beta', canary: 'Latest' }[S.chan] || 'Release';
+  // each tile leads to the option it sums up
   if ($('#lSum')) $('#lSum').innerHTML = [
-    ['layers', 'Build', c.build === 'Auto' ? 'Automatisch' : c.build],
-    ['shield', 'Pure Mode', +c.pure ? 'Pure ' + c.pure : 'Aus'],
-    ['download', 'Kanal', chan],
-    ['sparkle', 'Boost', on.length ? on.length + ' Schritte' : 'Aus'],
-    ['link', 'Server', con ? con : 'Serverliste']
-  ].map(([i, k, v]) => `<div class="lh-i">${ico(i)}<span>${k}</span><b>${esc(v)}</b></div>`).join('');
+    ['layers', 'Build', c.build === 'Auto' ? 'Automatisch' : c.build, 'loBuild'],
+    ['shield', 'Pure Mode', +c.pure ? 'Pure ' + c.pure : 'Aus', 'loPure'],
+    ['download', 'Kanal', chan, 'loChan'],
+    ['sparkle', 'Boost', on.length ? on.length + ' Schritte' : 'Aus', 'preCard'],
+    ['link', 'Server', con ? con : 'Keiner', 'lConnect']
+  ].map(([i, k, v, to]) => `<button class="lh-i" data-lgo="${to}" title="${to === 'lConnect' ? (con ? esc(con) : 'Ohne Adresse öffnet FiveM die Serverliste') : 'Zur Einstellung'}">${ico(i)}<span>${k}</span><b>${esc(v)}</b></button>`).join('');
+  lhState();
 }
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-lgo]'); if (!t) return;
+  const el = $('#' + t.dataset.lgo); if (!el) return;
+  if (el.tagName === 'INPUT') { el.focus(); return; }
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+});
 async function launch(connect) {
   const c = cfg();
   const r = await api('fivem.launch', { build: c.build, pure: c.pure, connect: connect ?? ($('#lConnect').value || '').trim(), pre: c.pre });
@@ -533,7 +568,7 @@ function fivemName(s) {
 function srvCard(s) {
   const pct = s.max ? Math.round(s.players * 100 / s.max) : 0;
   const initial = (s.name || '?').replace(/\^\d/g, '').trim()[0] || '?';
-  return `<div class="card hov srv ${s.online ? '' : 'off'}">
+  return `<div class="card hov srv ${s.online ? '' : 'off'} ${s.banner ? '' : 'nobn'}">
     <div class="bn" ${s.banner ? `style="background-image:url('${esc(s.banner)}')"` : ''}></div>
     <button class="ib fav" title="Entfernen" onclick="removeServer('${esc(s.code)}')">${ico('x')}</button>
     <div class="bd">
@@ -543,7 +578,7 @@ function srvCard(s) {
       <div class="row">
         <div class="pl"><div><span>Spieler</span><b>${s.players ?? 0}/${s.max ?? 0}</b></div><div class="bar"><i style="width:${pct}%"></i></div></div>
         <span class="chip ${s.ping == null ? '' : s.ping < 50 ? 'g' : s.ping < 100 ? 'w' : 'r'}">${s.ping == null ? '-- ms' : s.ping + ' ms'}</span>
-        <button class="btn p sm" onclick="joinServer('${esc(s.code)}')" ${s.online ? '' : 'disabled'}>${ico('play')}Join</button>
+        <button class="btn o sm" onclick="joinServer('${esc(s.code)}')" ${s.online ? '' : 'disabled'}>${ico('play')}Verbinden</button>
       </div>
     </div></div>`;
 }
@@ -595,11 +630,11 @@ const GFX = [
   { k: 'MotionBlurStrength', n: 'Bewegungsunschärfe', d: 'Für PvP auf 0', r: 1 },
 ];
 const PRESETS = {
-  comp: { n: 'Competitive', d: 'Maximale FPS und klare Sicht. Für PvP, Gangwar und schwächere PCs.', fps: 5, q: 1,
+  comp: { n: 'Leistung', d: 'Maximale FPS und klare Sicht. Für PvP, Gangwar und schwächere PCs.', fps: 5, q: 1,
     v: { TextureQuality: 1, ShadowQuality: 1, ReflectionQuality: 0, GrassQuality: 0, WaterQuality: 0, ParticleQuality: 0, ShaderQuality: 0, PostFX: 0, SSAO: 0, Tessellation: 0, MSAA: 0, FXAA_Enabled: 'true', AnisotropicFiltering: 4, Shadow_SoftShadows: 0, LodScale: 0.6, CityDensity: 0.3, MotionBlurStrength: 0 } },
-  bal: { n: 'Balanced', d: 'Gute Optik bei stabilen FPS. Für Roleplay im Alltag.', fps: 3, q: 3,
+  bal: { n: 'Ausgewogen', d: 'Gute Optik bei stabilen FPS. Für Roleplay im Alltag.', fps: 3, q: 3,
     v: { TextureQuality: 2, ShadowQuality: 2, ReflectionQuality: 1, GrassQuality: 1, WaterQuality: 1, ParticleQuality: 1, ShaderQuality: 1, PostFX: 1, SSAO: 1, Tessellation: 1, MSAA: 0, FXAA_Enabled: 'true', AnisotropicFiltering: 16, Shadow_SoftShadows: 1, LodScale: 0.8, CityDensity: 0.6, MotionBlurStrength: 0 } },
-  cine: { n: 'Cinematic', d: 'Maximale Qualität für Screenshots, Clips und High-End-PCs.', fps: 1, q: 5,
+  cine: { n: 'Kino', d: 'Maximale Qualität für Screenshots, Clips und High-End-PCs.', fps: 1, q: 5,
     v: { TextureQuality: 2, ShadowQuality: 3, ReflectionQuality: 3, GrassQuality: 2, WaterQuality: 2, ParticleQuality: 3, ShaderQuality: 2, PostFX: 3, SSAO: 2, Tessellation: 3, MSAA: 2, FXAA_Enabled: 'true', AnisotropicFiltering: 16, Shadow_SoftShadows: 3, LodScale: 1, CityDensity: 1, MotionBlurStrength: 0 } },
 };
 const pips = n => Array.from({ length: 5 }, (_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('');
@@ -714,7 +749,7 @@ async function clean() {
   $('#cleanBtn').disabled = true; $('#cTotalSub').textContent = 'bereinige…';
   const r = await api('clean.run', { ids });
   addFreed(r.freed); toast('Bereinigung fertig', bytes(r.freed) + ' freigegeben' + (r.skipped ? ' · FiveM-Cache übersprungen (Spiel läuft)' : ''));
-  $('#cleanBtn').disabled = false; await scan(); $('#cTotalSub').textContent = bytes(r.freed) + ' gerade freigegeben';
+  $('#cleanBtn').disabled = false; await scan(); $('#cTotalSub').textContent = bytes(r.freed) + ' freigegeben';
 }
 
 /* ======================= DIAGNOSE ======================= */
@@ -723,7 +758,8 @@ function renderHealth(h) {
   $('#hScore').textContent = h.score; $('#hsHealth').textContent = h.score + '%';
   const bad = h.items.filter(i => i.st !== 'ok').length;
   $('#hScoreTxt').textContent = bad ? `${bad} Punkte können verbessert werden` : 'Alles im grünen Bereich';
-  $('#hList').innerHTML = h.items.map((i, n) => `<div class="hc"><div class="st ${i.st}">${ico(i.st === 'ok' ? 'check' : 'alert')}</div><div class="tx"><b>${esc(i.name)}</b><p>${esc(i.value)}</p></div>${i.fix && i.st !== 'ok' ? `<button class="btn sm p" data-fix="${n}">Beheben</button>` : ''}</div>`).join('');
+  $('#hList').innerHTML = h.items.map((i, n) => `<div class="hc"><div class="st ${i.st}">${ico(i.st === 'ok' ? 'check' : 'alert')}</div><div class="tx"><b>${esc(i.name)}</b><p>${esc(i.value)}</p></div>${i.fix && i.st !== 'ok' ? `<button class="btn sm o" data-fix="${n}">Beheben</button>` : ''}</div>`).join('');
+  const hb = $('#hBtn'); if (hb) { hb.classList.remove('p'); hb.querySelector('span').textContent = 'Erneut prüfen'; }
 }
 document.addEventListener('click', async e => {
   const b = e.target.closest('[data-fix]'); if (!b) return;
@@ -737,7 +773,7 @@ async function loadLogs() {
   renderLogs();
   $('#crashList').innerHTML = (logData.crashes || []).length
     ? logData.crashes.slice(0, 5).map(c => `<div class="svc"><span class="nm" style="font-size:12px">${esc(c.name)}</span><span class="chip">${esc(c.date)}</span><b class="muted" style="font-family:var(--disp)">${bytes(c.size)}</b></div>`).join('')
-    : '<div class="sub" style="padding:6px 0">Keine Crashes gefunden</div>';
+    : `<div class="ok-line">${ico('check')}Keine Abstürze gefunden</div>`;
 }
 function renderLogs() {
   const l = (logData.lines || []).filter(x => logFilter === 'all' || isErr(x));
@@ -755,9 +791,9 @@ async function checkUpdate(manual) {
     if (!u.configured) $('#updTxt').textContent = 'Update-Server nicht eingerichtet';
     else if (u.error) $('#updTxt').textContent = 'Prüfung fehlgeschlagen: ' + u.error;
     else if (u.noRelease) { $('#updTxt').textContent = 'Auf GitHub ist noch keine Version veröffentlicht'; if (manual) toast('Kein Release gefunden', 'Noch keine Version auf GitHub veröffentlicht', false); }
-    else if (!u.available) { $('#updTxt').textContent = 'Du hast die neueste Version'; if (manual) toast('Alles aktuell', 'Version ' + u.current); }
+    else if (!u.available) { S.updAvail = false; $('#updTxt').textContent = 'Du hast die neueste Version'; if (manual) toast('Alles aktuell', 'Version ' + u.current); }
     else {
-      $('#updTxt').textContent = 'Neue Version verfügbar';
+      S.updAvail = true; $('#updTxt').textContent = 'Neue Version verfügbar';
       $('#updVer').textContent = u.latest; $('#updDate').textContent = u.date || '';
       $('#updNotes').innerHTML = (u.notes || []).map(n => `<li>${esc(n)}</li>`).join('');
       // kept for the "what is new" window that opens once after this update was installed
@@ -777,9 +813,9 @@ async function checkUpdate(manual) {
 function updatePrompt(u) {
   modal(`<div class="kicker" style="justify-content:center">Update verfügbar</div><h1 style="margin-top:10px">Version <span class="grad">${esc(u.latest)}</span> ist da</h1>
     <p>Du nutzt Version ${esc(u.current)}. Soll OrbitTweak jetzt aktualisieren? Die App startet danach automatisch neu.</p>
-    ${(u.notes || []).length ? `<ul class="changes" style="text-align:left;max-width:400px;margin:14px auto 0">${u.notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
+    ${(u.notes || []).length ? `<ul class="changes m-list">${u.notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
     <div class="bar hidden" id="mUpdMeter" style="margin-top:18px"><i id="mUpdBar" style="width:0"></i></div><div class="sub" id="mUpdProg" style="font-size:11px;margin-top:6px"></div>
-    <div class="act" id="mUpdAct"><button class="btn" onclick="closeModal()">Später</button><button class="btn p lg" onclick="promptInstall()">${ico('download')}Jetzt aktualisieren</button></div>`);
+    <div class="act" id="mUpdAct"><button class="btn lg" onclick="closeModal()">Später</button><button class="btn p lg" onclick="promptInstall()">${ico('download')}Jetzt aktualisieren</button></div>`);
 }
 function promptInstall() { $('#mUpdAct').classList.add('hidden'); $('#mUpdMeter').classList.remove('hidden'); $('#mUpdProg').textContent = 'Lade herunter…'; doUpdate(); }
 function updProgress(d) {
@@ -812,11 +848,15 @@ const SETS = [
 ];
 function renderSettings() {
   const cur = themeKey(S.settings.accent);
-  $('#themes').innerHTML = Object.entries(THEMES).map(([k, [n, a, b]]) => `<div class="sw ${k === cur ? 'on' : ''}" data-th="${k}"><i style="background:linear-gradient(135deg,${a},${b})"></i>${n}</div>`).join('');
+  $('#themes').innerHTML = Object.entries(THEMES).filter(([k]) => !SCENE_THEMES.includes(k)).map(([k, [n, a, b]]) => `<div class="sw ${k === cur ? 'on' : ''}" data-th="${k}"><i style="background:linear-gradient(135deg,${a},${b})"></i>${n}</div>`).join('');
+  const SCN = { winter: 'Nordlicht, Raureif, Schnee', anime: 'Abendhimmel, Kirschblüten' };
+  if ($('#sceneThemes')) $('#sceneThemes').innerHTML = SCENE_THEMES.map(k => `<button class="scn-c scn-${k} ${k === cur ? 'on' : ''}" data-th="${k}"><i></i><span><b>${THEMES[k][0]}</b><small>${SCN[k] || ''}</small></span>${k === cur ? ico('check', 'i scn-ck') : ''}</button>`).join('');
   $('#fxTg')?.classList.toggle('on', S.settings.fx !== false);
   $('#fxRow')?.classList.toggle('hidden', !FXCFG[cur]);
   const row = ([k, n, d]) => `<div class="srow sclick"><div><b>${n}</b><p>${d}</p></div><div class="tg ${S.settings[k] ? 'on' : ''}" data-set="${k}"></div></div>`;
-  $('#setList').innerHTML = SETS.filter(s => !['autoUpdate', 'autoInstall'].includes(s[0])).map(row).join('');
+  // RAM-Clean and priority are the live tweaks of Tweaks › FiveM: one switch, in one place
+  $('#setList').innerHTML = SETS.filter(s => !['autoUpdate', 'autoInstall', 'autoRamClean', 'autoPriority'].includes(s[0])).map(row).join('')
+    + `<button class="srow slink" onclick="goTweaks('fivem')"><div><b>Live-Tweaks im Spiel</b><p>RAM-Clean und Priorität „Hoch“ stellst du unter Tweaks › FiveM ein</p></div>${ico('chev', 'i ch')}</button>`;
   $('#updSets').innerHTML = SETS.filter(s => ['autoUpdate', 'autoInstall'].includes(s[0])).map(row).join('');
 }
 document.addEventListener('click', e => {
@@ -828,9 +868,11 @@ document.addEventListener('click', e => {
   const st = e.target.closest('[data-set]') || e.target.closest('.sclick')?.querySelector('[data-set]');
   if (st) { const k = st.dataset.set; S.settings[k] = !S.settings[k]; st.classList.toggle('on'); api('settings.set', { key: k, value: S.settings[k] }); if (!k.startsWith('auto') || k === 'autoRamClean' || k === 'autoPriority') loadTweaks(); }
 });
+function goTweaks(cat) { curTab = cat; go('tweaks'); renderTweaks(); }
+window.goTweaks = goTweaks;
 /* ======================= DISCORD STATUS (settings › Verhalten) ======================= */
 const DC_SETS = [
-  ['discordOn', 'Discord-Status', 'Dein Profil zeigt „Spielt OrbitTweak“, ob du im Spiel bist und wie lange'],
+  ['discordOn', 'Status in Discord zeigen', 'Dein Profil zeigt „Spielt OrbitTweak“, ob du im Spiel bist und wie lange'],
   ['discordServer', 'Servername zeigen', 'Aus: nur „FiveM“, ohne Servername und Server-Icon'],
   ['discordKills', 'Kills zeigen', 'Kills der Runde, z. B. „Im Spiel · 3 Kills“. Braucht die Kill-Erkennung'],
 ];
@@ -841,7 +883,10 @@ function dcRender() {
   if (!$('#dcCard')) return;
   const noId = DC ? DC.status === 'noid' || (!DC.builtIn && !S.settings.discordAppId) : !S.settings.discordAppId;
   // only when something changed: swapping the rows every 3 s would swallow a click that lands in between
-  const rows = DC_SETS.map(([k, n, d]) => `<div class="srow sclick ${k !== 'discordOn' && !dcOn('discordOn') ? 'dis' : ''}" data-dcset="${k}"><div><b>${n}</b><p>${d}</p></div><div class="tg ${dcOn(k) ? 'on' : ''}"></div></div>`).join('');
+  // without an App-ID the setup comes first and the switches wait for it
+  $('#dcCard').classList.toggle('noid', !!noId);
+  const rows = (noId ? '<p class="dc-need">Erst App-ID eintragen, dann lässt sich der Status einschalten.</p>' : '')
+    + DC_SETS.map(([k, n, d]) => `<div class="srow sclick ${noId || (k !== 'discordOn' && !dcOn('discordOn')) ? 'dis' : ''}" data-dcset="${k}"><div><b>${n}</b><p>${d}</p></div><div class="tg ${dcOn(k) ? 'on' : ''}"></div></div>`).join('');
   if ($('#dcSets').dataset.html !== rows) { $('#dcSets').innerHTML = rows; $('#dcSets').dataset.html = rows; }
   $('#dcGuide').classList.toggle('hidden', !noId);
   const inp = $('#dcAppId');
@@ -894,21 +939,22 @@ function closeModal() {
   $$('#mbox video, #mbox audio').forEach(v => { try { v.pause(); v.removeAttribute('src'); v.load(); } catch { } });
   setTimeout(() => { if (!$('#modal').classList.contains('show')) { $('#mbox').innerHTML = ''; $('#mbox').style.width = ''; } }, 400);
 }
-function confirmBox(title, text) {
+function confirmBox(title, text, o = {}) {
   return new Promise(res => {
-    modal(`<h1>${esc(title)}</h1><p>${esc(text)}</p><div class="act"><button class="btn" id="mNo">Abbrechen</button><button class="btn p" id="mYes">Bestätigen</button></div>`);
+    modal(`<div class="kicker">${o.danger ? 'Achtung' : 'Bitte bestätigen'}</div><h1 style="margin-top:8px">${esc(title)}</h1><p>${esc(text)}</p><div class="act"><button class="btn lg" id="mNo">Abbrechen</button><button class="btn lg ${o.danger ? 'dp' : 'p'}" id="mYes">${esc(o.ok || 'Bestätigen')}</button></div>`);
     $('#mNo').onclick = () => { closeModal(); res(false); }; $('#mYes').onclick = () => { closeModal(); res(true); };
   });
 }
 const steps = n => `<div class="steps">${[0, 1, 2, 3].map(i => `<i class="${i <= n ? 'on' : ''}"></i>`).join('')}</div>`;
 async function wizard(step) {
-  if (step === 0) modal(`${steps(0)}<div class="kicker" style="justify-content:center">Setup-Assistent</div><h1 style="margin-top:10px">Willkommen bei <span class="grad">OrbitTweak</span></h1><p>In einer Minute ist dein PC bereit für FiveM: Wir prüfen dein System, zeigen dir die Optimierungen und wenden sie mit Wiederherstellungspunkt an. Alles bleibt umkehrbar.</p><div class="act"><button class="btn" onclick="finishWizard()">Überspringen</button><button class="btn p lg" onclick="wizard(1)">${ico('zap')}Los geht's</button></div>`);
+  if (step === 0) modal(`${steps(0)}<div class="kicker" style="justify-content:center">Setup-Assistent</div><h1 style="margin-top:10px">Willkommen bei <span class="grad">OrbitTweak</span></h1><p>In einer Minute ist dein PC bereit für FiveM: Wir prüfen dein System, zeigen dir die Optimierungen und wenden sie mit Wiederherstellungspunkt an. Alles bleibt umkehrbar.</p><div class="act"><button class="btn lg" onclick="finishWizard()">Überspringen</button><button class="btn p lg" onclick="wizard(1)">${ico('zap')}Los geht's</button></div>`);
   if (step === 1) {
     modal(`${steps(1)}<h1>System-<span class="grad">Scan</span></h1><p>Analysiere Hardware, Windows und FiveM…</p><div class="bar mt" style="height:8px"><i style="width:30%" id="scanBar"></i></div>`);
     const [h] = await Promise.all([runHealth(), sleep(1000)]);
     $('#scanBar').style.width = '100%'; await sleep(300);
     const todo = S.tweaks.filter(t => t.rec && !t.applied);
-    modal(`${steps(2)}<h1>Health: <span class="grad">${h.score}%</span></h1><p>${todo.length} empfohlene Optimierungen gefunden.</p><div class="wl">${Object.entries(CATS).map(([k, [n, i]]) => { const c = todo.filter(t => t.cat === k); return c.length ? `<div class="hc"><div class="st" style="background:rgba(var(--a-rgb),.12);color:var(--a)">${ico(i)}</div><div class="tx"><b>${n}</b><p>${c.map(t => esc(t.name)).join(' · ')}</p></div><span class="chip a">${c.length}</span></div>` : ''; }).join('')}</div><div class="act"><button class="btn" onclick="finishWizard()">Später</button><button class="btn p lg" onclick="wizard(3)">${ico('zap')}Optimieren</button></div>`);
+    modal(`${steps(2)}<h1>Zustand: <span class="grad">${h.score} %</span></h1><p>${todo.length} empfohlene Optimierungen gefunden.</p><div class="wl">${Object.entries(CATS).map(([k, [n, i]]) => { const c = todo.filter(t => t.cat === k); return c.length ? `<div class="hc"><div class="st" style="background:rgba(var(--a-rgb),.12);color:var(--a)">${ico(i)}</div><div class="tx"><b>${n}</b><p>${c.map(t => esc(t.name)).join(' · ')}</p></div><span class="chip a">${c.length}</span></div>` : ''; }).join('')}</div><div class="act"><button class="btn lg" onclick="finishWizard()">Später</button><button class="btn p lg" onclick="wizard(3)">${ico('zap')}Optimieren</button></div>`);
+    const wl = $('#mbox .wl'); if (wl && wl.scrollHeight > wl.clientHeight + 4) wl.classList.add('more');
   }
   if (step === 3) {
     modal(`${steps(3)}<h1>Boost <span class="grad">läuft</span></h1><p id="wizTxt">Starte…</p><div class="bar mt" style="height:8px"><i id="wizProg" style="width:0"></i></div>`);
@@ -922,8 +968,8 @@ function finishWizard() { closeModal(); api('settings.set', { key: 'firstRun', v
 const KEYS = [['Aus', 0], ['F6', 0x75], ['F7', 0x76], ['F9', 0x78], ['F10', 0x79], ['F11', 0x7A], ['Einfg', 0x2D], ['Pos1', 0x24], ['Bild↑', 0x21]];
 const XH_DEF = { style: 'cross', color: '#3DFF8B', size: 8, thick: 2, gap: 4, alpha: 100, outline: true, oThick: 1, dot: false, dotSize: 2 };
 const XH_PRESETS = {
-  classic: ['Classic', { style: 'cross', color: '#3DFF8B', size: 8, thick: 2, gap: 4, alpha: 100, outline: true, oThick: 1, dot: false, dotSize: 2 }],
-  dot: ['Dot', { style: 'dot', color: '#FF3B5C', size: 8, thick: 2, gap: 4, alpha: 100, outline: true, oThick: 1, dot: true, dotSize: 4 }],
+  classic: ['Klassisch', { style: 'cross', color: '#3DFF8B', size: 8, thick: 2, gap: 4, alpha: 100, outline: true, oThick: 1, dot: false, dotSize: 2 }],
+  dot: ['Punkt', { style: 'dot', color: '#FF3B5C', size: 8, thick: 2, gap: 4, alpha: 100, outline: true, oThick: 1, dot: true, dotSize: 4 }],
   circle: ['Kreis', { style: 'circle', color: '#3DE0FF', size: 10, thick: 2, gap: 4, alpha: 100, outline: true, oThick: 1, dot: true, dotSize: 2 }],
   sniper: ['Sniper', { style: 'cross', color: '#FFE03D', size: 16, thick: 1, gap: 7, alpha: 100, outline: true, oThick: 1, dot: true, dotSize: 2 }],
   tshape: ['T-Form', { style: 't', color: '#FFFFFF', size: 9, thick: 2, gap: 3, alpha: 100, outline: true, oThick: 1, dot: false, dotSize: 2 }],
@@ -1017,7 +1063,7 @@ function xhUI() {
 }
 function xhState() {
   $('#xhShrink').classList.toggle('on', S.settings.xhairShrink !== false);
-  $('#xhOn').classList.toggle('on', XH.on); $('#xhOnly').classList.toggle('on', XH.onlyGame);
+  $('#xhOn')?.classList.toggle('on', XH.on); $('#xhOnly').classList.toggle('on', XH.onlyGame);
   $('#xhMain').querySelector('span').textContent = XH.on ? 'Ausschalten' : 'Einschalten';
   $('#xhMain').classList.toggle('p', !XH.on);
   $('#navXh').classList.toggle('hidden', !XH.on);
@@ -1029,7 +1075,7 @@ function xhToggle(confirmed) {
   if (!XH.on && !S.settings.xhairAck && !confirmed) {
     return modal(`<div class="kicker">Hinweis</div><h1 style="margin-top:10px">Server-Regeln <span class="grad">beachten</span></h1>
       <p>${XH_RULES}</p><p>OrbitTweak zeigt das Fadenkreuz nur als Fenster über dem Spiel an und verändert nichts an FiveM.</p>
-      <div class="act"><button class="btn" onclick="closeModal()">Abbrechen</button><button class="btn p lg" onclick="xhAck()">${ico('check')}Verstanden, einschalten</button></div>`);
+      <div class="act"><button class="btn lg" onclick="closeModal()">Abbrechen</button><button class="btn p lg" onclick="xhAck()">${ico('check')}Verstanden, einschalten</button></div>`);
   }
   XH.on = !XH.on; xhState(); xhPush(false);
   if (XH.on && S.settings.xhairShrink !== false) setTimeout(() => toast('GTA-Fadenkreuz wird minimiert', 'OrbitTweak sendet profile_reticuleSize 0 an FiveM'), 700);
@@ -1068,21 +1114,21 @@ document.addEventListener('click', e => { if (!e.target.closest('#xhShrink')) re
 /* ======================= SCREEN COLOR ======================= */
 const DP_PRESETS = {
   std: ['Standard', 'Original', { vibrance: 0, brightness: 0, contrast: 0, gamma: 100 }],
-  vivid: ['Lebendig', 'Kräftige Farben', { vibrance: 45, brightness: 0, contrast: 8, gamma: 100 }],
-  night: ['Nachtsicht', 'Dunkles sichtbar', { vibrance: 20, brightness: 10, contrast: -4, gamma: 140 }],
+  vivid: ['Lebendig', 'Kräftig', { vibrance: 45, brightness: 0, contrast: 8, gamma: 100 }],
+  night: ['Nachtsicht', 'Schatten heller', { vibrance: 20, brightness: 10, contrast: -4, gamma: 140 }],
   sharp: ['Kontrast', 'Klare Kanten', { vibrance: 25, brightness: -3, contrast: 20, gamma: 95 }],
-  cine: ['Kino', 'Satt und warm', { vibrance: 12, brightness: -3, contrast: 12, gamma: 90 }],
+  cine: ['Kino', 'Warm', { vibrance: 12, brightness: -3, contrast: 12, gamma: 90 }],
 };
 const DP_SL = [['vibrance', 'Farbintensität', 'NVIDIA Digital Vibrance', 0, 100], ['brightness', 'Helligkeit', 'Gesamtes Bild', -50, 50], ['contrast', 'Kontrast', 'Abstand hell zu dunkel', -50, 50], ['gamma', 'Gamma', 'Hellt Schatten auf', 50, 200]];
 const DP = { cfg: { on: false, onlyGame: true, vibrance: 0, brightness: 0, contrast: 0, gamma: 100, key: 0 }, nvidia: false, unlocked: false, gammaOk: null, vibOk: null };
-const dpFmt = (k, v) => k === 'gamma' ? (v / 100).toFixed(2) : k === 'vibrance' ? v + '%' : (v > 0 ? '+' : '') + v;
+const dpFmt = (k, v) => k === 'gamma' ? (v / 100).toFixed(2).replace('.', ',') : k === 'vibrance' ? v + '%' : (v > 0 ? '+' : '') + v;
 const dpFilter = c => `saturate(${1 + c.vibrance / 45}) brightness(${1 + c.brightness / 70 + (c.gamma - 100) / 220}) contrast(${1 + c.contrast / 60})`;
 function dpUI() {
   const c = DP.cfg;
   $('#dpPresets').innerHTML = Object.entries(DP_PRESETS).map(([k, [n, d, v]]) => { const on = Object.keys(v).every(x => v[x] === c[x]); return `<div class="card dpre ${on ? 'on' : ''}" data-dp="${k}"><i style="filter:${dpFilter(v)}"></i><b>${n}</b><span>${d}</span></div>`; }).join('');
   $('#dpSliders').innerHTML = DP_SL.map(([k, n, d, mi, ma]) => {
     const v = c[k], p = (v - mi) / (ma - mi) * 100, off = k === 'vibrance' && !DP.nvidia;
-    return `<div class="dps ${off ? 'off' : ''}"><div class="n"><b>${n}${k === 'vibrance' ? `<span class="chip ${DP.nvidia ? 'g' : ''}" style="height:20px;font-size:10.5px">${DP.nvidia ? 'NVIDIA' : 'nur NVIDIA'}</span>` : ''}</b><span>${d}</span></div><input type="range" min="${mi}" max="${ma}" value="${v}" style="--p:${p}%" data-dr="${k}" ${off ? 'disabled' : ''}><b>${dpFmt(k, v)}</b></div>`;
+    return `<div class="dps ${off ? 'off' : ''}"><div class="n"><b>${n}</b><span>${off ? 'Nur mit NVIDIA-Grafikkarte' : d}</span></div><input type="range" min="${mi}" max="${ma}" value="${v}" style="--p:${p}%" data-dr="${k}" ${off ? 'disabled' : ''}><b>${dpFmt(k, v)}</b></div>`;
   }).join('');
   $('#dpKey').innerHTML = KEYS.map(([n, v]) => `<button class="${c.key === v ? 'on' : ''}" data-dk="${v}">${n}</button>`).join('');
   const kn = KEYS.find(k => k[1] === c.key)?.[0];
@@ -1151,20 +1197,20 @@ const F8 = [
   ['Anzeige', 'monitor', [
     { k: 'cl_drawfps', n: 'FPS-Anzeige', d: 'Zeigt die FPS oben in der Ecke.', t: 'bool', def: false },
     { k: 'cl_drawperf', n: 'Performance-Anzeige', d: 'FPS, Ping, Paketverlust, CPU/GPU-Last und GPU-Temperatur.', t: 'bool', def: false },
-    { k: 'profile_reticuleSize', n: 'GTA-Fadenkreuz Größe', d: '0 = kleinstmöglich. Ganz ausblenden kann es nur der Server.', t: 'range', min: 0, max: 10, def: 0 },
+    { k: 'profile_reticuleSize', n: 'GTA-Fadenkreuz Größe', d: '0\u00a0=\u00a0kleinstmöglich. Ganz ausblenden kann es nur der Server.', t: 'range', min: 0, max: 10, def: 0 },
   ]],
   ['Kamera', 'eye', [
     { k: 'cam_disableCameraShake', n: 'Kamerawackeln aus', d: 'Kein Wackeln bei Explosionen und Treffern.', t: 'bool', def: false },
     { k: 'cam_enableHandbrakeCamera', n: 'Handbremsen-Kameraschwenk', d: 'Aus: Die Kamera schwenkt beim Driften nicht mehr mit.', t: 'bool', def: true },
-    { k: 'cam_vehicleFirstPersonFOV', n: 'Fahrzeug-Ego-Sicht (FOV)', d: 'Sichtfeld in der Ego-Ansicht im Auto. -1 = Standard.', t: 'range', min: -1, max: 130, def: -1 },
+    { k: 'cam_vehicleFirstPersonFOV', n: 'Fahrzeug-Ego-Sicht (FOV)', d: 'Sichtfeld in der Ego-Ansicht im Auto. -1\u00a0=\u00a0Standard.', t: 'range', min: -1, max: 130, def: -1 },
   ]],
   ['Performance', 'zap', [
     { k: 'str_maxVehicleTextureRes', n: 'Fahrzeug-Texturen begrenzen', d: 'Weniger Speicher, weniger Texture-Loss. Autos etwas unschärfer.', t: 'seg', o: [256, 512, 1024], def: 1024 },
     { k: 'voice_enableNoiseSuppression', n: 'Voice: Rauschunterdrückung', d: 'Filtert Hintergrundgeräusche im Voice-Chat.', t: 'bool', def: true },
   ]],
   ['Audio', 'activity', [
-    { k: 'profile_musicVolumeInMp', n: 'Musik im Multiplayer', d: '0 = aus, 10 = 100 %.', t: 'range', min: 0, max: 10, def: 10 },
-    { k: 'profile_sfxVolume', n: 'Effekt-Lautstärke', d: 'Schüsse, Autos, Umgebung. 10 = 100 %.', t: 'range', min: 0, max: 10, def: 10 },
+    { k: 'profile_musicVolumeInMp', n: 'Musik im Multiplayer', d: '0\u00a0=\u00a0aus, 10\u00a0=\u00a0100\u00a0%.', t: 'range', min: 0, max: 10, def: 10 },
+    { k: 'profile_sfxVolume', n: 'Effekt-Lautstärke', d: 'Schüsse, Autos, Umgebung. 10\u00a0=\u00a0100\u00a0%.', t: 'range', min: 0, max: 10, def: 10 },
   ]],
 ];
 const F8ALL = () => F8.flatMap(x => x[2]);
@@ -1860,7 +1906,7 @@ document.addEventListener('click', async e => {
     modList(); return;
   }
   const d = e.target.closest('[data-moddel]');
-  if (d && await confirmBox('Mod löschen?', d.dataset.title + ' wird entfernt.' + (d.dataset.orig ? ' Ersetzte Originaldateien kommen zurück.' : ''))) { const r = await api('mods.delete', { id: d.dataset.moddel, title: d.dataset.title }); if (r.error) toast('Nicht gelöscht', r.error, false); modList(); return; }
+  if (d && await confirmBox('Mod löschen?', d.dataset.title + ' wird entfernt.' + (d.dataset.orig ? ' Ersetzte Originaldateien kommen zurück.' : ''), { ok: 'Löschen', danger: true })) { const r = await api('mods.delete', { id: d.dataset.moddel, title: d.dataset.title }); if (r.error) toast('Nicht gelöscht', r.error, false); modList(); return; }
   const f = e.target.closest('[data-modfix]');
   if (f) {
     f.disabled = true; f.innerHTML = `${ico('refresh', 'i spin')}Repariere…`;
@@ -1986,7 +2032,13 @@ function gpStart() {
 function gpRumble() { const gp = [...navigator.getGamepads()].find(Boolean); gp?.vibrationActuator?.playEffect('dual-rumble', { duration: 700, strongMagnitude: 1, weakMagnitude: .6 }).catch(() => { }); }
 window.gpRumble = gpRumble;
 let ntT = 'cfx';
-document.addEventListener('click', e => { const b = e.target.closest('[data-nt]'); if (!b) return; ntT = b.dataset.nt; $$('#ntTarget button').forEach(x => x.classList.toggle('on', x === b)); $('#ntHost').classList.toggle('hidden', ntT !== 'custom'); });
+/** Before a test: the result tiles empty and a row of faint bars, so the card does not show a gap. */
+function ntIdle() {
+  ['#ntAvg', '#ntJit', '#ntLoss'].forEach(s => { const el = $(s); if (el) { el.textContent = '--'; el._v = 0; } });
+  if ($('#ntBars')) $('#ntBars').innerHTML = Array.from({ length: 20 }, (_, i) => `<i class="idle" style="height:${30 + Math.round(Math.abs(Math.sin(i * 1.7)) * 45)}%"></i>`).join('');
+  if ($('#ntTxt')) $('#ntTxt').textContent = 'Noch nicht gemessen · dauert ca. 3 s';
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-nt]'); if (!b) return; ntT = b.dataset.nt; $$('#ntTarget button').forEach(x => x.classList.toggle('on', x === b)); $('#ntHost').classList.toggle('hidden', ntT !== 'custom'); ntIdle(); });
 async function netTest() {
   const target = ntT === 'custom' ? $('#ntHost').value.trim() : ntT;
   if (ntT === 'custom' && !/^[\w.\-]+:\d{1,5}$/.test(target)) return toast('Adresse prüfen', 'Format IP:Port, z. B. 123.45.67.89:30120', false);
@@ -2055,7 +2107,7 @@ async function bgGrid() {
   const g = $('#bgGrid'), cur = LA_ALL.some(x => x[0] === S.settings.bgPreset) ? S.settings.bgPreset : 'auto';
   // "Automatisch" shows what it really is: the painted scene in the anime theme, otherwise the photo for the time of day
   const auto = CUR_THEME === 'anime' ? (ANIME_BG ||= animeScene()).slice(5, -2) : LA[timeOfDay()];
-  g.innerHTML = LA_ALL.map(([k, n, src]) => `<button class="bgc ${cur === k ? 'on' : ''}" data-bgp="${k}"><img alt="" class="ok" src="${src || auto}"><span>${n}</span></button>`).join('');
+  g.innerHTML = LA_ALL.map(([k, n, src]) => `<button class="bgc ${cur === k ? 'on' : ''} ${src ? '' : 'auto'}" data-bgp="${k}"><img alt="" class="ok" src="${src || auto}">${src ? '' : `<em>${ico('sparkle')}<small>${CUR_THEME === 'anime' ? 'Bild vom Theme' : 'Wechselt mit der Tageszeit'}</small></em>`}<span>${n}</span></button>`).join('');
 }
 document.addEventListener('click', async e => {
   const pr = e.target.closest('[data-bgp]');
@@ -2082,14 +2134,14 @@ function setTab(t) {
   if (t === 'design') bgGrid();
   if (t === 'account') accLoad();
   if (t === 'general') { dcRender(); dcLoad(); }
-  enterPage($('#p-settings'));
+  // (the tab itself fades in through its own animation; the whole page does not come in again)
 }
 window.setTab = setTab;
 document.addEventListener('click', e => { const t = e.target.closest('#setTabs .tab'); if (t) setTab(t.dataset.st); });
 
 /* ======================= RESHADE ======================= */
 let RS = { installed: false, presets: [], preset: null };
-async function rsUninstall() { if (!await confirmBox('ReShade entfernen?', 'ReShade, Shader und Looks werden aus FiveM gelöscht.')) return; const r = await api('reshade.uninstall'); toast(r.error ? 'Nicht entfernt' : 'ReShade entfernt', r.error || '', !r.error); RS = await api('reshade.status'); libRender(); }
+async function rsUninstall() { if (!await confirmBox('ReShade entfernen?', 'ReShade, Shader und Looks werden aus FiveM gelöscht.', { ok: 'Entfernen', danger: true })) return; const r = await api('reshade.uninstall'); toast(r.error ? 'Nicht entfernt' : 'ReShade entfernt', r.error || '', !r.error); RS = await api('reshade.status'); libRender(); }
 window.rsUninstall = rsUninstall;
 
 /* ======================= MOD COLLECTION ======================= */
@@ -2114,7 +2166,7 @@ async function dlList(target, filter) {
   let l = []; try { l = await api('mods.downloads'); } catch { }
   if (filter) l = l.filter(x => x.cat === filter || x.cat === 'other');
   const el = $(target); if (!el) return;
-  el.innerHTML = l.length ? l.map(f => `<div class="mod"><div class="ti" style="width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:rgba(var(--a-rgb),.1);color:var(--a)">${ico(MOD_CATS[f.cat]?.[1] || 'puzzle')}</div><div class="tx"><b>${esc(f.name)}</b><p>${bytes(f.size)} · ${new Date(f.date).toLocaleDateString('de-DE')} · ${esc(f.what || (f.rpfs > 0 ? f.rpfs + ' Mod-Datei(en)' : 'Archiv'))}</p></div><select class="in sel" data-dlcat="${esc(f.name)}">${Object.entries(MOD_CATS).map(([k, [n]]) => `<option value="${k}" ${k === (filter || f.cat) ? 'selected' : ''}>${n}</option>`).join('')}</select><button class="btn p sm" data-dl="${esc(f.name)}">${ico('download')}Installieren</button></div>`).join('')
+  el.innerHTML = l.length ? l.map(f => `<div class="mod"><div class="ti" style="width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:rgba(var(--a-rgb),.1);color:var(--a)">${ico(MOD_CATS[f.cat]?.[1] || 'puzzle')}</div><div class="tx"><b>${esc(f.name)}</b><p>${bytes(f.size)} · ${new Date(f.date).toLocaleDateString('de-DE')} · ${esc(f.what || (f.rpfs > 0 ? f.rpfs + ' Mod-Datei(en)' : 'Archiv'))}</p></div><select class="in sel" data-dlcat="${esc(f.name)}">${Object.entries(MOD_CATS).map(([k, [n]]) => `<option value="${k}" ${k === (filter || f.cat) ? 'selected' : ''}>${n}</option>`).join('')}</select><button class="btn o sm" data-dl="${esc(f.name)}">${ico('download')}Installieren</button></div>`).join('')
     : '<div class="empty">Noch nichts gefunden. Lade eine Mod herunter, sie erscheint hier automatisch.</div>';
 }
 document.addEventListener('click', async e => {
@@ -2172,7 +2224,7 @@ function curHtml(c) {
   const s = c.server || {}, initial = (s.name || '?').replace(/\^\d/g, '').trim()[0] || '?';
   const stat = (k, v) => v == null || v === '' ? '' : `<div><span>${k}</span><b>${esc(v)}</b></div>`;
   const tags = (s.allTags && s.allTags.length ? s.allTags : s.tags || []).slice(0, 10);
-  return `<div class="cs-bn" ${s.banner ? `style="background-image:url('${esc(s.banner)}')"` : ''}></div>
+  return `<div class="cs-bn ${s.banner ? '' : 'nobn'}" ${s.banner ? `style="background-image:url('${esc(s.banner)}')"` : ''}></div>
     <div class="cs-body">
       <div class="cs-top">
         <div class="cs-icon" ${s.icon ? `style="background-image:url('${esc(s.icon)}')"` : ''}>${s.icon ? '' : esc(initial)}</div>
@@ -2183,13 +2235,13 @@ function curHtml(c) {
         </div>
       </div>
       <div class="cs-tags">${tags.map(t => `<span class="chip">${esc(t)}</span>`).join('')}</div>
-      <div class="cs-stats">${stat('Spieler', s.max ? `${s.players}/${s.max}` : null)}${stat('Ping', s.ping != null ? s.ping + ' ms' : null)}${stat('Build', s.build ? 'b' + s.build : null)}${stat('OneSync', s.onesync ? 'An' : null)}${stat('Ressourcen', s.resources || null)}${stat('Owner', s.owner)}</div>
+      <div class="cs-stats">${stat('Spieler', s.max ? `${s.players}/${s.max}` : null)}${stat('Ping', s.ping != null ? s.ping + ' ms' : null)}${stat('Build', s.build ? 'b' + s.build : null)}${stat('OneSync', s.onesync ? 'An' : null)}${stat('Ressourcen', s.resources || null)}${stat('Betreiber', s.owner)}</div>
       <div class="cs-act">
-        ${c.fav ? `<button class="btn sm" disabled>${ico('check')}In Favoriten</button>` : `<button class="btn p sm" onclick="curFav()">${ico('plus')}Zu Favoriten</button>`}
+        ${c.fav ? `<button class="btn sm" disabled>${ico('check')}In Favoriten</button>` : `<button class="btn sm" onclick="curFav()">${ico('plus')}Zu Favoriten</button>`}
         ${s.discord ? `<button class="btn sm dc" onclick="api('open',{target:'${esc(s.discord)}'})"><svg class="i" viewBox="0 0 24 24"><path d="M8 12h.01M16 12h.01M7.5 7.5c3-1.3 6-1.3 9 0M7.5 16.5c3 1.3 6 1.3 9 0M15.5 17l1.5 3c2-.7 3.5-1.7 5-3-.4-4.2-1.4-8-3.5-11-1.4-.7-2.9-1.2-4.5-1.5L13.5 6M8.5 17 7 20c-2-.7-3.5-1.7-5-3 .4-4.2 1.4-8 3.5-11C6.9 5.3 8.4 4.8 10 4.5L10.5 6"/></svg>Discord</button>` : ''}
         ${s.website ? `<button class="btn sm" onclick="api('open',{target:'${esc(s.website)}'})">${ico('globe')}Website</button>` : ''}
         <button class="btn sm" onclick="copyCmd('${esc(s.connect || c.url)}')">${ico('link')}Link kopieren</button>
-        ${c.connected ? '' : `<button class="btn sm" onclick="launch('${esc(s.connect || c.url)}')">${ico('play')}Joinen</button>`}
+        ${c.connected ? '' : `<button class="btn sm" onclick="launch('${esc(s.connect || c.url)}')">${ico('play')}Verbinden</button>`}
       </div>
     </div>`;
 }
@@ -2271,6 +2323,8 @@ async function initPad(s) {
 const LIB_URL = 'https://raw.githubusercontent.com/Ky3ls/orbittweak/main/mods.json';
 const LIB_CATS = [['all', 'Alle', 'layers'], ['reshade', 'ReShade-Looks', 'sparkle'], ['kill', 'Kill-Effekte', 'crosshair'], ['minimap', 'Minimap', 'map'], ['gfx', 'Grafik-Packs', 'sun'], ['sound', 'Sounds', 'activity'], ['other', 'Sonstiges', 'puzzle']];
 const LIB = { items: [], installed: new Set(), cat: 'all', q: '', sort: 'pop', busy: {}, api: '' };
+/** One item of a category, for the badge on a single card. */
+const LIB_ONE = { reshade: 'ReShade-Look', kill: 'Kill-Effekt', minimap: 'Minimap', gfx: 'Grafik-Pack', sound: 'Sound', other: 'Mod' };
 async function libLoad() {
   let data = null;
   try { const c = new AbortController(); setTimeout(() => c.abort(), 4000); data = await (await fetch(LIB_URL + '?t=' + Math.floor(Date.now() / 3e5), { signal: c.signal })).json(); } catch { }
@@ -2291,15 +2345,16 @@ function libCard(m) {
   const cat = LIB_CATS.find(c => c[0] === m.cat) || LIB_CATS[6];
   const btn = busy != null ? `<button class="btn sm" disabled>${ico('refresh', 'i spin')}${busy > 0 ? busy + ' %' : 'Installiere…'}</button>`
     : st === 'active' ? `<button class="btn sm ok" disabled>${ico('check')}Aktiv</button>`
-    : st === 'ready' ? `<button class="btn p sm" data-lib="${esc(m.id)}">${ico('zap')}Aktivieren</button>`
+    : st === 'ready' ? `<button class="btn o sm" data-lib="${esc(m.id)}">${ico('zap')}Aktivieren</button>`
     : st === 'installed' ? `<button class="btn sm d" data-librm="${esc(m.id)}">${ico('trash')}Entfernen</button>`
-    : `<button class="btn p sm" data-lib="${esc(m.id)}">${ico('download')}Installieren</button>`;
+    : `<button class="btn o sm" data-lib="${esc(m.id)}">${ico('download')}Installieren</button>`;
+  const foot = m.type === 'reshade' ? (st === 'active' ? 'Aktiv im Spiel' : st === 'ready' ? 'Sofort nutzbar' : 'Mit ReShade') : st === 'installed' ? 'Installiert' : m.size ? bytes(m.size) : 'Mod-Datei';
   return `<div class="lcard ${st === 'active' || st === 'installed' ? 'on' : ''}">
     <div class="lthumb ${m.type === 'reshade' && !m.img ? 'rsf-' + esc(m.preset) : ''}" ${thumb}></div>
-    <div class="ltop"><span class="lcat">${ico(cat[2])}${cat[1]}</span>${m.popular >= 85 ? '<span class="lhot">Beliebt</span>' : ''}</div>
+    <div class="ltop"><span class="lcat">${ico(cat[2])}${LIB_ONE[cat[0]] || cat[1]}</span>${m.popular >= 85 ? '<span class="lhot">Beliebt</span>' : ''}</div>
     <div class="lbody"><b>${esc(m.name)}</b><span class="lby">von ${esc(m.author || 'unbekannt')}${m.addedBy ? ' · eingereicht' : ''}</span><p>${esc(m.desc || '')}</p>
       <div class="ltags">${(m.tags || []).slice(0, 4).map(t => `<span>#${esc(t)}</span>`).join('')}</div>
-      <div class="lact"><span class="lsize">${m.type === 'reshade' ? 'ReShade-Look' : m.size ? bytes(m.size) : 'Mod-Datei'}</span>${btn}</div></div></div>`;
+      <div class="lact"><span class="lsize">${foot}</span>${btn}</div></div></div>`;
 }
 function libList(cat) {
   const q = LIB.q.trim().toLowerCase();
@@ -2308,12 +2363,18 @@ function libList(cat) {
   return l;
 }
 function libRender() {
-  if ($('#libCats')) $('#libCats').innerHTML = LIB_CATS.map(([k, n, i]) => { const c = k === 'all' ? LIB.items.length : LIB.items.filter(m => m.cat === k).length; if (!c && k !== LIB.cat) return ''; return `<button class="lchip ${LIB.cat === k ? 'on' : ''}" data-lc="${k}">${ico(i)}${n}<span>${c}</span></button>`; }).join('');
-  const empty = cat => `<div class="empty">${LIB.q ? 'Nichts gefunden für „' + esc(LIB.q) + '“.' : cat === 'minimap' ? `Noch keine fertigen Minimaps in der Bibliothek.<br><span style="font-size:12px">Du kannst dir aber aus jedem Bild deine eigene Minimap bauen.</span><br><button class="btn p mt8" onclick="modTab('mm')">${ico('map')}Eigene Minimap aus Bild erstellen</button>` : `Noch keine Mods in dieser Kategorie.<br><span style="font-size:12px">Eigene Datei über „Datei installieren“ hinzufügen. Neue Mods kommen automatisch, sobald sie in der Bibliothek (mods.json) stehen.</span>`}</div>`;
+  // while searching the chips count the hits, so they match the grid below
+  if ($('#libCats')) $('#libCats').innerHTML = LIB_CATS.map(([k, n, i]) => { const all = k === 'all' ? LIB.items.length : LIB.items.filter(m => m.cat === k).length; if (!all && k !== LIB.cat) return ''; const c = LIB.q.trim() ? libList(k).length : all; return `<button class="lchip ${LIB.cat === k ? 'on' : ''} ${c ? '' : 'zero'}" data-lc="${k}">${ico(i)}${n}<span>${c}</span></button>`; }).join('');
+  const empty = cat => `<div class="empty">${LIB.q ? `Nichts gefunden für „${esc(LIB.q)}“.<br><button class="btn mt8" onclick="libClear()">${ico('undo')}Suche zurücksetzen</button>` : cat === 'minimap' ? `Noch keine fertigen Minimaps in der Bibliothek.<br><span style="font-size:12px">Du kannst dir aber aus jedem Bild deine eigene Minimap bauen.</span><br><button class="btn p mt8" onclick="modTab('mm')">${ico('map')}Eigene Minimap aus Bild erstellen</button>` : `Noch keine Mods in dieser Kategorie.<br><span style="font-size:12px">Eigene Datei über „Datei installieren“ hinzufügen. Neue Mods kommen automatisch, sobald sie in der Bibliothek (mods.json) stehen.</span>`}</div>`;
   if ($('#libGrid')) { const l = libList(LIB.cat); $('#libGrid').innerHTML = l.length ? l.map(libCard).join('') : empty(LIB.cat); }
   if ($('#mmLib')) { const l = libList('minimap'); $('#mmLib').innerHTML = l.length ? l.map(libCard).join('') : empty('minimap'); }
   rsSettings();
 }
+function libClear() { LIB.q = ''; if ($('#libSearch')) $('#libSearch').value = ''; libRender(); }
+window.libClear = libClear;
+/** Empty ReShade tab: straight to the looks in the library. */
+function rsPick() { LIB.cat = 'reshade'; LIB.q = ''; if ($('#libSearch')) $('#libSearch').value = ''; modTab('lib'); libRender(); }
+window.rsPick = rsPick;
 async function libInstall(id) {
   const m = LIB.items.find(x => x.id === id); if (!m) return;
   if (!S.settings.modsAck && m.type !== 'reshade') return modInstall('__dl');
@@ -2341,7 +2402,7 @@ async function libInstall(id) {
 }
 async function libRemove(id) {
   const m = LIB.items.find(x => x.id === id);
-  if (!await confirmBox('Mod entfernen?', (m ? m.name : id) + ' wird aus FiveM gelöscht.')) return;
+  if (!await confirmBox('Mod entfernen?', (m ? m.name : id) + ' wird aus FiveM gelöscht.', { ok: 'Entfernen', danger: true })) return;
   const r = await api('mods.remove', { id }); if (r.error) return toast('Nicht entfernt', r.error, false);
   LIB.installed.delete(id); toast('Mod entfernt', m ? m.name : ''); libRender(); modList();
 }
@@ -2354,18 +2415,18 @@ document.addEventListener('click', e => {
 document.addEventListener('input', e => { if (e.target.id === 'libSearch') { LIB.q = e.target.value; libRender(); } });
 
 /* ---- ReShade settings ---- */
-const RS_KEYS = [['Pos1', 36], ['Einfg', 45], ['Entf', 46], ['Ende', 35], ['Bild↑', 33], ['Bild↓', 34], ['Druck', 44], ['Rollen', 145], ['F2', 113], ['F9', 120], ['F11', 122], ['Aus', 0]];
+const RS_KEYS = [['Aus', 0], ['Pos1', 36], ['Einfg', 45], ['Entf', 46], ['Ende', 35], ['Bild↑', 33], ['Bild↓', 34], ['Druck', 44], ['Rollen', 145], ['F2', 113], ['F9', 120], ['F11', 122]];
 let RSC = null;
 async function rsSettings() {
   const card = $('#rsSet'); if (!card) return;
   card.classList.toggle('hidden', !RS.installed); $('#rsNone')?.classList.toggle('hidden', !!RS.installed);
-  if ($('#mtRs')) $('#mtRs').textContent = RS.installed ? 'Installiert · Tasten & Optionen' : 'Nicht installiert';
+  if ($('#mtRs')) $('#mtRs').textContent = RS.installed ? 'Installiert' : 'Nicht installiert';
   if ($('#mtLib')) $('#mtLib').textContent = LIB.items.length + ' Looks & Mods';
   if (!RS.installed) return;
   if (!RSC) try { RSC = await api('reshade.cfg.get'); } catch { RSC = null; }
   if (!RSC || !RSC.found) return;
   $('#rsVer').textContent = RS.version ? 'v' + RS.version : 'installiert';
-  $$('[data-rk]').forEach(el => { const k = el.dataset.rk; el.innerHTML = RS_KEYS.filter(([, v]) => k === 'keyNext' || v !== 0).map(([n, v]) => `<button class="${RSC[k] === v ? 'on' : ''}" data-rkv="${v}">${n}</button>`).join(''); });
+  $$('[data-rk]').forEach(el => { const k = el.dataset.rk; el.innerHTML = RS_KEYS.filter(([, v]) => k === 'keyNext' || v !== 0).map(([n, v]) => `<option value="${v}" ${RSC[k] === v ? 'selected' : ''}>${n}</option>`).join(''); });
   $('#rsFps').classList.toggle('on', !!RSC.showFps); $('#rsPerf').classList.toggle('on', !!RSC.perf);
 }
 async function rsSave(patch) {
@@ -2374,8 +2435,13 @@ async function rsSave(patch) {
   if (r.error) toast('Nicht gespeichert', r.error, false); else toast('ReShade gespeichert', 'Gilt ab dem nächsten FiveM-Start');
   rsSettings();
 }
+document.addEventListener('change', e => {
+  const s = e.target.closest('select[data-rk]'); if (!s || !RSC) return;
+  const k = s.dataset.rk, v = +s.value; const clash = ['keyOverlay', 'keyEffects', 'keyScreenshot', 'keyNext'].find(x => x !== k && v && RSC[x] === v);
+  if (clash) { s.value = RSC[k]; return toast('Taste schon belegt', 'Bitte andere Taste wählen', false); }
+  rsSave({ [k]: v });
+});
 document.addEventListener('click', e => {
-  const b = e.target.closest('[data-rkv]'); if (b && RSC) { const k = b.parentElement.dataset.rk, v = +b.dataset.rkv; const clash = ['keyOverlay', 'keyEffects', 'keyScreenshot', 'keyNext'].find(x => x !== k && v && RSC[x] === v); if (clash) return toast('Taste schon belegt', 'Bitte andere Taste wählen', false); rsSave({ [k]: v }); return; }
   if (e.target.closest('#rsFps') && RSC) rsSave({ showFps: !RSC.showFps });
   if (e.target.closest('#rsPerf') && RSC) rsSave({ perf: !RSC.perf });
 });
@@ -2397,8 +2463,7 @@ async function accLoad() {
 function accUI() {
   const r = ACC.loggedIn ? ACC.role : null;
   $('#accHwid').textContent = ACC.hwid || '…';
-  $('#accRole').className = 'chip ' + (r === 'admin' ? 'a' : r ? 'g' : '');
-  $('#accRole').textContent = r === 'admin' ? 'Admin' : r === 'editor' ? 'Editor' : r ? 'Nutzer' : 'Nicht angemeldet';
+  const ar = $('#accRole'); if (ar) { ar.className = 'chip ' + (r === 'admin' ? 'a' : r ? 'g' : ''); ar.textContent = r === 'admin' ? 'Admin' : r === 'editor' ? 'Editor' : r ? 'Nutzer' : 'Nicht angemeldet'; }
   $('#accLogin').classList.toggle('hidden', r === 'admin'); $('#accIn').classList.toggle('hidden', !r);
   $('#accTitle').textContent = r === 'admin' ? 'Lizenz aktiv · Admin' : r === 'editor' ? 'Lizenz aktiv · Editor' : 'Lizenz aktiv';
   $('#accText').textContent = (r === 'admin' ? 'Du kannst Keys erzeugen, Mods direkt live stellen und Einreichungen freigeben.' : r === 'editor' ? 'Du kannst Mods einreichen. Ein Admin gibt sie frei.' : 'OrbitTweak ist auf diesem PC freigeschaltet.')
@@ -2417,7 +2482,7 @@ async function accRedeem() {
   ACC.loggedIn = true; ACC.role = r.role; $('#accCode').value = ''; accUI();
   passed(r.role === 'admin' ? 'Admin freigeschaltet' : 'Zugang freigeschaltet', 'Code ist jetzt an diesen PC gebunden');
 }
-async function accLogout() { if (!await confirmBox('Abmelden?', 'OrbitTweak wird gesperrt, bis du deinen Key wieder eingibst.')) return; await api('auth.logout'); ACC.loggedIn = false; ACC.role = null; accUI(); go('home'); gate('Abgemeldet. Gib deinen Key ein, um weiterzumachen.'); }
+async function accLogout() { if (!await confirmBox('Abmelden?', 'OrbitTweak wird gesperrt, bis du deinen Key wieder eingibst.', { ok: 'Abmelden' })) return; await api('auth.logout'); ACC.loggedIn = false; ACC.role = null; accUI(); go('home'); gate('Abgemeldet. Gib deinen Key ein, um weiterzumachen.'); }
 window.accRedeem = accRedeem; window.accLogout = accLogout;
 document.addEventListener('input', e => { if (e.target.id === 'accCode') { let v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); if (v.startsWith('ORB')) v = v.slice(3); v = v.slice(0, 12); e.target.value = v ? 'ORB-' + v.match(/.{1,4}/g).join('-') : ''; } });
 
@@ -2434,7 +2499,7 @@ function libAddForm() {
       <label>Beschreibung<input class="in" id="fmDesc" maxlength="240" placeholder="Was macht die Mod?"></label>
       <div class="form2"><label>Autor<input class="in" id="fmAuthor" maxlength="40" placeholder="Ersteller der Mod"></label><label>Tags<input class="in" id="fmTags" placeholder="pvp, rot, clean"></label></div>
     </div>
-    <div class="act"><button class="btn" onclick="closeModal()">Abbrechen</button><button class="btn p lg" id="fmGo" onclick="libAddSend()">${ico('check')}Hinzufügen</button></div>`);
+    <div class="act"><button class="btn lg" onclick="closeModal()">Abbrechen</button><button class="btn p lg" id="fmGo" onclick="libAddSend()">${ico('check')}Hinzufügen</button></div>`);
   $('#mbox').style.width = '640px';
 }
 document.addEventListener('click', e => { const b = e.target.closest('#fmCat button'); if (b) $$('#fmCat button').forEach(x => x.classList.toggle('on', x === b)); });
@@ -2455,8 +2520,10 @@ window.libAddForm = libAddForm; window.libAddSend = libAddSend;
 /* ---- admin panel ---- */
 let admTab = 'codes';
 function admShow(t) { admTab = t; $$('#admTabs .tab').forEach(b => b.classList.toggle('on', b.dataset.at === t)); ['codes', 'pending', 'mods'].forEach(x => $('#adm-' + x).classList.toggle('hidden', x !== t)); admLoad(); }
-document.addEventListener('click', e => { const t = e.target.closest('#admTabs .tab'); if (t) admShow(t.dataset.at); const r = e.target.closest('#admRole button'); if (r) $$('#admRole button').forEach(x => x.classList.toggle('on', x === r)); });
-const ago = s => { if (!s) return '—'; const d = Date.now() / 1000 - s; return d < 120 ? 'gerade eben' : d < 7200 ? Math.round(d / 60) + ' Min.' : d < 172800 ? Math.round(d / 3600) + ' Std.' : Math.round(d / 86400) + ' Tagen'; };
+document.addEventListener('click', e => { const t = e.target.closest('#admTabs .tab'); if (t) admShow(t.dataset.at); const r = e.target.closest('#admRole button'); if (r) { $$('#admRole button').forEach(x => x.classList.toggle('on', x === r)); if ($('#admRoleHint')) $('#admRoleHint').textContent = ROLE_HINT[r.dataset.v] || ''; } });
+/** Last seen as a whole phrase: "gerade eben aktiv", "aktiv vor 5 Min.". */
+const ago = s => { if (!s) return 'noch nie aktiv'; const d = Date.now() / 1000 - s; return d < 120 ? 'gerade eben aktiv' : 'aktiv vor ' + (d < 7200 ? Math.round(d / 60) + ' Min.' : d < 172800 ? Math.round(d / 3600) + ' Std.' : Math.round(d / 86400) + ' Tagen'); };
+const ROLE_HINT = { user: 'Darf OrbitTweak benutzen.', editor: 'Darf zusätzlich Mods einreichen, ein Admin prüft sie.', admin: 'Darf alles, auch Keys erzeugen und Mods freigeben.' };
 async function admPendingCount() {
   const r = await srv('GET', '/api/mods/pending').catch(() => null); const n = (r && r.mods || []).length;
   $('#navPend').textContent = n; $('#navPend').classList.toggle('hidden', !n); $('#admPendC').textContent = n;
@@ -2466,12 +2533,13 @@ async function admLoad() {
   if (admTab === 'codes') {
     const r = await srv('GET', '/api/codes'); if (r.error) return toast('Fehler', r.error, false);
     $('#admCount').textContent = r.codes.length;
+    // fixed columns: code, copy, role, runtime, note, status (with PC and last seen below), actions
     $('#admCodes').innerHTML = r.codes.length ? r.codes.map(c => `<div class="crow2 ${c.revoked ? 'off' : ''}">
       <code class="cc">${esc(c.code)}</code><button class="ib" title="Kopieren" onclick="copyCmd('${esc(c.code)}')">${ico('copy')}</button>
-      <span class="chip ${c.role === 'admin' ? 'a' : c.role === 'editor' ? 'g' : ''}">${c.role === 'admin' ? 'Admin' : c.role === 'editor' ? 'Editor' : 'Nutzer'}</span>${planChip(c)}
+      <span class="c-role"><span class="chip ${c.role === 'admin' ? 'a' : c.role === 'editor' ? 'g' : ''}">${c.role === 'admin' ? 'Admin' : c.role === 'editor' ? 'Editor' : 'Nutzer'}</span></span><span class="c-plan">${planChip(c)}</span>
       <span class="cn">${esc(c.note || '')}${c.self ? ' <span class="muted">(du)</span>' : ''}</span>
-      <span class="cs">${c.revoked ? '<span class="chip r">Gesperrt</span>' : c.hwid ? `<span class="chip g">Gebunden</span><span class="muted"> PC ${esc(c.hwid)} · aktiv vor ${ago(c.last_seen || c.bound_at)}</span>` : '<span class="chip w">Noch frei</span>'}</span>
-      ${c.self ? '' : `${c.hwid ? `<button class="btn sm" onclick="admAct('unbind','${esc(c.code)}')">PC lösen</button>` : ''}<button class="btn sm ${c.revoked ? '' : 'd'}" onclick="admAct('revoke','${esc(c.code)}',${c.revoked ? 1 : 0})">${c.revoked ? 'Entsperren' : 'Sperren'}</button>`}
+      <span class="cs">${c.revoked ? '<span class="chip r">Gesperrt</span>' : c.hwid ? `<span class="chip g">Gebunden</span><small>PC ${esc(c.hwid)} · ${ago(c.last_seen || c.bound_at)}</small>` : '<span class="chip w">Noch frei</span>'}</span>
+      <span class="c-act">${c.self ? '' : `${c.hwid ? `<button class="btn sm" onclick="admAct('unbind','${esc(c.code)}')">PC lösen</button>` : ''}<button class="btn sm ${c.revoked ? '' : 'd'}" onclick="admAct('revoke','${esc(c.code)}',${c.revoked ? 1 : 0})">${c.revoked ? 'Entsperren' : 'Sperren'}</button>`}</span>
     </div>`).join('') : '<div class="empty">Noch keine Codes.</div>';
   } else if (admTab === 'pending') {
     const r = await srv('GET', '/api/mods/pending'); if (r.error) return toast('Fehler', r.error, false);
@@ -2483,13 +2551,14 @@ async function admLoad() {
       : '<div class="empty">Keine offenen Einreichungen.</div>';
   } else {
     const r = await srv('GET', '/api/mods'); if (r.error) return toast('Fehler', r.error, false);
-    $('#admMods').innerHTML = r.mods.length ? r.mods.map(m => `<div class="mod"><div class="tx"><b>${esc(m.name)}</b><p>${esc(m.cat)} · ${bytes(m.size)} · ${esc(m.url)}</p></div><button class="btn sm d" onclick="admMod('delete','${esc(m.id)}')">${ico('trash')}Löschen</button></div>`).join('') : '<div class="empty">Noch keine Server-Mods.</div>';
+    if ($('#admModCount')) $('#admModCount').textContent = r.mods.length;
+    $('#admMods').innerHTML = r.mods.length ? r.mods.map(m => `<div class="mod adm-mod"><span class="am-th" style="background-image:url('${esc(m.img || picFor(m.id))}')"></span><div class="tx"><b>${esc(m.name)}</b><p>${esc((LIB_CATS.find(c => c[0] === m.cat) || [0, 'Sonstiges'])[1])} · ${bytes(m.size)}${m.author ? ' · von ' + esc(m.author) : ''}</p></div><button class="ib" title="Download-Link kopieren: ${esc(m.url)}" onclick="copyCmd('${esc(m.url)}')">${ico('link')}</button><button class="btn sm d" onclick="admMod('delete','${esc(m.id)}')">${ico('trash')}Löschen</button></div>`).join('') : '<div class="empty">Noch keine Server-Mods.</div>';
   }
 }
 /** Runtime of a key in words: "Lifetime", "30-Tage-Key · noch 12 Tage (bis 28.12.2026)", "abgelaufen am …". */
-const daysName = d => d ? (d === 1 ? '1-Tag-Key' : `${d}-Tage-Key`) : 'Lifetime-Key';
+const daysName = d => d ? (d === 1 ? '1-Tag-Key' : `${d}-Tage-Key`) : 'Unbegrenzter Key';
 function planText(p) {
-  if (!p || !p.days) return 'Lifetime-Key, läuft nicht ab.';
+  if (!p || !p.days) return 'Läuft nicht ab.';
   if (!p.exp) return `${daysName(p.days)}, die Laufzeit startet beim Einlösen.`;
   const ms = p.exp * 1000 - Date.now(), date = new Date(p.exp * 1000).toLocaleDateString('de-DE');
   if (ms <= 0) return `${daysName(p.days)}, abgelaufen am ${date}.`;
@@ -2497,7 +2566,7 @@ function planText(p) {
   return `${daysName(p.days)}, ${left} (bis ${date}).`;
 }
 function planChip(c) {
-  if (!c.days) return '<span class="chip">Lifetime</span>';
+  if (!c.days) return '<span class="chip">Unbegrenzt</span>';
   const name = c.days === 1 ? '1 Tag' : c.days + ' Tage';
   if (!c.expires_at) return `<span class="chip">${name}</span>`;
   const ms = c.expires_at * 1000 - Date.now();
@@ -2510,7 +2579,7 @@ async function admCreate() {
   if (r.error) return toast('Fehler', r.error, false);
   const codes = r.codes || [r.code];
   $('#admNote').value = ''; $('#admNum').value = 1;
-  const kind = `${role === 'admin' ? 'Admin' : role === 'editor' ? 'Editor' : 'Nutzer'}-Key${codes.length > 1 ? 's' : ''} · ${days ? (days === 1 ? '1 Tag' : days + ' Tage') : 'Lifetime'}`;
+  const kind = `${role === 'admin' ? 'Admin' : role === 'editor' ? 'Editor' : 'Nutzer'}-Key${codes.length > 1 ? 's' : ''} · ${days ? (days === 1 ? '1 Tag' : days + ' Tage') : 'unbegrenzt'}`;
   ADM_NEW = codes.join('\n');
   $('#admNewCode').classList.remove('hidden');
   $('#admNewCode').innerHTML = `<div><span class="sub" style="font-size:12px">${codes.length > 1 ? codes.length + ' neue ' : 'Neuer '}${kind}, jeder wird an den ersten PC gebunden:</span>${codes.map(c => `<code>${esc(c)}</code>`).join('')}</div><button class="btn p" onclick="copyCmd(ADM_NEW)">${ico('copy')}${codes.length > 1 ? 'Alle kopieren' : 'Kopieren'}</button>`;
@@ -2519,14 +2588,14 @@ async function admCreate() {
 let ADM_NEW = '';
 document.addEventListener('click', e => { const b = e.target.closest('#admDays button'); if (b) $$('#admDays button').forEach(x => x.classList.toggle('on', x === b)); });
 async function admAct(kind, code, undo) {
-  if (kind === 'revoke' && !undo && !await confirmBox('Code sperren?', code + ' funktioniert danach nicht mehr.')) return;
+  if (kind === 'revoke' && !undo && !await confirmBox('Code sperren?', code + ' funktioniert danach nicht mehr.', { ok: 'Sperren', danger: true })) return;
   const r = await srv('POST', '/api/codes/' + kind, { code, undo: !!undo });
   if (r.error) return toast('Fehler', r.error, false);
   toast(kind === 'unbind' ? 'PC gelöst' : undo ? 'Code entsperrt' : 'Code gesperrt', kind === 'unbind' ? 'Der Code kann jetzt auf einem neuen PC eingelöst werden' : code);
   admLoad();
 }
 async function admMod(kind, id) {
-  if (kind === 'delete' && !await confirmBox('Mod löschen?', 'Der Eintrag wird aus der Bibliothek entfernt.')) return;
+  if (kind === 'delete' && !await confirmBox('Mod löschen?', 'Der Eintrag wird aus der Bibliothek entfernt.', { ok: 'Löschen', danger: true })) return;
   const r = await srv('POST', '/api/mods/' + kind, { id });
   if (r.error) return toast('Fehler', r.error, false);
   toast(kind === 'approve' ? 'Freigegeben' : 'Gelöscht', kind === 'approve' ? 'Die Mod ist jetzt für alle sichtbar' : '');
@@ -2598,6 +2667,8 @@ async function lkSuccess(note, role) {
 }
 $('#lkGo') && ($('#lkGo').onclick = lkSubmit);
 
+/** "AMD Ryzen 7 7800X3D 8-Core Processor" → "Ryzen 7 7800X3D", "Intel(R) Core(TM) i7-12700K CPU @ 3.60GHz" → "Core i7-12700K". */
+const cpuShort = s => String(s || '—').replace(/\((R|TM)\)/gi, '').replace(/\s*@.*$/, '').replace(/\b(\d+|Six|Eight|Quad)-Core\b/gi, '').replace(/\b(Processor|CPU|with Radeon Graphics)\b/gi, '').replace(/\b(AMD|Intel|Core)\b/gi, '').replace(/\bRyzen \d+ /i, 'Ryzen ').replace(/\s+/g, ' ').trim() || String(s);
 /* ======================= BOOT ======================= */
 async function boot() {
   const t0 = performance.now();
@@ -2623,11 +2694,14 @@ async function boot() {
   $('#verTxt').textContent = 'v' + d.version; $('#verCur').textContent = 'v' + d.version;
   setTimeout(() => { if (!document.querySelector('.lock.show, .modal.show')) whatsNew(d.version); }, 2600);
   $('#adminTxt').textContent = d.admin ? 'Admin ✓' : 'Kein Admin';
-  $('#mCpuName').textContent = d.sys.cpu;
+  $('#mCpuName').textContent = cpuShort(d.sys.cpu); $('#mCpuName').title = d.sys.cpu;
   $('#mGpu').textContent = d.sys.gpu.replace(/^NVIDIA (GeForce )?/i, '').replace(/^AMD /i, '').replace(/^Intel\(R\) /i, '');
   $('#mGpu').title = d.sys.gpu;
-  $('#mOs').textContent = `${d.sys.ramGb} GB RAM`;
-  if (d.settings.lastBoost) $('#lastBoost').textContent = 'Letzter Boost: ' + new Date(d.settings.lastBoost).toLocaleDateString('de-DE');
+  // a short name fills the value line, a long one (RTX 4070 SUPER) takes two smaller lines of the same height
+  $('#mGpu').classList.toggle('one', $('#mGpu').textContent.length <= 10);
+  $('#mOs').textContent = /nvidia/i.test(d.sys.gpu) ? 'NVIDIA GeForce' : /amd|radeon/i.test(d.sys.gpu) ? 'AMD Radeon' : /intel/i.test(d.sys.gpu) ? 'Intel' : `${d.sys.ramGb} GB RAM`;
+  if (d.settings.lastBoost) { $('#lastBoost').textContent = 'Letzter Boost: ' + new Date(d.settings.lastBoost).toLocaleDateString('de-DE'); $('#lastBoost').classList.remove('hidden'); }
+  ntIdle();
   $('#launchSub').textContent = d.fivem.found ? 'mit Pre-Launch-Boost' : 'FiveM nicht gefunden';
   if (S.settings.autoUpdate !== false) setTimeout(() => checkUpdate(false), 1500);   // updates work even without a key
   const lic = await api('auth.check').catch(() => ({ ok: false }));
@@ -2656,8 +2730,8 @@ const Mock = {
     ['fso', 'fivem', 'Vollbild-Optimierung für FiveM aus', 'Echter Exclusive-Fullscreen, weniger Input-Lag.', 'max', null, 1],
     ['prio', 'fivem', 'Auto-Priorität „Hoch“', 'GTA-Prozess bekommt automatisch hohe CPU-Priorität.', 'gauge', 'LIVE', 1],
     ['autoram', 'fivem', 'Auto-RAM-Clean im Spiel', 'Leert alle 5 Minuten Standby-Liste & Working-Sets.', 'ram', 'LIVE', 0],
-    ['timer', 'fivem', 'Timer-Auflösung 0.5 ms', 'Stabilere Frametimes, solange OrbitTweak läuft.', 'timer', 'LIVE', 1],
-    ['ult', 'system', 'Ultimate Performance Plan', 'Kein CPU-Parking, kein Heruntertakten.', 'zap', null, 1],
+    ['timer', 'fivem', 'Timer-Auflösung 0,5 ms', 'Stabilere Frametimes, solange OrbitTweak läuft.', 'timer', 'LIVE', 1],
+    ['ult', 'system', 'Höchstleistungs-Energieplan', 'Kein CPU-Parking, kein Heruntertakten.', 'zap', null, 1],
     ['gm', 'system', 'Spielmodus', 'Windows priorisiert das Spiel.', 'gamepad', null, 1],
     ['dvr', 'system', 'Xbox Game DVR aus', 'Keine Hintergrundaufnahme.', 'videooff', null, 1],
     ['hags', 'system', 'Hardware-GPU-Planung', 'Weniger Latenz, stabilere Frametimes.', 'monitor', 'NEUSTART', 1],
@@ -2793,6 +2867,7 @@ function MOCKSRV(a) {
 
 /* ======================= MOD TABS (2.16) ======================= */
 function modTab(k) {
+  document.documentElement.dataset.mtab = k;
   $$('#modTabs .tab').forEach(b => b.classList.toggle('on', b.dataset.mt === k));
   $$('#p-mods .mtab').forEach(p => p.classList.toggle('hidden', p.dataset.mtp !== k));
   const pane = $(`#p-mods [data-mtp="${k}"]`); if (pane) enterPage($('#p-mods'));
@@ -2819,11 +2894,11 @@ function spProfile() {
   const rn = r === 'admin' ? 'Admin' : r === 'editor' ? 'Editor' : r ? 'Nutzer' : '–';
   $('#spTitle').textContent = r ? 'Lizenz aktiv' : 'Lizenz';
   $('#spSub').textContent = r ? 'Freigeschaltet und an diesen PC gebunden' : 'Status wird geladen…';
-  $('#spRole').textContent = rn;
+  if ($('#spRole')) $('#spRole').textContent = rn;
   $('#spAv').className = 'sp-av' + (r === 'admin' ? ' adm' : '');
   $('#spVer').textContent = $('#verCur')?.textContent || '–';
-  const ut = $('#updTxt')?.textContent || '';
-  $('#spUpd').textContent = /neue/i.test(ut) ? 'Update da' : /neueste/i.test(ut) ? 'Aktuell' : S.settings.autoUpdate ? 'Automatisch' : 'Manuell';
+  // from the result of the last check, not from the wording of its label ("neueste" also contains "neue")
+  $('#spUpd').textContent = S.updAvail === true ? 'Update da' : S.updAvail === false ? 'Aktuell' : S.settings.autoUpdate ? 'Automatisch' : 'Manuell';
 }
 
 /* ======================= KILL FEED (2.20) ======================= */
@@ -2896,7 +2971,7 @@ function mmbUI() {
   const chip = $('#mmbChip'); chip.className = 'chip' + (st.installed && st.on ? ' g' : ''); chip.textContent = st.installed ? (st.on ? 'Installiert · aktiv' : 'Installiert · ausgeschaltet') : 'Nicht installiert';
   if ($('#mtMm')) $('#mtMm').textContent = MMO.on && MMO.img ? 'Overlay aktiv' : st.installed ? (st.on ? 'Aktiv' : 'Ausgeschaltet') : 'Aus Bild';
   $('#mmbRemove').classList.toggle('hidden', !st.installed);
-  const b = $('#mmbBuild'); b.disabled = !has || MMB.busy;
+  const b = $('#mmbBuild'); b.disabled = !has || MMB.busy; $('#mmbNeed')?.classList.toggle('hidden', has);
   b.querySelector('span').textContent = MMB.busy ? 'Wird erstellt…' : st.installed ? 'Minimap neu erstellen' : 'Minimap erstellen & installieren';
   const small = MMB.mode === 'map' && has && MMB.w < 3000;
   $('#mmbHint').innerHTML = !has ? 'Wähl links ein Bild aus, dann siehst du hier sofort, wie dein Radar damit aussieht.'
@@ -2949,7 +3024,7 @@ function mmbDraw() {
   if (MMB.mode === 'tile' && MMB.img) { const pw = MM_W / MMB.repeat, ph = pw * MMB.img.height / MMB.img.width; cx = (Math.floor(cx / pw) + .5) * pw; cy = (Math.floor(cy / ph) + .5) * ph; }
   const has = mmbPaint(radar, { x: cx - vw / 2, y: cy - vh / 2, w: vw, h: vh });
   let x = radar.getContext('2d'); const W = radar.width, H = radar.height;
-  if (!has) { x.fillStyle = 'rgba(255,255,255,.55)'; x.font = '600 26px Inter, sans-serif'; x.textAlign = 'center'; x.fillText('Noch kein Bild gewählt', W / 2, H / 2 + 8); }
+  if (!has) { x.fillStyle = 'rgba(255,255,255,.6)'; x.font = '600 26px Inter, sans-serif'; x.textAlign = 'center'; x.fillText('Noch kein Bild gewählt', W / 2, H * .26); }
   // player arrow, a few blips and the health/armour bars, so it reads as the GTA radar
   const blip = (bx, by, col, r = 11) => { x.beginPath(); x.arc(bx, by, r, 0, 7); x.fillStyle = col; x.fill(); x.lineWidth = 3; x.strokeStyle = 'rgba(0,0,0,.75)'; x.stroke(); };
   blip(W * .72, H * .3, '#E04B4B'); blip(W * .2, H * .62, '#5BA7F0'); blip(W * .58, H * .74, '#F2C94C', 9);
@@ -2961,6 +3036,7 @@ function mmbDraw() {
   // whole map, with a marker for the size of the radar view
   mmbPaint(world, { x: 0, y: 0, w: MM_W, h: MM_H });
   x = world.getContext('2d');
+  if (!has) { x.fillStyle = 'rgba(255,255,255,.6)'; x.font = '600 24px Inter, sans-serif'; x.textAlign = 'center'; x.fillText('Kein Bild', world.width / 2, world.height / 2 + 8); return; }
   const k = world.width / MM_W;
   x.strokeStyle = '#fff'; x.lineWidth = 2; x.setLineDash([4, 3]);
   x.strokeRect(world.width / 2 - Math.max(6, vw * k / 2), world.height / 2 - Math.max(4, vh * k / 2), Math.max(12, vw * k), Math.max(8, vh * k)); x.setLineDash([]);
@@ -2989,7 +3065,7 @@ document.addEventListener('click', async e => {
   const q = e.target.closest('#mmbRes button'); if (q) { MMB.res = +q.dataset.v; mmbUI(); return; }
   if (e.target.closest('#mmbBuild')) return mmbBuild();
   if (e.target.closest('#mmbRemove')) {
-    if (!await confirmBox('Eigene Minimap entfernen?', 'Im Spiel ist danach wieder die normale Karte zu sehen.')) return;
+    if (!await confirmBox('Eigene Minimap entfernen?', 'Im Spiel ist danach wieder die normale Karte zu sehen.', { ok: 'Entfernen', danger: true })) return;
     const r = await api('minimap.remove').catch(er => ({ error: er.message }));
     if (r.error) toast('Nicht entfernt', r.error, false); else toast('Eigene Minimap entfernt', 'Ab dem nächsten FiveM-Start');
     modList(); mmbOpen();
@@ -3021,7 +3097,7 @@ setTimeout(rvScan, 800);
 
 /* ======================= MINIGAMES: AIM TRAINING ======================= */
 const MG_MODES = {
-  grid: ['Gridshot', 'Drei große Ziele gleichzeitig. Triff so viele wie möglich.', 3, 34, 0],
+  grid: ['Raster', 'Drei große Ziele gleichzeitig. Triff so viele wie möglich.', 3, 34, 0],
   flick: ['Präzision', 'Ein kleines Ziel. Jeder Fehlklick kostet Punkte.', 1, 15, 0],
   speed: ['Tempo', 'Die Ziele verschwinden nach kurzer Zeit wieder. Sei schneller.', 2, 26, 950],
 };
@@ -3064,7 +3140,7 @@ function mgDraw() {
   g.globalAlpha = 1;
   if (MG.on) {
     const left = Math.max(0, (MG.end - now) / 1000), el = $('#mgTime');
-    el.textContent = left.toFixed(1); el.classList.toggle('low', left < 5);
+    el.textContent = nf1.format(left); el.classList.toggle('low', left < 5);
     if (left <= 0) return mgStop();
   }
   if (MG.on || MG.pops.length) MG.raf = requestAnimationFrame(mgDraw);
@@ -3089,7 +3165,7 @@ function mgStop() {
   $('#mgTitle').textContent = best && MG.score > 0 ? `Neuer Bestwert: ${MG.score}` : `${MG.score} Punkte`;
   $('#mgDesc').textContent = `${MG.hits} Treffer bei ${MG.shots} Klicks, ${acc} % Trefferquote${MG.hits ? `, ${Math.round(MG.sum / MG.hits)} ms pro Treffer` : ''}.`;
   $('#mgStart').innerHTML = `${ico('refresh')}Nochmal`;
-  $('#mgOver').classList.remove('off'); $('#mgTime').textContent = '30.0'; $('#mgTime').classList.remove('low');
+  $('#mgOver').classList.remove('off'); $('#mgTime').textContent = '30,0'; $('#mgTime').classList.remove('low');
 }
 document.addEventListener('pointerdown', e => {
   if (e.target.id !== 'mgCv' || !MG.on) return;
@@ -3119,14 +3195,15 @@ document.addEventListener('click', e => {
 const LIVE = { ram: [], ping: [] };
 function liveCurve(hist, line, fill, max) {
   if (hist.length < 2) return;
-  const n = hist.length, pts = hist.map((v, i) => [(i + 40 - n) * 200 / 39, 58 - Math.min(1, v / max) * 52]), d = smoothPath(pts);
-  $(line).setAttribute('d', d); $(fill).setAttribute('d', d + ` L200,60 L${pts[0][0].toFixed(1)},60 Z`);
+  const n = hist.length, pts = hist.map((v, i) => [i * 200 / (n - 1), 58 - Math.min(1, v / max) * 52]), d = smoothPath(pts);
+  $(line).setAttribute('d', d); $(fill).setAttribute('d', d + ' L200,60 L0,60 Z');
 }
 setInterval(() => {
   const cpu = parseFloat($('#tbCpu').textContent), ram = parseFloat($('#tbRam').textContent), ping = parseFloat($('#tbPing').textContent);
   if (!isNaN(cpu)) { $('#tbCpuP').style.setProperty('--v', cpu); $('#tbCpuP').classList.toggle('hot', cpu >= 90); }
-  if (!isNaN(ram)) { $('#tbRamP').style.setProperty('--v', ram); $('#tbRamP').classList.toggle('hot', ram >= 90); LIVE.ram.push(ram); if (LIVE.ram.length > 40) LIVE.ram.shift(); }
-  if (!isNaN(ping)) { LIVE.ping.push(ping); if (LIVE.ping.length > 40) LIVE.ping.shift(); }
+  // (the title bar shows a placeholder until the first stats arrive: no samples before that; a new curve starts flat)
+  if (!isNaN(ram) && S.cpuHist.length) { $('#tbRamP').style.setProperty('--v', ram); $('#tbRamP').classList.toggle('hot', ram >= 90); if (!LIVE.ram.length) LIVE.ram = Array(39).fill(ram); LIVE.ram.push(ram); if (LIVE.ram.length > 40) LIVE.ram.shift(); }
+  if (!isNaN(ping)) { if (!LIVE.ping.length) LIVE.ping = Array(39).fill(ping); LIVE.ping.push(ping); if (LIVE.ping.length > 40) LIVE.ping.shift(); }
   if (curPage === 'home') { liveCurve(LIVE.ram, '#sparkRL', '#sparkRF', 100); liveCurve(LIVE.ping, '#sparkPL', '#sparkPF', Math.max(60, ...LIVE.ping) * 1.2); }
 }, 1000);
 
