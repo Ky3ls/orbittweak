@@ -3220,6 +3220,11 @@ document.addEventListener('click', async e => {
 
 /* ======================= WHAT'S NEW: shown once after an update ======================= */
 const CHANGES = {
+  '2.24.1': [
+    ['film', 'Montage neu geschnitten', 'Etwa 5 Sekunden pro Kill statt 9: flüssige Zeitlupe, Zoom und Aufblitzen genau beim Kill, weiche Übergänge, Kill-Zähler im Killfeed-Stil, Intro und Outro. Ultrawide wird zugeschnitten statt mit Balken.'],
+    ['zap', 'Montage startet wieder', 'Mit dem aktuellen ffmpeg 9 brach die Montage bei neuen Nutzern sofort ab. OrbitTweak lädt jetzt eine feste, geprüfte ffmpeg-Version.'],
+    ['crosshair', 'Kill-Erkennung genauer', 'Wörter wie KILLER, Skilled oder FILLED zählen nicht mehr als Kill, „You have been killed“ zählt als Tod. Mehrere Kills kurz hintereinander werden einzeln erkannt, KI-geprüfte Clips enden direkt nach dem Gefecht.'],
+  ],
   '2.24.0': [
     ['puzzle', 'Sound-Packs funktionieren', 'Mods landen jetzt dort, wo FiveM sie wirklich lädt: Sound-Packs im citizen-Ordner, Skins und Effekte als echtes Mod-Paket. Alte, wirkungslose Installationen repariert „Meine Mods“ mit einem Klick.'],
     ['sparkle', 'Discord-Status', 'Dein Discord-Profil zeigt, dass du FiveM mit OrbitTweak spielst: Server, Spielzeit und Kills, alles einzeln abschaltbar.'],
@@ -3271,7 +3276,7 @@ function moUI() {
   $('#moMusic span').textContent = MO.music ? MO.music.length > 22 ? MO.music.slice(0, 20) + '…' : MO.music : 'Musik wählen';
   $('#moMusic').classList.toggle('on', !!MO.music);
   $('#moMusic').title = MO.music ? 'Klick: andere Musik · Rechtsklick: ohne Musik' : 'Eine Musikdatei unter die Montage legen';
-  $('#moInfo').innerHTML = n >= 2 ? `<b>${use} Kills, etwa ${Math.round(use * (MO.slow ? 8.5 : 6.5) + 4)} Sekunden.</b> ${MO.slow ? 'Zeitlupe beim Kill, ' : ''}Titelkarte, Kill-Zähler auf jedem Clip, Blitz bei jedem Schnitt${MO.music ? ', deine Musik' : ''}.`
+  $('#moInfo').innerHTML = n >= 2 ? `<b>${use} Kills, etwa ${Math.round(use * (MO.slow ? 4.75 : 3.9) + 3)} Sekunden.</b> ${MO.slow ? 'Zeitlupe und Zoom genau beim Kill, ' : 'Zoom genau beim Kill, '}Intro, Kill-Zähler im Killfeed-Stil, weiche Übergänge${MO.music ? ', deine Musik' : ''}.`
     : `Dafür braucht es mindestens zwei Kill-Clips, bisher ${n === 1 ? 'ist es einer' : 'gibt es keinen'}.`;
   const b = $('#moGo'); b.disabled = MO.busy || HL.busy || n < 2; b.innerHTML = MO.busy ? `${ico('refresh', 'i spin')}<span>Wird geschnitten…</span>` : `${ico('zap')}<span>Montage erstellen</span>`;
   if (MO.busy) $('#hlGo').disabled = true;
