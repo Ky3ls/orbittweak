@@ -44,12 +44,12 @@ internal static class BgThrottle
         // session is not always the one that decodes it
         var loud = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var pid in AudioSessions.ActivePids()) { try { using var p = Process.GetProcessById(pid); loud.Add(p.ProcessName); } catch { } }
-        var (front, frontPid) = Foreground();
+        var (front, frontPid, frontStart) = Foreground();
         // the window in use can be drawn by helper processes under it: they count as that program
         var frontKids = new HashSet<int>();
-        if (frontPid > 0)
+        if (frontPid > 0 && frontStart is { } fs)
             foreach (var hn in Helpers)
-                try { foreach (var p in Process.GetProcessesByName(hn)) using (p) if (p.Id != frontPid && ParentIs(p, frontPid)) frontKids.Add(p.Id); } catch { }
+                try { foreach (var p in Process.GetProcessesByName(hn)) using (p) if (p.Id != frontPid && UnderFront(p, frontPid, fs)) frontKids.Add(p.Id); } catch { }
         bool Spared(int pid, string name) => loud.Contains(name) || name.Equals(front, StringComparison.OrdinalIgnoreCase) || frontKids.Contains(pid);
         lock (Saved)
         {
@@ -152,19 +152,47 @@ internal static class BgThrottle
         catch { return false; }
     }
 
-    /// <summary>Name and id of the process that owns the window in use; (null, 0) when there is none.</summary>
-    private static (string? name, int pid) Foreground()
+    /// <summary>Name, id and start time of the process that owns the window in use; (null, 0, null) when there is none.</summary>
+    private static (string? name, int pid, DateTime? start) Foreground()
     {
         try
         {
             var h = GetForegroundWindow();
-            if (h == IntPtr.Zero) return (null, 0);
+            if (h == IntPtr.Zero) return (null, 0, null);
             GetWindowThreadProcessId(h, out var pid);
-            if (pid == 0) return (null, 0);
+            if (pid == 0) return (null, 0, null);
             using var p = Process.GetProcessById((int)pid);
-            return (p.ProcessName, (int)pid);
+            DateTime? start = null;
+            try { start = p.StartTime; } catch { }   // elevated or protected: its name still counts, its helpers are not looked for
+            return (p.ProcessName, (int)pid, start);
         }
-        catch { return (null, 0); }
+        catch { return (null, 0, null); }
+    }
+
+    /// <summary>
+    /// The helper is a child of the front program, or the child of another helper that is (WebView2 browser process →
+    /// renderer). Parent ids are never updated by Windows and can be reused, so every ancestor must have started before its child.
+    /// </summary>
+    private static bool UnderFront(Process p, int front, DateTime frontStart)
+    {
+        try
+        {
+            int pp = ParentPid(p);
+            if (pp <= 0) return false;
+            var start = p.StartTime;
+            if (pp == front) return frontStart <= start;
+            using var up = Process.GetProcessById(pp);
+            if (!Helpers.Contains(up.ProcessName)) return false;
+            var upStart = up.StartTime;
+            return upStart <= start && frontStart <= upStart && ParentPid(up) == front;
+        }
+        catch { return false; }
+    }
+
+    private static int ParentPid(Process p)
+    {
+        var pbi = new PBI();
+        return NtQueryInformationProcess(p.Handle, 0, ref pbi, Marshal.SizeOf<PBI>(), out _) == 0 ? pbi.ParentPid.ToInt32() : -1;
     }
 
     [StructLayout(LayoutKind.Sequential)] private struct PBI { public IntPtr Reserved1, Peb, Reserved2a, Reserved2b, UniquePid, ParentPid; }

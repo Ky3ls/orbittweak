@@ -363,6 +363,9 @@ internal static class Catalog
                 },
                 Revert = () =>
                 {
+                    // a shortcut without a backup already was off before Apply (Apply skips those): it stays off;
+                    // only with no backup at all (switched off by hand or by an older version) do they go back to the Windows default
+                    bool any = Bk.HasPrefix("sticky.");
                     foreach (var a in Access)
                     {
                         if (Spi.GetStruct(a.get, a.words) is not { } f) continue;
@@ -372,7 +375,7 @@ internal static class Catalog
                             Spi.SetStruct(a.set, f);
                             Bk.Drop("sticky." + a.name);
                         }
-                        else if (!TweakRun.All && (f[1] & TweakLogic.HOTKEYACTIVE) == 0)
+                        else if (!any && !TweakRun.All && (f[1] & TweakLogic.HOTKEYACTIVE) == 0)
                         {
                             f[1] |= TweakLogic.HOTKEYACTIVE;   // switched off by hand: back to the Windows default
                             Spi.SetStruct(a.set, f);

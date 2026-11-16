@@ -389,7 +389,7 @@ internal static class Health
         if (drvDate is { } dd)
         {
             var age = (DateTime.Now - dd).TotalDays;
-            items.Add(new("GPU-Treiber", $"{gpuName} · {drvVer} · {(int)(age / 30)} Monate alt", age < 180 ? "ok" : "warn"));
+            items.Add(new("GPU-Treiber", $"{gpuName} · {drvVer} · {(int)(age / 30)} Monate alt{(age < 180 ? "" : " – Treiber aktualisieren")}", age < 180 ? "ok" : "warn"));
         }
 
         var cache = FiveM.Root != null ? Cleaner.Measure(Cleaner.Targets().First(t => t.Id == "fm")) : 0;

@@ -512,7 +512,8 @@ public partial class MainWindow : Window
                 return new { applied, error = err };
             }
             case "tweaks.revertAll":
-                await Task.Run(() =>
+            {
+                var left = await Task.Run(() =>
                 {
                     // only what OrbitTweak changed: a state that is Windows' default or the user's own choice stays
                     TweakRun.All = true;
@@ -522,12 +523,18 @@ public partial class MainWindow : Window
                             if (t.SafeCheck() && (t.IsOwned || Marks.Has(t.Id))) try { t.Revert(); Marks.Clear(t.Id); } catch { }
                         // removed tweaks match by value only and may be the user's or another tool's: just the ones under our own flag
                         foreach (var l in Catalog.Old) if (l.Own && l.SafeCheck()) try { l.Revert(); } catch { }
+                        // a tweak that is off now was not switched on by OrbitTweak any more (e.g. USB power saving that went
+                        // with the power plan): its mark must not make a later revert act on it
+                        foreach (var t in _tweaks) if (!t.SafeCheck()) Marks.Clear(t.Id);
                     }
                     finally { TweakRun.All = false; }
+                    // removed tweaks that are still active (not ours, or "Speicher-Komprimierung" while SysMain is off): the page says so
+                    return Catalog.Old.Where(l => l.SafeCheck()).Select(l => l.Name).ToList();
                 });
                 SnapApply();
                 Log("↺ Alle Tweaks zurückgesetzt");
-                return null;
+                return new { left };
+            }
             case "tweaks.legacy":
             {
                 // removed tweaks that are still active, and (once after the update) what was undone by itself

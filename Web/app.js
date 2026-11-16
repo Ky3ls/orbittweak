@@ -595,12 +595,19 @@ document.addEventListener('click', async e => {
 async function applyCat(cat) {
   const list = S.tweaks.filter(t => t.cat === cat && t.rec && t.usable !== false && !t.applied);
   if (!list.length) return toast('Schon optimal', `Alle empfohlenen ${CATS[cat][0]}-Tweaks sind aktiv`);
-  for (const t of list) { try { const r = await api('tweak.set', { id: t.id, on: true }); t.applied = r.applied; } catch { } renderTweaks(); }
+  for (const t of list) {
+    try { const r = await api('tweak.set', { id: t.id, on: true }); t.applied = r.applied; const cur = S.tweaks.find(x => x.id === t.id); if (cur) cur.applied = r.applied; } catch { }
+    renderTweaks();
+  }
   score(); toast(`${CATS[cat][0]} optimiert`, `${list.length} Tweaks angewendet`);
 }
 async function revertAll() {
   if (!await confirmBox('Alle Tweaks zurücksetzen?', 'Alles, was OrbitTweak an Windows, Netzwerk, Input und FiveM geändert hat, bekommt den Wert von vorher zurück. Was schon vorher so eingestellt war, bleibt.', { ok: 'Alles zurücksetzen', danger: true })) return;
-  await api('tweaks.revertAll'); await loadTweaks(); toast('Alles zurückgesetzt', 'Neustart empfohlen');
+  const r = await api('tweaks.revertAll'); await loadTweaks(); toast('Alles zurückgesetzt', 'Neustart empfohlen');
+  // removed tweaks are only reset here when they surely came from OrbitTweak: the rest is named, with where to reset it
+  const left = (r && r.left) || [];
+  if (left.length) setTimeout(() => toast(left.length === 1 ? '1 entfernter Tweak ist noch aktiv' : `${left.length} entfernte Tweaks sind noch aktiv`,
+    left.map(n => n.replace(/ \(.*\)$/, '')).join(', ') + ' · einzeln unter Tweaks › System › Entfernte Tweaks'), 4200);
 }
 
 /* ======================= FIVEM ACTIONS ======================= */
@@ -903,8 +910,8 @@ function renderHealth(h) {
   const fixable = h.items.filter(i => i.fix && i.st !== 'ok').length;
   if ($('#hScoreSub')) $('#hScoreSub').textContent = !bad ? 'FiveM hat hier alles, was es braucht.'
     : fixable === bad ? 'Mit „Beheben“ stellst du sie mit einem Klick richtig.'
-    : fixable ? `${fixable} davon behebst du mit „Beheben“, für die anderen steht dabei, was zu tun ist.`
-    : 'Was zu tun ist, steht bei jedem Punkt dabei.';
+    : fixable ? `${fixable} davon behebst du mit „Beheben“, ${bad - fixable === 1 ? 'der andere ist ein Hinweis' : 'die anderen sind Hinweise'}.`
+    : bad === 1 ? 'Ein Hinweis, den OrbitTweak nicht selbst beheben kann.' : 'Hinweise, die OrbitTweak nicht selbst beheben kann.';
   if ($('#hChip')) { $('#hChip').textContent = bad ? (worse ? `${worse} ${worse === 1 ? 'Problem' : 'Probleme'}` : 'Hinweise') : 'Optimal'; $('#hChip').className = 'chip ' + (bad ? (worse ? 'r' : 'w') : 'g'); }
   if ($('#hOk')) { $('#hOk').textContent = cnt('ok'); $('#hWarn').textContent = warn; $('#hBad').textContent = worse; }
   // problems first, then hints, then what is fine
