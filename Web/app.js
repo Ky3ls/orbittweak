@@ -54,7 +54,7 @@ function applyTheme(k) {
   r.setProperty('--a', t[1]); r.setProperty('--b', t[2]);
   r.setProperty('--a-rgb', hexRgb(t[1])); r.setProperty('--b-rgb', hexRgb(t[2]));
   SCENE_THEMES.forEach(s => root.classList.toggle('th-' + s, key === s));
-  if (key === 'winter') { r.setProperty('--icicles', ICICLES ||= icicles()); r.setProperty('--snowcap', SNOWCAP ||= snowCap()); }
+  if (key === 'winter') { r.setProperty('--icicles', ICICLES ||= icicles()); r.setProperty('--snowcap', SNOWCAP ||= snowCap()); r.setProperty('--aurora', AURORA ||= aurora()); r.setProperty('--drift', DRIFT ||= snowDrift()); }
   if (!$('.amb .aur')) $('.amb')?.insertAdjacentHTML('beforeend', '<i class="aur"></i>');
   fxStart(key);
   if (S.settings && S.settings.accent !== undefined && typeof applyBg === 'function') applyBg();   // the anime theme paints its own banner
@@ -89,12 +89,14 @@ const PIECE = {
 };
 // layers: [tile size, dots, smallest radius, largest radius, crystals, opacity, sway seconds]
 const FXCFG = {
-  winter: { piece: 'flake', n: 9, size: [7, 15], dur: [11, 19], layers: [[260, 34, .5, 1.1, 0, .55, 9], [360, 16, 1.1, 2, 0, .75, 7], [520, 7, 2, 3.2, 2, .7, 5.5]] },
-  anime: { piece: 'petal', n: 16, size: [11, 18], dur: [10, 17], layers: [[360, 9, .8, 1.5, 0, .3, 8]] },
+  // (no drawn crystals in the near layer: repeated every 520 px they read as a pattern, the single flakes are enough)
+  winter: { piece: 'flake', n: 9, size: [7, 15], dur: [11, 19], layers: [[260, 34, .5, 1.1, 0, .55, 9], [360, 16, 1.1, 2, 0, .75, 7], [520, 7, 2, 3.2, 0, .7, 5.5]] },
+  anime: { piece: 'petal', n: 13, size: [11, 17], dur: [10, 17], layers: [[360, 9, .8, 1.5, 0, .3, 8]] },
 };
 const FX = { key: null };
 function fxStart(k) {
   const cfg = S.settings.fx !== false && FXCFG[k];
+  document.documentElement.classList.toggle('fx-off', S.settings.fx === false);   // the northern lights stand still too
   let fx = $('#fx');
   if (!cfg) { fx?.remove(); FX.key = null; return; }
   if (fx && FX.key === k) return;
@@ -128,74 +130,123 @@ function icicles() {
   }
   return svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="420" height="26" viewBox="0 0 420 26" preserveAspectRatio="none"><defs><linearGradient id="i" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".28" stop-color="#F3FAFF"/><stop offset="1" stop-color="#BFE3FF" stop-opacity=".8"/></linearGradient></defs><path d="${d}H0V0Z" fill="url(#i)"/></svg>`);
 }
-/** A snow cap for the start button: a bumpy top and a few short icicles (one 200 px piece that repeats). */
+/** A snow cap for the main buttons: a soft, pillowy top, a straight underside along the button's edge and a few
+ *  short icicles (one 240 px piece that repeats). */
 let SNOWCAP = null;
 function snowCap() {
-  const R = seeded(9); let d = 'M0 6', x = 0;
-  while (x < 200) { const nx = Math.min(200, x + 14 + R() * 16); d += `Q${f1((x + nx) / 2)} ${f1(R() * 2.2)} ${f1(nx)} ${nx >= 200 ? 6 : f1(3.5 + R() * 2)}`; x = nx; }
-  d += 'V8';
-  while (x > 0) {
-    const nx = Math.max(0, x - (9 + R() * 14)), cx = (x + nx) / 2;
-    if (R() < .45 && x - nx > 7) d += `L${f1(cx + 1.8)} 9L${f1(cx)} ${f1(11 + R() * 4)}L${f1(cx - 1.8)} 9`;
-    d += `Q${f1(cx)} ${f1(9 + R() * 2)} ${f1(nx)} 8`; x = nx;
+  const R = seeded(9); let d = 'M0 8.5', x = 0;
+  while (x < 240) {
+    const nx = Math.min(240, x + 34 + R() * 30), top = .4 + R() * 2.2;
+    d += `C${f1(x + (nx - x) * .25)} ${f1(top)} ${f1(x + (nx - x) * .75)} ${f1(top)} ${f1(nx)} ${nx >= 240 ? 8.5 : f1(4.6 + R() * 1.2)}`; x = nx;
   }
-  return svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="16" viewBox="0 0 200 16" preserveAspectRatio="none"><defs><linearGradient id="i" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".5" stop-color="#F3FAFF"/><stop offset="1" stop-color="#C6E6FF"/></linearGradient></defs><path d="${d}Z" fill="url(#i)"/></svg>`);
+  d += 'V10.4';
+  while (x > 0) {
+    const nx = Math.max(0, x - (16 + R() * 18)), cx = (x + nx) / 2;
+    if (R() < .4 && x - nx > 12) d += `L${f1(cx + 1.6)} 10.8Q${f1(cx + .3)} ${f1(13 + R() * 2.4)} ${f1(cx)} ${f1(13.6 + R() * 2)}Q${f1(cx - .3)} 12.6 ${f1(cx - 1.6)} 10.8`;
+    d += `Q${f1(cx)} ${f1(10.8 + R() * .8)} ${f1(nx)} 10.4`; x = nx;
+  }
+  return svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="240" height="16" viewBox="0 0 240 16" preserveAspectRatio="none"><defs><linearGradient id="i" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".5" stop-color="#F4FAFF"/><stop offset=".78" stop-color="#E2F0FD"/><stop offset="1" stop-color="#C9E3F8"/></linearGradient></defs><path d="${d}Z" fill="url(#i)"/></svg>`);
 }
-/** The anime start banner: an original painted dusk over a city, with clouds lit from below, power lines and a
- *  sakura branch. Drawn once as a picture, so it costs no more than a photo. */
+/** Northern lights for the winter sheet: two curtains of fine rays rising from a wavy lower edge, brightest just
+ *  above it and fading upwards, softened once by a blur. Drawn once; the sheet then only moves the finished picture. */
+let AURORA = null;
+function aurora() {
+  const R = seeded(13), W = 1600, H = 420;
+  const curtain = (base, amp, len, ph, ids) => {
+    const edge = x => base + Math.sin(x / 270 + ph) * amp + Math.sin(x / 85 + ph * 2.3) * amp * .22;
+    const tint = x => ids[Math.min(ids.length - 1, Math.max(0, Math.floor((x / W) * ids.length + (R() - .5) * .8)))];
+    // a soft veil of light first (wide, faint strips), then the fine rays on it
+    let g = '';
+    for (let x = -20; x < W + 20; x += 14) {
+      const h = len * (.7 + .3 * Math.sin(x / 150 + ph));
+      g += `<rect x="${x}" y="${f1(edge(x + 8) - h)}" width="16" height="${f1(h + 26)}" fill="url(#${tint(x)})" opacity=".2"/>`;
+    }
+    for (let x = -10; x < W + 10; x += 4 + R() * 5) {
+      const h = len * (.45 + R() * .55) * (.6 + .4 * Math.sin(x / 190 + ph * 1.7));
+      g += `<rect x="${f1(x)}" y="${f1(edge(x) - h)}" width="${f1(2 + R() * 3)}" height="${f1(h + 18)}" fill="url(#${tint(x)})" opacity="${(.2 + R() * .6).toFixed(2)}"/>`;
+    }
+    return g;
+  };
+  const ray = (id, c0, c1) => `<linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c1}" stop-opacity="0"/><stop offset=".58" stop-color="${c1}" stop-opacity=".4"/><stop offset=".86" stop-color="${c0}" stop-opacity=".9"/><stop offset="1" stop-color="${c0}" stop-opacity="0"/></linearGradient>`;
+  return svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><defs>
+${ray('g', '#C2FFE6', '#46F0B4')}${ray('c', '#C6F6FF', '#4CC8FF')}${ray('v', '#EBDDFF', '#9A7BFF')}
+<filter id="b" x="-2%" y="-10%" width="104%" height="120%"><feGaussianBlur stdDeviation="3.2 3.4"/></filter></defs>
+<g filter="url(#b)"><g opacity=".55">${curtain(190, 30, 150, 2.1, ['c', 'v', 'v'])}</g>${curtain(300, 42, 210, .4, ['g', 'g', 'c'])}</g></svg>`);
+}
+/** A soft layer of snow along the bottom of the start banner (one 600 px piece that repeats). */
+let DRIFT = null;
+function snowDrift() {
+  const R = seeded(21); let d = 'M0 22V12', x = 0;
+  while (x < 600) { const nx = Math.min(600, x + 46 + R() * 70); d += `Q${f1((x + nx) / 2)} ${f1(3 + R() * 6)} ${f1(nx)} ${nx >= 600 ? 12 : f1(9 + R() * 5)}`; x = nx; }
+  return svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="22" viewBox="0 0 600 22" preserveAspectRatio="none"><defs><linearGradient id="s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".45" stop-color="#EAF5FF"/><stop offset="1" stop-color="#B7D8F2"/></linearGradient></defs><path d="${d}V22Z" fill="url(#s)"/></svg>`);
+}
+/** The anime start banner: an original painted dusk over a bay, the sun going down behind the city, clouds lit from
+ *  below, a power line and a sakura branch. All of the picture sits in the right ~40 %, the left stays open sky and
+ *  calm water, so the greeting never lies on top of it. Drawn once as a picture, so it costs no more than a photo. */
 let ANIME_BG = null;
 function animeScene() {
-  const R = seeded(7), W = 1600, H = 900; let s = '';
+  const R = seeded(7), W = 1600, H = 900, HZ = 704, SX = 1236; let s = '';
   s += `<defs>
-<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#120A30"/><stop offset=".28" stop-color="#34195A"/><stop offset=".5" stop-color="#8E3B84"/><stop offset=".64" stop-color="#E2679A"/><stop offset=".76" stop-color="#FF9F8E"/><stop offset=".86" stop-color="#FFD3A4"/></linearGradient>
-<radialGradient id="sun"><stop offset="0" stop-color="#FFF8E2"/><stop offset=".6" stop-color="#FFE4B6"/><stop offset="1" stop-color="#FFBFA6"/></radialGradient>
-<radialGradient id="glow"><stop offset="0" stop-color="#FFE7BE" stop-opacity=".8"/><stop offset=".35" stop-color="#FFA2B6" stop-opacity=".32"/><stop offset="1" stop-color="#FF7AA8" stop-opacity="0"/></radialGradient>
-<linearGradient id="cl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5E3684"/><stop offset=".55" stop-color="#B95A98"/><stop offset=".85" stop-color="#FF9FA6"/><stop offset="1" stop-color="#FFC9A8"/></linearGradient>
-<linearGradient id="far" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8C4A86"/><stop offset="1" stop-color="#5A2C66"/></linearGradient>
-<linearGradient id="near" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2E163F"/><stop offset="1" stop-color="#140A1F"/></linearGradient>
-<linearGradient id="trail" x1="0" x2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff" stop-opacity=".85"/></linearGradient>
+<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0C0722"/><stop offset=".3" stop-color="#211247"/><stop offset=".5" stop-color="#4E2470"/><stop offset=".63" stop-color="#9A4289"/><stop offset=".72" stop-color="#DB6A97"/><stop offset=".765" stop-color="#FFA493"/><stop offset=".782" stop-color="#FFC9A2"/></linearGradient>
+<linearGradient id="sea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C46A97"/><stop offset=".14" stop-color="#6E2F72"/><stop offset=".55" stop-color="#2A1242"/><stop offset="1" stop-color="#12091F"/></linearGradient>
+<linearGradient id="calm" x1="0" x2="1"><stop offset="0" stop-color="#140A2C" stop-opacity=".66"/><stop offset=".4" stop-color="#140A2C" stop-opacity=".3"/><stop offset=".6" stop-color="#140A2C" stop-opacity="0"/></linearGradient>
+<radialGradient id="sun"><stop offset="0" stop-color="#FFFBEF"/><stop offset=".6" stop-color="#FFE9C2"/><stop offset="1" stop-color="#FFC9A6"/></radialGradient>
+<radialGradient id="glow"><stop offset="0" stop-color="#FFE9C4" stop-opacity=".85"/><stop offset=".3" stop-color="#FFB0B4" stop-opacity=".34"/><stop offset="1" stop-color="#FF7AA8" stop-opacity="0"/></radialGradient>
+<linearGradient id="cl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5A3484"/><stop offset=".6" stop-color="#C45E99"/><stop offset="1" stop-color="#FFC6A8"/></linearGradient>
+<linearGradient id="cd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2E1A55"/><stop offset="1" stop-color="#94498E"/></linearGradient>
+<linearGradient id="far" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8A4A8C"/><stop offset="1" stop-color="#6A3576"/></linearGradient>
+<linearGradient id="near" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#341A4C"/><stop offset="1" stop-color="#1E0F31"/></linearGradient>
 <g id="fl"><g fill="#FFC6DD"><ellipse cx="0" cy="-5" rx="3.6" ry="5"/><ellipse cx="0" cy="-5" rx="3.6" ry="5" transform="rotate(72)"/><ellipse cx="0" cy="-5" rx="3.6" ry="5" transform="rotate(144)"/><ellipse cx="0" cy="-5" rx="3.6" ry="5" transform="rotate(216)"/><ellipse cx="0" cy="-5" rx="3.6" ry="5" transform="rotate(288)"/></g><circle r="2.2" fill="#FF6FA8"/></g>
 </defs>`;
   s += `<rect width="${W}" height="${H}" fill="url(#sky)"/>`;
-  for (let i = 0; i < 110; i++) { const y = R() * 360; s += `<circle cx="${(R() * W).toFixed(0)}" cy="${y.toFixed(0)}" r="${f1(.6 + R() * 1.3)}" fill="#fff" opacity="${(.2 + R() * .65 * (1 - y / 420)).toFixed(2)}"/>`; }
-  s += `<path d="M160 300L820 170" stroke="url(#trail)" stroke-width="2.6" stroke-linecap="round" opacity=".55"/>`;
-  s += `<circle cx="1130" cy="650" r="460" fill="url(#glow)"/><circle cx="1130" cy="650" r="118" fill="url(#sun)"/>`;
-  const cloud = (cx, cy, w, k, o = .93) => {
+  for (let i = 0; i < 120; i++) { const y = R() * 420; s += `<circle cx="${(R() * W).toFixed(0)}" cy="${y.toFixed(0)}" r="${f1(.6 + R() * 1.2)}" fill="#fff" opacity="${(.15 + R() * .6 * (1 - y / 460)).toFixed(2)}"/>`; }
+  s += `<circle cx="${SX}" cy="${HZ}" r="500" fill="url(#glow)"/><circle cx="${SX}" cy="${HZ - 58}" r="76" fill="url(#sun)"/>`;
+  // long flat clouds, lit from below, only over the right part
+  const band = (x0, x1, y, k, fill, o) => {
     let c = '';
-    for (let i = 0; i < k; i++) { const rx = 38 + R() * 70; c += `<ellipse cx="${(cx + (R() - .5) * w).toFixed(0)}" cy="${(cy + (R() - .5) * 28).toFixed(0)}" rx="${rx.toFixed(0)}" ry="${(rx * (.42 + R() * .2)).toFixed(0)}"/>`; }
-    return `<g fill="url(#cl)" opacity="${o}">${c}</g>`;
+    for (let i = 0; i < k; i++) { const rx = 50 + R() * 150; c += `<ellipse cx="${(x0 + R() * (x1 - x0)).toFixed(0)}" cy="${(y + (R() - .5) * 26).toFixed(0)}" rx="${rx.toFixed(0)}" ry="${(5 + R() * 9).toFixed(0)}"/>`; }
+    return `<g fill="url(#${fill})" opacity="${o}">${c}</g>`;
   };
-  s += cloud(380, 420, 460, 10) + cloud(1390, 360, 400, 9) + cloud(860, 505, 320, 7, .85) + cloud(120, 560, 260, 6, .8);
-  const city = (base, h0, h1, fill, w0, w1, lights) => {
-    let c = '', l = '', x = -20;
+  s += band(1150, 1640, 452, 7, 'cd', .7) + band(1060, 1640, 540, 9, 'cl', .85) + band(1010, 1640, 626, 8, 'cl', .92);
+  // hills and the city on the far shore, rising out of the haze towards the right
+  s += `<path d="M930 ${HZ}C1080 ${HZ - 10} 1180 ${HZ - 52} 1330 ${HZ - 64}S1520 ${HZ - 40} 1610 ${HZ - 50}V${HZ}Z" fill="#7C4282" opacity=".75"/>`;
+  const city = (h0, h1, fill, w0, w1, lights) => {
+    let c = '', l = '', x = 990;
     while (x < W + 20) {
-      const w = w0 + R() * (w1 - w0), h = h0 + R() * (h1 - h0), top = base - h;
-      c += `<rect x="${x.toFixed(0)}" y="${top.toFixed(0)}" width="${(w + 1).toFixed(0)}" height="${(H - top).toFixed(0)}"/>`;
-      if (R() < .18) c += `<rect x="${(x + w / 2 - 1).toFixed(0)}" y="${(top - 18 - R() * 22).toFixed(0)}" width="2" height="40"/>`;
-      if (lights) for (let yy = top + 10; yy < base - 8; yy += 14) for (let xx = x + 6; xx < x + w - 8; xx += 11) if (R() < .16) l += `<rect x="${xx.toFixed(0)}" y="${yy.toFixed(0)}" width="4" height="6"/>`;
+      const t = Math.min(1, Math.max(0, (x - 990) / 280)), w = w0 + R() * (w1 - w0), h = (h0 + R() * (h1 - h0)) * (.22 + .78 * t), top = HZ - h;
+      c += `<rect x="${x.toFixed(0)}" y="${top.toFixed(0)}" width="${(w + 1).toFixed(0)}" height="${h.toFixed(0)}"/>`;
+      if (t > .5 && R() < .2) c += `<rect x="${(x + w / 2 - 1).toFixed(0)}" y="${(top - 14 - R() * 18).toFixed(0)}" width="2" height="30"/>`;
+      if (lights) for (let yy = top + 8; yy < HZ - 6; yy += 11) for (let xx = x + 5; xx < x + w - 6; xx += 9) if (R() < .14) l += `<rect x="${xx.toFixed(0)}" y="${yy.toFixed(0)}" width="3" height="5"/>`;
       x += w;
     }
     return `<g fill="${fill}">${c}</g>` + (l ? `<g fill="#FFD48C" opacity=".75">${l}</g>` : '');
   };
-  s += city(720, 70, 210, 'url(#far)', 40, 90, false);
-  s += city(775, 50, 175, 'url(#near)', 50, 110, true);
-  s += `<rect y="772" width="${W}" height="${H - 772}" fill="#120819"/>`;
-  // a utility pole with its wires across the sky
-  s += `<g fill="#170A23"><rect x="322" y="236" width="14" height="${H - 236}"/><rect x="250" y="262" width="158" height="9" rx="2"/><rect x="268" y="304" width="122" height="8" rx="2"/>
-<rect x="258" y="250" width="6" height="14"/><rect x="394" y="250" width="6" height="14"/><rect x="276" y="293" width="6" height="12"/><rect x="376" y="293" width="6" height="12"/></g>
-<g fill="none" stroke="#1C0D2A" stroke-width="2.2"><path d="M397 252Q1000 420 1610 262"/><path d="M261 252Q100 330 -10 300"/><path d="M379 294Q1000 470 1610 330"/><path d="M279 294Q120 360 -10 350"/><path d="M329 238Q950 330 1610 168"/></g>`;
-  // the sakura branch reaching in from the right
-  s += `<g fill="none" stroke="#2A1322" stroke-linecap="round"><path d="M1640 330Q1500 360 1400 430T1215 470" stroke-width="11"/><path d="M1470 382Q1440 330 1385 318" stroke-width="6"/><path d="M1335 446Q1310 500 1270 520" stroke-width="5"/><path d="M1560 345Q1560 290 1590 255" stroke-width="5"/></g>`;
-  const along = [[1600, 338], [1560, 348], [1520, 360], [1480, 378], [1450, 395], [1420, 415], [1390, 432], [1360, 444], [1330, 452], [1300, 459], [1265, 465], [1230, 470], [1455, 360], [1420, 330], [1390, 320], [1320, 480], [1290, 505], [1275, 518], [1565, 300], [1585, 265]];
+  s += city(40, 140, 'url(#far)', 30, 70, false) + city(24, 92, 'url(#near)', 36, 80, true);
+  // calm water with the sun's path on it
+  s += `<rect y="${HZ}" width="${W}" height="${H - HZ}" fill="url(#sea)"/>`;
+  let ref = '';
+  for (let i = 0; i < 16; i++) { const w = (130 - i * 6.5) * (.55 + R() * .6); ref += `<rect x="${f1(SX - w / 2 + (R() - .5) * 14)}" y="${HZ + 5 + i * 9}" width="${f1(w)}" height="2.4" rx="1.2" opacity="${(.8 - i * .045).toFixed(2)}"/>`; }
+  for (let i = 0; i < 12; i++) { const w = 30 + R() * 90; ref += `<rect x="${f1(1000 + R() * 560)}" y="${f1(HZ + 10 + R() * 150)}" width="${f1(w)}" height="1.6" rx=".8" opacity=".22"/>`; }
+  s += `<g fill="#FFE3BC">${ref}</g>`;
+  // the open left half: a little darker and quieter, the greeting stands here
+  s += `<rect width="${W}" height="${H}" fill="url(#calm)"/>`;
+  // a dark bank in front, a power pole on it and its wires across the right sky
+  s += `<path d="M960 ${H}C1010 850 1060 828 1130 824S1300 818 1420 822 1560 812 1610 816V${H}Z" fill="#110818"/>
+<g fill="#170A23"><rect x="1040" y="400" width="12" height="${H - 400}"/><rect x="986" y="420" width="120" height="8" rx="2"/><rect x="1000" y="452" width="92" height="7" rx="2"/>
+<rect x="994" y="408" width="5" height="13"/><rect x="1094" y="408" width="5" height="13"/><rect x="1006" y="442" width="5" height="11"/><rect x="1082" y="442" width="5" height="11"/></g>
+<g fill="none" stroke="#1C0D2A" stroke-width="2"><path d="M1096 410Q1340 520 1610 446"/><path d="M1084 444Q1330 560 1610 494"/><path d="M1046 402Q1320 470 1610 380"/></g>`;
+  // the sakura branch reaching in from the top right, over the sun
+  s += `<g fill="none" stroke="#2A1322" stroke-linecap="round"><path d="M1640 362Q1500 376 1400 440T1176 520" stroke-width="11"/><path d="M1468 404Q1440 356 1388 340" stroke-width="6"/><path d="M1330 474Q1306 520 1264 548" stroke-width="5"/><path d="M1560 372Q1566 330 1594 300" stroke-width="5"/></g>`;
+  const along = [[1600, 366], [1560, 372], [1520, 384], [1484, 398], [1452, 414], [1420, 430], [1390, 446], [1360, 462], [1330, 476], [1300, 488], [1268, 498], [1236, 507], [1206, 514], [1182, 520], [1450, 372], [1420, 352], [1392, 342], [1314, 506], [1290, 528], [1268, 546], [1570, 336], [1590, 306]];
   let fl = '', soft = '';
   for (const [x, y] of along) for (let j = 0; j < 3; j++) {
-    const fx = x + (R() - .5) * 46, fy = y + (R() - .5) * 34, sc = .8 + R() * .9;
+    const fx = x + (R() - .5) * 44, fy = y + (R() - .5) * 32, sc = .8 + R() * .9;
     fl += `<use href="#fl" transform="translate(${f1(fx)} ${f1(fy)}) rotate(${(R() * 72).toFixed(0)}) scale(${sc.toFixed(2)})"/>`;
     soft += `<circle cx="${f1(fx + (R() - .5) * 20)}" cy="${f1(fy + (R() - .5) * 16)}" r="${f1(5 + R() * 7)}"/>`;
   }
   s += `<g fill="#FF9CC6" opacity=".55">${soft}</g>${fl}`;
-  // a few petals on their way down
-  for (let i = 0; i < 22; i++) { const x = (900 + R() * 700).toFixed(0), y = (380 + R() * 380).toFixed(0); s += `<ellipse cx="${x}" cy="${y}" rx="3.2" ry="2" fill="#FFC2DA" opacity="${(.5 + R() * .4).toFixed(2)}" transform="rotate(${(R() * 180).toFixed(0)} ${x} ${y})"/>`; }
+  // a few petals on their way down, also only on the right
+  for (let i = 0; i < 20; i++) { const x = (1010 + R() * 580).toFixed(0), y = (380 + R() * 400).toFixed(0); s += `<ellipse cx="${x}" cy="${y}" rx="3.2" ry="2" fill="#FFC2DA" opacity="${(.5 + R() * .4).toFixed(2)}" transform="rotate(${(R() * 180).toFixed(0)} ${x} ${y})"/>`; }
   return svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${s}</svg>`);
 }
 
@@ -2178,7 +2229,7 @@ function applyBg() {
   const u = bgUrl();
   // the anime theme brings its own painted scene, unless a particular photo was picked in the settings
   const painted = CUR_THEME === 'anime' && !LA_ALL.find(x => x[0] === S.settings.bgPreset)?.[2];
-  const own = painted ? `<div class="own-bg" style="background-image:${ANIME_BG ||= animeScene()};background-position:center 66%"></div>`
+  const own = painted ? `<div class="own-bg" style="background-image:${ANIME_BG ||= animeScene()};background-position:center 77%"></div>`
     : `<div class="own-bg" style="background-image:url('${u}');background-position:center ${LA_FOCUS[u] ?? 50}%"></div>`;
   $('#bnScene').innerHTML = own;
   $('#spScene').innerHTML = own;
