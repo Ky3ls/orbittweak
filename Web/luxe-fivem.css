@@ -471,6 +471,17 @@
 .toast::after{left:16px;right:16px;width:auto;height:1px;background:rgba(255,255,255,.14);opacity:1}
 .toast.err::after{background:rgba(242,139,139,.4)}
 
+/* "Boost abgeschlossen": still the band across the window, but sentence case, big and light, no glow.
+   Only opacity and transform move (the old title animated its letter spacing). */
+.pa-band{padding:30px 0 28px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.08) 28%,rgba(255,255,255,.08) 72%,transparent) top/100% 1px no-repeat,
+    linear-gradient(90deg,transparent,rgba(196,210,255,.05) 28%,rgba(196,210,255,.05) 72%,transparent) bottom/100% 1px no-repeat,
+    linear-gradient(90deg,transparent,rgba(5,7,12,.94) 20%,rgba(5,7,12,.94) 80%,transparent)}
+.pa-t{font-family:var(--disp);font-size:46px;font-weight:300;letter-spacing:-.035em;line-height:1.1;text-transform:none;color:var(--text);
+  background:none;-webkit-background-clip:border-box;background-clip:border-box;filter:none}
+.passed.show .pa-t{animation:luxPaT 3.2s var(--ease) forwards}
+@keyframes luxPaT{0%{opacity:0;transform:translateY(8px)}14%,100%{opacity:1;transform:none}}
+.pa-s{margin-top:8px;font-size:14px;font-weight:450;color:var(--sub)}
 
 @media (max-width:1100px){
   .srv-wrap{grid-template-columns:1fr}
