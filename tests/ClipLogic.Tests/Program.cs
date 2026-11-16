@@ -398,6 +398,63 @@ Check(!KillLogic.SameText("ZM Blaze killed Kronos77", "ZM Blaze killed Viper_12"
     Check(System.Text.RegularExpressions.Regex.Matches(pg, @"setpts='PTS',framerate=").Count == src.Count && !pg.Contains("setpts='PTS-STARTPTS'"), "no slow motion: the clips keep their picture times");
 }
 
+// ---------- tweaks: per-app graphics fields ----------
+{
+    // only the own field changes; Windows' other fields (Auto HDR, windowed optimizations) stay as they were
+    const string pre = "SwapEffectUpgradeEnable=1;AutoHDREnable=1;";
+    Check(TweakLogic.WithField(pre, "GpuPreference", "2") == "SwapEffectUpgradeEnable=1;AutoHDREnable=1;GpuPreference=2;", "GPU field is added next to the others");
+    Check(TweakLogic.WithField("GpuPreference=1;AutoHDREnable=1;", "GpuPreference", "2") == "GpuPreference=2;AutoHDREnable=1;", "GPU field is changed in place");
+    Check(TweakLogic.WithField("GpuPreference=2;AutoHDREnable=1;", "GpuPreference", null) == "AutoHDREnable=1;", "removing the GPU field keeps Auto HDR");
+    Check(TweakLogic.WithField("GpuPreference=2;", "GpuPreference", null) == null, "nothing left: the value goes");
+    Check(TweakLogic.WithField(null, "SwapEffectUpgradeEnable", "1") == "SwapEffectUpgradeEnable=1;", "field on an exe without a value");
+    Check(TweakLogic.Field("GpuPreference=2;SwapEffectUpgradeEnable=0;", "SwapEffectUpgradeEnable") == "0", "a field is read among others");
+    Check(TweakLogic.Field("AutoHDREnable=1;", "GpuPreference") == null, "a missing field is null");
+    Check(TweakLogic.Field("gpupreference=2", "GpuPreference") == "2", "field names ignore case, the last ; may be missing");
+    // set then restore with the backup gives back exactly the old string (except the order of the own field)
+    var before = "AutoHDREnable=1;GpuPreference=1;";
+    var saved = TweakLogic.Field(before, "GpuPreference");
+    var after = TweakLogic.WithField(TweakLogic.WithField(before, "GpuPreference", "2"), "GpuPreference", saved);
+    Check(after == before, "apply and revert of the GPU field round-trip");
+}
+
+// ---------- tweaks: accessibility shortcut bits ----------
+{
+    // STICKYKEYS default 510 (hotkey on), the old tweak wrote 506; a user with sticky keys on has 511
+    Check(TweakLogic.WithoutHotkey(510) == 506, "only the shortcut bit goes (sticky keys 510 → 506)");
+    Check(TweakLogic.WithoutHotkey(62) == 58, "only the shortcut bit goes (toggle keys 62 → 58)");
+    // revert: the shortcut bits come back, a change the user made to the feature meanwhile stays
+    Check(TweakLogic.RestoreHotkey(506, 510) == 510, "shortcut back from the backup");
+    Check(TweakLogic.RestoreHotkey(507, 510) == 511, "the feature switched on meanwhile stays on");
+    Check(TweakLogic.RestoreHotkey(506 & ~8u, 510) == 510, "the confirm bit comes back too");
+}
+
+// ---------- tweaks: page file ----------
+{
+    Check(TweakLogic.PagefileOk(new[] { @"?:\pagefile.sys" }, 16384), "Windows-managed for all drives is fine");
+    Check(TweakLogic.PagefileOk(new[] { @"C:\pagefile.sys 0 0" }, 16384), "system-managed size on C: is fine");
+    Check(!TweakLogic.PagefileOk(Array.Empty<string>(), 16384), "no page file at all is not");
+    Check(!TweakLogic.PagefileOk(new[] { "" }, 16384), "an empty entry is not");
+    Check(!TweakLogic.PagefileOk(null, 16384), "a missing value is not");
+    Check(!TweakLogic.PagefileOk(new[] { @"C:\pagefile.sys 1024 2048" }, 16384), "16 GB RAM with a 2 GB page file is too small");
+    Check(TweakLogic.PagefileOk(new[] { @"C:\pagefile.sys 8192 8192" }, 32768), "a fixed 8 GB page file on a 32 GB PC is kept");
+    Check(TweakLogic.PagefileOk(new[] { @"C:\pagefile.sys 4096 8192", @"D:\pagefile.sys 4096 8192" }, 16384), "two page files count together");
+}
+
+// ---------- tweaks: backups and CPU detection ----------
+{
+    Check(TweakLogic.ShouldBackup("1", "0"), "a value that differs from the target is saved");
+    Check(!TweakLogic.ShouldBackup("0", "0"), "a value that already is the target keeps the old backup");
+    Check(TweakLogic.ShouldBackup(null, "0"), "a missing value is saved as missing");
+    Check(TweakLogic.Ints3("6,10,1") is [6, 10, 1], "mouse values are read back");
+    Check(TweakLogic.Ints3("6,10") == null && TweakLogic.Ints3("a,b,c") == null && TweakLogic.Ints3(null) == null, "broken mouse backups are ignored");
+    Check(TweakLogic.IsDualCcdX3D("AMD Ryzen 9 7950X3D 16-Core Processor"), "7950X3D has two chiplets");
+    Check(TweakLogic.IsDualCcdX3D("AMD Ryzen 9 7945HX3D with Radeon Graphics"), "7945HX3D has two chiplets");
+    Check(TweakLogic.IsDualCcdX3D("AMD Ryzen 9 9900X3D 12-Core Processor"), "9900X3D has two chiplets");
+    Check(!TweakLogic.IsDualCcdX3D("AMD Ryzen 7 7800X3D 8-Core Processor"), "7800X3D has one chiplet");
+    Check(!TweakLogic.IsDualCcdX3D("AMD Ryzen 9 7950X 16-Core Processor"), "7950X has no 3D cache");
+    Check(!TweakLogic.IsDualCcdX3D("13th Gen Intel(R) Core(TM) i7-13700K"), "Intel is not X3D");
+}
+
 Console.WriteLine($"{passed} passed, {failed} failed");
 return failed == 0 ? 0 : 1;
 

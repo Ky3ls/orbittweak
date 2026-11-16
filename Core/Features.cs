@@ -353,8 +353,9 @@ internal static class Health
         items.Add(FiveM.Root is { } r ? new("FiveM installiert", r, "ok") : new("FiveM installiert", "Nicht gefunden – Pfad im Launcher wählen", "bad"));
 
         var gb = Math.Round(Native.Memory().total / 1073741824.0);
-        items.Add(new("Arbeitsspeicher", $"{gb} GB" + (gb >= 16 ? " – perfekt für FiveM" : gb >= 8 ? " – knapp, Auto-RAM-Clean empfohlen" : " – zu wenig für FiveM"),
-            gb >= 16 ? "ok" : gb >= 8 ? "warn" : "bad", gb >= 16 ? null : "tweak:autoram"));
+        items.Add(new("Arbeitsspeicher", $"{gb} GB" + (gb >= 16 ? " – perfekt für FiveM" : gb >= 8 ? " – knapp, Browser und Launcher im Spiel möglichst schließen" : " – zu wenig für FiveM"),
+            gb >= 16 ? "ok" : gb >= 8 ? "warn" : "bad", gb >= 16 || T("bgbrake") ? null : "tweak:bgbrake"));
+        items.Add(Catalog.PagefileOk() ? new("Auslagerungsdatei", "Von Windows verwaltet", "ok") : new("Auslagerungsdatei", "Aus oder zu klein – Absturzgefahr bei vollem RAM", "bad", "tweak:pagefile"));
 
         try
         {
@@ -367,10 +368,20 @@ internal static class Health
         var build = Environment.OSVersion.Version.Build;
         items.Add(new("Windows-Version", $"Build {build}" + (build >= 19045 ? "" : " – Update empfohlen"), build >= 19045 ? "ok" : "warn"));
 
-        items.Add(T("ult") ? new("Energieplan", "Höchstleistung aktiv", "ok") : new("Energieplan", "Ausbalanciert – CPU taktet herunter", "warn", "tweak:ult"));
-        items.Add(T("dvr") ? new("Xbox Game DVR", "Deaktiviert", "ok") : new("Xbox Game DVR", "Aktiv – kostet FPS", "bad", "tweak:dvr"));
-        items.Add(T("gpu") ? new("FiveM GPU-Zuweisung", "Dedizierte GPU erzwungen", "ok") : new("FiveM GPU-Zuweisung", "Windows entscheidet – evtl. iGPU", "warn", "tweak:gpu"));
-        items.Add(T("nagle") ? new("Netzwerk-Latenz", "Nagle deaktiviert", "ok") : new("Netzwerk-Latenz", "Nagle aktiv – Pakete werden verzögert", "warn", "tweak:nagle"));
+        var ult = tweaks.FirstOrDefault(t => t.Id == "ult");
+        items.Add(T("ult") ? new("Energieplan", "Höchstleistung aktiv", "ok")
+            : ult == null || !ult.IsRecommended ? new("Energieplan", "Ausbalanciert bzw. eigener Plan (für diesen PC richtig)", "ok")
+            : new("Energieplan", "Ausbalanciert – Höchstleistung möglich", "warn", "tweak:ult"));
+        items.Add(Reg.Is(@"HKCU\Software\Microsoft\Windows\CurrentVersion\GameDVR", "HistoricalCaptureEnabled", 1)
+            ? new("Game-Bar-Hintergrundaufnahme", "Läuft – kostet FPS", "bad", "tweak:dvr")
+            : new("Game-Bar-Hintergrundaufnahme", "Aus", "ok"));
+        if (Hw.SwitchableGpus)
+            items.Add(T("gpu") ? new("FiveM-Grafikkarte", "In Windows auf „Hohe Leistung“", "ok") : new("FiveM-Grafikkarte", "Zwei Grafikchips – FiveM nicht fest auf der starken Karte", "warn", "tweak:gpu"));
+        var net = NetLink.DefaultRoute();
+        if (net != null)
+            items.Add(net.NetworkInterfaceType != System.Net.NetworkInformation.NetworkInterfaceType.Wireless80211 ? new("Verbindung", "Per Kabel", "ok")
+                : T("wifiscan") ? new("Verbindung", "WLAN (Scans im Spiel pausiert) – ein LAN-Kabel ist der größte Hebel", "warn")
+                : new("Verbindung", "WLAN – für FiveM ist ein LAN-Kabel der größte Hebel", "warn", "tweak:wifiscan"));
 
         var (gpuName, drvVer, drvDate) = GpuDriver();
         if (drvDate is { } dd)

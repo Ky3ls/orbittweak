@@ -94,7 +94,8 @@ internal static class Native
         EnablePrivilege("SeDebugPrivilege");
         foreach (var p in Process.GetProcesses())
         {
-            try { if (p.Id > 4) EmptyWorkingSet(p.Handle); }
+            // never the game (its data would have to come back from disk: a stutter), the desktop compositor or the audio engine
+            try { if (p.Id > 4 && !Spare(p.ProcessName)) EmptyWorkingSet(p.Handle); }
             catch { /* protected / exited */ }
             finally { p.Dispose(); }
         }
@@ -106,6 +107,9 @@ internal static class Native
         Thread.Sleep(400);
         return Math.Max(0, (long)Memory().avail - before);
     }
+
+    private static bool Spare(string name) =>
+        name.StartsWith("FiveM", StringComparison.OrdinalIgnoreCase) || name.Equals("dwm", StringComparison.OrdinalIgnoreCase) || name.Equals("audiodg", StringComparison.OrdinalIgnoreCase);
 
     // ---------- Recycle bin ----------
     public static long RecycleBinSize()

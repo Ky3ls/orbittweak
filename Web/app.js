@@ -398,7 +398,8 @@ async function refreshCache() { try { const r = await api('fivem.cacheSize'); $(
 
 /* ======================= SCORE / BOOST ======================= */
 function score() {
-  const t = S.tweaks, on = t.filter(x => x.applied).length, pct = t.length ? Math.round(on * 100 / t.length) : 0;
+  // the share of the tweaks recommended for this PC that are on: optional ones never pull the score down
+  const t = S.tweaks.filter(x => x.rec), on = t.filter(x => x.applied).length, pct = t.length ? Math.round(on * 100 / t.length) : 100;
   $('#hsTweaks').textContent = `${on}/${t.length}`;
   if (!S.boosting) { setRing(pct); $('#scoreChip').textContent = pct >= 90 ? 'Optimal' : 'Bereit'; $('#scoreChip').className = 'chip ' + (pct >= 90 ? 'g' : ''); }
 }
@@ -451,21 +452,39 @@ async function boost(fromWizard) {
 }
 
 /* ======================= TWEAKS ======================= */
-const CATS = { fivem: ['FiveM', 'gamepad', 'Spiel-Priorität, GPU und Frametimes'], system: ['System', 'cpu', 'Windows-Einstellungen für weniger Ruckler'], network: ['Netzwerk & Hitreg', 'wifi', 'Niedrigere Latenz, stabilere Treffer'], input: ['Input', 'keyboard', 'Maus und Tastatur direkter'] };
+const CATS = { fivem: ['FiveM', 'gamepad', 'GPU, Bildausgabe und Vorrang fürs Spiel'], system: ['System', 'cpu', 'Windows-Einstellungen, die beim Spielen zählen'], network: ['Netzwerk', 'wifi', 'Weniger Aussetzer durch Stromsparen, WLAN-Scans und Update-Uploads'], input: ['Input', 'keyboard', 'Maus, Tastatur und störende Windows-Kürzel'] };
 let curTab = 'fivem';
-async function loadTweaks() { S.tweaks = await api('tweaks.list'); renderTweaks(); score(); }
+async function loadTweaks() {
+  S.tweaks = await api('tweaks.list'); renderTweaks(); score();
+  // removed tweaks that are still active (System tab), and once after the update: what was undone by itself
+  try {
+    const l = await api('tweaks.legacy'); S.legacy = l.items || []; renderTweaks();
+    const n = l.note;
+    if (n && n.undone && n.undone.length) toast('Veraltete Tweaks zurückgesetzt', n.undone.join(', ') + (n.reboot ? ' · wirkt nach einem Neustart' : ''));
+    if (n && n.active) setTimeout(() => toast(n.active === 1 ? '1 alter Tweak ist noch aktiv' : `${n.active} alte Tweaks sind noch aktiv`, 'Unter Tweaks › System › Entfernte Tweaks prüfen'), n.undone && n.undone.length ? 4200 : 0);
+  } catch { }
+}
 function tweakHtml(t, compact) {
-  const badge = !t.badge ? '' : t.badge === 'NEUSTART' ? '<span class="eff w">Neustart</span>' : t.badge === 'LIVE' ? '<span class="eff a" title="Wirkt sofort, solange OrbitTweak läuft">Live</span>' : `<span class="eff">${esc(t.badge)}</span>`;
+  const badge = !t.badge ? '' : t.badge === 'NEUSTART' ? '<span class="eff w">Neustart</span>' : t.badge === 'LIVE' ? '<span class="eff a" title="Wirkt sofort, solange OrbitTweak und FiveM laufen">Live</span>' : `<span class="eff">${esc(t.badge)}</span>`;
   // most tweaks are recommended, so only the exceptions are marked
   const rec = !compact && !t.rec ? '<span class="eff">Optional</span>' : '';
-  const body = `<div class="ti">${ico(t.icon)}</div><div class="tx"><b>${esc(t.name)}</b>${badge}${rec}<p>${esc(t.desc)}</p></div><div class="tg ${t.applied ? 'on' : ''}" data-id="${t.id}"></div>`;
-  return `<div class="tw ${t.applied ? 'on' : ''}">${body}</div>`;
+  // not usable on this PC: the switch only works to turn it off, the note says why
+  const off = t.usable === false && !t.applied;
+  const hint = t.hint ? `<small class="tw-hint">${esc(t.hint)}</small>` : '';
+  const body = `<div class="ti">${ico(t.icon)}</div><div class="tx"><b>${esc(t.name)}</b>${badge}${rec}<p>${esc(t.desc)}</p>${hint}</div><div class="tg ${t.applied ? 'on' : ''}" data-id="${t.id}"></div>`;
+  return `<div class="tw ${t.applied ? 'on' : ''}${off ? ' dis' : ''}">${body}</div>`;
+}
+function legacyHtml() {
+  const l = S.legacy || [];
+  if (!l.length) return '';
+  return `<div class="tl-h tw-old-h"><b>Entfernte Tweaks</b><p>Diese Tweaks gibt es nicht mehr, sie sind bei dir aber noch aktiv. Sie können auch von einem anderen Tool stammen, deshalb setzt OrbitTweak sie nicht von selbst zurück.</p></div>`
+    + l.map(t => `<div class="tw old"><div class="ti">${ico('undo')}</div><div class="tx"><b>${esc(t.name)}</b><p>${esc(t.desc)}</p>${t.hint ? `<small class="tw-hint">${esc(t.hint)}</small>` : ''}</div><button class="btn sm" data-legacy="${t.id}">Zurücksetzen</button></div>`).join('');
 }
 function renderTweaks() {
   $('#tabs').innerHTML = Object.entries(CATS).map(([k, [n, i]]) => { const l = S.tweaks.filter(t => t.cat === k); return `<button class="tab ${k === curTab ? 'on' : ''}" data-c="${k}">${ico(i)}${n}<span class="vt-s">${l.filter(t => t.applied).length}/${l.length} aktiv</span></button>`; }).join('');
   const cur = S.tweaks.filter(t => t.cat === curTab);
   $('#tlDesc').textContent = CATS[curTab][2];
-  $('#tgrid').innerHTML = cur.map(t => tweakHtml(t)).join('');
+  $('#tgrid').innerHTML = cur.map(t => tweakHtml(t)).join('') + (curTab === 'system' ? legacyHtml() : '');
   const inp = S.tweaks.filter(t => t.cat === 'input');
   $('#inputTweaks').innerHTML = inp.map(t => tweakHtml(t, true)).join('');
   $('#inputTwCount').textContent = `${inp.filter(t => t.applied).length}/${inp.length} aktiv`;
@@ -473,25 +492,36 @@ function renderTweaks() {
 document.addEventListener('click', async e => {
   const tab = e.target.closest('#tabs .tab'); if (tab) { curTab = tab.dataset.c; renderTweaks(); return; }
   if (e.target.closest('.tab')) return;
+  const lg = e.target.closest('[data-legacy]');
+  if (lg) {
+    lg.disabled = true;
+    const r = await api('tweak.legacyRevert', { id: lg.dataset.legacy }).catch(er => ({ ok: false, error: er.message }));
+    const it = (S.legacy || []).find(x => x.id === lg.dataset.legacy);
+    if (r.ok) { S.legacy = S.legacy.filter(x => x !== it); toast('Zurückgesetzt', (it ? it.name.replace(/ \(.*\)$/, '') : '') + (it && it.hint ? ' · ' + it.hint : '')); }
+    else { lg.disabled = false; toast('Nicht zurückgesetzt', r.error || '', false); }
+    renderTweaks(); return;
+  }
   const tg = e.target.closest('.tg[data-id]') || e.target.closest('.tw')?.querySelector('.tg[data-id]'); if (!tg) return;
   const t = S.tweaks.find(x => x.id === tg.dataset.id); if (!t) return;
   const want = !t.applied;
+  if (want && t.usable === false) return toast('Auf diesem PC nicht möglich', t.hint || t.name, false);
   $$(`.tg[data-id="${t.id}"]`).forEach(x => { x.classList.toggle('on', want); x.classList.add('busy'); });
   try {
     const r = await api('tweak.set', { id: t.id, on: want }); t.applied = r.applied;
     if (r.error) toast('Fehlgeschlagen', `${t.name}: ${r.error}`, false);
-    else toast(want ? 'Aktiviert' : 'Zurückgesetzt', t.name + (t.badge === 'NEUSTART' && want ? ' · Neustart nötig' : ''));
+    else toast(want ? 'Aktiviert' : 'Zurückgesetzt', t.name + (t.badge === 'NEUSTART' ? ' · wirkt nach einem Neustart' : ''));
   } catch (err) { toast('Fehler', err.message, false); }
   renderTweaks(); score();
+  loadTweaks();   // hints and the state of related switches can change with it (power plan and USB, for example)
 });
 async function applyCat(cat) {
-  const list = S.tweaks.filter(t => t.cat === cat && t.rec && !t.applied);
+  const list = S.tweaks.filter(t => t.cat === cat && t.rec && t.usable !== false && !t.applied);
   if (!list.length) return toast('Schon optimal', `Alle empfohlenen ${CATS[cat][0]}-Tweaks sind aktiv`);
   for (const t of list) { try { const r = await api('tweak.set', { id: t.id, on: true }); t.applied = r.applied; } catch { } renderTweaks(); }
   score(); toast(`${CATS[cat][0]} optimiert`, `${list.length} Tweaks angewendet`);
 }
 async function revertAll() {
-  if (!await confirmBox('Alle Tweaks zurücksetzen?', 'Windows, Netzwerk, Input und FiveM werden auf Standard zurückgesetzt.', { ok: 'Alles zurücksetzen', danger: true })) return;
+  if (!await confirmBox('Alle Tweaks zurücksetzen?', 'Alles, was OrbitTweak an Windows, Netzwerk, Input und FiveM geändert hat, bekommt den Wert von vorher zurück. Was schon vorher so eingestellt war, bleibt.', { ok: 'Alles zurücksetzen', danger: true })) return;
   await api('tweaks.revertAll'); await loadTweaks(); toast('Alles zurückgesetzt', 'Neustart empfohlen');
 }
 
@@ -503,8 +533,8 @@ async function pickFiveM() { const r = await api('fivem.pick'); if (r.found) { S
 
 /* ======================= LAUNCHER ======================= */
 const BUILDS = ['Auto', '2189', '2372', '2545', '2612', '2699', '2802', '2944', '3095', '3258', '3323', '3407'];
-const PRE = [['ram', 'RAM freigeben', 'Working-Sets + Standby-Liste leeren'], ['dns', 'DNS-Cache leeren', 'Frische Server-Auflösung'], ['kill', 'Hintergrund-Apps beenden', 'OneDrive, Teams, Launcher & Co.'], ['cache', 'FiveM-Cache leeren', 'Nur bei Problemen (längeres Laden)'], ['prio', 'Priorität „Hoch“ setzen', 'Automatisch, sobald das Spiel läuft']];
-const cfg = () => S.settings.launch ||= { build: 'Auto', pure: 0, pre: { ram: true, dns: true, kill: false, cache: false, prio: true } };
+const PRE = [['ram', 'RAM freigeben', 'Working-Sets + Standby-Liste leeren'], ['dns', 'DNS-Cache leeren', 'Frische Server-Auflösung'], ['kill', 'Hintergrund-Apps beenden', 'OneDrive, Teams, Launcher & Co.'], ['cache', 'FiveM-Cache leeren', 'Nur bei Problemen (längeres Laden)']];
+const cfg = () => S.settings.launch ||= { build: 'Auto', pure: 0, pre: { ram: true, dns: true, kill: false, cache: false } };
 function seg(el, opts, cur, onPick) {
   el.innerHTML = opts.map(([n, v]) => `<button class="${String(v) === String(cur) ? 'on' : ''}" data-v="${v}">${n}</button>`).join('');
   el.onclick = e => { const b = e.target.closest('button'); if (!b) return; el.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); onPick(b.dataset.v); };
@@ -843,8 +873,6 @@ const SETS = [
   ['autoInstall', 'Updates ohne Nachfrage installieren', 'Aus: OrbitTweak fragt vorher, ob es aktualisieren darf'],
   ['restoreBeforeBoost', 'Wiederherstellungspunkt vor dem Boost', 'Windows-Snapshot vor jeder Optimierung'],
   ['purgeStandby', 'Standby-Liste beim RAM-Clean leeren', 'Gibt gecachten Speicher frei (empfohlen bei 8–16 GB)'],
-  ['autoRamClean', 'Auto-RAM-Clean im Spiel', 'Alle 5 Minuten, solange FiveM läuft'],
-  ['autoPriority', 'Auto-Priorität „Hoch“', 'GTA-Prozess bekommt automatisch mehr CPU-Zeit'],
 ];
 function renderSettings() {
   const cur = themeKey(S.settings.accent);
@@ -854,9 +882,9 @@ function renderSettings() {
   $('#fxTg')?.classList.toggle('on', S.settings.fx !== false);
   $('#fxRow')?.classList.toggle('hidden', !FXCFG[cur]);
   const row = ([k, n, d]) => `<div class="srow sclick"><div><b>${n}</b><p>${d}</p></div><div class="tg ${S.settings[k] ? 'on' : ''}" data-set="${k}"></div></div>`;
-  // RAM-Clean and priority are the live tweaks of Tweaks › FiveM: one switch, in one place
-  $('#setList').innerHTML = SETS.filter(s => !['autoUpdate', 'autoInstall', 'autoRamClean', 'autoPriority'].includes(s[0])).map(row).join('')
-    + `<button class="srow slink" onclick="goTweaks('fivem')"><div><b>Live-Tweaks im Spiel</b><p>RAM-Clean und Priorität „Hoch“ stellst du unter Tweaks › FiveM ein</p></div>${ico('chev', 'i ch')}</button>`;
+  // the live tweaks while the game runs are switches of Tweaks › FiveM: one switch, in one place
+  $('#setList').innerHTML = SETS.filter(s => !['autoUpdate', 'autoInstall'].includes(s[0])).map(row).join('')
+    + `<button class="srow slink" onclick="goTweaks('fivem')"><div><b>Live-Tweaks im Spiel</b><p>Hintergrund-Apps ausbremsen, Energiesparen fürs Spiel und Timer stellst du unter Tweaks › FiveM ein</p></div>${ico('chev', 'i ch')}</button>`;
   $('#updSets').innerHTML = SETS.filter(s => ['autoUpdate', 'autoInstall'].includes(s[0])).map(row).join('');
 }
 document.addEventListener('click', e => {
@@ -866,7 +894,7 @@ document.addEventListener('click', e => {
   const th = e.target.closest('[data-th]');
   if (th) { S.settings.accent = th.dataset.th; applyTheme(th.dataset.th); renderSettings(); api('settings.set', { key: 'accent', value: th.dataset.th }); padDraw(); padPush(); return; }
   const st = e.target.closest('[data-set]') || e.target.closest('.sclick')?.querySelector('[data-set]');
-  if (st) { const k = st.dataset.set; S.settings[k] = !S.settings[k]; st.classList.toggle('on'); api('settings.set', { key: k, value: S.settings[k] }); if (!k.startsWith('auto') || k === 'autoRamClean' || k === 'autoPriority') loadTweaks(); }
+  if (st) { const k = st.dataset.set; S.settings[k] = !S.settings[k]; st.classList.toggle('on'); api('settings.set', { key: k, value: S.settings[k] }); if (!k.startsWith('auto')) loadTweaks(); }
 });
 function goTweaks(cat) { curTab = cat; go('tweaks'); renderTweaks(); }
 window.goTweaks = goTweaks;
@@ -954,7 +982,7 @@ async function wizard(step) {
     modal(`${steps(1)}<h1>System-<span class="grad">Scan</span></h1><p>Analysiere Hardware, Windows und FiveM…</p><div class="bar mt" style="height:8px"><i style="width:30%" id="scanBar"></i></div>`);
     const [h] = await Promise.all([runHealth(), sleep(1000)]);
     $('#scanBar').style.width = '100%'; await sleep(300);
-    const todo = S.tweaks.filter(t => t.rec && !t.applied);
+    const todo = S.tweaks.filter(t => t.rec && t.usable !== false && !t.applied);
     modal(`${steps(2)}<h1>Zustand: <span class="grad">${h.score} %</span></h1><p>${todo.length} empfohlene Optimierungen gefunden.</p><div class="wl">${Object.entries(CATS).map(([k, [n, i]]) => { const c = todo.filter(t => t.cat === k); return c.length ? `<div class="hc"><div class="st" style="background:rgba(var(--a-rgb),.12);color:var(--a)">${ico(i)}</div><div class="tx"><b>${n}</b><p>${c.map(t => esc(t.name)).join(' · ')}</p></div><span class="chip a">${c.length}</span></div>` : ''; }).join('')}</div><div class="act"><button class="btn lg" onclick="finishWizard()">Später</button><button class="btn p lg" onclick="wizard(3)">${ico('zap')}Optimieren</button></div>`);
     const wl = $('#mbox .wl'); if (wl && wl.scrollHeight > wl.clientHeight + 4) wl.classList.add('more');
   }
@@ -1656,7 +1684,7 @@ async function clipStatus() {
   clipStatusUI();
 }
 setInterval(() => { if (curPage === 'clip') clipStatus(); }, 2000);
-async function clipGameBar() { await api('clip.gamebar'); toast('Hintergrundaufnahme an', 'Hinweis: der Tweak „Xbox Game DVR aus“ ist damit wieder rückgängig'); }
+async function clipGameBar() { await api('clip.gamebar'); toast('Hintergrundaufnahme an', 'Hinweis: der Tweak „Game-Bar-Aufnahme aus“ ist damit wieder aus'); loadTweaks(); }
 window.clipGameBar = clipGameBar;
 async function clipTest() {
   const r = await api('clip.save').catch(e => ({ ok: false, error: e.message }));
@@ -1940,7 +1968,8 @@ document.addEventListener('click', e => {
 // Fast key repeat: Windows keyboard filter, takes effect at once.
 // Buffer: 0 = Windows default (100), a smaller buffer needs a restart of Windows.
 const WASD_LEVELS = [[0, 'Standard'], [50, '50'], [30, '30'], [25, '25'], [20, '20'], [16, '16']];
-const WASD_TXT = { 0: 'Windows-Standard (100)', 50: 'leicht verkleinert', 30: 'mittel', 25: 'klein', 20: 'sehr klein', 16: 'kleinste Stufe, dabei können Tasten verschluckt werden' };
+// a smaller buffer is not faster, it only overflows sooner: honest words for the WASD-pack levels
+const WASD_TXT = { 0: 'Windows-Standard (100)', 50: 'leicht verkleinert, kein Latenzgewinn, nur für WASD-Packs', 30: 'mittel, nur für WASD-Packs', 25: 'klein, nur für WASD-Packs', 20: 'sehr klein, Tasten können verloren gehen', 16: 'kleinste Stufe, Tasten können verloren gehen' };
 const CHOP_PRE = { 1: [25, 130], 2: [35, 80], 3: [45, 60], 4: [60, 75] };   // let-go ms, ms from one let-go to the next
 let wasdSt = null, chopT = 0;
 function chopPush(wait = 250) {
@@ -2057,7 +2086,7 @@ async function netTest() {
     const mx = Math.max(...r.samples, 1);
     $('#ntBars').innerHTML = r.samples.map((s, i) => `<i style="height:${Math.max(8, s / mx * 100)}%;animation-delay:${i * 25}ms" title="${s} ms"></i>`).join('') + Array.from({ length: r.loss / 5 }, () => '<i class="lost" style="height:100%"></i>').join('');
     const good = r.avg < 60 && r.jitter < 6 && r.loss === 0, ok = r.avg < 110 && r.jitter < 15 && r.loss <= 5;
-    $('#ntTxt').innerHTML = good ? '<span style="color:var(--good)">Top für Hitreg</span>' : ok ? '<span style="color:var(--warn)">Spielbar, leichte Schwankungen</span>' : '<span style="color:var(--bad)">Schlecht für Hitreg: Netzwerk-Tweaks anwenden, LAN statt WLAN</span>';
+    $('#ntTxt').innerHTML = good ? '<span style="color:var(--good)">Stabile, schnelle Verbindung</span>' : ok ? '<span style="color:var(--warn)">Spielbar, leichte Schwankungen</span>' : '<span style="color:var(--bad)">Instabil: LAN-Kabel statt WLAN, Downloads und Uploads im Hintergrund pausieren</span>';
   } catch (e) { toast('Test fehlgeschlagen', e.message, false); }
   finally { btn.disabled = false; }
 }
@@ -2738,25 +2767,35 @@ async function boot() {
 
 /* ======================= MOCK BACKEND (browser preview) ======================= */
 const Mock = {
-  settings: { accent: 'inferno', autoInstall: false, restoreBeforeBoost: true, purgeStandby: true, autoPriority: true, autoRamClean: false, autoUpdate: true, firstRun: false, lastBoost: null, xhairAck: false, xhair: { on: false, onlyGame: false, key: 0x79, offsetX: 0, offsetY: 0, json: null }, display: { on: false, onlyGame: true, vibrance: 0, brightness: 0, contrast: 0, gamma: 100, key: 0 } },
+  settings: { accent: 'inferno', autoInstall: false, restoreBeforeBoost: true, purgeStandby: true, autoUpdate: true, firstRun: false, lastBoost: null, xhairAck: false, xhair: { on: false, onlyGame: false, key: 0x79, offsetX: 0, offsetY: 0, json: null }, display: { on: false, onlyGame: true, vibrance: 0, brightness: 0, contrast: 0, gamma: 100, key: 0 } },
+  // the same tweaks as Core/Catalog.cs (names and texts), with made-up states
   tweaks: [
-    ['gpu', 'fivem', 'Hochleistungs-GPU erzwingen', 'FiveM läuft immer auf der dedizierten Grafikkarte statt der iGPU.', 'monitor', null, 1],
-    ['fso', 'fivem', 'Vollbild-Optimierung für FiveM aus', 'Echter Exclusive-Fullscreen, weniger Input-Lag.', 'max', null, 1],
-    ['prio', 'fivem', 'Auto-Priorität „Hoch“', 'GTA-Prozess bekommt automatisch hohe CPU-Priorität.', 'gauge', 'LIVE', 1],
-    ['autoram', 'fivem', 'Auto-RAM-Clean im Spiel', 'Leert alle 5 Minuten Standby-Liste & Working-Sets.', 'ram', 'LIVE', 0],
-    ['timer', 'fivem', 'Timer-Auflösung 0,5 ms', 'Stabilere Frametimes, solange OrbitTweak läuft.', 'timer', 'LIVE', 1],
-    ['ult', 'system', 'Höchstleistungs-Energieplan', 'Kein CPU-Parking, kein Heruntertakten.', 'zap', null, 1],
-    ['gm', 'system', 'Spielmodus', 'Windows priorisiert das Spiel.', 'gamepad', null, 1],
-    ['dvr', 'system', 'Xbox Game DVR aus', 'Keine Hintergrundaufnahme.', 'videooff', null, 1],
-    ['hags', 'system', 'Hardware-GPU-Planung', 'Weniger Latenz, stabilere Frametimes.', 'monitor', 'NEUSTART', 1],
-    ['mmcss', 'system', 'Spiele-Priorität (MMCSS)', 'Mehr CPU- und GPU-Zeit für Spiele.', 'cpu', null, 1],
-    ['nagle', 'network', 'Nagle-Algorithmus aus', 'Pakete werden sofort gesendet.', 'wifi', null, 1],
-    ['thr', 'network', 'Netzwerk-Drosselung aus', 'Keine Multimedia-Paketdrosselung.', 'activity', null, 1],
-    ['kbd', 'input', 'Tastatur-Verzögerung 0', 'Minimale Wiederholverzögerung, maximale Repeat-Rate.', 'keyboard', null, 1],
-    ['queue', 'input', 'Input-Puffer optimieren', 'Kleinere Maus- und Tastatur-Warteschlange.', 'mouse', 'NEUSTART', 1],
-    ['accel', 'input', 'Mausbeschleunigung aus', '1:1-Gefühl beim Zielen.', 'target', null, 1],
-    ['usb', 'input', 'USB-Energiesparen aus', 'Keine Input-Aussetzer durch Stromsparen.', 'usb', null, 1],
-  ].map(([id, cat, name, desc, icon, badge, rec], i) => ({ id, cat, name, desc, icon, badge, rec: !!rec, applied: i % 3 === 0 })),
+    ['gpu', 'fivem', 'Starke Grafikkarte für FiveM', 'Trägt FiveM in den Windows-Grafikeinstellungen auf „Hohe Leistung“ ein – auf Laptops und PCs mit zwei Grafikchips ein Sicherheitsnetz, das Cfx.re bei endlosem Laden oder fehlender Spiel-UI empfiehlt (FiveM wählt die starke Karte meist schon selbst), mit nur einer Grafikkarte ändert sich nichts.', 'monitor', null, 0, 'Nur eine Grafikkarte erkannt: hier ändert sich nichts'],
+    ['winopt', 'fivem', 'Fenster-Optimierung für FiveM', 'Schaltet die Windows-11-„Optimierungen für Spiele im Fenstermodus“ nur für FiveM ein, damit die Bildausgabe im Randlos- oder Fenstermodus mit weniger Verzögerung läuft und G-Sync/FreeSync greifen kann – im echten Vollbild und bei FiveM für GTA V Enhanced (DirectX 12) bringt es nichts, und wenn Alt-Tab oder das Umschalten danach hakt, schalte es wieder aus.', 'max', null, 0],
+    ['nothrottle', 'fivem', 'Kein Energiesparen fürs Spiel', 'Verhindert auf Laptops am Akku, dass Windows FiveM in den Sparmodus schickt, wenn das Spiel nicht im Vordergrund ist oder du eine Weile nichts drückst – am Netzteil mit dem Spiel vorne ändert sich nichts, und die CPU-Priorität bleibt bewusst auf „Normal“, weil „Hoch“ laut Cfx.re Ladehänger und Voice-Lag auslösen kann.', 'gauge', 'LIVE', 0],
+    ['bgbrake', 'fivem', 'Hintergrund-Apps ausbremsen', 'Solange FiveM läuft, stellt OrbitTweak Browser, Launcher und Cloud-Apps hinter das Spiel (niedrigere Priorität, unter Windows 11 zusätzlich Effizienzmodus, bei CPUs mit E-Kernen landen sie dort), was spürbar nur hilft, wenn deine CPU im Spiel ausgelastet ist – Voice-Apps, Apps, die gerade Ton abspielen, und das Fenster, das du gerade benutzt, bleiben unangetastet, und nach dem Spiel ist alles wie vorher.', 'cpu', 'LIVE', 1],
+    ['timer', 'fivem', 'Timer 0,5 ms im Spiel (Experiment)', 'Fordert, solange FiveM läuft, den feinsten Windows-Takt an, der beim Spiel aber nur ankommt, wenn FiveM selbst einen feineren Takt anfordert – ein spürbarer Gewinn ist nicht belegt, dafür braucht dein PC etwas mehr Strom.', 'timer', 'LIVE', 0],
+    ['ult', 'system', 'Energieplan Höchstleistung', 'Wechselt auf einen eigenen Höchstleistungs-Energieplan, damit die CPU nicht erst hochtakten muss, und holt beim Ausschalten deinen bisherigen Plan zurück – auf aktuellen Desktops ist der Effekt klein, und im Leerlauf braucht der PC etwas mehr Strom.', 'zap', null, 0, 'Ryzen X3D mit zwei Chiplets: Der AMD-Treiber braucht „Ausbalanciert“', false],
+    ['gm', 'system', 'Spielmodus', 'Sorgt dafür, dass der Windows-Spielmodus an ist (Standard): Während du spielst, hält Windows Update Treiber-Installationen und Neustart-Hinweise zurück – mehr FPS bringt er kaum, für Ryzen-X3D-CPUs mit zwei Chiplets ist er aber Pflicht.', 'gamepad', null, 1],
+    ['dvr', 'system', 'Game-Bar-Aufnahme aus', 'Schaltet die Aufnahme der Xbox Game Bar samt „Im Hintergrund aufnehmen“ ab – mehr FPS gibt es nur, wenn die Hintergrundaufnahme vorher lief, und wenn du Clips mit der Game Bar aufnimmst, lass diesen Schalter aus.', 'videooff', null, 1],
+    ['hags', 'system', 'Hardware-GPU-Planung', 'Schaltet die Windows-Einstellung „Hardwarebeschleunigte GPU-Planung“ ein, wenn Grafikkarte und Treiber sie unterstützen – laut Microsoft merkt man meist keinen Unterschied, in Tests waren es 0–4 % mehr FPS, und bei Abstürzen oder Rucklern schaltest du sie besser wieder aus.', 'monitor', 'NEUSTART', 0],
+    ['vfx', 'system', 'Windows-Animationen aus', 'Schaltet Fenster-, Menü- und Taskleisten-Animationen von Windows ab, damit sich der Desktop direkter anfühlt (Taskleiste erst nach Ab- und Anmelden) – im Spiel selbst bringt das keine FPS.', 'sparkle', null, 0],
+    ['pagefile', 'system', 'Auslagerungsdatei absichern', 'Stellt die Auslagerungsdatei wieder auf „von Windows verwaltet“, falls sie abgeschaltet oder zu klein ist, damit FiveM bei vollem Arbeitsspeicher nicht abstürzt – mehr FPS bringt das nicht.', 'ram', 'NEUSTART', 1, 'Bei dir schon in Ordnung (Windows-Standard)'],
+    ['nic', 'network', 'LAN-Energiesparen aus', 'Schaltet Energy Efficient Ethernet und ähnliche Stromsparmodi deiner Netzwerkkarte ab, damit sie zwischen Paketen nicht kurz einschläft und die von Intel dokumentierten EEE-Geschwindigkeitseinbrüche beim I225-V ausbleiben; am Ping merkst du das kaum, und es wirkt erst nach einem Neustart.', 'wifi', 'NEUSTART', 1],
+    ['wifiscan', 'network', 'WLAN-Scans im Spiel aus', 'Solange FiveM läuft, sucht Windows über WLAN nicht mehr im Hintergrund nach anderen Netzen, was die typischen periodischen Ping-Zacken über WLAN verringern kann; nach dem Spiel ist alles wie vorher, und mit LAN-Kabel passiert gar nichts.', 'wifi', 'LIVE', 1, 'Du bist per Kabel verbunden: hier ändert sich nichts'],
+    ['delopt', 'network', 'Update-Verteilung im Heimnetz aus', 'Dein PC gibt Windows-Updates nicht mehr an andere Geräte weiter; standardmäßig teilt Windows ohnehin nur im eigenen Heimnetz, das lohnt sich also vor allem, wenn mehrere Windows-PCs bei dir im WLAN hängen oder du „Geräte im Internet“ erlaubt hattest.', 'download', null, 0],
+    ['sticky', 'input', 'Bedienungshilfe-Popups aus', '5× Shift, langes Halten von Shift rechts oder Num und Alt+Shift+Num öffnen keine Bedienungshilfe-Fenster mehr, die dich mitten im Spiel rauswerfen; Funktionen, die du selbst eingeschaltet hast, behalten ihr Kürzel.', 'ban', null, 1],
+    ['winkey', 'input', 'Windows-Taste im Spiel sperren', 'Solange FiveM im Vordergrund ist, öffnet ein versehentlicher Druck auf die Windows-Taste neben Strg und Alt nicht mehr das Startmenü und wirft dich nicht aus dem Vollbild; außerhalb des Spiels funktioniert sie ganz normal.', 'ban', 'LIVE', 0],
+    ['accel', 'input', 'Zeigerbeschleunigung aus', 'Schaltet „Zeigerpräzision verbessern“ sofort aus, damit der Mauszeiger in FiveM-Menüs wie Inventar und Handy und auf dem Desktop 1:1 deiner Hand folgt; das Zielen mit Raw Input oder DirectInput ist ohnehin unbeschleunigt.', 'target', null, 1, 'Für unbeschleunigtes Zielen in GTA: Einstellungen › Tastatur/Maus › Maus-Eingabemethode „Raw Input“'],
+    ['usb', 'input', 'USB-Energiesparen aus (Netzbetrieb)', 'Im aktiven Energieplan schickt Windows am Netzteil keine USB-Geräte mehr in den Stromsparmodus; das hilft, wenn Headset, Funk-Empfänger oder USB-Hub nach kurzer Pause kurz aussetzen, Maus und Tastatur legt Windows ohnehin meist nicht schlafen.', 'usb', null, 1],
+    ['kbd', 'input', 'Kürzere Wiederholverzögerung', 'Gehaltene Tasten wiederholen sich schon nach etwa 250 statt 500 ms, praktisch beim Löschen im Chat oder im Handy-Menü; aufs Laufen und Zielen im Spiel hat das keinen Einfluss.', 'keyboard', null, 0],
+    ['gbbtn', 'input', 'Xbox-Taste öffnet keine Game Bar', 'Mit Controller öffnet die Xbox-Taste nicht mehr versehentlich die Game Bar mitten im Spiel, Win+G funktioniert weiter; ohne Controller ändert sich nichts.', 'gamepad', null, 0],
+    ['langkey', 'input', 'Sprachwechsel per Alt+Shift aus', 'Alt+Shift und Strg+Shift schalten nicht mehr nebenbei die Tastatursprache um (plötzlich Y und Z vertauscht), Windows+Leertaste geht weiter; nur sinnvoll, wenn du mehr als ein Tastaturlayout installiert hast.', 'keyboard', null, 0],
+  ].map(([id, cat, name, desc, icon, badge, rec, hint, usable], i) => ({ id, cat, name, desc, icon, badge, rec: !!rec, hint: hint || null, usable: usable !== false, applied: usable !== false && i % 3 === 0 })),
+  legacy: [
+    { id: 'sysmain', name: 'SysMain aus (entfernt)', desc: 'Entfernt, weil es auf SSDs keine FPS bringt, Ladezeiten von Festplatten verlängert und nebenbei die Speicherkomprimierung abschaltet – ist es bei dir noch aktiv, kannst du es hier zurücksetzen.', hint: null },
+    { id: 'throttle', name: 'Energiedrosselung aus (entfernt)', desc: 'Entfernt, weil der systemweite Schalter das Spiel im Vordergrund ohnehin nicht drosselt und nur Hintergrund-Apps das Stromsparen nimmt – ersetzt durch „Kein Energiesparen fürs Spiel“. Der Wert kann auch per Gruppenrichtlinie gesetzt sein.', hint: 'Wirkt nach einem Neustart' },
+  ],
   async call(cmd, a) {
     await sleep(100); const M = this;
     switch (cmd) {
@@ -2764,6 +2803,8 @@ const Mock = {
         return { user: 'Max', admin: true, version: '2.2.0', sys: { cpu: 'AMD Ryzen 7 7800X3D 8-Core Processor', gpu: 'NVIDIA GeForce RTX 4070 SUPER', os: 'Windows 11 Pro', ramGb: 32 }, fivem: { found: true, path: 'C:\\Users\\Max\\AppData\\Local\\FiveM' }, settings: M.settings };
       case 'tweaks.list': return M.tweaks;
       case 'tweak.set': { const t = M.tweaks.find(x => x.id === a.id); t.applied = a.on; return { applied: a.on }; }
+      case 'tweaks.legacy': { const first = !M.legacyShown; M.legacyShown = true; return { items: M.legacy, note: first ? { undone: ['Kern-Parken', 'Dynamic Tick', 'Netzwerk-Tweaks'], reboot: true, active: M.legacy.length } : null }; }
+      case 'tweak.legacyRevert': M.legacy = M.legacy.filter(x => x.id !== a.id); return { ok: true };
       case 'clip.recycle': return { deleted: (a.rels || []).length, failed: 0 };
       case 'clip.share': await sleep(900); return { ok: true, name: 'Kill 2026-11-14 20-11-57 (10 MB).mp4', size: 9.4e6, shrunk: true, clipboard: true };
       case 'wasd.flash': return null;
@@ -2774,7 +2815,7 @@ const Mock = {
         if (cmd === 'wasd.set') { M.wasd = a.size; M.wasdPending = true; }
         if (cmd === 'wasd.chop') M.chop = { on: a.on, gap: a.gap, every: a.every, key: a.key || 0, keyOk: true };
         return { size: M.wasd || 0, pending: !!M.wasdPending, lag: !!M.lag, delay: 200, repeat: 15, chop: M.chop || { on: false, gap: 30, every: 90, key: 0, keyOk: true } };
-      case 'boost': for (let i = 0; i <= 10; i++) { onEvent('boost', { pct: i * 10, text: 'Schritt ' + i }); await sleep(220); } M.tweaks.forEach(t => t.rec && (t.applied = true)); return { freed: 1.4e9, restart: true, applied: 9 };
+      case 'boost': for (let i = 0; i <= 10; i++) { onEvent('boost', { pct: i * 10, text: 'Schritt ' + i }); await sleep(220); } M.tweaks.forEach(t => t.rec && t.usable && (t.applied = true)); return { freed: 1.4e9, restart: true, applied: 9 };
       case 'xhair.set': return { keyOk: true };
       case 'clip': return { ok: false };
       case 'net.test': await sleep(900); return { ok: true, avg: 23, min: 19, max: 31, jitter: 2.4, loss: 0, samples: Array.from({ length: 20 }, () => 19 + Math.round(Math.random() * 12)) };
@@ -2866,7 +2907,7 @@ const Mock = {
       case 'gfx.get': return { found: true, path: 'C:\\Users\\Max\\Documents\\Rockstar Games\\GTA V\\settings.xml', values: { ...PRESETS.bal.v } };
       case 'ini.get': return { channel: 'production' };
       case 'clean.scan': return [['fm', 'FiveM Cache', 'cache, server-cache, server-cache-priv', 'gamepad', 3.2e9], ['logs', 'FiveM Logs & Crashes', 'Alte Logs und Crashdumps', 'file', 2.1e8], ['temp', 'Temporäre Dateien', 'Benutzer- und System-Temp', 'folder', 1.6e9], ['shader', 'Shader-Cache', 'DirectX / NVIDIA / AMD', 'monitor', 7.4e8], ['wu', 'Windows-Update Reste', 'Bereits installierte Pakete', 'download', 9.1e8], ['bin', 'Papierkorb', 'Endgültig leeren', 'trash', 2.4e8]].map(([id, name, desc, icon, size], i) => ({ id, name, desc, icon, size, sel: i < 5 }));
-      case 'health': return { score: 74, items: [{ name: 'FiveM installiert', value: 'C:\\Users\\Max\\AppData\\Local\\FiveM', st: 'ok' }, { name: 'Arbeitsspeicher', value: '32 GB, perfekt für FiveM', st: 'ok' }, { name: 'Energieplan', value: 'Ausbalanciert, CPU taktet herunter', st: 'warn', fix: 'tweak:ult' }, { name: 'Xbox Game DVR', value: 'Aktiv, kostet FPS', st: 'bad', fix: 'tweak:dvr' }, { name: 'GPU-Treiber', value: 'NVIDIA 566.36 · 4 Monate alt', st: 'ok' }, { name: 'FiveM-Cache', value: '3.2 GB, leeren empfohlen', st: 'warn', fix: 'cache' }] };
+      case 'health': return { score: 74, items: [{ name: 'FiveM installiert', value: 'C:\\Users\\Max\\AppData\\Local\\FiveM', st: 'ok' }, { name: 'Arbeitsspeicher', value: '32 GB, perfekt für FiveM', st: 'ok' }, { name: 'Auslagerungsdatei', value: 'Von Windows verwaltet', st: 'ok' }, { name: 'Energieplan', value: 'Ausbalanciert – Höchstleistung möglich', st: 'warn', fix: 'tweak:ult' }, { name: 'Game-Bar-Hintergrundaufnahme', value: 'Läuft – kostet FPS', st: 'bad', fix: 'tweak:dvr' }, { name: 'Verbindung', value: 'WLAN – für FiveM ist ein LAN-Kabel der größte Hebel', st: 'warn', fix: 'tweak:wifiscan' }, { name: 'GPU-Treiber', value: 'NVIDIA 566.36 · 4 Monate alt', st: 'ok' }, { name: 'FiveM-Cache', value: '3.2 GB, leeren empfohlen', st: 'warn', fix: 'cache' }] };
       case 'logs': return { lines: ['[ 1203] Loading game build 3095', '[ 2210] Warning: texture budget exceeded', '[ 4501] Connecting to 127.0.0.1:30120', '[ 9012] SCRIPT ERROR: @core/server.lua:12 attempt to index nil', '[12001] Session started'], crashes: [] };
       case 'update.check': return { configured: true, current: '2.2.0', latest: '2.3.0', available: new URLSearchParams(location.search).has('upd'), date: '12.11.2026', notes: ['Neuer Look mit weniger Effekten', 'Server-Favoriten laden schneller', 'Fix: Launcher-Pfad wird gespeichert'] };
       default: return { ok: true, freed: 3.4e8, count: 0, applied: true };
@@ -3340,6 +3381,14 @@ document.addEventListener('click', async e => {
 
 /* ======================= WHAT'S NEW: shown once after an update ======================= */
 const CHANGES = {
+  '2.26.0': [
+    ['zap', 'Jeder Tweak überarbeitet', 'Jeder Schalter ist eine dokumentierte Windows-Einstellung, sagt ehrlich, was er bringt, und gibt beim Ausschalten genau den Wert von vorher zurück. „Alle zurücksetzen“ nimmt nur noch zurück, was OrbitTweak geändert hat.'],
+    ['gauge', 'Priorität bleibt „Normal“', 'Die automatische Priorität „Hoch“ ist weg: Laut Cfx.re löst sie Ladehänger und Voice-Lag aus. Neu ist „Kein Energiesparen fürs Spiel“, das FiveM auf Laptops am Akku vor dem Sparmodus schützt.'],
+    ['ram', 'Auto-RAM-Clean entfernt', 'Das ständige Leeren von Arbeitsspeicher und Standby-Liste warf auch die Daten des laufenden Spiels aus dem RAM und erzeugte eher Ruckler. Gegen Texture-Loss hilft in FiveM der Regler „Extended Texture Budget“.'],
+    ['timer', 'Systemweite Timer-Freigabe entfernt', 'Der Schalter machte die Timer-Anfragen aller Programme systemweit gültig, kostet Strom und hat für FiveM keinen belegten Nutzen. OrbitTweak nimmt den Wert beim Update heraus, wenn er von uns stammt.'],
+    ['undo', 'Wirkungslose Tweaks entfernt', 'Nagle, Netzwerk-Drosselung, QoS-Reserve, TCP-Tuning, Namensauflösung, Input-Puffer, Input-Priorität, MMCSS, Vordergrund-Boost, Kern-Parken, Dynamic Tick, PCIe-Energiesparen und Speicher-Komprimierung sind weg und werden einmalig zurückgesetzt. Was nicht von selbst geht, findest du unter Tweaks › System.'],
+    ['sparkle', 'Neue Tweaks', 'Windows-Taste im Spiel sperren, WLAN-Scans im Spiel aus, Fenster-Optimierung für FiveM, Auslagerungsdatei absichern und Sprachwechsel per Alt+Shift aus.'],
+  ],
   '2.25.0': [
     ['sparkle', 'Überall aufgeräumt', 'Jede Seite überarbeitet: ruhigere Buttons, saubere Abstände, klare Leerzustände, Dialoge mit eindeutigen Knöpfen und durchgehend deutsche Texte.'],
     ['film', 'Montage im Takt', 'Mit Musik landet jeder Kill auf einem Beat. Titel, Intro und Kill-Zähler stellst du direkt beim Video ein.'],
