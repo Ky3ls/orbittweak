@@ -1,0 +1,198 @@
+/* =====================================================================
+   DESIGN PASS: one main action per area, calm states, aligned layouts.
+   Loaded after the other sheets; small value changes live in style.css itself.
+   ===================================================================== */
+
+/* ---------- buttons ---------- */
+/* outline accent: for actions that repeat in a list or grid, so the one filled button of an area stands out */
+.btn.o{color:var(--a);border-color:rgba(var(--a-rgb),.42);background:rgba(var(--a-rgb),.07)}
+.btn.o:hover,.lcard:hover .btn.o:not([disabled]){background:var(--grad);color:var(--on);border-color:transparent}
+.btn.o[disabled]{opacity:.4;color:var(--sub);border-color:var(--line2);background:rgba(255,255,255,.03)}
+/* filled red: confirms something that cannot be undone */
+.btn.dp{background:rgba(248,113,113,.92);border-color:transparent;color:#2A0808;font-weight:600;box-shadow:0 8px 22px -10px rgba(248,113,113,.8)}
+.btn.dp:hover{background:#F87171;border-color:transparent;box-shadow:0 12px 28px -10px rgba(248,113,113,.9)}
+/* a main button that cannot be used yet looks switched off, not like a muddy accent */
+.btn.p[disabled]{opacity:1;background:var(--raise);color:var(--mute);box-shadow:none;border:1px solid var(--line2)}
+.btn.p[disabled]::after{display:none}
+
+/* ---------- start buttons while FiveM runs (and the side button on the launcher page) ---------- */
+.launch.calm,html[data-page=launcher] .side-cta .launch{background:rgba(255,255,255,.045);background-image:none;color:var(--text);animation:none;
+  box-shadow:inset 0 0 0 1px var(--line2)}
+.launch.calm::after,html[data-page=launcher] .side-cta .launch::after,.launch.calm .pi::after,html[data-page=launcher] .side-cta .launch .pi::after{display:none}
+.launch.calm .pi,html[data-page=launcher] .side-cta .launch .pi{background:rgba(var(--a-rgb),.14)}
+.launch.calm .pi svg,html[data-page=launcher] .side-cta .launch .pi svg{fill:var(--a)}
+.launch.calm small,html[data-page=launcher] .side-cta .launch small{color:var(--sub);opacity:1}
+.launch.calm:hover,html[data-page=launcher] .side-cta .launch:hover{transform:none;box-shadow:inset 0 0 0 1px rgba(var(--a-rgb),.45)}
+
+/* ---------- theme effects stay off previews and the aim arena (petals and snow read as targets there) ---------- */
+html[data-page=games] .fx,html[data-page=xhair] .fx,html[data-page=mods][data-mtab=mm] .fx{display:none}
+
+/* ---------- start page ---------- */
+/* boost card: the label on top, the rest centred in the room below it */
+.hero>.hk{margin-bottom:auto}
+.hero>.hstats{margin-bottom:auto}
+.hero p{min-height:0}
+.hero h3,.hero p{position:relative;z-index:1}
+html.th-anime .hero .gauge{margin-bottom:24px}   /* room for the focus lines around the gauge */
+.qt>div:last-child{min-width:0}
+.qt span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* GPU tile built like the others: value line, then the sub line at the same height */
+.metric .gpu{font-size:15.5px;line-height:16px;height:32px;letter-spacing:-.01em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;position:relative;z-index:1}
+.metric .gpu.one{font-size:22px;font-weight:650;line-height:32px;letter-spacing:-.02em;-webkit-line-clamp:1}
+.fm .btn.d{height:40px;padding:0 20px}
+.fm-act .btn{justify-content:center}
+/* activity reaches down to the boost card, and says something when empty */
+.actv{align-self:stretch}
+#curSrv.hidden+.actv{grid-row:3/5}
+.feed:empty::before{content:'Noch keine Aktivität. Boost oder Spielstart erscheinen hier.';color:var(--mute)}
+
+/* ---------- server cards without a banner: a short accent band instead of an empty one ---------- */
+.srv.nobn .bn{height:44px;background:radial-gradient(120% 170% at 0 0,rgba(var(--a-rgb),.3),transparent 62%),linear-gradient(120deg,rgba(var(--a-rgb),.12),rgba(var(--b-rgb),.04))}
+.srv.nobn .bd{margin-top:-24px}
+.cs-bn.nobn{height:40px;background:radial-gradient(120% 170% at 0 0,rgba(var(--a-rgb),.3),transparent 62%),linear-gradient(120deg,rgba(var(--a-rgb),.12),rgba(var(--b-rgb),.04))}
+.cs-bn.nobn+.cs-body{margin-top:-22px}
+
+/* ---------- launcher ---------- */
+.lh-i{text-align:left;cursor:pointer;transition:border-color .25s,background .25s,transform .3s var(--spring)}
+.lh-i:hover{border-color:rgba(var(--a-rgb),.45);background:rgba(var(--a-rgb),.06);transform:translateY(-1px)}
+.lh-go .pi{background:rgba(255,255,255,.26);box-shadow:inset 0 1px 0 rgba(255,255,255,.35)}
+.lh-go .pi svg{width:22px;height:22px;margin-left:3px}
+.lgrid2{align-items:start}
+.lgrid2>.card>.row:first-child,.lgrid2>.card>.lbl:first-child{min-height:26px}
+.lopt{border-radius:10px}
+.flash{animation:flash 1.4s var(--ease)}
+@keyframes flash{0%,35%{outline:2px solid rgba(var(--a-rgb),.55);outline-offset:6px}100%{outline:2px solid transparent;outline-offset:6px}}
+
+/* ---------- select boxes: theme colours and an own arrow instead of the Windows one ---------- */
+select.in{-webkit-appearance:none;appearance:none;color:var(--text);cursor:pointer;padding-right:30px;
+  background:var(--raise) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23A1A1AA' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 10px center/12px}
+select.in:hover{border-color:rgba(255,255,255,.2)}
+select.in option{background:var(--card2);color:var(--text)}
+select.sel{height:32px;padding:0 28px 0 10px;border-radius:9px;font-size:12px}
+.rs-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.rs-grid select.in{width:100%;height:36px;font-size:12.5px}
+
+/* ---------- tab bars: the short line sits under the label ---------- */
+.vtabs:not([data-tabs]) .tab{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:10px;row-gap:1px;align-items:center;text-align:left;padding:9px 14px}
+.vtabs:not([data-tabs]) .tab>svg.i{grid-row:1/3}
+.vtabs:not([data-tabs]) .vt-s{grid-column:2;margin-left:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
+.tl-h{padding:12px 0 10px}
+.tl-h p{margin:0}
+
+/* ---------- key pickers: an even grid, rows fill the width ---------- */
+:is(#p-xhair,#p-display,#p-pad,#p-input) .keyseg{display:grid;grid-template-columns:repeat(auto-fit,minmax(48px,1fr))}
+/* (with the page id in front, or the :is() rule above wins and the Laggen keys break onto a second row) */
+#p-display #dpKey,#p-pad #padKey{grid-template-columns:repeat(5,1fr)}
+#p-input #chopKey{grid-template-columns:repeat(9,minmax(0,1fr))}
+#p-input #chopKey button{padding:0 2px}
+:is(#p-xhair,#p-display,#p-pad,#p-input) .keyseg button{padding:0 6px}
+
+/* ---------- mods ---------- */
+.lchip.zero:not(.on){opacity:.45}
+.rs-none{display:flex;flex-direction:column;align-items:center;gap:6px;padding:34px 24px}
+.rs-none .en-ic{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;background:rgba(var(--a-rgb),.12);color:var(--a);margin-bottom:4px}
+.rs-none b{color:var(--text);font-size:14.5px;font-weight:600}
+.rs-none>span:not(.en-ic){font-size:12.5px}
+.rs-none .btn{margin-top:10px}
+.mmb-need{font-size:12px;color:var(--mute);margin-top:8px}
+.dc-more summary{user-select:none}
+
+/* ---------- details under a short text (input lab) ---------- */
+.il-more{margin-top:6px}
+.il-more summary{cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--a);list-style:none;user-select:none}
+.il-more summary::-webkit-details-marker{display:none}
+.il-more summary:hover{color:var(--b)}
+.il-more summary svg.i{width:13px;height:13px;transition:transform .3s var(--ease)}
+.il-more[open] summary svg.i{transform:rotate(90deg)}
+.il-more .il-txt{margin-top:6px}
+.lab{align-items:start}
+
+/* ---------- the shorter column of a two-column page stays in view while the long one scrolls ---------- */
+/* (on both columns: the taller one fills its grid row and never moves, the shorter one sticks) */
+@media (min-width:1101px){.lab>.col,#p-pad .xgrid>*,.mmb>.card,.dpgrid>.col{position:sticky;top:16px}}
+
+/* ---------- badges in lists ---------- */
+.eff.a{color:var(--a);background:rgba(var(--a-rgb),.1);border-color:rgba(var(--a-rgb),.28)}
+.chip.g{box-shadow:inset 0 0 0 1px rgba(74,222,154,.22)}
+.chip.w{box-shadow:inset 0 0 0 1px rgba(247,195,92,.22)}
+.chip.r{box-shadow:inset 0 0 0 1px rgba(248,113,113,.22)}
+
+/* ---------- controller: position as a small monitor ---------- */
+.corners{width:168px;height:auto;aspect-ratio:16/9;padding:6px;gap:4px;margin-top:8px;margin-bottom:10px;border:2px solid var(--line2);border-radius:10px;position:relative;
+  background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(0,0,0,.25))}
+.corners::after{content:'';position:absolute;left:50%;bottom:-8px;width:36px;height:5px;margin-left:-18px;border-radius:0 0 5px 5px;background:var(--line2)}
+.corners button{display:flex;padding:3px;border-radius:6px;background:transparent;color:var(--sub)}
+.corners button[data-v=tl]{align-items:flex-start;justify-content:flex-start}
+.corners button[data-v=tr]{align-items:flex-start;justify-content:flex-end}
+.corners button[data-v=bl]{align-items:flex-end;justify-content:flex-start}
+.corners button[data-v=br]{align-items:flex-end;justify-content:flex-end}
+.corners button svg.i{width:24px;height:18px;padding:2px 3px;border-radius:5px;opacity:.3;transition:opacity .2s,background .2s,color .2s}
+.corners button:hover{background:rgba(255,255,255,.05)}
+.corners button:hover svg.i{opacity:.8}
+.corners button.on{background:transparent;box-shadow:none}
+.corners button.on svg.i{opacity:1;background:var(--grad);color:var(--on);box-shadow:0 0 12px -2px rgba(var(--a-rgb),.8)}
+
+/* ---------- settings ---------- */
+.scn-h{margin-top:22px}
+.scn{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.scn-c{position:relative;display:flex;align-items:center;gap:14px;padding:11px;border-radius:14px;border:1px solid var(--line);background:rgba(255,255,255,.025);text-align:left;transition:border-color .25s,transform .3s var(--spring),box-shadow .25s}
+.scn-c:hover{border-color:var(--line2);transform:translateY(-2px)}
+.scn-c.on{border-color:rgba(var(--a-rgb),.6);box-shadow:0 0 0 3px rgba(var(--a-rgb),.1)}
+.scn-c i{width:88px;height:54px;border-radius:10px;flex:none;position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.08)}
+.scn-c i::after{position:absolute;inset:0;display:grid;place-items:center;font-size:20px;font-style:normal;line-height:1}
+.scn-winter i{background:radial-gradient(circle at 18% 70%,#fff 0 1px,transparent 1.6px),radial-gradient(circle at 42% 34%,#fff 0 1.2px,transparent 1.8px),radial-gradient(circle at 76% 60%,#fff 0 1px,transparent 1.6px),radial-gradient(circle at 88% 22%,#fff 0 .8px,transparent 1.4px),
+  radial-gradient(80% 60% at 60% 0,rgba(80,230,200,.45),transparent 70%),linear-gradient(180deg,#123056,#050912)}
+.scn-winter i::after{content:'❄';color:#EAF8FF;text-shadow:0 0 10px rgba(111,195,255,.9)}
+.scn-anime i{background:radial-gradient(60% 50% at 70% 100%,rgba(255,111,181,.7),transparent 70%),linear-gradient(180deg,#2B1139,#6B2A6E 70%,#C2557F)}
+.scn-anime i::after{content:'✿';color:#fff;text-shadow:0 1px 8px rgba(255,111,181,.9)}
+.scn-c b{display:block;font-size:14px;font-weight:600}
+.scn-c small{display:block;font-size:12px;color:var(--sub);margin-top:2px}
+.scn-ck{position:absolute;right:11px;top:11px;width:16px;height:16px;color:var(--a)}
+#fxRow{margin-top:12px;padding-bottom:0;border-bottom:0}
+.bgc.auto img{filter:blur(2px) brightness(.42) saturate(.6);transform:scale(1.08)}
+.bgc.auto em{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding-bottom:16px;font-style:normal;z-index:1}
+.bgc.auto em svg.i{width:20px;height:20px;color:var(--a)}
+.bgc.auto em small{font-size:10.5px;color:#D4D4DA}
+.bgc span{z-index:1}
+.slink{width:100%;text-align:left;cursor:pointer}
+.slink .ch{width:16px;height:16px;color:var(--mute);transition:transform .25s}
+.slink:hover b{color:var(--a)}
+.slink:hover .ch{transform:translateX(3px);color:var(--text)}
+/* no line under the last visible row */
+.srow:has(+ .hidden:last-child){border-bottom:0}
+/* Discord: without an App-ID the setup comes first */
+#dcCard{display:flex;flex-direction:column}
+#dcCard>.sh{order:-3}
+#dcCard.noid>#dcGuide{order:-2}
+#dcCard.noid>.dc-id{order:-1;border-bottom:1px solid var(--line)}
+.dc-need{font-size:12px;font-weight:550;color:var(--warn);margin:12px 0 0}
+.dc-id .in{flex:1;width:auto;max-width:320px}
+.dc-id .in:placeholder-shown{font-family:inherit;letter-spacing:0}
+.dc-id .btn{height:36px}
+
+/* ---------- diagnose, cleaner ---------- */
+.ok-line{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:12.5px;color:var(--sub)}
+.ok-line svg.i{width:15px;height:15px;color:var(--good)}
+.nt-bars i.idle{background:rgba(255,255,255,.07);animation:none}
+.c-sub{font-size:11px;margin:4px auto 0;max-width:118px;line-height:1.3}
+
+/* ---------- admin ---------- */
+.adm-form{display:grid;grid-template-columns:auto auto minmax(0,1fr) 84px auto;grid-template-areas:"role days . . ." "note note note num go";gap:14px 12px;align-items:end;margin-top:12px}
+.adm-form>.af:nth-child(1){grid-area:role;margin-right:14px}
+.adm-form>.af:nth-child(2){grid-area:days}
+.af-note{grid-area:note}
+.af-num{grid-area:num}
+.af-go{grid-area:go;height:42px}
+.af{display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-width:0}
+.af>span{font-size:12px;font-weight:600;color:var(--sub)}
+.af small{font-size:11.5px;color:var(--mute);min-height:15px}
+.af .in{width:100%}
+.c-role,.c-plan{display:flex;min-width:0}
+.adm-mod{gap:12px}
+.am-th{width:44px;height:44px;border-radius:11px;flex:none;background:var(--raise) center/cover no-repeat;border:1px solid var(--line)}
+.adm-mod .ib{width:30px;height:30px}
+
+/* ---------- dialogs, license gate ---------- */
+.wn-row{text-align:left}
+.mbox .m-list{width:fit-content;max-width:400px;margin:14px auto 0;text-align:left}
+.lk-key input::placeholder{color:rgba(255,255,255,.17)}
