@@ -231,7 +231,7 @@
 #p-f8 .f8t p{margin-top:3px;font-size:13px;line-height:1.5;color:var(--sub)}
 .f8auto{flex:none;display:flex;align-items:center;gap:14px;padding:8px 8px 8px 16px;border-radius:14px;background:var(--well);box-shadow:var(--well-edge)}
 .f8auto span{font-size:13px;font-weight:500;color:var(--sub)}
-#p-f8 .f8grid{gap:20px}
+#p-f8 .f8grid{gap:20px;align-items:stretch}   /* cards side by side end on one line */
 .f8c{padding:20px 8px 8px}
 .f8h{display:flex;align-items:center;gap:10px;padding:0 14px 6px}
 .f8h svg.i{width:16px;height:16px;color:var(--mute)}
