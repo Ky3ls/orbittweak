@@ -8,6 +8,8 @@ namespace OrbitTweak.Core;
 ///  - Snap Tap (SOCD): when A and D (or W and S) are held together, the key pressed last wins and the other is
 ///    released for the game, like on "Snap Tap" keyboards.
 ///  - "Laggen": held movement keys are let go for a moment again and again, so the figure moves in a stop-and-go way.
+///  - Windows key lock (tweak "winkey"): the Windows keys do nothing, so a slip does not open the start menu and throw
+///    the player out of full screen (Microsoft's own advice for games: a low-level hook that eats VK_LWIN/VK_RWIN).
 /// A low-level keyboard hook on its own thread feeds the real key events into <see cref="WasdLogic"/> (which decides,
 /// and is tested in a simulation) and sends the key events it asks for.
 /// </summary>
@@ -39,7 +41,8 @@ internal sealed class SnapTap
     private IntPtr _hook;
     private Thread? _thread;
     private uint _tid;
-    private volatile bool _quit, _snap, _lag;
+    private volatile bool _quit, _snap, _lag, _win;
+    private int _winEaten;                                // bit 1 = left, bit 2 = right Windows key whose press was eaten (hook thread only)
     private volatile int _gap = 30, _every = 90;
     private readonly WasdLogic _logic = new();           // used on the hook thread only
     private readonly Stopwatch _clock = Stopwatch.StartNew();
@@ -61,14 +64,14 @@ internal sealed class SnapTap
     public SnapTap() { _proc = Hook; }
 
     /// <summary>
-    /// Switches Snap Tap and "Laggen" on or off. gap = milliseconds a held key is let go, every = milliseconds from one
-    /// let-go to the next. The hook only exists while one of the two is on.
+    /// Switches Snap Tap, "Laggen" and the Windows key lock on or off. gap = milliseconds a held key is let go, every =
+    /// milliseconds from one let-go to the next. The hook only exists while one of them is on.
     /// </summary>
-    public void Apply(bool snap, bool lag, int gap, int every)
+    public void Apply(bool snap, bool lag, int gap, int every, bool winKey = false)
     {
         _gap = Math.Clamp(gap, 10, 250); _every = Math.Clamp(every, _gap + 15, 600);
-        _snap = snap; _lag = lag;
-        bool need = snap || lag;
+        _snap = snap; _lag = lag; _win = winKey;
+        bool need = snap || lag || winKey;
         if (need && _thread == null)
         {
             // The hook runs on its own thread with its own message loop, so a busy UI can never delay keyboard input.
@@ -116,7 +119,7 @@ internal sealed class SnapTap
             _logic.Lag = false; _logic.Tick(GameInFront, _clock.ElapsedMilliseconds); Flush();
             if (fine) timeEndPeriod(1);
             if (_hook != IntPtr.Zero) UnhookWindowsHookEx(_hook);
-            _hook = IntPtr.Zero; _logic.Reset();
+            _hook = IntPtr.Zero; _logic.Reset(); _winEaten = 0;
         }
     }
 
@@ -143,6 +146,23 @@ internal sealed class SnapTap
         if (code >= 0)
         {
             var k = Marshal.PtrToStructure<KBD>(lp);
+            bool test = false;
+#if DEBUG
+            test = TestKeys;   // a test instance leaves the real keyboard alone, the Windows keys too
+#endif
+            // only the physical keys (not LLKHF_INJECTED): a slip is what the lock is for, while a program that sends the key
+            // means it, above all the clipper's own Win+Alt+G for the Game Bar recorder, sent while the game is in front
+            if (!test && k.extra != Marker && (k.flags & 0x10) == 0 && (k.vk == 0x5B || k.vk == 0x5C))   // VK_LWIN, VK_RWIN
+            {
+                int msg = wp.ToInt32();
+                bool down = msg is 0x100 or 0x104, up = msg is 0x101 or 0x105;
+                int bit = k.vk == 0x5B ? 1 : 2;
+                if (down && _win && GameInFront) { _winEaten |= bit; return new IntPtr(1); }
+                if (down) _winEaten &= ~bit;   // a press got through (game left the front while held): its release must get through too
+                // the release of an eaten press is eaten too (a lone release would open the start menu); a release whose
+                // press got through always gets through, so the key never sticks when the game comes to the front meanwhile
+                if (up && (_winEaten & bit) != 0) { _winEaten &= ~bit; return new IntPtr(1); }
+            }
             // only real presses of W, A, S, D: not what was sent from here and not what other programs send
             uint vk = k.vk; bool real = k.extra != Marker && (k.flags & 0x10) == 0;
 #if DEBUG

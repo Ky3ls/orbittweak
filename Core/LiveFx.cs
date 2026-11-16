@@ -779,6 +779,7 @@ internal static class Clipper
         Reg.Set(k, "AppCaptureEnabled", 1);
         Reg.Set(k, "HistoricalCaptureEnabled", 1);
         Reg.Set(@"HKCU\System\GameConfigStore", "GameDVR_Enabled", 1);
+        Catalog.ForgetDvr();   // the tweak "Game-Bar-Aufnahme aus" is off now (and the machine-wide policy of old versions is gone)
     }
 }
 

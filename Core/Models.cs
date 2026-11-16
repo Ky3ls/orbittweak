@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace OrbitTweak.Core;
 
@@ -12,12 +13,27 @@ public class Tweak
     public string Icon { get; init; } = "zap";
     public string? Badge { get; init; }
     public bool Recommended { get; init; } = true;
+    /// <summary>Whether Boost and "Empfohlene anwenden" switch it on on this PC, asked when needed; null = <see cref="Recommended"/>.</summary>
+    public Func<bool>? RecWhen { get; init; }
+    /// <summary>False when the tweak cannot work on this PC (the hint says why): it can then only be switched off. null = always.</summary>
+    public Func<bool>? Usable { get; init; }
+    /// <summary>A short note on the state on this PC, shown under the description (null = none).</summary>
+    public Func<string?>? Hint { get; init; }
+    /// <summary>
+    /// Whether OrbitTweak made the current "on" state. "Alle zurücksetzen" only undoes that (or what carries an
+    /// <see cref="Marks"/> mark), so a state that is Windows' default or the user's own choice stays. null = whenever Check is true.
+    /// </summary>
+    public Func<bool>? Owned { get; init; }
     public bool NeedsRestart => Badge == "NEUSTART";
     public Func<bool> Check { get; init; } = () => false;
     public Action Apply { get; init; } = () => { };
     public Action Revert { get; init; } = () => { };
 
     public bool SafeCheck() { try { return Check(); } catch { return false; } }
+    public bool IsRecommended { get { try { return RecWhen?.Invoke() ?? Recommended; } catch { return false; } } }
+    public bool IsUsable { get { try { return Usable?.Invoke() ?? true; } catch { return true; } } }
+    public string? SafeHint() { try { return Hint?.Invoke(); } catch { return null; } }
+    public bool IsOwned { get { try { return Owned?.Invoke() ?? true; } catch { return false; } } }
 }
 
 public class CleanTarget
@@ -39,7 +55,7 @@ public class LaunchCfg
     public int Pure { get; set; }
     public Dictionary<string, bool> Pre { get; set; } = new()
     {
-        ["ram"] = true, ["dns"] = true, ["kill"] = false, ["cache"] = false, ["prio"] = true
+        ["ram"] = true, ["dns"] = true, ["kill"] = false, ["cache"] = false
     };
 }
 
@@ -65,10 +81,24 @@ public class Settings
     public bool Fx { get; set; } = true;            // snow / petals of the winter and anime themes
     public bool AutoUpdate { get; set; } = true;
     public bool AutoInstall { get; set; }
-    public bool AutoPriority { get; set; } = true;
+    /// <summary>Before 2.26: "Auto-Priorität Hoch". Only read once to undo it (Cfx.re: FiveM needs normal priority).</summary>
+    public bool AutoPriority { get; set; }
+    /// <summary>Before 2.26: "Auto-RAM-Clean im Spiel". Only kept so old settings load; switched off once.</summary>
     public bool AutoRamClean { get; set; }
     /// <summary>While the game runs, heavy programs next to it are put behind it (lower priority, efficiency mode).</summary>
     public bool BgThrottle { get; set; }
+    /// <summary>The game is tagged "full speed" for Windows (no efficiency mode when unfocused or on battery).</summary>
+    public bool GameNoThrottle { get; set; }
+    /// <summary>The Windows key does nothing while the game is in front.</summary>
+    public bool BlockWinKey { get; set; }
+    /// <summary>No Wi-Fi background scans while the game runs.</summary>
+    public bool WifiGameMode { get; set; }
+    /// <summary>1 = the tweaks of 2.26 (what older versions switched on is undone once).</summary>
+    public int TweakRev { get; set; }
+    /// <summary>This start moved the settings to the tweaks of 2.26 (not saved).</summary>
+    [JsonIgnore] public bool TweaksMigrated { get; set; }
+    /// <summary>"Auto-Priorität Hoch" was on before the update: a running game at High goes back to Normal once (not saved).</summary>
+    [JsonIgnore] public bool PrioWasAuto { get; set; }
     public bool RestoreBeforeBoost { get; set; } = true;
     public bool PurgeStandby { get; set; } = true;
     public bool TimerRes { get; set; }
@@ -134,11 +164,19 @@ public class Settings
                 // the old default of "Laggen" (30 ms every 90 ms) was hardly visible in the game: now "Stark"
                 // "Laggen" now makes the figure twitch instead of stop: the old stop-and-go values would be far too coarse
                 if (s.LagRev < 2) { s.Lag.Gap = 35; s.Lag.Every = 80; s.LagRev = 2; }
+                // 2.26: every tweak reworked. "Auto-Priorität Hoch" (Cfx.re: FiveM needs normal priority) and
+                // "Auto-RAM-Clean" (threw the game's own data out of RAM) are gone and switched off once.
+                if (s.TweakRev < 1)
+                {
+                    s.PrioWasAuto = s.AutoPriority; s.AutoPriority = false; s.AutoRamClean = false;
+                    s.Launch.Pre.Remove("prio");
+                    s.TweaksMigrated = true; s.TweakRev = 1;
+                }
                 return s;
             }
         }
         catch { }
-        return new Settings { XhairRev = 1, ClipRev = 1, LagRev = 2 }; // fresh install: nothing to migrate
+        return new Settings { XhairRev = 1, ClipRev = 1, LagRev = 2, TweakRev = 1 }; // fresh install: nothing to migrate
     }
 
     public void Save()

@@ -4,61 +4,71 @@ using System.Runtime.InteropServices;
 namespace OrbitTweak.Core;
 
 /// <summary>
-/// "Background on the brakes": while the game runs, the usual heavy programs next to it (browsers, chat and music apps,
-/// launchers) get a lower CPU priority and Windows' efficiency mode, so the game gets the processor first. Nothing is
-/// closed. When the game ends, every program gets back exactly what it had. Voice programs keep full speed for their
-/// sound: they are only put behind the game, not into efficiency mode.
+/// "Hintergrund-Apps ausbremsen": while the game runs, the usual heavy programs next to it (browsers, launchers, cloud
+/// apps) get a lower CPU priority and, on Windows 11, the efficiency mode (EcoQoS: efficient clock, E-cores on hybrid
+/// CPUs), so the game gets the processor first. Nothing is closed. Voice apps are never touched; a program that plays
+/// sound or is the window in use right now is left alone (and gets its speed back at once). When the game ends, every
+/// program gets back exactly the priority and efficiency setting it had before.
 /// </summary>
 internal static class BgThrottle
 {
-    [StructLayout(LayoutKind.Sequential)] private struct POWER_THROTTLING { public uint Version, ControlMask, StateMask; }
-    [DllImport("kernel32.dll", SetLastError = true)] private static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
-    [DllImport("kernel32.dll")] private static extern bool CloseHandle(IntPtr h);
-    [DllImport("kernel32.dll", SetLastError = true)] private static extern bool SetProcessInformation(IntPtr h, int cls, ref POWER_THROTTLING info, int size);
-    private const int ProcessPowerThrottling = 4;
-    private const uint SPEED = 0x1, PROCESS_SET_INFORMATION = 0x0200;
+    [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
 
-    /// <summary>Programs that are slowed down (process names without .exe, lower case).</summary>
+    /// <summary>Programs that are slowed down (process names without .exe). Voice, music and mouse/keyboard tools are not in it on purpose.</summary>
     private static readonly HashSet<string> Heavy = new(StringComparer.OrdinalIgnoreCase)
     {
         "chrome", "firefox", "msedge", "opera", "opera_gx", "brave", "vivaldi",
-        "spotify", "steamwebhelper", "epicgameslauncher", "epicwebhelper", "battle.net", "riotclientux", "riotclientservices",
+        "steamwebhelper", "epicgameslauncher", "epicwebhelper", "battle.net", "riotclientux", "riotclientservices",
         "telegram", "whatsapp", "slack", "notion", "code", "cursor", "claude", "onedrive", "dropbox", "googledrivefs",
-        "wallpaper32", "wallpaper64", "icue", "razer synapse", "lghub", "lghub_agent", "msedgewebview2",
+        "wallpaper32", "wallpaper64", "msedgewebview2",
     };
-    /// <summary>Voice programs: behind the game, but never in efficiency mode (the sound would stutter).</summary>
-    private static readonly HashSet<string> Voice = new(StringComparer.OrdinalIgnoreCase) { "discord", "discordcanary", "discordptb", "teamspeak", "ts3client_win64", "ts6client" };
 
-    private static readonly Dictionary<int, (string name, ProcessPriorityClass prio, bool eco)> Saved = new();
-    public static bool Active => Saved.Count > 0;
+    /// <summary>What a slowed program had before: priority, and whether (and with which masks) its efficiency setting was changed.</summary>
+    private readonly record struct Was(string Name, ProcessPriorityClass Prio, bool Eco, uint Ctl, uint St);
+    private static readonly Dictionary<int, Was> Saved = new();
+    public static bool Active { get { lock (Saved) return Saved.Count > 0; } }
 
     /// <summary>Slows down what is not slowed down yet (programs started since the last call included). Returns how many were new.</summary>
     public static int Apply()
     {
         int own = Environment.ProcessId, n = 0;
+        bool eco = SysInfo.Build >= 22000;   // before Windows 11 the tag only means "low QoS", which acts on battery only
         // WebView2 processes of this app must stay fast: its own page runs in them
         var mine = new HashSet<int>();
         try { foreach (var p in Process.GetProcessesByName("msedgewebview2")) using (p) if (ParentIs(p, own)) mine.Add(p.Id); } catch { }
+        // a program that plays sound (YouTube, a stream) keeps full speed, all its processes: the one with the sound
+        // session is not always the one that decodes it
+        var loud = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pid in AudioSessions.ActivePids()) { try { using var p = Process.GetProcessById(pid); loud.Add(p.ProcessName); } catch { } }
+        var front = ForegroundName();
+        bool Spared(string name) => loud.Contains(name) || name.Equals(front, StringComparison.OrdinalIgnoreCase);
         lock (Saved)
         {
+            bool changed = false;
+            // alt-tabbed to it, or it started playing sound: its speed back at once (it is slowed again once that is over)
+            foreach (var pid in Saved.Where(x => Spared(x.Value.Name)).Select(x => x.Key).ToList())
+            {
+                Give(pid, Saved[pid]); Saved.Remove(pid); changed = true;
+            }
             foreach (var p in Process.GetProcesses())
                 using (p)
                 {
                     try
                     {
-                        bool voice = Voice.Contains(p.ProcessName);
-                        if (!voice && !Heavy.Contains(p.ProcessName)) continue;
+                        if (!Heavy.Contains(p.ProcessName) || Spared(p.ProcessName)) continue;
                         if (p.Id == own || mine.Contains(p.Id) || Saved.ContainsKey(p.Id)) continue;
                         var prio = p.PriorityClass;
                         if (prio is ProcessPriorityClass.Idle or ProcessPriorityClass.BelowNormal) continue;   // already low: leave it alone
-                        if (voice && prio != ProcessPriorityClass.Normal) continue;                           // the part of a voice program that carries the sound is raised by the program itself: hands off
+                        var before = eco ? Qos.Get(p.Id) : null;
                         p.PriorityClass = ProcessPriorityClass.BelowNormal;
-                        bool eco = !voice && Eco(p.Id, true);
-                        Saved[p.Id] = (p.ProcessName, prio, eco); n++;
+                        bool tagged = eco && Qos.Set(p.Id, Qos.SPEED, Qos.SPEED);
+                        Saved[p.Id] = new Was(p.ProcessName, prio, tagged, before?.ctl ?? 0, before?.st ?? 0);
+                        n++;
                     }
                     catch { }   // protected or just ended
                 }
-            if (n > 0) WriteJournal();
+            if (n > 0 || changed) WriteJournal();
         }
         return n;
     }
@@ -72,7 +82,10 @@ internal static class BgThrottle
         {
             if (Saved.Count == 0) { if (System.IO.File.Exists(Journal)) System.IO.File.Delete(Journal); return; }
             System.IO.Directory.CreateDirectory(AppDirs.Local);
-            System.IO.File.WriteAllText(Journal, System.Text.Json.JsonSerializer.Serialize(Saved.Select(x => new[] { x.Key.ToString(), x.Value.name, ((int)x.Value.prio).ToString(), x.Value.eco ? "1" : "0" }).ToList()));
+            System.IO.File.WriteAllText(Journal, System.Text.Json.JsonSerializer.Serialize(Saved.Select(x => new[]
+            {
+                x.Key.ToString(), x.Value.Name, ((int)x.Value.Prio).ToString(), x.Value.Eco ? "1" : "0", x.Value.Ctl.ToString(), x.Value.St.ToString()
+            }).ToList()));
         }
         catch { }
     }
@@ -93,7 +106,9 @@ internal static class BgThrottle
                     using var p = Process.GetProcessById(pid);
                     if (!p.ProcessName.Equals(r[1], StringComparison.OrdinalIgnoreCase)) continue;
                     if (p.PriorityClass == ProcessPriorityClass.BelowNormal) p.PriorityClass = (ProcessPriorityClass)prio;
-                    if (r[3] == "1") Eco(pid, false);
+                    // journals of versions before 2.26 have no masks: 0/0 is "Windows decides"
+                    uint ctl = r.Length >= 6 && uint.TryParse(r[4], out var c) ? c : 0, st = r.Length >= 6 && uint.TryParse(r[5], out var s) ? s : 0;
+                    if (r[3] == "1") Qos.Set(pid, ctl, st);
                     n++;
                 }
                 catch { }
@@ -103,42 +118,44 @@ internal static class BgThrottle
         catch { }
         return n;
     }
+
     /// <summary>Gives every slowed program back what it had.</summary>
     public static int Restore()
     {
         int n = 0;
         lock (Saved)
         {
-            foreach (var (pid, was) in Saved)
-            {
-                try
-                {
-                    using var p = Process.GetProcessById(pid);
-                    if (!p.ProcessName.Equals(was.name, StringComparison.OrdinalIgnoreCase)) continue;   // the number belongs to another program by now
-                    p.PriorityClass = was.prio;
-                    if (was.eco) Eco(pid, false);
-                    n++;
-                }
-                catch { }
-            }
+            foreach (var (pid, was) in Saved) if (Give(pid, was)) n++;
             Saved.Clear(); WriteJournal();
         }
         return n;
     }
 
-    /// <summary>The game itself must never be held back by Windows' efficiency mode.</summary>
-    public static void FullSpeed(int pid) => Eco(pid, false);
-
-    private static bool Eco(int pid, bool on)
+    private static bool Give(int pid, Was was)
     {
-        var h = OpenProcess(PROCESS_SET_INFORMATION, false, pid);
-        if (h == IntPtr.Zero) return false;
         try
         {
-            var st = new POWER_THROTTLING { Version = 1, ControlMask = SPEED, StateMask = on ? SPEED : 0 };
-            return SetProcessInformation(h, ProcessPowerThrottling, ref st, Marshal.SizeOf<POWER_THROTTLING>());
+            using var p = Process.GetProcessById(pid);
+            if (!p.ProcessName.Equals(was.Name, StringComparison.OrdinalIgnoreCase)) return false;   // the number belongs to another program by now
+            p.PriorityClass = was.Prio;
+            if (was.Eco) Qos.Set(pid, was.Ctl, was.St);   // exactly the masks it had (usually 0/0: Windows decides), not "full speed"
+            return true;
         }
-        finally { CloseHandle(h); }
+        catch { return false; }
+    }
+
+    private static string? ForegroundName()
+    {
+        try
+        {
+            var h = GetForegroundWindow();
+            if (h == IntPtr.Zero) return null;
+            GetWindowThreadProcessId(h, out var pid);
+            if (pid == 0) return null;
+            using var p = Process.GetProcessById((int)pid);
+            return p.ProcessName;
+        }
+        catch { return null; }
     }
 
     [StructLayout(LayoutKind.Sequential)] private struct PBI { public IntPtr Reserved1, Peb, Reserved2a, Reserved2b, UniquePid, ParentPid; }

@@ -65,6 +65,28 @@ internal static class Reg
         }
         catch { return Array.Empty<string>(); }
     }
+
+    public static string[] ValueNames(string path)
+    {
+        try
+        {
+            using var b = Base(path, out var sub);
+            using var k = b.OpenSubKey(sub);
+            return k?.GetValueNames() ?? Array.Empty<string>();
+        }
+        catch { return Array.Empty<string>(); }
+    }
+
+    /// <summary>Deletes a key with everything below it (nothing happens when it is not there).</summary>
+    public static void DelKey(string path)
+    {
+        try
+        {
+            using var b = Base(path, out var sub);
+            b.DeleteSubKeyTree(sub, false);
+        }
+        catch { }
+    }
 }
 
 internal static class Proc
@@ -141,6 +163,8 @@ internal static class SysInfo
             return $"{name} {ver}".Trim();
         }
     }
+
+    public static int Build => int.TryParse(Reg.Get(@"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "CurrentBuildNumber") as string, out var b) ? b : Environment.OSVersion.Version.Build;
 
     public static string Bytes(double b)
     {

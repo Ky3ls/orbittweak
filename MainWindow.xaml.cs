@@ -22,7 +22,11 @@ public partial class MainWindow : Window
     private object _fm = new { running = false, game = false };
     private bool _probing;
     private int _tick;
-    private DateTime _lastAutoClean = DateTime.MinValue;
+    // live tweaks of the game process (see ProbeFiveM)
+    private int _qosPid;                       // the game process last tagged "full speed" (tweak nothrottle)
+    private bool _prioLooked;                  // the one look for a game left at High by the old "Auto-Priorität Hoch" is done
+    private DateTime _prefUpkeep;              // last look for new FiveM exes that need the per-app graphics fields
+    private Task<Catalog.MigrationResult>? _migrated;
     private double _zoom = 1;
     private readonly CrosshairOverlay _xhair = new();
     private readonly CrosshairOverlay _minimap = new() { Anchor = Anchor.BottomLeft };
@@ -107,7 +111,7 @@ public partial class MainWindow : Window
         Activated += (_, _) => Emit("winfocus", new { on = true });
         Deactivated += (_, _) => Emit("winfocus", new { on = false });
         Loaded += async (_, _) => await InitWeb();
-        Closing += (_, _) => { S.Save(); Catalog.SetTimerResolution(false); StopLive(); };
+        Closing += (_, _) => { S.Save(); GameTimer.Release(); StopLive(); };
         Closing += (_, _) => _dc.Dispose();   // takes the card off the Discord profile at once
         AppDomain.CurrentDomain.ProcessExit += (_, _) => { ScreenColor.Restore(); NvVibrance.Restore(); };
         Application.Current.ShutdownMode = ShutdownMode.OnMainWindowClose;
@@ -173,6 +177,15 @@ public partial class MainWindow : Window
 
 
         Task.Run(Catalog.UndoKeyboardTurbo);
+        // what older versions switched on and that is gone now is undone once (see Catalog.Migrate)
+        _migrated = Task.Run(() =>
+        {
+            var r = new Catalog.MigrationResult();
+            try { r = Catalog.Migrate(S); } catch { }
+            foreach (var l in r.Log) Log(l);
+            if (S.TweaksMigrated) S.Save();
+            return r;
+        });
         Task.Run(() => { int back = BgThrottle.Recover(); if (back > 0) Log($"⚡ {back} Programme liefen nach einem unsauberen Ende noch gebremst und sind wieder normal"); });
         Updater.CleanupOld();
         Background = S.Mode == "light" ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(239, 237, 231)) : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(18, 18, 17));
@@ -315,13 +328,12 @@ public partial class MainWindow : Window
         if (!first) return;
         SnapApply();
         KfApply();
-        if (S.TimerRes) Catalog.SetTimerResolution(true);
     }
 
     private void Lock()
     {
         _authed = false; S.AuthToken = null; S.AuthRole = null; S.AuthOkUntil = null; S.AuthExp = null; S.AuthDays = null; S.Save();
-        _snap.Apply(false, false, 0, 0); _autoClip.Enable(false); _killFeed.Enable(false); _killMark.Enable(false); Catalog.SetTimerResolution(false); LiveTick();
+        _snap.Apply(false, false, 0, 0); _autoClip.Enable(false); _killFeed.Enable(false); _killMark.Enable(false); GameTimer.Release(); WlanGame.Restore(); LiveTick();
     }
 
     // =====================================================================
@@ -448,8 +460,6 @@ public partial class MainWindow : Window
                     case "autoInstall": S.AutoInstall = val.GetBoolean(); break;
                     case "restoreBeforeBoost": S.RestoreBeforeBoost = val.GetBoolean(); break;
                     case "purgeStandby": S.PurgeStandby = val.GetBoolean(); break;
-                    case "autoRamClean": S.AutoRamClean = val.GetBoolean(); break;
-                    case "autoPriority": S.AutoPriority = val.GetBoolean(); break;
                     case "firstRun": S.FirstRun = val.GetBoolean(); break;
                     case "xhairAck": S.XhairAck = val.GetBoolean(); break;
                     case "autoBorderless": S.AutoBorderless = val.GetBoolean(); break;
@@ -484,18 +494,60 @@ public partial class MainWindow : Window
             case "tweaks.list": return await TweakList();
             case "tweak.set":
             {
-                var t = _tweaks.First(x => x.Id == Str(a, "id"));
+                var t = _tweaks.FirstOrDefault(x => x.Id == Str(a, "id"));
+                if (t == null) return new { applied = false, error = "Diesen Tweak gibt es nicht mehr" };
                 var on = Bool(a, "on");
                 string? err = null;
-                await Task.Run(() => { try { if (on) t.Apply(); else t.Revert(); } catch (Exception ex) { err = ex.Message; } });
+                await Task.Run(() =>
+                {
+                    TweakRun.Explicit = true;
+                    try { if (on) t.Apply(); else { t.Revert(); Marks.Clear(t.Id); } }
+                    catch (Exception ex) { err = ex.Message; }
+                    finally { TweakRun.Explicit = false; }
+                });
                 var applied = await Task.Run(t.SafeCheck);
+                if (on && err == null && applied) Marks.Set(t.Id);
+                if (t.Id == "winkey") SnapApply();
                 Log(err != null ? $"✖ {t.Name}: {err}" : $"{(on ? "✔" : "↺")} {t.Name}");
                 return new { applied, error = err };
             }
             case "tweaks.revertAll":
-                await Task.Run(() => { foreach (var t in _tweaks) if (t.SafeCheck()) try { t.Revert(); } catch { } });
+                await Task.Run(() =>
+                {
+                    // only what OrbitTweak changed: a state that is Windows' default or the user's own choice stays
+                    TweakRun.All = true;
+                    try
+                    {
+                        foreach (var t in _tweaks)
+                            if (t.SafeCheck() && (t.IsOwned || Marks.Has(t.Id))) try { t.Revert(); Marks.Clear(t.Id); } catch { }
+                        foreach (var l in Catalog.Old) if (l.SafeCheck()) try { l.Revert(); } catch { }
+                    }
+                    finally { TweakRun.All = false; }
+                });
+                SnapApply();
                 Log("↺ Alle Tweaks zurückgesetzt");
                 return null;
+            case "tweaks.legacy":
+            {
+                // removed tweaks that are still active, and (once after the update) what was undone by itself
+                var mig = _migrated != null ? await _migrated : null;
+                var items = await Task.Run(() => Catalog.Old.Where(l => l.SafeCheck()).Select(l => new { id = l.Id, name = l.Name, desc = l.Desc, hint = l.Hint }).ToList());
+                object? note = null;
+                if (S.TweaksMigrated && mig != null && (mig.Undone.Count > 0 || items.Count > 0))
+                    note = new { undone = mig.Undone, reboot = mig.Reboot, active = items.Count };
+                S.TweaksMigrated = false;
+                return new { items, note };
+            }
+            case "tweak.legacyRevert":
+            {
+                var l = Catalog.Old.FirstOrDefault(x => x.Id == Str(a, "id"));
+                if (l == null) return new { ok = false, error = "Unbekannt" };
+                string? err = null;
+                await Task.Run(() => { try { l.Revert(); } catch (Exception ex) { err = ex.Message; } });
+                bool ok = err == null && !await Task.Run(l.SafeCheck);
+                Log(ok ? $"↺ {l.Name}: zurückgesetzt" : $"✖ {l.Name}: {err ?? "nicht zurückgesetzt"}");
+                return new { ok, error = ok ? null : err ?? "Nicht zurückgesetzt" };
+            }
             case "boost": return await Boost();
 
             // ---------- WASD tweak: "Laggen" (fast key repeat) and the size of the Windows keyboard buffer ----------
@@ -1270,7 +1322,16 @@ public partial class MainWindow : Window
                 {
                     try
                     {
-                        if (fix.StartsWith("tweak:")) { var t = _tweaks.First(x => x.Id == fix[6..]); t.Apply(); return t.SafeCheck(); }
+                        if (fix.StartsWith("tweak:"))
+                        {
+                            var t = _tweaks.FirstOrDefault(x => x.Id == fix[6..]);
+                            if (t == null || !t.IsUsable) return false;
+                            t.Apply();
+                            if (!t.SafeCheck()) return false;
+                            Marks.Set(t.Id);
+                            if (t.Id == "winkey") Dispatcher.Invoke(SnapApply);
+                            return true;
+                        }
                         if (fix == "cache") { if (FiveM.IsRunning) return false; Cleaner.Clean(Target("fm")); return true; }
                         if (fix == "killbg") { FiveM.KillBackgroundApps(); return true; }
                         if (fix == "clean") { Cleaner.Clean(Target("temp")); Cleaner.Clean(Target("wu")); return true; }
@@ -1392,6 +1453,7 @@ public partial class MainWindow : Window
     {
         _live.Stop();
         BgThrottle.Restore();   // never leave other programs slowed down when the app closes
+        WlanGame.Restore(); GameTimer.Release();
         _xhair.Close(); _minimap.Close(); _snap.Apply(false, false, 0, 0); _autoClip.Enable(false); _killFeed.Enable(false); _killMark.Enable(false); _pad.Close();
         _recBusy = true; _ = _rec.Stop();
         ScreenColor.Restore(); NvVibrance.Restore();
@@ -1439,7 +1501,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Snap Tap and WASD "Laggen" share one keyboard hook; both only work with a valid key and while the game is in front.</summary>
-    private void SnapApply() => _snap.Apply(_authed && S.SnapTap, _authed && S.Lag.On, S.Lag.Gap, S.Lag.Every);
+    private void SnapApply() => _snap.Apply(_authed && S.SnapTap, _authed && S.Lag.On, S.Lag.Gap, S.Lag.Every, _authed && S.BlockWinKey);
 
     private DateTime _lastKillAt, _lastFightClip, _lastDeathAt;
     private readonly List<DateTime> _kfTimes = new();   // when the kills of the clip that is about to be saved happened
@@ -1741,8 +1803,8 @@ public partial class MainWindow : Window
 
     private async Task<object> TweakList()
     {
-        var states = await Task.Run(() => _tweaks.Select(t => t.SafeCheck()).ToList());
-        return _tweaks.Select((t, i) => new { id = t.Id, cat = t.Cat, name = t.Name, desc = t.Desc, icon = t.Icon, badge = t.Badge, rec = t.Recommended, applied = states[i] }).ToList();
+        var st = await Task.Run(() => _tweaks.Select(t => (applied: t.SafeCheck(), rec: t.IsRecommended, usable: t.IsUsable, hint: t.SafeHint())).ToList());
+        return _tweaks.Select((t, i) => new { id = t.Id, cat = t.Cat, name = t.Name, desc = t.Desc, icon = t.Icon, badge = t.Badge, rec = st[i].rec, applied = st[i].applied, usable = st[i].usable, hint = st[i].hint }).ToList();
     }
 
     // =====================================================================
@@ -1758,11 +1820,11 @@ public partial class MainWindow : Window
                 var r = Catalog.CreateRestorePoint();
                 Log(r.Contains("OK") ? "✔ Wiederherstellungspunkt erstellt" : "⚠ Wiederherstellungspunkt übersprungen");
             }));
-        var todo = await Task.Run(() => _tweaks.Where(t => t.Recommended && !t.SafeCheck()).ToList());
+        var todo = await Task.Run(() => _tweaks.Where(t => t.IsRecommended && t.IsUsable && !t.SafeCheck()).ToList());
         foreach (var t in todo)
             steps.Add((t.Name + "…", () =>
             {
-                try { t.Apply(); if (t.SafeCheck()) { applied++; if (t.NeedsRestart) restart = true; } }
+                try { t.Apply(); if (t.SafeCheck()) { applied++; Marks.Set(t.Id); if (t.NeedsRestart) restart = true; } }
                 catch (Exception ex) { Log($"✖ {t.Name}: {ex.Message}"); }
             }));
         steps.Add(("Temporäre Dateien werden gelöscht…", () => freed += Cleaner.Clean(Target("temp"))));
@@ -1799,7 +1861,6 @@ public partial class MainWindow : Window
             if (Pre("ram")) { freed += Native.CleanMemory(S.PurgeStandby); done.Add("RAM frei"); }
             if (Pre("dns")) { Proc.Run("ipconfig", "/flushdns"); done.Add("DNS geleert"); }
         });
-        if (Pre("prio") && !S.AutoPriority) { S.AutoPriority = true; S.Save(); }
 
         var args = new List<string>();
         if (!string.IsNullOrEmpty(build) && build != "Auto" && build.All(char.IsDigit)) args.Add("-b" + build);
@@ -1943,19 +2004,28 @@ public partial class MainWindow : Window
                         build = game.ProcessName.Split('_').FirstOrDefault(x => x.Length > 1 && x[0] == 'b' && char.IsDigit(x[1]));
                         try
                         {
-                            if (_authed && S.AutoPriority && game.PriorityClass is not (ProcessPriorityClass.High or ProcessPriorityClass.RealTime))
+                            // the old "Auto-Priorität Hoch" (before 2.26) left the game at High; Cfx.re: FiveM needs Normal
+                            if (S.PrioWasAuto && !_prioLooked && game.PriorityClass == ProcessPriorityClass.High)
                             {
-                                game.PriorityClass = ProcessPriorityClass.High;
-                                Log("⚡ Auto-Priorität: GTA-Prozess auf HOCH");
+                                game.PriorityClass = ProcessPriorityClass.Normal;
+                                Log("↺ GTA-Prozess wieder auf normaler Priorität (Cfx.re rät von „Hoch“ ab)");
                             }
+                            // tagged "full speed" once per game start; the CPU priority is never touched
+                            if (_authed && S.GameNoThrottle && game.Id != _qosPid)
+                            {
+                                _qosPid = game.Id;
+                                if (Qos.High(game.Id)) Log("⚡ FiveM wird von Windows nicht mehr gedrosselt");
+                            }
+                            if (_authed && S.TimerRes && !GameTimer.Held && GameTimer.Hold() is double now)
+                                Log($"⏱ Timer 0,5 ms angefordert (Windows läuft gerade mit {now:0.###} ms)");
                             // heavy programs next to the game go behind it; ones started later are caught on the next look
                             if (_authed && S.BgThrottle)
                             {
                                 bool first = !BgThrottle.Active;
-                                if (first) BgThrottle.FullSpeed(game.Id);
                                 int slowed = BgThrottle.Apply();
                                 if (slowed > 0 && first) Log($"⚡ Hintergrund ausgebremst: {slowed} Prozesse hinter das Spiel gestellt");
                             }
+                            if (_authed && S.WifiGameMode && WlanGame.Apply()) Log("📶 WLAN-Spielmodus: Hintergrund-Scans pausiert");
                             game.Refresh();
                             prio = game.PriorityClass switch
                             {
@@ -1966,19 +2036,23 @@ public partial class MainWindow : Window
                             ram = game.WorkingSet64;
                         }
                         catch { prio = "?"; }
-
-                        if (_authed && S.AutoRamClean && DateTime.Now - _lastAutoClean > TimeSpan.FromMinutes(5))
-                        {
-                            _lastAutoClean = DateTime.Now;
-                            var f = Native.CleanMemory(S.PurgeStandby);
-                            Log($"♻ Auto-RAM-Clean: {SysInfo.Bytes(f)}");
-                        }
                     }
+                    _prioLooked = true;   // only the first look after the update (S.PrioWasAuto stays for the note of Catalog.Migrate)
+                    if (game == null || !S.GameNoThrottle) _qosPid = 0;
                     // the game is gone (or the tweak was switched off): every program gets back what it had
                     if (BgThrottle.Active && (game == null || !S.BgThrottle))
                     {
                         int back = BgThrottle.Restore();
                         if (back > 0) Log($"⚡ Hintergrund wieder normal: {back} Prozesse zurückgestellt");
+                    }
+                    if (GameTimer.Held && (game == null || !S.TimerRes || !_authed)) GameTimer.Release();
+                    if (WlanGame.Active && (game == null || !S.WifiGameMode || !_authed)) { if (WlanGame.Restore()) Log("📶 WLAN wieder normal: Hintergrund-Scans erlaubt"); }
+                    // a new FiveM build brings new exes: they get the per-app graphics fields that are switched on, before the game starts if possible
+                    if (_authed && procs.Length > 0 && DateTime.Now - _prefUpkeep > TimeSpan.FromSeconds(5))
+                    {
+                        _prefUpkeep = DateTime.Now;
+                        int added = Catalog.PrefUpkeep();
+                        if (added > 0) Log($"🖥 Grafikeinstellung für {added} neue FiveM-Datei(en) übernommen");
                     }
                     if (_authed && game != null && S.AutoBorderless)
                     {

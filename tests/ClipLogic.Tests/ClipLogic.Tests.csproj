@@ -13,5 +13,6 @@
     <Compile Include="../../Core/MontageCut.cs" Link="Core/MontageCut.cs" />
     <Compile Include="../../Core/MontageBeat.cs" Link="Core/MontageBeat.cs" />
     <Compile Include="../../Core/KillLogic.cs" Link="Core/KillLogic.cs" />
+    <Compile Include="../../Core/TweakLogic.cs" Link="Core/TweakLogic.cs" />
   </ItemGroup>
 </Project>
