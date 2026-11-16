@@ -655,6 +655,7 @@ public partial class MainWindow : Window
                 if (a.TryGetProperty("autoHighlight", out var ah) && ah.ValueKind is JsonValueKind.True or JsonValueKind.False) S.Clip.AutoHighlight = ah.GetBoolean();
                 if (a.TryGetProperty("highlightTail", out _) && Int(a, "highlightTail") is 0 or 8) S.Clip.HighlightTail = Int(a, "highlightTail");
                 if (a.TryGetProperty("shareMb", out _) && Int(a, "shareMb") is 10 or 50 or 500) S.Clip.ShareMb = Int(a, "shareMb");
+                MontageOpts(a);
                 // the accent colour of the page, for what is drawn here (kill note)
                 if (Str(a, "accent") is { Length: 7 } hex && hex[0] == '#') _accentHex = hex;
                 if (a.TryGetProperty("words", out var wv) && wv.ValueKind == JsonValueKind.String)
@@ -770,7 +771,7 @@ public partial class MainWindow : Window
                     // the cut is done by ffmpeg (slow motion needs it, so it is loaded for that); without slow motion and
                     // without ffmpeg, Windows' own video machinery makes a plainer montage
                     bool slow = !a.TryGetProperty("slowmo", out var sm) || sm.ValueKind != JsonValueKind.False;
-                    string? file, err; int n;
+                    string? file, err; int n; double bpm = 0;
                     var ff = FfMontage.Find();
                     if (slow && ff == null) return new { needFfmpeg = true };
                     if (ff != null)
@@ -779,18 +780,16 @@ public partial class MainWindow : Window
                         if (all.Count < 2) return new { error = "Dafür braucht es mindestens zwei Kill-Clips" };
                         var pick = all.Skip(Math.Max(0, all.Count - Math.Clamp(Int(a, "count"), 2, 30))).ToList();
                         // optional, kept for next time: the big line of the intro, intro/outro on or off, the kill counter on or off
-                        if (a.TryGetProperty("title", out var mt) && mt.ValueKind == JsonValueKind.String) { var t = (mt.GetString() ?? "").Trim(); S.Clip.MontageTitle = t.Length > 32 ? t[..32] : t; }
-                        if (a.TryGetProperty("intro", out var mi) && mi.ValueKind is JsonValueKind.True or JsonValueKind.False) S.Clip.MontageIntro = mi.GetBoolean();
-                        if (a.TryGetProperty("counter", out var mc) && mc.ValueKind is JsonValueKind.True or JsonValueKind.False) S.Clip.MontageCounter = mc.GetBoolean();
+                        MontageOpts(a, "title", "intro", "counter");
                         S.Save();
                         var title = S.Clip.MontageTitle.Length > 0 ? S.Clip.MontageTitle : S.Clip.Name;
-                        (file, err, n) = await FfMontage.Make(ff, pick, S.Clip.After, music, _accentHex, (pct, text) => Emit("highlight", new { pct, text }), title, S.Clip.MontageIntro, S.Clip.MontageCounter, slow);
+                        (file, err, n, bpm) = await FfMontage.Make(ff, pick, S.Clip.After, music, _accentHex, (pct, text) => Emit("highlight", new { pct, text }), title, S.Clip.MontageIntro, S.Clip.MontageCounter, slow);
                     }
                     else (file, err, n) = await Highlight.MakeMontage(Int(a, "count"), music, _accentHex, (pct, text) => Emit("highlight", new { pct, text }), S.Clip.After);
                     if (file == null) { ClipLog.Add("Montage nicht erstellt: " + err); return new { error = err }; }
-                    ClipLog.Add($"Montage aus {n} Kill-Clips: {Path.GetFileName(file)}");
+                    ClipLog.Add($"Montage aus {n} Kill-Clips: {Path.GetFileName(file)}" + (bpm > 0 ? $" (Kills im Takt, {bpm:0} BPM)" : music != null && ff != null ? " (kein klarer Takt in der Musik)" : ""));
                     Log($"🎬 Montage aus {n} Clips → {Path.GetFileName(file)}");
-                    return new { ok = true, file = Path.GetFileName(file), clips = n, music = music != null, slowmo = slow };
+                    return new { ok = true, file = Path.GetFileName(file), clips = n, music = music != null, slowmo = slow, bpm = Math.Round(bpm) };
                 }
                 finally { _hlBusy = false; }
             }            case "clip.highlight":
@@ -882,8 +881,14 @@ public partial class MainWindow : Window
             {
                 var f = Clipper.Resolve(Str(a, "rel"));
                 if (f == null) return new { ok = false };
-                try { File.Delete(f); Log("🗑 Clip gelöscht: " + Path.GetFileName(f)); return new { ok = true }; }
-                catch (Exception ex) { return new { ok = false, error = ex.Message }; }
+                // a clip that was just playing in the page may be held open for a moment after the player let go of it
+                for (int tries = 0; ; tries++)
+                {
+                    try { File.Delete(f); Log("🗑 Clip gelöscht: " + Path.GetFileName(f)); return new { ok = true }; }
+                    catch (IOException) when (tries < 5) { await Task.Delay(300); }
+                    catch (UnauthorizedAccessException) when (tries < 5) { await Task.Delay(300); }
+                    catch (Exception ex) { return new { ok = false, error = ex.Message }; }
+                }
             }
             case "clip.gamebar":
                 Clipper.EnableGameBarCapture();
@@ -1494,6 +1499,18 @@ public partial class MainWindow : Window
         S.Save(); KfApply();
         ClipLog.Add($"Kill-Wort „{v.Word.Trim().ToUpperInvariant()}“ von der KI gelernt: wird ab jetzt direkt am Fadenkreuz erkannt");
         Emit("clipwords", new { words = S.Clip.Words });
+    }
+
+    /// <summary>
+    /// The montage options that are kept with the clip settings, where given: the big line of the intro (empty = in-game
+    /// name), intro/outro on or off, kill counter on or off (clip.cfg names them montageTitle…, clip.montage title…).
+    /// </summary>
+    private void MontageOpts(JsonElement a, string title = "montageTitle", string intro = "montageIntro", string counter = "montageCounter")
+    {
+        if (a.ValueKind != JsonValueKind.Object) return;
+        if (a.TryGetProperty(title, out var mt) && mt.ValueKind == JsonValueKind.String) { var t = (mt.GetString() ?? "").Trim(); S.Clip.MontageTitle = t.Length > 32 ? t[..32] : t; }
+        if (a.TryGetProperty(intro, out var mi) && mi.ValueKind is JsonValueKind.True or JsonValueKind.False) S.Clip.MontageIntro = mi.GetBoolean();
+        if (a.TryGetProperty(counter, out var mc) && mc.ValueKind is JsonValueKind.True or JsonValueKind.False) S.Clip.MontageCounter = mc.GetBoolean();
     }
 
     /// <summary>Switches on the chosen way of noticing kills: at the crosshair (kill message or red X, default) or the kill feed.</summary>

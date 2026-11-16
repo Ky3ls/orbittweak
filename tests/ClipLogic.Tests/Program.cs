@@ -6,7 +6,7 @@ using OrbitTweak.Core;
 //   dotnet run --project tests/ClipLogic.Tests
 //   dotnet run --project tests/ClipLogic.Tests -- --render <dir> [--art <dir>] [--music <file>] [--plain]
 //     cuts a montage from made-up clips (ffmpeg on PATH); --art takes intro.png, outro.png, shade.png, chip<n>.png, tag<n>.png from there;
-//     --plain: no intro/outro and no slow motion
+//     --plain: no intro/outro and no slow motion; --music: its beat is looked for and the kills are put on it
 
 if (args.Length > 0 && args[0] == "--render") return Render.Run(args);
 
@@ -243,6 +243,99 @@ Check(!KillLogic.SameText("ZM Blaze killed Kronos77", "ZM Blaze killed Viper_12"
     // zoompan ends a stream with a time in the wrong time base: without a trim after fps the montage never finished
     Check(System.Text.RegularExpressions.Regex.Matches(graph, @"fps=60,settb=1/60,trim=duration=").Count == p.Parts.Count + 2, "every clip, intro and outro end where planned");
     Check(!graph.Contains("NaN") && !graph.Contains("Infinity") && !graph.Contains("∞"), "no broken numbers in the graph");
+    // 4K and vertical clips: still 1080p (even sizes)
+    var big = MontageCut.Make(new List<MontageCut.Source> { new("4k.mp4", 20, true, 3840, 2160, new[] { 15.0 }), new("v.mp4", 20, true, 1080, 1920, new[] { 15.0 }) }, new MontageCut.Options());
+    Check(big.W == 1920 && big.H == 1080, $"4K and vertical clips make a 1080p montage ({big.W}x{big.H})");
+    Check(MontageCut.Size(new List<MontageCut.Source> { new("s.mp4", 20, true, 1366, 768, new[] { 15.0 }) }) == (1280, 720), "small clips: 720p");
+    // a triple kill right at the end of its clip: the last picture is held, so the tag is shown (it had no time at all)
+    var end = MontageCut.Make(new List<MontageCut.Source> { src[0], new("end.mp4", 8, true, 1920, 1080, new[] { 5.5, 6.6, 7.85 }, 3) }, new MontageCut.Options(After: 5));
+    var e = end.Parts[1]; var ek = e.Kills[^1];
+    Check(ek.Streak == 3 && e.Hold > 0 && e.Len - ek.T >= 0.8 - 1e-9, $"a kill at the very end gets a moment after it (hold {e.Hold:0.###}, {e.Len - ek.T:0.###} s after it)");
+    var (_, eg) = MontageCut.Build(end, new MontageCut.Art(null, null, new Dictionary<int, string>(), new Dictionary<int, string> { [ek.Number] = "t.png" }), null, "g.txt", "out.mp4", true);
+    var tm = System.Text.RegularExpressions.Regex.Match(eg, @"\[s1_\d+\]overlay=.*?enable='between\(t,([\d.]+),([\d.]+)\)'");
+    Check(tm.Success && double.Parse(tm.Groups[2].Value, CultureInfo.InvariantCulture) - double.Parse(tm.Groups[1].Value, CultureInfo.InvariantCulture) >= 0.6 - 1e-9
+          && double.Parse(tm.Groups[1].Value, CultureInfo.InvariantCulture) >= ek.T, $"the TRIPLE KILL tag at the end of a clip is shown ({tm.Groups[1].Value}..{tm.Groups[2].Value})");
+    Check(eg.Contains($"stop_duration={(0.5 + e.Hold).ToString("0.####", CultureInfo.InvariantCulture)}"), "the held picture is in the graph");
+}
+
+// ---------- beat of the music ----------
+{
+    // made-up click track: quiet hum, then clicks (a short high burst every beat, a lower one on every 4th), a bit of noise
+    short[] Clicks(double bpm, double first, double secs, bool offbeats = false, int seed = 1)
+    {
+        int rate = MontageBeat.Rate; var rnd = new Random(seed); var x = new double[(int)(secs * rate)];
+        for (int i = 0; i < x.Length; i++) x[i] = 0.01 * (rnd.NextDouble() * 2 - 1) + 0.02 * Math.Sin(2 * Math.PI * 110 * i / rate);
+        void Burst(double t, double amp, double f)
+        {
+            int s0 = (int)Math.Round(t * rate);
+            for (int i = 0; i < rate * 0.04 && s0 + i < x.Length; i++) if (s0 + i >= 0) x[s0 + i] += amp * Math.Exp(-i / (rate * 0.008)) * Math.Sin(2 * Math.PI * f * i / rate);
+        }
+        double p = 60 / bpm; int k = 0;
+        for (double t = first; t < secs; t += p, k++)
+        {
+            Burst(t, k % 4 == 0 ? 0.7 : 0.5, k % 4 == 0 ? 180 : 2500);
+            if (offbeats) Burst(t + p / 2, 0.12, 6000);
+        }
+        return x.Select(v => (short)Math.Clamp(v * 32767, -32768, 32767)).ToArray();
+    }
+    double Worst(MontageBeat.Grid g, double bpm, double first, double secs)
+    {
+        double w = 0, p = 60 / bpm;
+        for (double t = first; t < secs - 1; t += p) { double m = g.Start + Math.Round((t - g.Start) / g.Period) * g.Period; w = Math.Max(w, Math.Abs(m - t)); }
+        return w;
+    }
+    var g120 = MontageBeat.Find(Clicks(120, 1.37, 90));
+    Check(g120 != null && Math.Abs(g120.Bpm - 120) < 0.2, $"click track: 120 BPM ({g120?.Bpm:0.00})");
+    Check(g120 != null && Math.Abs(g120.Start - 1.37) < 0.015, $"the music starts on the first click ({g120?.Start:0.000} s)");
+    Check(g120 != null && Worst(g120, 120, 1.37, 90) < 0.015, $"every beat of 90 s within 15 ms ({(g120 == null ? -1 : Worst(g120, 120, 1.37, 90) * 1000):0.0} ms)");
+    var g95 = MontageBeat.Find(Clicks(95, 3.1, 120, true, 2));
+    Check(g95 != null && (Math.Abs(g95.Bpm - 95) < 0.2 || Math.Abs(g95.Bpm - 190) < 0.4), $"95 BPM with hats in between ({g95?.Bpm:0.00})");
+    Check(g95 != null && Math.Abs(g95.Start - 3.1) < 0.015 && Worst(g95, 95, 3.1, 120) < 0.015, $"95 BPM: start and beats on the clicks ({g95?.Start:0.000} s, {(g95 == null ? -1 : Worst(g95, 95, 3.1, 120) * 1000):0.0} ms)");
+    var g150 = MontageBeat.Find(Clicks(150, 0.2, 60, false, 3));
+    Check(g150 != null && Math.Abs(g150.Bpm - 150) < 0.3 && Worst(g150, 150, 0.2, 60) < 0.015, $"150 BPM ({g150?.Bpm:0.00})");
+    var noise = new Random(4); var hiss = Enumerable.Range(0, MontageBeat.Rate * 30).Select(_ => (short)noise.Next(-3000, 3000)).ToArray();
+    Check(MontageBeat.Find(hiss) == null, "noise has no beat");
+    Check(MontageBeat.Find(new short[MontageBeat.Rate * 20]) == null && MontageBeat.Find(new short[100]) == null, "silence and nothing have no beat");
+
+    // the plan on the beat: every clip's (last) kill lands on a beat, the lead-in stays within limits
+    var src = new List<MontageCut.Source>
+    {
+        new("a.mp4", 25, true, 1920, 1080, new[] { 20.0 }),
+        new("b.mp4", 25, true, 2560, 1080, new[] { 17.5, 19.0 }, 2),
+        new("c.mp4", 25, false, 1280, 720, Array.Empty<double>()),
+        new("d.mp4", 4, true, 1920, 1080, new[] { 3.6 }),
+        new("e.mp4", 25, true, 1920, 1080, new[] { 1.4 }),
+        new("f.mp4", 9, true, 1920, 1080, new[] { 8.8 }),
+    };
+    foreach (var (bpm, slow) in new[] { (120.0, 2.0), (87.0, 2.0), (174.0, 1.0) })
+    {
+        var beat = new MontageBeat.Grid(bpm, 60 / bpm, 0.37, 300);
+        var plain = MontageCut.Make(src, new MontageCut.Options(After: 5, Slow: slow));
+        var p = MontageCut.Make(src, new MontageCut.Options(After: 5, Slow: slow), beat);
+        double worst = 0, moved = 0; bool inside = true;
+        for (int i = 0; i < p.Parts.Count; i++)
+        {
+            var c = p.Parts[i]; double k = c.At + c.Kills[^1].T, off = k / beat.Period - Math.Round(k / beat.Period);
+            worst = Math.Max(worst, Math.Abs(off) * beat.Period);
+            moved = Math.Max(moved, Math.Abs(c.A - plain.Parts[i].A));
+            inside &= c.A >= 0 && c.A <= c.Src.Kills.DefaultIfEmpty(c.Src.Dur).Max() && c.D - c.A >= 1.99;
+        }
+        Check(worst < 0.004, $"{bpm} BPM, slow {slow}: every kill on a beat (worst {worst * 1000:0.0} ms off)");
+        Check(moved <= 1.0 + 1e-9 && inside, $"{bpm} BPM: lead-ins moved at most 1 s ({moved:0.00} s) and inside the clips");
+        Check(p.MusicFrom == 0.37 && p.Kills == plain.Kills, "music from the first hit, same kills");
+        double sum = MontageCut.IntroLen + p.Parts.Sum(x => x.Len) + MontageCut.OutroLen - MontageCut.TIn - MontageCut.TOut - MontageCut.TClip * (p.Parts.Count - 1);
+        Check(Math.Abs(p.Total - sum) < 1e-9, "total length on the beat");
+    }
+    // music of 8 s: the clips after it keep their usual lead-in
+    var shortBeat = new MontageBeat.Grid(120, 0.5, 0.37, 8);
+    var short1 = MontageCut.Make(src, new MontageCut.Options(After: 5), shortBeat); var usual = MontageCut.Make(src, new MontageCut.Options(After: 5));
+    var late = short1.Parts.Select((c, i) => (c, i)).Where(x => x.c.At + x.c.Kills[^1].T > shortBeat.Span + 1.2).ToList();
+    Check(late.Count >= 3 && late.All(x => x.c.A == usual.Parts[x.i].A), $"no beats past the end of the music ({late.Count} clips after it)");
+    var (_, bg) = MontageCut.Build(MontageCut.Make(src, new MontageCut.Options(After: 5), new MontageBeat.Grid(120, 0.5, 0.37, 300)), new MontageCut.Art(null, null, new Dictionary<int, string>(), new Dictionary<int, string>()), "m.mp3", "g.txt", "out.mp4", true);
+    Check(bg.Contains("atrim=start=0.37:duration=") && bg.Contains("afade=t=in:d=0.02"), "the music starts on its first hit");
+    // without slow motion the time of the first picture after the seek is kept as well (else the kill came a frame early)
+    var (_, pg) = MontageCut.Build(MontageCut.Make(src, new MontageCut.Options(After: 5, Intro: false, Slow: 1), new MontageBeat.Grid(120, 0.5, 0.37, 300)), new MontageCut.Art(null, null, new Dictionary<int, string>(), new Dictionary<int, string>()), "m.mp3", "g.txt", "out.mp4", true);
+    Check(System.Text.RegularExpressions.Regex.Matches(pg, @"setpts='PTS',framerate=").Count == src.Count && !pg.Contains("setpts='PTS-STARTPTS'"), "no slow motion: the clips keep their picture times");
 }
 
 Console.WriteLine($"{passed} passed, {failed} failed");
@@ -285,7 +378,18 @@ static class Render
             }
             src.Add(new MontageCut.Source(f, s.dur, s.audio, s.w, s.h, s.kills, s.kills.Length));
         }
-        var plan = MontageCut.Make(src, plain ? new MontageCut.Options(After: 2, Intro: false, Slow: 1) : new MontageCut.Options(After: 2));
+        var opts = plain ? new MontageCut.Options(After: 2, Intro: false, Slow: 1) : new MontageCut.Options(After: 2);
+        var plan = MontageCut.Make(src, opts);
+        if (music != null)
+        {
+            // the music as the app reads it: mono 16-bit samples from ffmpeg
+            var p = Process.Start(new ProcessStartInfo("ffmpeg", $"-v error -i \"{music}\" -t {N(60 + plan.Total * 1.3)} -vn -f s16le -ac 1 -ar {MontageBeat.Rate} pipe:1") { RedirectStandardOutput = true, UseShellExecute = false })!;
+            using var ms = new MemoryStream(); p.StandardOutput.BaseStream.CopyTo(ms); p.WaitForExit();
+            var pcm = new short[ms.Length / 2]; Buffer.BlockCopy(ms.GetBuffer(), 0, pcm, 0, pcm.Length * 2);
+            var beat = MontageBeat.Find(pcm, MontageBeat.Rate, plan.Total + 30);
+            Console.WriteLine(beat == null ? "no clear beat" : $"beat: {beat.Bpm:0.00} BPM, music from {beat.Start:0.000} s");
+            if (beat != null) plan = MontageCut.Make(src, opts, beat);
+        }
         var chips = new Dictionary<int, string>(); var tags = new Dictionary<int, string>();
         string? intro = null, outro = null, shade = null;
         if (art != null)
@@ -305,7 +409,7 @@ static class Render
         File.WriteAllText(graphFile, g);
         File.WriteAllText(Path.Combine(dir, plain ? "args-plain.txt" : "args.txt"), a);
         Console.WriteLine($"{plan.Parts.Count} clips, {plan.Kills} kills, {N(plan.Total)} s, {plan.W}x{plan.H}");
-        foreach (var p in plan.Parts) Console.WriteLine($"  {Path.GetFileName(p.Src.File)}: {N(p.A)}..{N(p.D)} at {N(p.At)} len {N(p.Len)} slow {N(p.SlowFrom)}..{N(p.SlowTo)} kills " + string.Join(" ", p.Kills.Select(k => $"#{k.Number}@{N(k.T)}")));
+        foreach (var p in plan.Parts) Console.WriteLine($"  {Path.GetFileName(p.Src.File)}: {N(p.A)}..{N(p.D)} at {N(p.At)} len {N(p.Len)} slow {N(p.SlowFrom)}..{N(p.SlowTo)} kills " + string.Join(" ", p.Kills.Select(k => $"#{k.Number}@{N(k.T)} (montage {N(p.At + k.T)})")));
         var sw = Stopwatch.StartNew();
         Ff(a.Replace("-progress pipe:1 -nostats ", ""));
         Console.WriteLine($"rendered in {sw.Elapsed.TotalSeconds:0.0} s -> {target}");

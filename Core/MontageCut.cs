@@ -13,7 +13,9 @@ namespace OrbitTweak.Core;
 ///  - the kill counter as a killfeed chip that slides in at the kill ("KILL 3 / 8"), "DOUBLE KILL" etc. for streaks,
 ///  - the game sound slowed (and lowered) with the picture.
 /// Around it: an intro over the blurred first clip with title and date, an outro, smooth cross transitions between
-/// the clips, and the music under everything, pushed down a little whenever the game is loud.
+/// the clips, and the music under everything, pushed down a little whenever the game is loud. With the beat of the
+/// music known (<see cref="MontageBeat"/>), the music starts on its first strong hit and every clip gets just so much
+/// lead-in that its (last) kill lands on a beat.
 /// </summary>
 internal static class MontageCut
 {
@@ -33,6 +35,9 @@ internal static class MontageCut
     // how much of a clip is shown around its kills, and the transitions
     // (about 4 to 5 s per kill in the montage, slow motion included)
     private const double Pre = 2.4, Post = 1.5, MaxSpan = 7, StreakGap = 4.5;
+    // on the beat: the lead-in may grow by up to 1 s or shrink by up to 0.9 s (at least 1.2 s before the first kill);
+    // after the last kill at least MinTail s are shown (the last picture is held if the clip ends sooner)
+    private const double BeatLonger = 1.0, BeatShorter = 0.9, MinLead = 1.2, MinTail = 0.8;
     public const double TIn = 0.5, TClip = 0.4, TOut = 0.6, IntroLen = 2.0, OutroLen = 2.4;
 
     public sealed class Part
@@ -46,6 +51,8 @@ internal static class MontageCut
         public double K = 1, KX;
         /// <summary>Seconds in the montage, and where it starts there (the transition into it begins then).</summary>
         public double Len, At;
+        /// <summary>Seconds the last picture is held at the end (a kill right at the end of a clip still gets its tag).</summary>
+        public double Hold;
         public readonly List<Kill> Kills = new();
 
         /// <summary>Where a moment x seconds after A lands in this part of the montage (the speed ramp).</summary>
@@ -63,7 +70,9 @@ internal static class MontageCut
         /// <summary>The same as an ffmpeg setpts expression (T = seconds of the frame from the start of the part).</summary>
         public string SetPts()
         {
-            if (K <= 1) return "PTS-STARTPTS";
+            // (the time of the first picture after the seek is kept here too: fps fills the start, else the kill came
+            // up to one source frame early)
+            if (K <= 1) return "PTS";
             double rin = B - P1, rout = P4 - C;
             double fb = Out(B), fc = Out(C), f4 = Out(P4);
             string k1 = N((K - 1) / (2 * rin)), k2 = N((K - 1) / (2 * rout));
@@ -83,6 +92,9 @@ internal static class MontageCut
         public int Kills;
         public bool Intro;
         public double Total;
+        /// <summary>The beat of the music (null = none known), and the seconds into the music where the montage music starts.</summary>
+        public MontageBeat.Grid? Beat;
+        public double MusicFrom;
     }
 
     /// <summary>Kill times of a clip without marks: the clipper keeps max(2, after) seconds after the last kill.</summary>
@@ -105,58 +117,111 @@ internal static class MontageCut
         return (Math.Round(from, 2), Math.Round(to, 2));
     }
 
-    public static Plan Make(IReadOnlyList<Source> clips, Options o)
+    /// <summary>Picture size of a montage: 1080p, or 720p if all clips are smaller (4K, vertical and odd sizes are scaled to it).</summary>
+    public static (int w, int h) Size(IEnumerable<Source> clips)
     {
-        var p = new Plan { Intro = o.Intro };
-        // picture size: 1080p unless the clips are clearly bigger (1440p) or all small (720p)
-        int maxH = clips.Count == 0 ? 1080 : clips.Max(c => c.H);
-        p.H = maxH >= 1400 ? 1440 : maxH >= 1000 || maxH <= 0 ? 1080 : 720;
-        p.W = p.H * 16 / 9;
+        int maxH = clips.Select(c => c.H).DefaultIfEmpty(1080).Max();
+        int h = maxH >= 1000 || maxH <= 0 ? 1080 : 720;
+        return (h * 16 / 9 / 2 * 2, h);
+    }
+
+    /// <summary>The kill times of a clip that the montage uses (guessed from "after" if it has none).</summary>
+    private static List<double> KillTimes(Source s, Options o)
+    {
+        var ks = s.Kills.Where(k => k > 0.2 && k < s.Dur - 0.1).OrderBy(k => k).ToList();
+        if (ks.Count == 0) ks.Add(Guess(s.Dur, o.After));
+        return ks;
+    }
+
+    /// <summary>Lays out a part of the montage that shows its clip from part.A on; number = kills before it. Returns the kills after it.</summary>
+    private static int Shape(Part part, List<double> ks, Options o, int number)
+    {
+        var s = part.Src;
+        int extra = Math.Max(0, s.Count - ks.Count);   // kills the clip has but no time for: they land on the last one
+        double last = ks[^1];
+        part.D = Math.Min(s.Dur - 0.05, last + Post);
+        double len = part.D - part.A, x = last - part.A;
+        part.P1 = part.B = part.C = part.P4 = part.KX = 0; part.K = 1; part.Hold = 0; part.Kills.Clear();
+        // the slow motion: from shortly before the last kill to shortly after it, with a ramp on both sides
+        if (o.Slow > 1.05)
+        {
+            double b = x - 0.45, c = x + 0.55, p1 = b - 0.22, p4 = c + 0.28;
+            if (p1 < 0.3) { double sh = 0.3 - p1; p1 += sh; b += sh; }
+            if (p4 > len - 0.1) { p4 = len - 0.1; c = Math.Min(c, p4 - 0.2); }
+            if (b - p1 >= 0.1 && c - b >= 0.4 && p4 - c >= 0.1) { part.P1 = p1; part.B = b; part.C = c; part.P4 = p4; part.K = o.Slow; part.KX = x; }
+        }
+        part.Len = Math.Round(part.Out(len) * Fps) / Fps;
+        // kill moments: kills before the shown part count with the first one that is shown
+        int carry = 0, streak = 0; double prev = double.NegativeInfinity;
+        for (int i = 0; i < ks.Count; i++)
+        {
+            int jump = 1 + (i == ks.Count - 1 ? extra : 0);
+            streak = ks[i] - prev <= StreakGap ? streak + jump : jump;
+            prev = ks[i];
+            if (ks[i] < part.A + 0.3) { carry += jump; continue; }
+            number += carry + jump; carry = 0;
+            part.Kills.Add(new Kill(Math.Max(0.25, part.Out(ks[i] - part.A)), number, streak));
+        }
+        if (carry > 0) { number += carry; part.Kills.Add(new Kill(0.25, number, carry)); }
+        // a kill right at the end of the clip: the last picture is held a moment, so its tag can be read
+        double tail = part.Len - part.Kills[^1].T;
+        if (tail < MinTail) { part.Hold = Math.Ceiling((MinTail - tail) * Fps) / Fps; part.Len += part.Hold; }
+        return number;
+    }
+
+    public static Plan Make(IReadOnlyList<Source> clips, Options o, MontageBeat.Grid? beat = null)
+    {
+        var p = new Plan { Intro = o.Intro, Beat = beat, MusicFrom = beat?.Start ?? 0 };
+        (p.W, p.H) = Size(clips);
         int number = 0;
+        double acc = p.Intro ? IntroLen : 0;
         foreach (var s in clips)
         {
             var part = new Part { Src = s };
-            var ks = s.Kills.Where(k => k > 0.2 && k < s.Dur - 0.1).OrderBy(k => k).ToList();
-            if (ks.Count == 0) ks.Add(Guess(s.Dur, o.After));
-            int extra = Math.Max(0, s.Count - ks.Count);   // kills the clip has but no time for: they land on the last one
-            double first = ks[0], last = ks[^1];
-            part.A = Math.Max(0, Math.Max(first - Pre, last - MaxSpan - Pre));
-            part.D = Math.Min(s.Dur - 0.05, last + Post);
-            if (part.D - part.A < 2) { part.A = Math.Max(0, part.D - 2); }
-            double len = part.D - part.A, x = last - part.A;
-            // the slow motion: from shortly before the last kill to shortly after it, with a ramp on both sides
-            if (o.Slow > 1.05)
+            var ks = KillTimes(s, o);
+            double first = ks[0], last = ks[^1], d = Math.Min(s.Dur - 0.05, last + Post);
+            double a0 = Math.Max(0, Math.Max(first - Pre, last - MaxSpan - Pre));
+            if (d - a0 < 2) a0 = Math.Max(0, d - 2);
+            // where the part starts in the montage (the transition into it begins then)
+            part.At = acc - (p.Parts.Count == 0 ? (p.Intro ? TIn : 0) : TClip);
+            part.A = a0;
+            int next = Shape(part, ks, o, number);
+            if (beat is { Period: > 0.2 })
             {
-                double b = x - 0.45, c = x + 0.55, p1 = b - 0.22, p4 = c + 0.28;
-                if (p1 < 0.3) { double sh = 0.3 - p1; p1 += sh; b += sh; }
-                if (p4 > len - 0.1) { p4 = len - 0.1; c = Math.Min(c, p4 - 0.2); }
-                if (b - p1 >= 0.1 && c - b >= 0.4 && p4 - c >= 0.1) { part.P1 = p1; part.B = b; part.C = c; part.P4 = p4; part.K = o.Slow; part.KX = x; }
+                // the (last) kill onto the nearest beat it can reach: a longer lead-in (smaller A) moves it later.
+                // At least MinLead s before the first kill shown; if no beat is in reach so, a quicker cut in.
+                double shown = ks.Where(k => k >= a0 + 0.3).DefaultIfEmpty(last).First(), kill = part.At + part.Kills[^1].T;
+                double KillAt(double a) { part.A = a; Shape(part, ks, o, number); return part.At + part.Kills[^1].T; }
+                double lo = Math.Max(0, a0 - BeatLonger), hi = a0, target = double.NaN;
+                foreach (var lead in new[] { MinLead, MinLead / 2 })
+                {
+                    hi = Math.Max(a0, Math.Min(Math.Min(a0 + BeatShorter, shown - lead), d - 2));
+                    double early = KillAt(hi), late = KillAt(lo);
+                    for (double m = Math.Ceiling(early / beat.Period); m * beat.Period <= late; m++)
+                    {
+                        double bt = m * beat.Period;
+                        if (bt >= 0 && bt <= beat.Span - 0.2 && (double.IsNaN(target) || Math.Abs(bt - kill) < Math.Abs(target - kill))) target = bt;
+                    }
+                    if (!double.IsNaN(target)) break;
+                }
+                if (!double.IsNaN(target))
+                {
+                    // the kill moves steadily with A (not quite one to one: the speed ramp): halving the range
+                    for (int step = 0; step < 40 && hi - lo > 1e-5; step++)
+                    {
+                        double m = (lo + hi) / 2;
+                        if (KillAt(m) > target) lo = m; else hi = m;
+                    }
+                    part.A = (lo + hi) / 2;
+                }
+                else part.A = a0;
+                next = Shape(part, ks, o, number);
             }
-            part.Len = Math.Round(part.Out(len) * Fps) / Fps;
-            // kill moments: kills before the shown part count with the first one that is shown
-            int carry = 0, streak = 0; double prev = double.NegativeInfinity;
-            for (int i = 0; i < ks.Count; i++)
-            {
-                int jump = 1 + (i == ks.Count - 1 ? extra : 0);
-                streak = ks[i] - prev <= StreakGap ? streak + jump : jump;
-                prev = ks[i];
-                if (ks[i] < part.A + 0.3) { carry += jump; continue; }
-                number += carry + jump; carry = 0;
-                part.Kills.Add(new Kill(Math.Max(0.25, part.Out(ks[i] - part.A)), number, streak));
-            }
-            if (carry > 0) { number += carry; part.Kills.Add(new Kill(0.25, number, carry)); }
+            number = next;
+            acc = part.At + part.Len;
             p.Parts.Add(part);
         }
         p.Kills = number;
-        // where every part starts in the montage
-        double acc = p.Intro ? IntroLen : 0;
-        for (int i = 0; i < p.Parts.Count; i++)
-        {
-            var part = p.Parts[i];
-            double t = i == 0 ? (p.Intro ? TIn : 0) : TClip;
-            part.At = acc - t;
-            acc = part.At + part.Len;
-        }
         p.Total = p.Intro ? acc - TOut + OutroLen : acc;
         return p;
     }
@@ -228,9 +293,11 @@ internal static class MontageCut
             var flash = new StringBuilder("0");
             foreach (var k in c.Kills) flash.Append("+0.075*").Append(Pulse("t", k.T - 0.02, 0.04, 0.14));
             bool big = s.H > H * 1.25;   // 4K and the like: made smaller first, the blending of frames is cheaper then
-            g.Append($"[{iv}:v]setpts=PTS-STARTPTS,trim=duration={N(len)},{Std(s.W, s.H)}{(big ? $"scale={W}:{H}," : "")}setsar=1,"
-                   + $"setpts='{c.SetPts()}',framerate=fps={Fps}:interp_start=0:interp_end=255:scene=100,{Zoom(z.ToString())},"
-                   + $"tpad=stop_mode=clone:stop_duration=0.5,trim=duration={N(c.Len)},{Grade(flash.ToString())}[c{i}e];{Shade($"c{i}e", $"c{i}g")}\n");
+            // (the first picture after the seek comes up to one frame after A: its time is kept, and the start filled
+            // up by fps before zoompan, which numbers its pictures from 0; else every kill came up to two frames early)
+            g.Append($"[{iv}:v]trim=end={N(len)},{Std(s.W, s.H)}{(big ? $"scale={W}:{H}," : "")}setsar=1,"
+                   + $"setpts='{c.SetPts()}',framerate=fps={Fps}:interp_start=0:interp_end=255:scene=100,fps=fps={Fps}:start_time=0,{Zoom(z.ToString())},"
+                   + $"tpad=stop_mode=clone:stop_duration={N(0.5 + c.Hold)},trim=duration={N(c.Len)},{Grade(flash.ToString())}[c{i}e];{Shade($"c{i}e", $"c{i}g")}\n");
             string cur = $"c{i}g";
             // cinema bars sliding in with the slow motion
             if (c.K > 1)
@@ -254,7 +321,8 @@ internal static class MontageCut
                 }
                 if (art.Tags.TryGetValue(k.Number, out var tag))
                 {
-                    double t0 = k.T + 0.05, t1 = Math.Min(c.Len - 0.1, t0 + 1.7);
+                    // (shown at least 0.6 s, also for a kill right at the end of the clip)
+                    double t1 = Math.Min(c.Len - 0.05, k.T + 1.75), t0 = Math.Max(0, Math.Min(k.T + 0.05, t1 - 0.6));
                     int it = Input($"-i \"{tag}\"");
                     g.Append($"{Still(it, c.Len)},fade=t=in:st={N(t0)}:d=0.15:alpha=1,fade=t=out:st={N(t1 - 0.3)}:d=0.3:alpha=1[s{i}_{j}];");
                     g.Append($"[{cur}][s{i}_{j}]overlay=x=(W-w)/2:y='H*0.73+{N(10 * u)}*(1-{Smooth($"(t-{N(t0)})/0.25")})':enable='between(t,{N(t0)},{N(t1)})'[c{i}s{j}];\n");
@@ -347,7 +415,8 @@ internal static class MontageCut
             var dip = new StringBuilder("0");
             foreach (var c in p.Parts.Where(x => x.K > 1))
                 dip.Append($"+{Smooth($"(t-{N(c.At + c.SlowFrom)})/0.25")}*(1-{Smooth($"(t-{N(c.At + c.SlowTo)})/0.4")})");
-            g.Append($"[{im}:a]atrim=0:{N(p.Total)},asetpts=PTS-STARTPTS,aresample=48000,{AFmt},afade=t=in:d=1,afade=t=out:st={N(Math.Max(0, p.Total - 2.5))}:d=2.5,"
+            // (on the beat it starts right on its first strong hit, without a slow fade)
+            g.Append($"[{im}:a]atrim=start={N(p.MusicFrom)}:duration={N(p.Total)},asetpts=PTS-STARTPTS,aresample=48000,{AFmt},afade=t=in:d={(p.Beat != null ? "0.02" : "1")},afade=t=out:st={N(Math.Max(0, p.Total - 2.5))}:d=2.5,"
                    + $"volume='0.85*(1-0.4*min(1,{dip}))':eval=frame[mu];\n");
             g.Append($"[{a}]asplit[ga][gk];[mu][gk]sidechaincompress=threshold=0.06:ratio=4:attack=8:release=300[md];");
             g.Append($"[ga]volume=0.8[gl];[gl][md]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.95:level=0[aend]");
