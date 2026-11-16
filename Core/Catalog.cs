@@ -770,33 +770,39 @@ internal static class Catalog
     }
 
     /// <summary>
-    /// Runs at every start; each step only acts on values OrbitTweak itself wrote (or on its own flags) and tidies up
-    /// after itself, so it does something once. Steps that depend on the old settings only run on the first start
-    /// after the update (s.TweaksMigrated).
+    /// Runs at every start. Steps keyed to OrbitTweak's own flags or backups act whenever those are there and tidy up
+    /// after themselves, so they do something once. Steps that can only recognise an old tweak by the values it wrote
+    /// (other tools and guides write the same values) only run on the first start after the update from an older
+    /// version (s.TweaksMigrated): on a fresh install, or on later starts, such values are someone else's and stay.
     /// </summary>
     public static MigrationResult Migrate(Settings s)
     {
         var r = new MigrationResult();
         void Step(Action a) { try { a(); } catch { } }
+        // read now: the first look at the game (ProbeFiveM) may run before this is done
+        bool upgrade = s.TweaksMigrated, prioWasAuto = s.PrioWasAuto;
 
         // ---------- input ----------
-        Step(() =>
+        if (upgrade)
         {
-            // "Input-Puffer optimieren": mouse 50 is its signature (the WASD lab never touches the mouse); a keyboard 50 only goes
-            // when the WASD lab was never used, because 50 is also its first level
-            if (Reg.Is(MOUCLASS, "MouseDataQueueSize", 50))
+            Step(() =>
             {
-                Reg.Del(MOUCLASS, "MouseDataQueueSize");
-                if (Reg.Is(KBDCLASS, "KeyboardDataQueueSize", 50) && s.WasdSetAt == null) Reg.Del(KBDCLASS, "KeyboardDataQueueSize");
-                r.Log.Add("↺ Input-Puffer auf Windows-Standard zurückgesetzt (wirkt nach Neustart)");
-                r.Undone.Add("Input-Puffer"); r.Reboot = true;
-            }
-        });
-        Step(() =>
-        {
-            // "Input-Thread-Priorität": the drivers never read the value
-            foreach (var p in new[] { KBDCLASS, MOUCLASS }) if (Reg.Is(p, "ThreadPriority", 31)) Reg.Del(p, "ThreadPriority");
-        });
+                // "Input-Puffer optimieren": mouse 50 is its signature (the WASD lab never touches the mouse); a keyboard 50 only goes
+                // when the WASD lab was never used, because 50 is also its first level
+                if (Reg.Is(MOUCLASS, "MouseDataQueueSize", 50))
+                {
+                    Reg.Del(MOUCLASS, "MouseDataQueueSize");
+                    if (Reg.Is(KBDCLASS, "KeyboardDataQueueSize", 50) && s.WasdSetAt == null) Reg.Del(KBDCLASS, "KeyboardDataQueueSize");
+                    r.Log.Add("↺ Input-Puffer auf Windows-Standard zurückgesetzt (wirkt nach Neustart)");
+                    r.Undone.Add("Input-Puffer"); r.Reboot = true;
+                }
+            });
+            Step(() =>
+            {
+                // "Input-Thread-Priorität": the drivers never read the value
+                foreach (var p in new[] { KBDCLASS, MOUCLASS }) if (Reg.Is(p, "ThreadPriority", 31)) Reg.Del(p, "ThreadPriority");
+            });
+        }
         Step(() =>
         {
             // "USB-Energiesparen aus" also switched it off on battery: back on there, the AC part stays with a backup
@@ -811,18 +817,29 @@ internal static class Catalog
         if (!Reg.Is(OWN, "LegacyNetUndone", 1))
         {
             bool net = false, nic = false;
-            Step(() =>
+            if (upgrade)
             {
-                // "Nagle-Algorithmus aus": exactly the three values it wrote, on every interface it may have run on
-                foreach (var id in Reg.SubKeys(TCPIF))
+                Step(() =>
                 {
-                    var p = $@"{TCPIF}\{id}";
-                    if (Reg.Is(p, "TcpAckFrequency", 1) && Reg.Is(p, "TCPNoDelay", 1) && Reg.Is(p, "TcpDelAckTicks", 0))
-                    { Reg.Del(p, "TcpAckFrequency"); Reg.Del(p, "TCPNoDelay"); Reg.Del(p, "TcpDelAckTicks"); net = true; }
-                }
-            });
-            Step(() => { if (Reg.Get(MM, "NetworkThrottlingIndex") is int v && v == -1) { Reg.Set(MM, "NetworkThrottlingIndex", 10); net = true; } });
-            Step(() => { if (Reg.Is(PSCHED, "NonBestEffortLimit", 0)) { Reg.Del(PSCHED, "NonBestEffortLimit"); net = true; } });
+                    // "Nagle-Algorithmus aus": exactly the three values it wrote, on every interface it may have run on
+                    foreach (var id in Reg.SubKeys(TCPIF))
+                    {
+                        var p = $@"{TCPIF}\{id}";
+                        if (Reg.Is(p, "TcpAckFrequency", 1) && Reg.Is(p, "TCPNoDelay", 1) && Reg.Is(p, "TcpDelAckTicks", 0))
+                        { Reg.Del(p, "TcpAckFrequency"); Reg.Del(p, "TCPNoDelay"); Reg.Del(p, "TcpDelAckTicks"); net = true; }
+                    }
+                });
+                Step(() => { if (Reg.Get(MM, "NetworkThrottlingIndex") is int v && v == -1) { Reg.Set(MM, "NetworkThrottlingIndex", 10); net = true; } });
+                Step(() => { if (Reg.Is(PSCHED, "NonBestEffortLimit", 0)) { Reg.Del(PSCHED, "NonBestEffortLimit"); net = true; } });
+                Step(() =>
+                {
+                    if (Reg.Is(NAMEPRIO, "LocalPriority", 4) && Reg.Is(NAMEPRIO, "HostsPriority", 5) && Reg.Is(NAMEPRIO, "DnsPriority", 6) && Reg.Is(NAMEPRIO, "NetbtPriority", 7))
+                    {
+                        Reg.Set(NAMEPRIO, "LocalPriority", 499); Reg.Set(NAMEPRIO, "HostsPriority", 500); Reg.Set(NAMEPRIO, "DnsPriority", 2000); Reg.Set(NAMEPRIO, "NetbtPriority", 2001);
+                        net = true;
+                    }
+                });
+            }
             Step(() =>
             {
                 if (Reg.Is(OWN, "TcpOptimized", 1))
@@ -832,14 +849,6 @@ internal static class Catalog
                     net = true;
                 }
                 Reg.Del(OWN, "TcpOptimized");
-            });
-            Step(() =>
-            {
-                if (Reg.Is(NAMEPRIO, "LocalPriority", 4) && Reg.Is(NAMEPRIO, "HostsPriority", 5) && Reg.Is(NAMEPRIO, "DnsPriority", 6) && Reg.Is(NAMEPRIO, "NetbtPriority", 7))
-                {
-                    Reg.Set(NAMEPRIO, "LocalPriority", 499); Reg.Set(NAMEPRIO, "HostsPriority", 500); Reg.Set(NAMEPRIO, "DnsPriority", 2000); Reg.Set(NAMEPRIO, "NetbtPriority", 2001);
-                    net = true;
-                }
             });
             Step(() =>
             {
@@ -919,14 +928,18 @@ internal static class Catalog
                 r.Undone.Add("Speicher-Komprimierung"); r.Reboot = true; r.Log.Add("↺ Speicher-Komprimierung wieder an (wirkt nach Neustart)");
             }
         });
-        Step(() =>
+        if (upgrade)
         {
-            // "Xbox Game DVR aus" wrote a machine-wide policy that also blocked the Game Bar recorder of the clipper
-            if (!Reg.Is(DVR_POL, "AllowGameDVR", 0)) return;
-            Reg.Del(DVR_POL, "AllowGameDVR");
-            Marks.Set("dvr");   // the rest of what it set is now the tweak "Game-Bar-Aufnahme aus"
-        });
-        Step(() => { if (Reg.Is(GB, "AllowAutoGameMode", 1)) Reg.Del(GB, "AllowAutoGameMode"); });   // a Windows 10 1703 value of the old "Spielmodus"
+            Step(() =>
+            {
+                // "Xbox Game DVR aus" wrote a machine-wide policy that also blocked the Game Bar recorder of the clipper
+                // (an admin or another tool may set the same policy: only on the update from a version that wrote it)
+                if (!Reg.Is(DVR_POL, "AllowGameDVR", 0)) return;
+                Reg.Del(DVR_POL, "AllowGameDVR");
+                Marks.Set("dvr");   // the rest of what it set is now the tweak "Game-Bar-Aufnahme aus"
+            });
+            Step(() => { if (Reg.Is(GB, "AllowAutoGameMode", 1)) Reg.Del(GB, "AllowAutoGameMode"); });   // a Windows 10 1703 value of the old "Spielmodus"
+        }
         Step(() =>
         {
             // the plan of the old "Höchstleistungs-Energieplan" becomes the plan of "Energieplan Höchstleistung"
@@ -936,7 +949,7 @@ internal static class Catalog
             if (Power.Active() == g) Marks.Set("ult");   // "Alle zurücksetzen" goes back to "Ausbalanciert", as before
         });
 
-        if (s.TweaksMigrated)
+        if (upgrade)
         {
             Step(() =>
             {
@@ -954,7 +967,7 @@ internal static class Catalog
                 // "Vollbild-Optimierung für FiveM aus": FiveM removes such flags itself on every start; only the exact old value goes
                 foreach (var e in FiveM.GameExecutables()) if (Reg.Is(LAYERS, e, FSO_OLD)) Reg.Del(LAYERS, e);
             });
-            if (s.PrioWasAuto) r.Undone.Add("Auto-Priorität „Hoch“");
+            if (prioWasAuto) r.Undone.Add("Auto-Priorität „Hoch“");
         }
         return r;
     }

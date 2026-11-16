@@ -24,6 +24,7 @@ public partial class MainWindow : Window
     private int _tick;
     // live tweaks of the game process (see ProbeFiveM)
     private int _qosPid;                       // the game process last tagged "full speed" (tweak nothrottle)
+    private bool _prioLooked;                  // the one look for a game left at High by the old "Auto-Priorität Hoch" is done
     private DateTime _prefUpkeep;              // last look for new FiveM exes that need the per-app graphics fields
     private Task<Catalog.MigrationResult>? _migrated;
     private double _zoom = 1;
@@ -2004,7 +2005,7 @@ public partial class MainWindow : Window
                         try
                         {
                             // the old "Auto-Priorität Hoch" (before 2.26) left the game at High; Cfx.re: FiveM needs Normal
-                            if (S.PrioWasAuto && game.PriorityClass == ProcessPriorityClass.High)
+                            if (S.PrioWasAuto && !_prioLooked && game.PriorityClass == ProcessPriorityClass.High)
                             {
                                 game.PriorityClass = ProcessPriorityClass.Normal;
                                 Log("↺ GTA-Prozess wieder auf normaler Priorität (Cfx.re rät von „Hoch“ ab)");
@@ -2036,7 +2037,7 @@ public partial class MainWindow : Window
                         }
                         catch { prio = "?"; }
                     }
-                    S.PrioWasAuto = false;   // only the first look after the update
+                    _prioLooked = true;   // only the first look after the update (S.PrioWasAuto stays for the note of Catalog.Migrate)
                     if (game == null || !S.GameNoThrottle) _qosPid = 0;
                     // the game is gone (or the tweak was switched off): every program gets back what it had
                     if (BgThrottle.Active && (game == null || !S.BgThrottle))
