@@ -54,7 +54,7 @@ function applyTheme(k) {
   r.setProperty('--a', t[1]); r.setProperty('--b', t[2]);
   r.setProperty('--a-rgb', hexRgb(t[1])); r.setProperty('--b-rgb', hexRgb(t[2]));
   SCENE_THEMES.forEach(s => root.classList.toggle('th-' + s, key === s));
-  if (key === 'winter') { r.setProperty('--icicles', ICICLES ||= icicles()); r.setProperty('--snowcap', SNOWCAP ||= snowCap()); }
+  if (key === 'winter') { r.setProperty('--icicles', ICICLES ||= icicles()); r.setProperty('--snowcap', SNOWCAP ||= snowCap()); r.setProperty('--aurora', AURORA ||= aurora()); r.setProperty('--drift', DRIFT ||= snowDrift()); }
   if (!$('.amb .aur')) $('.amb')?.insertAdjacentHTML('beforeend', '<i class="aur"></i>');
   fxStart(key);
   if (S.settings && S.settings.accent !== undefined && typeof applyBg === 'function') applyBg();   // the anime theme paints its own banner
@@ -89,12 +89,14 @@ const PIECE = {
 };
 // layers: [tile size, dots, smallest radius, largest radius, crystals, opacity, sway seconds]
 const FXCFG = {
-  winter: { piece: 'flake', n: 9, size: [7, 15], dur: [11, 19], layers: [[260, 34, .5, 1.1, 0, .55, 9], [360, 16, 1.1, 2, 0, .75, 7], [520, 7, 2, 3.2, 2, .7, 5.5]] },
-  anime: { piece: 'petal', n: 16, size: [11, 18], dur: [10, 17], layers: [[360, 9, .8, 1.5, 0, .3, 8]] },
+  // (no drawn crystals in the near layer: repeated every 520 px they read as a pattern, the single flakes are enough)
+  winter: { piece: 'flake', n: 9, size: [7, 15], dur: [11, 19], layers: [[260, 34, .5, 1.1, 0, .55, 9], [360, 16, 1.1, 2, 0, .75, 7], [520, 7, 2, 3.2, 0, .7, 5.5]] },
+  anime: { piece: 'petal', n: 13, size: [11, 17], dur: [10, 17], layers: [[360, 9, .8, 1.5, 0, .3, 8]] },
 };
 const FX = { key: null };
 function fxStart(k) {
   const cfg = S.settings.fx !== false && FXCFG[k];
+  document.documentElement.classList.toggle('fx-off', S.settings.fx === false);   // the northern lights stand still too
   let fx = $('#fx');
   if (!cfg) { fx?.remove(); FX.key = null; return; }
   if (fx && FX.key === k) return;
@@ -128,74 +130,123 @@ function icicles() {
   }
   return svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="420" height="26" viewBox="0 0 420 26" preserveAspectRatio="none"><defs><linearGradient id="i" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".28" stop-color="#F3FAFF"/><stop offset="1" stop-color="#BFE3FF" stop-opacity=".8"/></linearGradient></defs><path d="${d}H0V0Z" fill="url(#i)"/></svg>`);
 }
-/** A snow cap for the start button: a bumpy top and a few short icicles (one 200 px piece that repeats). */
+/** A snow cap for the main buttons: a soft, pillowy top, a straight underside along the button's edge and a few
+ *  short icicles (one 240 px piece that repeats). */
 let SNOWCAP = null;
 function snowCap() {
-  const R = seeded(9); let d = 'M0 6', x = 0;
-  while (x < 200) { const nx = Math.min(200, x + 14 + R() * 16); d += `Q${f1((x + nx) / 2)} ${f1(R() * 2.2)} ${f1(nx)} ${nx >= 200 ? 6 : f1(3.5 + R() * 2)}`; x = nx; }
-  d += 'V8';
-  while (x > 0) {
-    const nx = Math.max(0, x - (9 + R() * 14)), cx = (x + nx) / 2;
-    if (R() < .45 && x - nx > 7) d += `L${f1(cx + 1.8)} 9L${f1(cx)} ${f1(11 + R() * 4)}L${f1(cx - 1.8)} 9`;
-    d += `Q${f1(cx)} ${f1(9 + R() * 2)} ${f1(nx)} 8`; x = nx;
+  const R = seeded(9); let d = 'M0 8.5', x = 0;
+  while (x < 240) {
+    const nx = Math.min(240, x + 34 + R() * 30), top = .4 + R() * 2.2;
+    d += `C${f1(x + (nx - x) * .25)} ${f1(top)} ${f1(x + (nx - x) * .75)} ${f1(top)} ${f1(nx)} ${nx >= 240 ? 8.5 : f1(4.6 + R() * 1.2)}`; x = nx;
   }
-  return svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="16" viewBox="0 0 200 16" preserveAspectRatio="none"><defs><linearGradient id="i" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".5" stop-color="#F3FAFF"/><stop offset="1" stop-color="#C6E6FF"/></linearGradient></defs><path d="${d}Z" fill="url(#i)"/></svg>`);
+  d += 'V10.4';
+  while (x > 0) {
+    const nx = Math.max(0, x - (16 + R() * 18)), cx = (x + nx) / 2;
+    if (R() < .4 && x - nx > 12) d += `L${f1(cx + 1.6)} 10.8Q${f1(cx + .3)} ${f1(13 + R() * 2.4)} ${f1(cx)} ${f1(13.6 + R() * 2)}Q${f1(cx - .3)} 12.6 ${f1(cx - 1.6)} 10.8`;
+    d += `Q${f1(cx)} ${f1(10.8 + R() * .8)} ${f1(nx)} 10.4`; x = nx;
+  }
+  return svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="240" height="16" viewBox="0 0 240 16" preserveAspectRatio="none"><defs><linearGradient id="i" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".5" stop-color="#F4FAFF"/><stop offset=".78" stop-color="#E2F0FD"/><stop offset="1" stop-color="#C9E3F8"/></linearGradient></defs><path d="${d}Z" fill="url(#i)"/></svg>`);
 }
-/** The anime start banner: an original painted dusk over a city, with clouds lit from below, power lines and a
- *  sakura branch. Drawn once as a picture, so it costs no more than a photo. */
+/** Northern lights for the winter sheet: two curtains of fine rays rising from a wavy lower edge, brightest just
+ *  above it and fading upwards, softened once by a blur. Drawn once; the sheet then only moves the finished picture. */
+let AURORA = null;
+function aurora() {
+  const R = seeded(13), W = 1600, H = 420;
+  const curtain = (base, amp, len, ph, ids) => {
+    const edge = x => base + Math.sin(x / 270 + ph) * amp + Math.sin(x / 85 + ph * 2.3) * amp * .22;
+    const tint = x => ids[Math.min(ids.length - 1, Math.max(0, Math.floor((x / W) * ids.length + (R() - .5) * .8)))];
+    // a soft veil of light first (wide, faint strips), then the fine rays on it
+    let g = '';
+    for (let x = -20; x < W + 20; x += 14) {
+      const h = len * (.7 + .3 * Math.sin(x / 150 + ph));
+      g += `<rect x="${x}" y="${f1(edge(x + 8) - h)}" width="16" height="${f1(h + 26)}" fill="url(#${tint(x)})" opacity=".2"/>`;
+    }
+    for (let x = -10; x < W + 10; x += 4 + R() * 5) {
+      const h = len * (.45 + R() * .55) * (.6 + .4 * Math.sin(x / 190 + ph * 1.7));
+      g += `<rect x="${f1(x)}" y="${f1(edge(x) - h)}" width="${f1(2 + R() * 3)}" height="${f1(h + 18)}" fill="url(#${tint(x)})" opacity="${(.2 + R() * .6).toFixed(2)}"/>`;
+    }
+    return g;
+  };
+  const ray = (id, c0, c1) => `<linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c1}" stop-opacity="0"/><stop offset=".58" stop-color="${c1}" stop-opacity=".4"/><stop offset=".86" stop-color="${c0}" stop-opacity=".9"/><stop offset="1" stop-color="${c0}" stop-opacity="0"/></linearGradient>`;
+  return svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><defs>
+${ray('g', '#C2FFE6', '#46F0B4')}${ray('c', '#C6F6FF', '#4CC8FF')}${ray('v', '#EBDDFF', '#9A7BFF')}
+<filter id="b" x="-2%" y="-10%" width="104%" height="120%"><feGaussianBlur stdDeviation="3.2 3.4"/></filter></defs>
+<g filter="url(#b)"><g opacity=".55">${curtain(190, 30, 150, 2.1, ['c', 'v', 'v'])}</g>${curtain(300, 42, 210, .4, ['g', 'g', 'c'])}</g></svg>`);
+}
+/** A soft layer of snow along the bottom of the start banner (one 600 px piece that repeats). */
+let DRIFT = null;
+function snowDrift() {
+  const R = seeded(21); let d = 'M0 22V12', x = 0;
+  while (x < 600) { const nx = Math.min(600, x + 46 + R() * 70); d += `Q${f1((x + nx) / 2)} ${f1(3 + R() * 6)} ${f1(nx)} ${nx >= 600 ? 12 : f1(9 + R() * 5)}`; x = nx; }
+  return svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="22" viewBox="0 0 600 22" preserveAspectRatio="none"><defs><linearGradient id="s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".45" stop-color="#EAF5FF"/><stop offset="1" stop-color="#B7D8F2"/></linearGradient></defs><path d="${d}V22Z" fill="url(#s)"/></svg>`);
+}
+/** The anime start banner: an original painted dusk over a bay, the sun going down behind the city, clouds lit from
+ *  below, a power line and a sakura branch. All of the picture sits in the right ~40 %, the left stays open sky and
+ *  calm water, so the greeting never lies on top of it. Drawn once as a picture, so it costs no more than a photo. */
 let ANIME_BG = null;
 function animeScene() {
-  const R = seeded(7), W = 1600, H = 900; let s = '';
+  const R = seeded(7), W = 1600, H = 900, HZ = 704, SX = 1236; let s = '';
   s += `<defs>
-<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#120A30"/><stop offset=".28" stop-color="#34195A"/><stop offset=".5" stop-color="#8E3B84"/><stop offset=".64" stop-color="#E2679A"/><stop offset=".76" stop-color="#FF9F8E"/><stop offset=".86" stop-color="#FFD3A4"/></linearGradient>
-<radialGradient id="sun"><stop offset="0" stop-color="#FFF8E2"/><stop offset=".6" stop-color="#FFE4B6"/><stop offset="1" stop-color="#FFBFA6"/></radialGradient>
-<radialGradient id="glow"><stop offset="0" stop-color="#FFE7BE" stop-opacity=".8"/><stop offset=".35" stop-color="#FFA2B6" stop-opacity=".32"/><stop offset="1" stop-color="#FF7AA8" stop-opacity="0"/></radialGradient>
-<linearGradient id="cl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5E3684"/><stop offset=".55" stop-color="#B95A98"/><stop offset=".85" stop-color="#FF9FA6"/><stop offset="1" stop-color="#FFC9A8"/></linearGradient>
-<linearGradient id="far" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8C4A86"/><stop offset="1" stop-color="#5A2C66"/></linearGradient>
-<linearGradient id="near" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2E163F"/><stop offset="1" stop-color="#140A1F"/></linearGradient>
-<linearGradient id="trail" x1="0" x2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff" stop-opacity=".85"/></linearGradient>
+<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0C0722"/><stop offset=".3" stop-color="#211247"/><stop offset=".5" stop-color="#4E2470"/><stop offset=".63" stop-color="#9A4289"/><stop offset=".72" stop-color="#DB6A97"/><stop offset=".765" stop-color="#FFA493"/><stop offset=".782" stop-color="#FFC9A2"/></linearGradient>
+<linearGradient id="sea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C46A97"/><stop offset=".14" stop-color="#6E2F72"/><stop offset=".55" stop-color="#2A1242"/><stop offset="1" stop-color="#12091F"/></linearGradient>
+<linearGradient id="calm" x1="0" x2="1"><stop offset="0" stop-color="#140A2C" stop-opacity=".66"/><stop offset=".4" stop-color="#140A2C" stop-opacity=".3"/><stop offset=".6" stop-color="#140A2C" stop-opacity="0"/></linearGradient>
+<radialGradient id="sun"><stop offset="0" stop-color="#FFFBEF"/><stop offset=".6" stop-color="#FFE9C2"/><stop offset="1" stop-color="#FFC9A6"/></radialGradient>
+<radialGradient id="glow"><stop offset="0" stop-color="#FFE9C4" stop-opacity=".85"/><stop offset=".3" stop-color="#FFB0B4" stop-opacity=".34"/><stop offset="1" stop-color="#FF7AA8" stop-opacity="0"/></radialGradient>
+<linearGradient id="cl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5A3484"/><stop offset=".6" stop-color="#C45E99"/><stop offset="1" stop-color="#FFC6A8"/></linearGradient>
+<linearGradient id="cd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2E1A55"/><stop offset="1" stop-color="#94498E"/></linearGradient>
+<linearGradient id="far" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8A4A8C"/><stop offset="1" stop-color="#6A3576"/></linearGradient>
+<linearGradient id="near" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#341A4C"/><stop offset="1" stop-color="#1E0F31"/></linearGradient>
 <g id="fl"><g fill="#FFC6DD"><ellipse cx="0" cy="-5" rx="3.6" ry="5"/><ellipse cx="0" cy="-5" rx="3.6" ry="5" transform="rotate(72)"/><ellipse cx="0" cy="-5" rx="3.6" ry="5" transform="rotate(144)"/><ellipse cx="0" cy="-5" rx="3.6" ry="5" transform="rotate(216)"/><ellipse cx="0" cy="-5" rx="3.6" ry="5" transform="rotate(288)"/></g><circle r="2.2" fill="#FF6FA8"/></g>
 </defs>`;
   s += `<rect width="${W}" height="${H}" fill="url(#sky)"/>`;
-  for (let i = 0; i < 110; i++) { const y = R() * 360; s += `<circle cx="${(R() * W).toFixed(0)}" cy="${y.toFixed(0)}" r="${f1(.6 + R() * 1.3)}" fill="#fff" opacity="${(.2 + R() * .65 * (1 - y / 420)).toFixed(2)}"/>`; }
-  s += `<path d="M160 300L820 170" stroke="url(#trail)" stroke-width="2.6" stroke-linecap="round" opacity=".55"/>`;
-  s += `<circle cx="1130" cy="650" r="460" fill="url(#glow)"/><circle cx="1130" cy="650" r="118" fill="url(#sun)"/>`;
-  const cloud = (cx, cy, w, k, o = .93) => {
+  for (let i = 0; i < 120; i++) { const y = R() * 420; s += `<circle cx="${(R() * W).toFixed(0)}" cy="${y.toFixed(0)}" r="${f1(.6 + R() * 1.2)}" fill="#fff" opacity="${(.15 + R() * .6 * (1 - y / 460)).toFixed(2)}"/>`; }
+  s += `<circle cx="${SX}" cy="${HZ}" r="500" fill="url(#glow)"/><circle cx="${SX}" cy="${HZ - 58}" r="76" fill="url(#sun)"/>`;
+  // long flat clouds, lit from below, only over the right part
+  const band = (x0, x1, y, k, fill, o) => {
     let c = '';
-    for (let i = 0; i < k; i++) { const rx = 38 + R() * 70; c += `<ellipse cx="${(cx + (R() - .5) * w).toFixed(0)}" cy="${(cy + (R() - .5) * 28).toFixed(0)}" rx="${rx.toFixed(0)}" ry="${(rx * (.42 + R() * .2)).toFixed(0)}"/>`; }
-    return `<g fill="url(#cl)" opacity="${o}">${c}</g>`;
+    for (let i = 0; i < k; i++) { const rx = 50 + R() * 150; c += `<ellipse cx="${(x0 + R() * (x1 - x0)).toFixed(0)}" cy="${(y + (R() - .5) * 26).toFixed(0)}" rx="${rx.toFixed(0)}" ry="${(5 + R() * 9).toFixed(0)}"/>`; }
+    return `<g fill="url(#${fill})" opacity="${o}">${c}</g>`;
   };
-  s += cloud(380, 420, 460, 10) + cloud(1390, 360, 400, 9) + cloud(860, 505, 320, 7, .85) + cloud(120, 560, 260, 6, .8);
-  const city = (base, h0, h1, fill, w0, w1, lights) => {
-    let c = '', l = '', x = -20;
+  s += band(1150, 1640, 452, 7, 'cd', .7) + band(1060, 1640, 540, 9, 'cl', .85) + band(1010, 1640, 626, 8, 'cl', .92);
+  // hills and the city on the far shore, rising out of the haze towards the right
+  s += `<path d="M930 ${HZ}C1080 ${HZ - 10} 1180 ${HZ - 52} 1330 ${HZ - 64}S1520 ${HZ - 40} 1610 ${HZ - 50}V${HZ}Z" fill="#7C4282" opacity=".75"/>`;
+  const city = (h0, h1, fill, w0, w1, lights) => {
+    let c = '', l = '', x = 990;
     while (x < W + 20) {
-      const w = w0 + R() * (w1 - w0), h = h0 + R() * (h1 - h0), top = base - h;
-      c += `<rect x="${x.toFixed(0)}" y="${top.toFixed(0)}" width="${(w + 1).toFixed(0)}" height="${(H - top).toFixed(0)}"/>`;
-      if (R() < .18) c += `<rect x="${(x + w / 2 - 1).toFixed(0)}" y="${(top - 18 - R() * 22).toFixed(0)}" width="2" height="40"/>`;
-      if (lights) for (let yy = top + 10; yy < base - 8; yy += 14) for (let xx = x + 6; xx < x + w - 8; xx += 11) if (R() < .16) l += `<rect x="${xx.toFixed(0)}" y="${yy.toFixed(0)}" width="4" height="6"/>`;
+      const t = Math.min(1, Math.max(0, (x - 990) / 280)), w = w0 + R() * (w1 - w0), h = (h0 + R() * (h1 - h0)) * (.22 + .78 * t), top = HZ - h;
+      c += `<rect x="${x.toFixed(0)}" y="${top.toFixed(0)}" width="${(w + 1).toFixed(0)}" height="${h.toFixed(0)}"/>`;
+      if (t > .5 && R() < .2) c += `<rect x="${(x + w / 2 - 1).toFixed(0)}" y="${(top - 14 - R() * 18).toFixed(0)}" width="2" height="30"/>`;
+      if (lights) for (let yy = top + 8; yy < HZ - 6; yy += 11) for (let xx = x + 5; xx < x + w - 6; xx += 9) if (R() < .14) l += `<rect x="${xx.toFixed(0)}" y="${yy.toFixed(0)}" width="3" height="5"/>`;
       x += w;
     }
     return `<g fill="${fill}">${c}</g>` + (l ? `<g fill="#FFD48C" opacity=".75">${l}</g>` : '');
   };
-  s += city(720, 70, 210, 'url(#far)', 40, 90, false);
-  s += city(775, 50, 175, 'url(#near)', 50, 110, true);
-  s += `<rect y="772" width="${W}" height="${H - 772}" fill="#120819"/>`;
-  // a utility pole with its wires across the sky
-  s += `<g fill="#170A23"><rect x="322" y="236" width="14" height="${H - 236}"/><rect x="250" y="262" width="158" height="9" rx="2"/><rect x="268" y="304" width="122" height="8" rx="2"/>
-<rect x="258" y="250" width="6" height="14"/><rect x="394" y="250" width="6" height="14"/><rect x="276" y="293" width="6" height="12"/><rect x="376" y="293" width="6" height="12"/></g>
-<g fill="none" stroke="#1C0D2A" stroke-width="2.2"><path d="M397 252Q1000 420 1610 262"/><path d="M261 252Q100 330 -10 300"/><path d="M379 294Q1000 470 1610 330"/><path d="M279 294Q120 360 -10 350"/><path d="M329 238Q950 330 1610 168"/></g>`;
-  // the sakura branch reaching in from the right
-  s += `<g fill="none" stroke="#2A1322" stroke-linecap="round"><path d="M1640 330Q1500 360 1400 430T1215 470" stroke-width="11"/><path d="M1470 382Q1440 330 1385 318" stroke-width="6"/><path d="M1335 446Q1310 500 1270 520" stroke-width="5"/><path d="M1560 345Q1560 290 1590 255" stroke-width="5"/></g>`;
-  const along = [[1600, 338], [1560, 348], [1520, 360], [1480, 378], [1450, 395], [1420, 415], [1390, 432], [1360, 444], [1330, 452], [1300, 459], [1265, 465], [1230, 470], [1455, 360], [1420, 330], [1390, 320], [1320, 480], [1290, 505], [1275, 518], [1565, 300], [1585, 265]];
+  s += city(40, 140, 'url(#far)', 30, 70, false) + city(24, 92, 'url(#near)', 36, 80, true);
+  // calm water with the sun's path on it
+  s += `<rect y="${HZ}" width="${W}" height="${H - HZ}" fill="url(#sea)"/>`;
+  let ref = '';
+  for (let i = 0; i < 16; i++) { const w = (130 - i * 6.5) * (.55 + R() * .6); ref += `<rect x="${f1(SX - w / 2 + (R() - .5) * 14)}" y="${HZ + 5 + i * 9}" width="${f1(w)}" height="2.4" rx="1.2" opacity="${(.8 - i * .045).toFixed(2)}"/>`; }
+  for (let i = 0; i < 12; i++) { const w = 30 + R() * 90; ref += `<rect x="${f1(1000 + R() * 560)}" y="${f1(HZ + 10 + R() * 150)}" width="${f1(w)}" height="1.6" rx=".8" opacity=".22"/>`; }
+  s += `<g fill="#FFE3BC">${ref}</g>`;
+  // the open left half: a little darker and quieter, the greeting stands here
+  s += `<rect width="${W}" height="${H}" fill="url(#calm)"/>`;
+  // a dark bank in front, a power pole on it and its wires across the right sky
+  s += `<path d="M960 ${H}C1010 850 1060 828 1130 824S1300 818 1420 822 1560 812 1610 816V${H}Z" fill="#110818"/>
+<g fill="#170A23"><rect x="1040" y="400" width="12" height="${H - 400}"/><rect x="986" y="420" width="120" height="8" rx="2"/><rect x="1000" y="452" width="92" height="7" rx="2"/>
+<rect x="994" y="408" width="5" height="13"/><rect x="1094" y="408" width="5" height="13"/><rect x="1006" y="442" width="5" height="11"/><rect x="1082" y="442" width="5" height="11"/></g>
+<g fill="none" stroke="#1C0D2A" stroke-width="2"><path d="M1096 410Q1340 520 1610 446"/><path d="M1084 444Q1330 560 1610 494"/><path d="M1046 402Q1320 470 1610 380"/></g>`;
+  // the sakura branch reaching in from the top right, over the sun
+  s += `<g fill="none" stroke="#2A1322" stroke-linecap="round"><path d="M1640 362Q1500 376 1400 440T1176 520" stroke-width="11"/><path d="M1468 404Q1440 356 1388 340" stroke-width="6"/><path d="M1330 474Q1306 520 1264 548" stroke-width="5"/><path d="M1560 372Q1566 330 1594 300" stroke-width="5"/></g>`;
+  const along = [[1600, 366], [1560, 372], [1520, 384], [1484, 398], [1452, 414], [1420, 430], [1390, 446], [1360, 462], [1330, 476], [1300, 488], [1268, 498], [1236, 507], [1206, 514], [1182, 520], [1450, 372], [1420, 352], [1392, 342], [1314, 506], [1290, 528], [1268, 546], [1570, 336], [1590, 306]];
   let fl = '', soft = '';
   for (const [x, y] of along) for (let j = 0; j < 3; j++) {
-    const fx = x + (R() - .5) * 46, fy = y + (R() - .5) * 34, sc = .8 + R() * .9;
+    const fx = x + (R() - .5) * 44, fy = y + (R() - .5) * 32, sc = .8 + R() * .9;
     fl += `<use href="#fl" transform="translate(${f1(fx)} ${f1(fy)}) rotate(${(R() * 72).toFixed(0)}) scale(${sc.toFixed(2)})"/>`;
     soft += `<circle cx="${f1(fx + (R() - .5) * 20)}" cy="${f1(fy + (R() - .5) * 16)}" r="${f1(5 + R() * 7)}"/>`;
   }
   s += `<g fill="#FF9CC6" opacity=".55">${soft}</g>${fl}`;
-  // a few petals on their way down
-  for (let i = 0; i < 22; i++) { const x = (900 + R() * 700).toFixed(0), y = (380 + R() * 380).toFixed(0); s += `<ellipse cx="${x}" cy="${y}" rx="3.2" ry="2" fill="#FFC2DA" opacity="${(.5 + R() * .4).toFixed(2)}" transform="rotate(${(R() * 180).toFixed(0)} ${x} ${y})"/>`; }
+  // a few petals on their way down, also only on the right
+  for (let i = 0; i < 20; i++) { const x = (1010 + R() * 580).toFixed(0), y = (380 + R() * 400).toFixed(0); s += `<ellipse cx="${x}" cy="${y}" rx="3.2" ry="2" fill="#FFC2DA" opacity="${(.5 + R() * .4).toFixed(2)}" transform="rotate(${(R() * 180).toFixed(0)} ${x} ${y})"/>`; }
   return svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${s}</svg>`);
 }
 
@@ -380,6 +431,11 @@ function lhState() {
   b.classList.toggle('calm', !!S.fmOn && !con);
   $('#lhTxt').textContent = S.fmOn ? (con ? 'Verbinden' : 'FiveM läuft') : 'FiveM starten';
   $('#lhSub').textContent = S.fmOn ? (con ? 'mit ' + con : 'Adresse eintragen, um zu verbinden') : con ? 'Boost anwenden und verbinden' : 'Boost anwenden und Spiel starten';
+  const chip = $('#lhChip');
+  if (chip) {
+    const st = S.fmOn ? ['g live', 'FiveM läuft'] : S.fivem && S.fivem.found === false ? ['r', 'FiveM nicht gefunden'] : ['', 'Bereit zum Start'];
+    chip.className = 'chip ' + st[0]; chip.textContent = st[1];
+  }
 }
 function lhLaunch() {
   if (S.fmOn && !($('#lConnect')?.value || '').trim()) return toast('FiveM läuft schon', 'Trag eine Adresse ein, um direkt zu verbinden');
@@ -481,7 +537,11 @@ function legacyHtml() {
     + l.map(t => `<div class="tw old"><div class="ti">${ico('undo')}</div><div class="tx"><b>${esc(t.name)}</b><p>${esc(t.desc)}</p>${t.hint ? `<small class="tw-hint">${esc(t.hint)}</small>` : ''}</div><button class="btn sm" data-legacy="${t.id}">Zurücksetzen</button></div>`).join('');
 }
 function renderTweaks() {
-  $('#tabs').innerHTML = Object.entries(CATS).map(([k, [n, i]]) => { const l = S.tweaks.filter(t => t.cat === k); return `<button class="tab ${k === curTab ? 'on' : ''}" data-c="${k}">${ico(i)}${n}<span class="vt-s">${l.filter(t => t.applied).length}/${l.length} aktiv</span></button>`; }).join('');
+  // each category: its name, how many of its tweaks are on as a large number, and a fine bar for the same
+  $('#tabs').innerHTML = Object.entries(CATS).map(([k, [n, i]]) => {
+    const l = S.tweaks.filter(t => t.cat === k), on = l.filter(t => t.applied).length;
+    return `<button class="tab ${k === curTab ? 'on' : ''}" data-c="${k}"><span class="tc-h">${ico(i)}${n}</span><span class="tc-n"><b>${on}</b>von ${l.length} aktiv</span><span class="tc-bar"><i style="transform:scaleX(${l.length ? on / l.length : 0})"></i></span></button>`;
+  }).join('');
   const cur = S.tweaks.filter(t => t.cat === curTab);
   $('#tlDesc').textContent = CATS[curTab][2];
   $('#tgrid').innerHTML = cur.map(t => tweakHtml(t)).join('') + (curTab === 'system' ? legacyHtml() : '');
@@ -527,13 +587,13 @@ async function revertAll() {
 
 /* ======================= FIVEM ACTIONS ======================= */
 async function clearFmCache() { const r = await api('fivem.cache'); if (r.error) return toast('Cache nicht geleert', r.error, false); addFreed(r.freed); refreshCache(); toast('FiveM-Cache geleert', bytes(r.freed) + ' freigegeben'); }
-async function cleanRam() { const r = await api('ram.clean'); addFreed(r.freed); toast('RAM freigegeben', bytes(r.freed) + ' zurückgewonnen'); }
+async function cleanRam() { const r = await api('ram.clean'); addFreed(r.freed); if ($('#cFreed')) $('#cFreed').textContent = bytes(S.freed); toast('RAM freigegeben', bytes(r.freed) + ' zurückgewonnen'); }
 async function killFiveM() { if (!await confirmBox('FiveM beenden?', 'Das Spiel wird sofort geschlossen. Was nicht gespeichert ist, geht verloren.', { ok: 'FiveM beenden', danger: true })) return; const r = await api('fivem.kill'); toast(r.count ? 'FiveM beendet' : 'FiveM lief nicht', r.count ? r.count + ' Prozesse geschlossen' : '', !!r.count); }
 async function pickFiveM() { const r = await api('fivem.pick'); if (r.found) { S.fivem = r; renderCmd(); refreshCache(); toast('FiveM-Pfad gesetzt', r.path); } }
 
 /* ======================= LAUNCHER ======================= */
 const BUILDS = ['Auto', '2189', '2372', '2545', '2612', '2699', '2802', '2944', '3095', '3258', '3323', '3407'];
-const PRE = [['ram', 'RAM freigeben', 'Working-Sets + Standby-Liste leeren'], ['dns', 'DNS-Cache leeren', 'Frische Server-Auflösung'], ['kill', 'Hintergrund-Apps beenden', 'OneDrive, Teams, Launcher & Co.'], ['cache', 'FiveM-Cache leeren', 'Nur bei Problemen (längeres Laden)']];
+const PRE = [['ram', 'RAM freigeben', 'Working-Sets + Standby-Liste leeren', 'ram'], ['dns', 'DNS-Cache leeren', 'Frische Server-Auflösung', 'globe'], ['kill', 'Hintergrund-Apps beenden', 'OneDrive, Teams, Launcher & Co.', 'power'], ['cache', 'FiveM-Cache leeren', 'Nur bei Problemen (längeres Laden)', 'trash']];
 const cfg = () => S.settings.launch ||= { build: 'Auto', pure: 0, pre: { ram: true, dns: true, kill: false, cache: false } };
 function seg(el, opts, cur, onPick) {
   el.innerHTML = opts.map(([n, v]) => `<button class="${String(v) === String(cur) ? 'on' : ''}" data-v="${v}">${n}</button>`).join('');
@@ -545,7 +605,7 @@ async function renderLauncher() {
   sb.onchange = () => { c.build = sb.value; saveLaunch(); };
   seg($('#optPure'), [['Aus', 0], ['Pure 1', 1], ['Pure 2', 2]], c.pure, v => { c.pure = +v; saveLaunch(); });
   try { const ini = await api('ini.get'); S.chan = ini.channel; seg($('#optChan'), [['Release', 'production'], ['Beta', 'beta'], ['Latest', 'canary']], ini.channel, async v => { S.chan = v; renderCmd(); await api('ini.set', { channel: v }); toast('Update-Kanal gesetzt', v); }); } catch { }
-  $('#preList').innerHTML = PRE.map(([k, n, d]) => `<div class="pr ${c.pre[k] ? 'on' : ''}"><div><b>${n}</b><span>${d}</span></div><div class="tg ${c.pre[k] ? 'on' : ''}" data-pre="${k}"></div></div>`).join('');
+  $('#preList').innerHTML = PRE.map(([k, n, d, i]) => `<div class="pr ${c.pre[k] ? 'on' : ''}"><span class="pi2">${ico(i)}</span><div><b>${n}</b><span>${d}</span></div><div class="tg ${c.pre[k] ? 'on' : ''}" data-pre="${k}"></div></div>`).join('');
   $('#preList').onclick = e => { const t = e.target.closest('[data-pre]'); if (!t) return; c.pre[t.dataset.pre] = !c.pre[t.dataset.pre]; t.classList.toggle('on'); t.closest('.pr').classList.toggle('on'); saveLaunch(); };
   renderCmd();
 }
@@ -558,7 +618,7 @@ function renderCmd() {
   if (con) s += ` <em>+connect ${esc(con)}</em>`;
   $('#cmdLine').innerHTML = s;
   const on = PRE.filter(([k]) => c.pre[k]);
-  if ($('#preCount')) $('#preCount').textContent = on.length + ' aktiv';
+  if ($('#preCount')) $('#preCount').textContent = on.length + ' von ' + PRE.length + ' aktiv';
   const chan = { production: 'Release', beta: 'Beta', canary: 'Latest' }[S.chan] || 'Release';
   // each tile leads to the option it sums up
   if ($('#lSum')) $('#lSum').innerHTML = [
@@ -567,7 +627,7 @@ function renderCmd() {
     ['download', 'Kanal', chan, 'loChan'],
     ['sparkle', 'Boost', on.length ? on.length + ' Schritte' : 'Aus', 'preCard'],
     ['link', 'Server', con ? con : 'Keiner', 'lConnect']
-  ].map(([i, k, v, to]) => `<button class="lh-i" data-lgo="${to}" title="${to === 'lConnect' ? (con ? esc(con) : 'Ohne Adresse öffnet FiveM die Serverliste') : 'Zur Einstellung'}">${ico(i)}<span>${k}</span><b>${esc(v)}</b></button>`).join('');
+  ].map(([i, k, v, to]) => `<button class="lh-i${to === 'lConnect' && !con ? ' dim' : ''}" data-lgo="${to}" title="${to === 'lConnect' ? (con ? esc(con) : 'Ohne Adresse öffnet FiveM die Serverliste') : 'Zur Einstellung'}">${ico(i)}<span>${k}</span><b>${esc(v)}</b></button>`).join('');
   lhState();
 }
 document.addEventListener('click', e => {
@@ -596,30 +656,31 @@ function fivemName(s) {
   return out || 'Unbekannter Server';
 }
 function srvCard(s) {
-  const pct = s.max ? Math.round(s.players * 100 / s.max) : 0;
+  const pct = s.max ? Math.min(100, Math.round(s.players * 100 / s.max)) : 0;
   const initial = (s.name || '?').replace(/\^\d/g, '').trim()[0] || '?';
-  return `<div class="card hov srv ${s.online ? '' : 'off'} ${s.banner ? '' : 'nobn'}">
-    <div class="bn" ${s.banner ? `style="background-image:url('${esc(s.banner)}')"` : ''}></div>
-    <button class="ib fav" title="Entfernen" onclick="removeServer('${esc(s.code)}')">${ico('x')}</button>
-    <div class="bd">
-      <div class="top"><div class="icon" ${s.icon ? `style="background-image:url('${esc(s.icon)}')"` : ''}>${s.icon ? '' : esc(initial)}</div><div style="min-width:0"><div class="nm">${fivemName(s.name)}</div></div></div>
-      <div class="ds">${esc(s.desc || s.addr || '')}</div>
-      <div class="tags">${s.online ? '<span class="chip g">Online</span>' : '<span class="chip r">Offline</span>'}${s.locale ? `<span class="chip">${esc(s.locale)}</span>` : ''}${(s.tags || []).slice(0, 3).map(t => `<span class="chip">${esc(t)}</span>`).join('')}</div>
-      <div class="row">
-        <div class="pl"><div><span>Spieler</span><b>${s.players ?? 0}/${s.max ?? 0}</b></div><div class="bar"><i style="width:${pct}%"></i></div></div>
-        <span class="chip ${s.ping == null ? '' : s.ping < 50 ? 'g' : s.ping < 100 ? 'w' : 'r'}">${s.ping == null ? '-- ms' : s.ping + ' ms'}</span>
-        <button class="btn o sm" onclick="joinServer('${esc(s.code)}')" ${s.online ? '' : 'disabled'}>${ico('play')}Verbinden</button>
-      </div>
-    </div></div>`;
+  const pc = s.ping == null ? '' : s.ping < 50 ? 'g' : s.ping < 100 ? 'w' : 'r';
+  return `<div class="srv ${s.online ? '' : 'off'}">
+    <div class="icon" ${s.icon ? `style="background-image:url('${esc(s.icon)}')"` : ''}>${s.icon ? '' : esc(initial)}</div>
+    <div class="sx"><div class="nm">${fivemName(s.name)}</div>
+      <div class="ds">${s.online ? '' : '<span class="chip r">Offline</span>'}${s.locale ? `<span class="loc">${esc(s.locale)}</span>` : ''}<span class="dt">${esc(s.desc || s.addr || '')}</span></div></div>
+    <div class="pl" title="Spieler"><b>${s.players ?? 0}<small> / ${s.max ?? 0}</small></b><i class="pb"><i style="transform:scaleX(${pct / 100})"></i></i></div>
+    <div class="pg ${pc}" title="Ping"><i></i><b>${s.ping == null ? '–' : s.ping}</b><small>ms</small></div>
+    <button class="btn sm go" onclick="joinServer('${esc(s.code)}')" ${s.online ? '' : 'disabled'}>${ico('play')}Verbinden</button>
+    <button class="ib rm" title="Aus Favoriten entfernen" onclick="removeServer('${esc(s.code)}')">${ico('x')}</button>
+  </div>`;
 }
 async function loadServers(force) {
-  $('#srvList').innerHTML = `<div class="empty">Lade Server-Daten…</div>`;
+  // quiet placeholder rows in the shape of the real ones, so nothing jumps when the data arrives
+  $('#srvList').innerHTML = Array.from({ length: Math.max(2, Math.min(S.servers.length || 3, 5)) }, () => '<div class="srv skel"><div class="icon"></div><div class="sx"><i></i><i></i></div></div>').join('');
+  $('#srvCount').textContent = '';
   try { S.servers = await api('servers.list', { force: !!force }); } catch { S.servers = []; }
   renderServers(); loadCfx();
 }
 function renderServers() {
+  const on = S.servers.filter(x => x.online).length;
+  $('#srvCount').textContent = S.servers.length ? `${on} von ${S.servers.length} online` : '';
   $('#srvList').innerHTML = S.servers.length ? S.servers.map(srvCard).join('')
-    : `<div class="empty"><div style="font-weight:600;color:var(--text)">Noch keine Favoriten</div><div style="margin-top:4px">Füge oben einen Join-Code (cfx.re/join/…) oder IP:Port hinzu.</div></div>`;
+    : `<div class="srv-empty"><div class="se-ic">${ico('server')}</div><b>Noch keine Favoriten</b><p>Füg oben einen Join-Code (cfx.re/join/…) oder IP:Port ein. Danach siehst du hier Spieler und Ping und verbindest mit einem Klick.</p></div>`;
 }
 async function addServer() {
   const q = $('#srvIn').value.trim(); if (!q) return;
@@ -630,11 +691,13 @@ async function removeServer(code) { await api('servers.remove', { code }); S.ser
 function joinServer(code) { const s = S.servers.find(x => x.code === code); launch(s.connect || code); }
 function directConnect() { const v = $('#dcIn').value.trim(); if (v) launch(v); }
 async function loadCfx() {
-  $('#cfxList').innerHTML = '<div class="sub" style="padding:8px 0">Prüfe…</div>';
+  const sum = $('#cfxSum');
+  if (sum) { sum.className = 'cfx-sum'; sum.innerHTML = '<i></i><span>Prüfe die Dienste…</span>'; }
   try {
-    const l = await api('cfx.status');
-    $('#cfxList').innerHTML = l.map(s => `<div class="svc"><i class="dot ${s.ok ? 'on' : ''}" style="${s.ok ? '' : 'background:var(--bad)'}"></i><span class="nm">${esc(s.name)}</span><b style="font-family:var(--disp)" class="${s.ok ? '' : 'muted'}">${s.ok ? s.ms + ' ms' : 'DOWN'}</b></div>`).join('');
-  } catch { $('#cfxList').innerHTML = '<div class="sub">Nicht erreichbar</div>'; }
+    const l = await api('cfx.status'), down = l.filter(s => !s.ok).length;
+    if (sum) { sum.className = 'cfx-sum ' + (down ? 'bad' : 'ok'); sum.innerHTML = `<i></i><span>${down ? (down === 1 ? 'Ein Dienst gestört' : down + ' Dienste gestört') : 'Alle Dienste erreichbar'}</span>`; }
+    $('#cfxList').innerHTML = l.map(s => `<div class="svc ${s.ok ? '' : 'down'}"><i class="sd"></i><span class="nm">${esc(s.name)}</span><b>${s.ok ? `${s.ms}<small>ms</small>` : 'Gestört'}</b></div>`).join('');
+  } catch { if (sum) { sum.className = 'cfx-sum bad'; sum.innerHTML = '<i></i><span>Nicht erreichbar</span>'; } $('#cfxList').innerHTML = ''; }
 }
 
 /* ======================= GRAPHICS ======================= */
@@ -667,6 +730,9 @@ const PRESETS = {
   cine: { n: 'Kino', d: 'Maximale Qualität für Screenshots, Clips und High-End-PCs.', fps: 1, q: 5,
     v: { TextureQuality: 2, ShadowQuality: 3, ReflectionQuality: 3, GrassQuality: 2, WaterQuality: 2, ParticleQuality: 3, ShaderQuality: 2, PostFX: 3, SSAO: 2, Tessellation: 3, MSAA: 2, FXAA_Enabled: 'true', AnisotropicFiltering: 16, Shadow_SoftShadows: 3, LodScale: 1, CityDensity: 1, MotionBlurStrength: 0 } },
 };
+const PRESET_ICO = { comp: 'zap', bal: 'sliders', cine: 'film' };
+const GFX_GROUPS = [['Anzeige & Welt', 'monitor', ['Windowed', 'LodScale', 'CityDensity', 'MotionBlurStrength']], ['Texturen & Kanten', 'layers', ['TextureQuality', 'AnisotropicFiltering', 'FXAA_Enabled', 'MSAA']],
+  ['Licht & Schatten', 'sun', ['ShadowQuality', 'Shadow_SoftShadows', 'ReflectionQuality', 'SSAO', 'ShaderQuality', 'PostFX']], ['Details', 'sparkle', ['GrassQuality', 'WaterQuality', 'ParticleQuality', 'Tessellation']]];
 const pips = n => Array.from({ length: 5 }, (_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('');
 const num = v => v === 'true' ? 1 : v === 'false' ? 0 : parseFloat(v);
 async function loadGfx() {
@@ -675,17 +741,21 @@ async function loadGfx() {
   $('#gfxState').className = 'chip ' + (S.gfx.found ? 'g' : 'r');
   $('#gfxState').textContent = S.gfx.found ? 'settings.xml gefunden' : 'settings.xml fehlt';
   $('#gfxPath').textContent = S.gfx.found ? S.gfx.path : 'GTA V settings.xml nicht gefunden. Starte GTA V oder FiveM einmal.';
-  $('#presets').innerHTML = Object.entries(PRESETS).map(([k, p]) => `<div class="card hov preset" data-pr="${k}"><div class="ck chip a">Aktiv</div><div class="pt">${p.n}</div><p>${p.d}</p><div class="meter"><span>FPS</span><div class="pips">${pips(p.fps)}</div><span>Optik</span><div class="pips">${pips(p.q)}</div></div></div>`).join('');
+  $('#presets').innerHTML = Object.entries(PRESETS).map(([k, p]) => `<div class="card hov preset" data-pr="${k}"><div class="pr-h"><span class="pr-ic">${ico(PRESET_ICO[k] || 'sliders')}</span><span class="ck">${ico('check')}Aktiv</span></div><div class="pt">${p.n}</div><p>${p.d}</p><div class="meter"><span>FPS</span><div class="pips">${pips(p.fps)}</div><span>Optik</span><div class="pips">${pips(p.q)}</div></div></div>`).join('');
   $('#presets').onclick = e => { const c = e.target.closest('[data-pr]'); if (!c) return; Object.assign(S.gfxEdit, PRESETS[c.dataset.pr].v); renderGfx(true); };
   renderGfx(false);
 }
 function renderGfx(dirty) {
   const v = S.gfxEdit;
-  $('#gctl').innerHTML = GFX.map(g => {
+  const row = g => {
     const cur = v[g.k];
     if (g.r) { const n = Math.round(parseFloat(cur ?? 1) * 100); return `<div class="gc"><div class="gn"><b>${g.n}</b><span>${g.d}</span></div><div class="rng"><input type="range" min="0" max="100" value="${n}" style="--p:${n}%" data-r="${g.k}"><b>${n}%</b></div></div>`; }
     return `<div class="gc"><div class="gn"><b>${g.n}</b><span>${g.d}</span></div><div class="seg" data-g="${g.k}">${g.o.map(([n, val]) => `<button class="${String(cur) === String(val) ? 'on' : ''}" data-v="${val}">${n}</button>`).join('')}</div></div>`;
-  }).join('');
+  };
+  // grouped like a settings app; anything not in a group still shows up at the end
+  const inG = new Set(GFX_GROUPS.flatMap(x => x[2])), rest = GFX.filter(g => !inG.has(g.k));
+  $('#gctl').innerHTML = GFX_GROUPS.concat(rest.length ? [['Weitere', 'sliders', rest.map(g => g.k)]] : []).map(([n, i, ks]) =>
+    `<div class="gcg"><div class="gcg-h">${ico(i)}<b>${n}</b></div><div class="gcg-b">${ks.map(k => GFX.find(g => g.k === k)).filter(Boolean).map(row).join('')}</div></div>`).join('');
   $('#gfxDirty').classList.toggle('hidden', !dirty);
   $$('.preset').forEach(p => { const pv = PRESETS[p.dataset.pr].v; p.classList.toggle('sel', Object.keys(pv).every(k => Math.abs(num(pv[k]) - num(v[k])) < .02)); });
 }
@@ -701,9 +771,11 @@ async function gfxRestore() { const r = await api('gfx.restore'); if (r.error) r
 const W = { up: {}, down: {}, held: new Set(), reps: [], last: 0, ov: 0 };
 const OPP = { KeyA: 'KeyD', KeyD: 'KeyA', KeyW: 'KeyS', KeyS: 'KeyW' };
 const snapOn = () => !!$('#snapTg')?.classList.contains('on');
+/** A tester value: the number large, the unit small behind it. */
+const wsVal = (id, n, unit) => { $(id).innerHTML = unit ? `${n}<small>${unit}</small>` : n; };
 function resetWasd() {
   Object.assign(W, { up: {}, down: {}, held: new Set(), reps: [], last: 0, ov: 0 });
-  ['#wsSwitch', '#wsStill', '#wsRepeat'].forEach(i => $(i).textContent = '--');
+  ['#wsSwitch', '#wsStill', '#wsRepeat'].forEach(i => $(i).textContent = '–');
   $$('.key').forEach(k => k.classList.remove('dn', 'muted')); wsGame();
 }
 function wsGame() {
@@ -725,19 +797,19 @@ addEventListener('keydown', e => {
   const k = e.code, el = $(`.key[data-k="${k}"]`);
   if (el) e.preventDefault();
   if (e.repeat) {
-    if (W.last) { W.reps.push(e.timeStamp - W.last); if (W.reps.length > 20) W.reps.shift(); $('#wsRepeat').textContent = Math.round(1000 / (W.reps.reduce((a, b) => a + b, 0) / W.reps.length)) + '/s'; }
+    if (W.last) { W.reps.push(e.timeStamp - W.last); if (W.reps.length > 20) W.reps.shift(); wsVal('#wsRepeat', Math.round(1000 / (W.reps.reduce((a, b) => a + b, 0) / W.reps.length)), '/s'); }
     W.last = e.timeStamp; return;
   }
   W.last = e.timeStamp; W.held.add(k); W.down[k] = e.timeStamp;
   if (el) el.classList.add('dn');
   const o = OPP[k];
-  if (o && W.held.has(o)) { W.ov = e.timeStamp; $('#wsSwitch').textContent = 'überlappt'; }
-  else if (o && W.up[o] && e.timeStamp - W.up[o] < 300) { $('#wsSwitch').textContent = Math.round(e.timeStamp - W.up[o]) + ' ms'; $('#wsStill').textContent = '0 ms'; }
+  if (o && W.held.has(o)) { W.ov = e.timeStamp; wsVal('#wsSwitch', 'überlappt'); }
+  else if (o && W.up[o] && e.timeStamp - W.up[o] < 300) { wsVal('#wsSwitch', Math.round(e.timeStamp - W.up[o]), 'ms'); wsVal('#wsStill', 0, 'ms'); }
   wsGame();
 });
 addEventListener('keyup', e => {
   const k = e.code, o = OPP[k];
-  if (o && W.held.has(o) && W.ov) { $('#wsStill').textContent = Math.round(e.timeStamp - W.ov) + ' ms'; W.ov = 0; }
+  if (o && W.held.has(o) && W.ov) { wsVal('#wsStill', Math.round(e.timeStamp - W.ov), 'ms'); W.ov = 0; }
   W.held.delete(k); W.up[k] = e.timeStamp; W.reps = []; W.last = 0; $(`.key[data-k="${k}"]`)?.classList.remove('dn'); wsGame();
 });
 document.addEventListener('click', e => { if (e.target.closest('#chopMore')) $('#chopCard').classList.toggle('open'); });
@@ -749,13 +821,14 @@ function initLab() {
     P.max = Math.max(P.max, hz);
     $('#pollHz').innerHTML = `${hz}<small>Hz</small>`;
     $('#pollTxt').textContent = `Spitze ${P.max} Hz · ` + (P.max >= 900 ? '1000-Hz-Maus' : P.max >= 450 ? '500-Hz-Maus' : 'Polling-Rate im Maus-Tool erhöhen');
+    $('#pollMark')?.style.setProperty('--x', Math.min(1, P.max / 1000).toFixed(3)); pad.classList.add('meas');
   }, 250);
   $('#labTabs').onclick = e => { const b = e.target.closest('button'); if (!b) return; $$('#labTabs button').forEach(x => x.classList.toggle('on', x === b)); pad.classList.toggle('hidden', b.dataset.t !== 'poll'); $('#reactPad').classList.toggle('hidden', b.dataset.t !== 'react'); $('#padPad').classList.toggle('hidden', b.dataset.t !== 'pad'); if (b.dataset.t === 'pad') gpStart(); };
   const R = { st: 'idle', t: 0, to: 0, res: [] }, rp = $('#reactPad');
   rp.addEventListener('pointerdown', () => {
     if (R.st === 'idle' || R.st === 'done') {
       R.st = 'wait'; rp.className = 'react wait'; $('#reactMs').textContent = 'Warten…'; $('#reactTxt').textContent = 'Erst klicken, wenn es grün wird';
-      R.to = setTimeout(() => { R.st = 'go'; R.t = performance.now(); rp.className = 'react go'; $('#reactMs').textContent = 'JETZT!'; }, 1200 + Math.random() * 2600);
+      R.to = setTimeout(() => { R.st = 'go'; R.t = performance.now(); rp.className = 'react go'; $('#reactMs').textContent = 'Jetzt!'; }, 1200 + Math.random() * 2600);
     } else if (R.st === 'wait') { clearTimeout(R.to); R.st = 'done'; rp.className = 'react'; $('#reactMs').textContent = 'Zu früh!'; $('#reactTxt').textContent = 'Nochmal klicken'; }
     else if (R.st === 'go') {
       const ms = performance.now() - R.t; R.res.push(ms); if (R.res.length > 5) R.res.shift(); R.st = 'done'; rp.className = 'react';
@@ -766,29 +839,55 @@ function initLab() {
 }
 
 /* ======================= CLEANER ======================= */
-async function scan() { $('#cTotal').textContent = '…'; $('#cTotalSub').textContent = 'wird gescannt…'; S.clean = await api('clean.scan'); renderClean(); }
+async function scan() { $('#cTotal').textContent = '…'; $('#cTotal').classList.remove('long'); $('#cTotalSub').textContent = 'wird gescannt…'; S.clean = await api('clean.scan'); renderClean(); }
+/** "6,2 GB" as a large number with a small unit. */
+const sizeHtml = b => { const t = bytes(b), i = t.lastIndexOf(' '); return i < 0 ? esc(t) : `${esc(t.slice(0, i))}<small>${esc(t.slice(i + 1))}</small>`; };
 function renderClean() {
-  $('#cleanList').innerHTML = S.clean.map(c => `<div class="card hov crow"><div class="cb ${c.sel ? 'on' : ''}" data-cid="${c.id}"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></div><div class="ti">${ico(c.icon || 'trash')}</div><div class="tx"><b>${esc(c.name)}</b><p>${esc(c.desc)}</p></div><div class="sz ${c.size > 0 ? '' : 'muted'}">${bytes(c.size)}</div></div>`).join('');
-  const tot = S.clean.filter(c => c.sel).reduce((a, c) => a + Math.max(0, c.size), 0);
-  $('#cTotal').textContent = bytes(tot); $('#cTotalSub').textContent = 'ausgewählt zum Löschen';
-  $('#donutV').style.strokeDashoffset = 540.4 * (1 - Math.min(1, tot / (5 * 1073741824) + (tot > 0 ? .08 : 0)));
+  // one surface: every area is a row (a click anywhere on it selects), its share of the largest area as a fine bar
+  const max = Math.max(1, ...S.clean.map(c => Math.max(0, c.size)));
+  $('#cleanList').innerHTML = S.clean.map(c => `<div class="crow ${c.sel ? 'sel' : ''}" data-cid="${c.id}" role="checkbox" aria-checked="${!!c.sel}" tabindex="0"><div class="cb ${c.sel ? 'on' : ''}"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></div><div class="ti">${ico(c.icon || 'trash')}</div><div class="tx"><b>${esc(c.name)}</b><p>${esc(c.desc)}</p></div><div class="sz ${c.size > 0 ? '' : 'muted'}"><b>${sizeHtml(c.size)}</b><span class="lx-share"><i style="transform:scaleX(${(Math.max(0, c.size) / max).toFixed(3)})"></i></span></div></div>`).join('') || `<div class="lx-empty ok">${ico('check')}<b>Nichts zu bereinigen</b><span>Keine Caches oder Reste gefunden</span></div>`;
+  const sel = S.clean.filter(c => c.sel), tot = sel.reduce((a, c) => a + Math.max(0, c.size), 0), all = S.clean.reduce((a, c) => a + Math.max(0, c.size), 0);
+  const num = bytes(tot); $('#cTotal').innerHTML = sizeHtml(tot); $('#cTotal').classList.toggle('long', num.length > 6);
+  $('#cTotalSub').textContent = 'ausgewählt';
+  // the ring: how much of what was found is chosen
+  $('#donutV').style.strokeDashoffset = 678.6 * (1 - (all > 0 ? Math.min(1, tot / all) : 0));
+  $('#cSelN').textContent = `${sel.length}/${S.clean.length}`; $('#cFound').textContent = bytes(all); $('#cFreed').textContent = S.freed ? bytes(S.freed) : '0 MB';
+  $('#cSelChip').textContent = sel.length ? (tot > 1073741824 ? 'Lohnt sich' : 'Bereit') : 'Nichts gewählt';
+  $('#cSelTxt').textContent = sel.length ? `${sel.length} von ${S.clean.length} ausgewählt` : 'Wähle aus, was weg darf';
+  $('#cAll').textContent = sel.length === S.clean.length ? 'Keine auswählen' : 'Alle auswählen';
+  $('#cleanBtn').disabled = !sel.length;
 }
-document.addEventListener('click', e => { const c = e.target.closest('[data-cid]'); if (!c) return; const t = S.clean.find(x => x.id === c.dataset.cid); t.sel = !t.sel; renderClean(); });
+function cleanToggle(c) { const t = S.clean.find(x => x.id === c.dataset.cid); if (!t) return; t.sel = !t.sel; renderClean(); $(`#cleanList [data-cid="${t.id}"]`)?.focus({ preventScroll: true }); }
+document.addEventListener('click', e => {
+  if (e.target.closest('#cAll')) { const on = !S.clean.every(c => c.sel); S.clean.forEach(c => c.sel = on); renderClean(); return; }
+  const c = e.target.closest('#cleanList [data-cid]'); if (c) cleanToggle(c);
+});
+document.addEventListener('keydown', e => { const c = e.target.closest?.('#cleanList [data-cid]'); if (c && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); cleanToggle(c); } });
 async function clean() {
   const ids = S.clean.filter(c => c.sel).map(c => c.id); if (!ids.length) return;
-  $('#cleanBtn').disabled = true; $('#cTotalSub').textContent = 'bereinige…';
+  $('#cleanBtn').disabled = true; $('#cTotalSub').textContent = 'wird bereinigt…';
   const r = await api('clean.run', { ids });
   addFreed(r.freed); toast('Bereinigung fertig', bytes(r.freed) + ' freigegeben' + (r.skipped ? ' · FiveM-Cache übersprungen (Spiel läuft)' : ''));
   $('#cleanBtn').disabled = false; await scan(); $('#cTotalSub').textContent = bytes(r.freed) + ' freigegeben';
 }
 
 /* ======================= DIAGNOSE ======================= */
-async function runHealth() { $('#hList').innerHTML = '<div class="sub" style="padding:10px 0">Analysiere System…</div>'; const h = S.health = await api('health'); renderHealth(h); return h; }
+async function runHealth() {
+  $('#hList').innerHTML = `<div class="lx-empty lx-wait">${ico('heart')}<b>Prüfe dein System</b><span>Treiber, Energieplan, Cache und mehr</span></div>`;
+  $('#hScoreTxt').textContent = 'Wird geprüft…';
+  const h = S.health = await api('health'); renderHealth(h); return h;
+}
 function renderHealth(h) {
   $('#hScore').textContent = h.score; $('#hsHealth').textContent = h.score + '%';
-  const bad = h.items.filter(i => i.st !== 'ok').length;
-  $('#hScoreTxt').textContent = bad ? `${bad} Punkte können verbessert werden` : 'Alles im grünen Bereich';
-  $('#hList').innerHTML = h.items.map((i, n) => `<div class="hc"><div class="st ${i.st}">${ico(i.st === 'ok' ? 'check' : 'alert')}</div><div class="tx"><b>${esc(i.name)}</b><p>${esc(i.value)}</p></div>${i.fix && i.st !== 'ok' ? `<button class="btn sm o" data-fix="${n}">Beheben</button>` : ''}</div>`).join('');
+  if ($('#hRing')) $('#hRing').style.strokeDashoffset = 678.6 * (1 - Math.max(0, Math.min(100, h.score)) / 100);
+  const cnt = st => h.items.filter(i => i.st === st).length, warn = cnt('warn'), worse = cnt('bad'), bad = h.items.length - cnt('ok');
+  $('#hScoreTxt').textContent = bad ? `${bad} ${bad === 1 ? 'Punkt' : 'Punkte'} verbesserbar` : 'Alles im grünen Bereich';
+  if ($('#hScoreSub')) $('#hScoreSub').textContent = bad ? 'Mit „Beheben“ stellst du sie mit einem Klick richtig.' : 'FiveM hat hier alles, was es braucht.';
+  if ($('#hChip')) { $('#hChip').textContent = bad ? (worse ? `${worse} ${worse === 1 ? 'Problem' : 'Probleme'}` : 'Hinweise') : 'Optimal'; $('#hChip').className = 'chip ' + (bad ? (worse ? 'r' : 'w') : 'g'); }
+  if ($('#hOk')) { $('#hOk').textContent = cnt('ok'); $('#hWarn').textContent = warn; $('#hBad').textContent = worse; }
+  // problems first, then hints, then what is fine
+  const order = { bad: 0, warn: 1, ok: 2 };
+  $('#hList').innerHTML = h.items.map((i, n) => [i, n]).sort((a, b) => (order[a[0].st] ?? 1) - (order[b[0].st] ?? 1)).map(([i, n]) => `<div class="hc ${i.st}"><div class="st ${i.st}">${ico(i.st === 'ok' ? 'check' : 'alert')}</div><div class="tx"><b>${esc(i.name)}</b><p>${esc(i.value)}</p></div>${i.fix && i.st !== 'ok' ? `<button class="btn sm o" data-fix="${n}">Beheben</button>` : i.st === 'ok' ? '<span class="hc-ok">In Ordnung</span>' : ''}</div>`).join('');
   const hb = $('#hBtn'); if (hb) { hb.classList.remove('p'); hb.querySelector('span').textContent = 'Erneut prüfen'; }
 }
 document.addEventListener('click', async e => {
@@ -802,8 +901,8 @@ async function loadLogs() {
   try { logData = await api('logs'); } catch { }
   renderLogs();
   $('#crashList').innerHTML = (logData.crashes || []).length
-    ? logData.crashes.slice(0, 5).map(c => `<div class="svc"><span class="nm" style="font-size:12px">${esc(c.name)}</span><span class="chip">${esc(c.date)}</span><b class="muted" style="font-family:var(--disp)">${bytes(c.size)}</b></div>`).join('')
-    : `<div class="ok-line">${ico('check')}Keine Abstürze gefunden</div>`;
+    ? logData.crashes.slice(0, 5).map(c => `<div class="svc"><span class="nm" title="${esc(c.name)}">${esc(c.name)}</span><span class="cr-m">${esc(c.date)} · ${bytes(c.size)}</span></div>`).join('')
+    : `<div class="lx-empty ok">${ico('check')}<b>Keine Abstürze</b><span>FiveM ist zuletzt sauber gelaufen</span></div>`;
 }
 function renderLogs() {
   const l = (logData.lines || []).filter(x => logFilter === 'all' || isErr(x));
@@ -841,10 +940,10 @@ async function checkUpdate(manual) {
   $('#updCheck').disabled = false;
 }
 function updatePrompt(u) {
-  modal(`<div class="kicker" style="justify-content:center">Update verfügbar</div><h1 style="margin-top:10px">Version <span class="grad">${esc(u.latest)}</span> ist da</h1>
+  modal(`<div class="m-ic">${ico('download')}</div><div class="kicker">Update verfügbar</div><h1>Version <span class="grad">${esc(u.latest)}</span> ist da</h1>
     <p>Du nutzt Version ${esc(u.current)}. Soll OrbitTweak jetzt aktualisieren? Die App startet danach automatisch neu.</p>
     ${(u.notes || []).length ? `<ul class="changes m-list">${u.notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
-    <div class="bar hidden" id="mUpdMeter" style="margin-top:18px"><i id="mUpdBar" style="width:0"></i></div><div class="sub" id="mUpdProg" style="font-size:11px;margin-top:6px"></div>
+    <div class="bar m-bar hidden" id="mUpdMeter"><i id="mUpdBar" style="width:0"></i></div><div class="m-prog" id="mUpdProg"></div>
     <div class="act" id="mUpdAct"><button class="btn lg" onclick="closeModal()">Später</button><button class="btn p lg" onclick="promptInstall()">${ico('download')}Jetzt aktualisieren</button></div>`);
 }
 function promptInstall() { $('#mUpdAct').classList.add('hidden'); $('#mUpdMeter').classList.remove('hidden'); $('#mUpdProg').textContent = 'Lade herunter…'; doUpdate(); }
@@ -876,7 +975,7 @@ const SETS = [
 ];
 function renderSettings() {
   const cur = themeKey(S.settings.accent);
-  $('#themes').innerHTML = Object.entries(THEMES).filter(([k]) => !SCENE_THEMES.includes(k)).map(([k, [n, a, b]]) => `<div class="sw ${k === cur ? 'on' : ''}" data-th="${k}"><i style="background:linear-gradient(135deg,${a},${b})"></i>${n}</div>`).join('');
+  $('#themes').innerHTML = Object.entries(THEMES).filter(([k]) => !SCENE_THEMES.includes(k)).map(([k, [n, a, b]]) => `<div class="sw ${k === cur ? 'on' : ''}" data-th="${k}" title="${n}"><i style="--sa:${a};--sb:${b}"></i>${n}</div>`).join('');
   const SCN = { winter: 'Nordlicht, Raureif, Schnee', anime: 'Abendhimmel, Kirschblüten' };
   if ($('#sceneThemes')) $('#sceneThemes').innerHTML = SCENE_THEMES.map(k => `<button class="scn-c scn-${k} ${k === cur ? 'on' : ''}" data-th="${k}"><i></i><span><b>${THEMES[k][0]}</b><small>${SCN[k] || ''}</small></span>${k === cur ? ico('check', 'i scn-ck') : ''}</button>`).join('');
   $('#fxTg')?.classList.toggle('on', S.settings.fx !== false);
@@ -971,25 +1070,31 @@ function closeModal() {
 }
 function confirmBox(title, text, o = {}) {
   return new Promise(res => {
-    modal(`<div class="kicker">${o.danger ? 'Achtung' : 'Bitte bestätigen'}</div><h1 style="margin-top:8px">${esc(title)}</h1><p>${esc(text)}</p><div class="act"><button class="btn lg" id="mNo">Abbrechen</button><button class="btn lg ${o.danger ? 'dp' : 'p'}" id="mYes">${esc(o.ok || 'Bestätigen')}</button></div>`);
+    modal(`<div class="m-cf ${o.danger ? 'danger' : ''}"><div class="m-ic">${ico(o.danger ? 'alert' : 'shield')}</div><div><h1>${esc(title)}</h1><p>${esc(text)}</p></div></div><div class="act"><button class="btn lg" id="mNo">Abbrechen</button><button class="btn lg ${o.danger ? 'dp' : 'p'}" id="mYes">${esc(o.ok || 'Bestätigen')}</button></div>`);
     $('#mNo').onclick = () => { closeModal(); res(false); }; $('#mYes').onclick = () => { closeModal(); res(true); };
   });
 }
-const steps = n => `<div class="steps">${[0, 1, 2, 3].map(i => `<i class="${i <= n ? 'on' : ''}"></i>`).join('')}</div>`;
+const steps = n => `<div class="steps"><span>Schritt ${n + 1} von 4</span>${[0, 1, 2, 3].map(i => `<i class="${i <= n ? 'on' : ''}"></i>`).join('')}</div>`;
+const LOGO_MARK = '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="17" fill="none" stroke="url(#rg)" stroke-width="6"/><ellipse cx="32" cy="32" rx="29" ry="10" fill="none" stroke="url(#rg)" stroke-width="3.2" transform="rotate(-28 32 32)"/><circle cx="52" cy="13" r="4" fill="#fff"/></svg>';
 async function wizard(step) {
-  if (step === 0) modal(`${steps(0)}<div class="kicker" style="justify-content:center">Setup-Assistent</div><h1 style="margin-top:10px">Willkommen bei <span class="grad">OrbitTweak</span></h1><p>In einer Minute ist dein PC bereit für FiveM: Wir prüfen dein System, zeigen dir die Optimierungen und wenden sie mit Wiederherstellungspunkt an. Alles bleibt umkehrbar.</p><div class="act"><button class="btn lg" onclick="finishWizard()">Überspringen</button><button class="btn p lg" onclick="wizard(1)">${ico('zap')}Los geht's</button></div>`);
+  if (step === 0) modal(`${steps(0)}<div class="m-mark">${LOGO_MARK}</div><div class="kicker">Setup-Assistent</div><h1>Willkommen bei <span class="grad">OrbitTweak</span></h1><p>In einer Minute ist dein PC bereit für FiveM: Wir prüfen dein System, zeigen dir die Optimierungen und wenden sie mit Wiederherstellungspunkt an. Alles bleibt umkehrbar.</p><div class="act"><button class="btn lg" onclick="finishWizard()">Überspringen</button><button class="btn p lg" onclick="wizard(1)">${ico('zap')}Los geht's</button></div>`);
   if (step === 1) {
-    modal(`${steps(1)}<h1>System-<span class="grad">Scan</span></h1><p>Analysiere Hardware, Windows und FiveM…</p><div class="bar mt" style="height:8px"><i style="width:30%" id="scanBar"></i></div>`);
+    modal(`${steps(1)}<h1>System-<span class="grad">Scan</span></h1><p>Analysiere Hardware, Windows und FiveM…</p><div class="bar m-bar"><i style="width:30%" id="scanBar"></i></div>`);
     const [h] = await Promise.all([runHealth(), sleep(1000)]);
     $('#scanBar').style.width = '100%'; await sleep(300);
     const todo = S.tweaks.filter(t => t.rec && t.usable !== false && !t.applied);
-    modal(`${steps(2)}<h1>Zustand: <span class="grad">${h.score} %</span></h1><p>${todo.length} empfohlene Optimierungen gefunden.</p><div class="wl">${Object.entries(CATS).map(([k, [n, i]]) => { const c = todo.filter(t => t.cat === k); return c.length ? `<div class="hc"><div class="st" style="background:rgba(var(--a-rgb),.12);color:var(--a)">${ico(i)}</div><div class="tx"><b>${n}</b><p>${c.map(t => esc(t.name)).join(' · ')}</p></div><span class="chip a">${c.length}</span></div>` : ''; }).join('')}</div><div class="act"><button class="btn lg" onclick="finishWizard()">Später</button><button class="btn p lg" onclick="wizard(3)">${ico('zap')}Optimieren</button></div>`);
+    const cats = Object.entries(CATS).filter(([k]) => todo.some(t => t.cat === k));
+    modal(`${steps(2)}<h1>Dein System-<span class="grad">Check</span></h1><p>${todo.length ? 'Das kann OrbitTweak für FiveM verbessern. Jede Änderung lässt sich einzeln zurücknehmen.' : 'Alles Empfohlene ist schon aktiv.'}</p>
+      <div class="m-nums"><div><b>${h.score}<small>%</small></b><span>Zustand</span></div><div><b>${todo.length}</b><span>Empfohlen</span></div><div><b>${cats.length}</b><span>${cats.length === 1 ? 'Bereich' : 'Bereiche'}</span></div></div>
+      <div class="wl">${cats.map(([k, [n, i]]) => { const c = todo.filter(t => t.cat === k); return `<div class="hc"><div class="st">${ico(i)}</div><div class="tx"><b>${n}</b><p>${c.map(t => esc(t.name)).join(' · ')}</p></div><span class="m-n">${c.length}</span></div>`; }).join('')}</div><div class="act"><button class="btn lg" onclick="finishWizard()">Später</button><button class="btn p lg" onclick="wizard(3)">${ico('zap')}Optimieren</button></div>`);
     const wl = $('#mbox .wl'); if (wl && wl.scrollHeight > wl.clientHeight + 4) wl.classList.add('more');
   }
   if (step === 3) {
-    modal(`${steps(3)}<h1>Boost <span class="grad">läuft</span></h1><p id="wizTxt">Starte…</p><div class="bar mt" style="height:8px"><i id="wizProg" style="width:0"></i></div>`);
+    modal(`${steps(3)}<h1>Boost <span class="grad">läuft</span></h1><p id="wizTxt">Starte…</p><div class="bar m-bar"><i id="wizProg" style="width:0"></i></div>`);
     const r = await boost(true);
-    modal(`${steps(3)}<h1>Dein PC ist <span class="grad">FiveM-ready</span></h1><p>${r ? `${r.applied} Optimierungen angewendet, ${bytes(r.freed)} freigegeben.${r.restart ? ' Starte deinen PC neu, damit alle Tweaks greifen.' : ''}` : ''}</p><div class="act"><button class="btn p lg" onclick="finishWizard()">Fertig</button></div>`);
+    modal(`${steps(3)}<div class="m-ic ok">${ico('check')}</div><h1>Dein PC ist <span class="grad">FiveM-ready</span></h1><p>${r ? 'Alles ist angewendet und bleibt umkehrbar.' : 'Der Boost ist durch.'}</p>
+      ${r ? `<div class="m-nums"><div><b>${r.applied}</b><span>Optimierungen</span></div><div><b>${bytes(r.freed).replace(/\s?([A-Z]+)$/, '<small>$1</small>')}</b><span>Freigegeben</span></div></div>` : ''}
+      ${r && r.restart ? `<div class="m-note">${ico('alert')}<span>Starte deinen PC neu, damit alle Tweaks greifen.</span></div>` : ''}<div class="act"><button class="btn p lg" onclick="finishWizard()">Fertig</button></div>`);
   }
 }
 function finishWizard() { closeModal(); api('settings.set', { key: 'firstRun', value: false }); S.settings.firstRun = false; }
@@ -1013,6 +1118,7 @@ const XH_STYLES = [
 ];
 const XH_COLORS = ['#3DFF8B', '#FFFFFF', '#3DE0FF', '#FFE03D', '#FF3B5C', '#FF4DF0', '#FF8A3D'];
 const XH_SLIDERS = [['size', 'Länge', 1, 40], ['thick', 'Dicke', 1, 8], ['gap', 'Lücke', 0, 20], ['alpha', 'Deckkraft', 20, 100, '%'], ['oThick', 'Kontur', 0, 3], ['dotSize', 'Punkt', 1, 8], ['offsetX', 'Versatz X', -60, 60], ['offsetY', 'Versatz Y', -60, 60]];
+const XH_GROUPS = [['Maße', ['size', 'thick', 'gap', 'dotSize']], ['Kontur und Deckkraft', ['oThick', 'alpha']], ['Position', ['offsetX', 'offsetY']]];
 const XH_RULES = 'Manche FiveM-Server verbieten Fadenkreuz-Overlays. Prüfe vorher die Regeln deines Servers, die Nutzung erfolgt auf eigene Verantwortung.';
 const XH = { cfg: { ...XH_DEF }, on: false, onlyGame: false, key: 0x79, offsetX: 0, offsetY: 0 };
 
@@ -1086,8 +1192,10 @@ function xhUI() {
   $('#xhColors').innerHTML = XH_COLORS.map(c => `<button class="xcol ${XH.cfg.color.toUpperCase() === c ? 'on' : ''}" data-xc="${c}" style="background:${c}"></button>`).join('') +
     `<label class="xcustom ${custom ? 'on' : ''}" title="Eigene Farbe"><input type="color" id="xhPick" value="${XH.cfg.color}"></label>`;
   const val = k => k === 'offsetX' || k === 'offsetY' ? XH[k] : XH.cfg[k];
-  $('#xhSliders').innerHTML = `<div class="xs tgl"><span>Schwarze Kontur</span><div class="tg ${XH.cfg.outline ? 'on' : ''}" data-xb="outline"></div></div><div class="xs tgl"><span>Mittelpunkt</span><div class="tg ${XH.cfg.dot ? 'on' : ''}" data-xb="dot"></div></div>` +
-    XH_SLIDERS.map(([k, n, mi, ma, u = '']) => { const v = val(k), p = (v - mi) / (ma - mi) * 100; return `<div class="xs"><span>${n}</span><input type="range" min="${mi}" max="${ma}" value="${v}" style="--p:${p}%" data-xr="${k}"><b>${v}${u}</b></div>`; }).join('');
+  const slider = ([k, n, mi, ma, u = '']) => { const v = val(k), p = (v - mi) / (ma - mi) * 100; return `<div class="xs"><span>${n}</span><input type="range" min="${mi}" max="${ma}" value="${v}" style="--p:${p}%" data-xr="${k}"><b>${v}${u}</b></div>`; };
+  const group = (h, keys) => `<div class="xsec"><div class="xsec-h">${h}</div>${keys.map(k => XH_SLIDERS.find(x => x[0] === k)).filter(Boolean).map(slider).join('')}</div>`;
+  $('#xhSliders').innerHTML = `<div class="xsec xtgl"><div class="xs tgl"><span>Schwarze Kontur</span><div class="tg ${XH.cfg.outline ? 'on' : ''}" data-xb="outline"></div></div><div class="xs tgl"><span>Mittelpunkt</span><div class="tg ${XH.cfg.dot ? 'on' : ''}" data-xb="dot"></div></div></div>` +
+    XH_GROUPS.map(([h, keys]) => group(h, keys)).join('');
   xhState();
   xhRender();
 }
@@ -1100,6 +1208,7 @@ function xhState() {
   $('#xhKey').innerHTML = KEYS.map(([n, v]) => `<button class="${XH.key === v ? 'on' : ''}" data-xk="${v}">${n}</button>`).join('');
   const kn = KEYS.find(k => k[1] === XH.key)?.[0];
   $('#xhKeyTxt').textContent = XH.key ? `${kn} schaltet das Fadenkreuz im Spiel an und aus` : 'Keine Taste, nur hier umschaltbar';
+  const lv = $('#xhLive'); if (lv) { lv.className = 'chip' + (XH.on ? ' g' : ''); lv.textContent = XH.on ? (kn && XH.key ? `An · ${kn}` : 'An') : 'Aus'; }
 }
 function xhToggle(confirmed) {
   if (!XH.on && !S.settings.xhairAck && !confirmed) {
@@ -1155,7 +1264,7 @@ const dpFmt = (k, v) => k === 'gamma' ? (v / 100).toFixed(2).replace('.', ',') :
 const dpFilter = c => `saturate(${1 + c.vibrance / 45}) brightness(${1 + c.brightness / 70 + (c.gamma - 100) / 220}) contrast(${1 + c.contrast / 60})`;
 function dpUI() {
   const c = DP.cfg;
-  $('#dpPresets').innerHTML = Object.entries(DP_PRESETS).map(([k, [n, d, v]]) => { const on = Object.keys(v).every(x => v[x] === c[x]); return `<div class="card dpre ${on ? 'on' : ''}" data-dp="${k}"><i style="filter:${dpFilter(v)}"></i><b>${n}</b><span>${d}</span></div>`; }).join('');
+  $('#dpPresets').innerHTML = Object.entries(DP_PRESETS).map(([k, [n, d, v]]) => { const on = Object.keys(v).every(x => v[x] === c[x]); return `<button class="dpre ${on ? 'on' : ''}" data-dp="${k}"><i style="filter:${dpFilter(v)}"></i><b>${n}</b><span>${d}</span></button>`; }).join('');
   $('#dpSliders').innerHTML = DP_SL.map(([k, n, d, mi, ma]) => {
     const v = c[k], p = (v - mi) / (ma - mi) * 100, off = k === 'vibrance' && !DP.nvidia;
     return `<div class="dps ${off ? 'off' : ''}"><div class="n"><b>${n}</b><span>${off ? 'Nur mit NVIDIA-Grafikkarte' : d}</span></div><input type="range" min="${mi}" max="${ma}" value="${v}" style="--p:${p}%" data-dr="${k}" ${off ? 'disabled' : ''}><b>${dpFmt(k, v)}</b></div>`;
@@ -1195,6 +1304,14 @@ function dpPush() {
 }
 function dpToggle() { DP.cfg.on = !DP.cfg.on; dpState(); dpPush(); toast(DP.cfg.on ? 'Farbprofil an' : 'Farbprofil aus', DP.cfg.on && DP.cfg.onlyGame ? 'Wirkt, sobald FiveM im Vordergrund ist' : ''); }
 function dpReset() { Object.assign(DP.cfg, DP_PRESETS.std[2]); dpUI(); dpPush(); }
+// before and after in one picture: drag the line to compare
+document.addEventListener('pointerdown', e => {
+  const v = e.target.closest('#dpView'); if (!v || e.button) return;
+  const set = ev => { const r = v.getBoundingClientRect(); v.style.setProperty('--split', Math.max(3, Math.min(97, (ev.clientX - r.left) / r.width * 100)).toFixed(2) + '%'); };
+  set(e); v.setPointerCapture(e.pointerId); v.classList.add('drag');
+  const up = () => { v.classList.remove('drag'); v.removeEventListener('pointermove', set); v.removeEventListener('pointerup', up); v.removeEventListener('pointercancel', up); };
+  v.addEventListener('pointermove', set); v.addEventListener('pointerup', up); v.addEventListener('pointercancel', up);
+});
 async function dpUnlock() { const r = await api('display.unlock'); DP.unlocked = !!r.ok; dpState(); toast('Gamma-Bereich freigeschaltet', 'Starte den PC einmal neu'); }
 document.addEventListener('click', e => {
   const p = e.target.closest('[data-dp]'); if (p) { Object.assign(DP.cfg, DP_PRESETS[p.dataset.dp][2]); if (p.dataset.dp !== 'std') DP.cfg.on = true; dpUI(); dpPush(); return; }
@@ -1253,12 +1370,12 @@ function f8Status(k) {
 }
 function renderF8() {
   $('#f8Auto').classList.toggle('on', S.settings.f8Auto !== false);
-  $('#f8list').innerHTML = F8.map(([cat, icon, items]) => `<div class="card"><div class="lbl">${ico(icon)}${cat}</div>${items.map(c => {
+  $('#f8list').innerHTML = F8.map(([cat, icon, items]) => `<div class="card f8c"><div class="f8h">${ico(icon)}<h2>${cat}</h2><span class="f8n">${items.length} ${items.length === 1 ? 'Befehl' : 'Befehle'}</span></div>${items.map(c => {
     const v = f8Get(c);
     const ctl = c.t === 'bool' ? `<div class="tg ${v ? 'on' : ''}" data-f8b="${c.k}"></div>`
       : c.t === 'seg' ? `<div class="seg" data-f8="${c.k}">${c.o.map(o => `<button class="${v === o ? 'on' : ''}" data-v="${o}">${o}</button>`).join('')}</div>`
       : `<div class="rng"><input type="range" min="${c.min}" max="${c.max}" value="${v}" style="--p:${(v - c.min) / (c.max - c.min) * 100}%" data-f8r="${c.k}"><b>${v}</b></div>`;
-    return `<div class="f8row"><div class="top"><div><b>${c.n}</b><p>${c.d}</p></div>${ctl}</div><div class="f8meta"><code id="f8c-${c.k}">${esc(f8Cmd(c))}</code><span id="f8s-${c.k}">${f8Status(c.k)}</span><button class="ib" title="Kopieren" onclick="copyCmd($('#f8c-${c.k}').textContent)">${ico('copy')}</button></div></div>`;
+    return `<div class="f8row t-${c.t}"><div class="top"><div><b>${c.n}</b><p>${c.d}</p></div>${ctl}</div><div class="f8meta"><span class="f8p">${ico('terminal')}</span><code id="f8c-${c.k}">${esc(f8Cmd(c))}</code><span class="f8s" id="f8s-${c.k}">${f8Status(c.k)}</span><button class="ib" title="Befehl kopieren" onclick="copyCmd($('#f8c-${c.k}').textContent)">${ico('copy')}</button></div></div>`;
   }).join('')}</div>`).join('');
 }
 async function f8Send(c, v) {
@@ -1293,10 +1410,13 @@ async function loadF8() { try { Object.assign(f8Val, await api('f8.values')); } 
 /* ======================= LIVE DISPLAY MODE ======================= */
 async function gwRefresh() {
   try {
-    const g = await api('gw.info');
-    const el = $('#gwState');
-    el.className = 'chip ' + (g.found ? (g.mode === 'windowed' ? 'w' : 'g') : '');
-    el.textContent = !g.found ? 'FiveM nicht gestartet' : g.mode === 'windowed' ? `Fenster · ${g.w}×${g.h}` : g.mode === 'borderless' ? `Randlos/Vollbild · ${g.w}×${g.h}` : `Vollbild · ${g.w}×${g.h}`;
+    const g = await api('gw.info'), st = $('#gwSt');
+    // mode as a quiet value with a status dot: borderless is the goal, a window works, exclusive full screen hides overlays
+    const m = !g.found ? ['off', 'Nicht gestartet', 'FiveM läuft gerade nicht'] : g.mode === 'windowed' ? ['warn', 'Fenster', 'Mit Rand, Alt-Tab etwas langsamer']
+      : g.mode === 'borderless' ? ['ok', 'Randlos', 'Ideal für Fadenkreuz und Alt-Tab'] : ['warn', 'Vollbild', 'Overlays sind hier unsichtbar'];
+    if (st) st.dataset.st = m[0];
+    $('#gwState').textContent = m[1]; $('#gwStateS').textContent = m[2];
+    $('#gwRes').textContent = g.found && g.w ? `${g.w}×${g.h}` : '—';
     $('#gwAuto').classList.toggle('on', !!S.settings.autoBorderless);
   } catch { }
 }
@@ -1325,7 +1445,7 @@ function banner() {
   const d = new Date(), h = d.getHours(), tod = timeOfDay(d);
   $('#bnScene').className = 'bn-scene';
   $('#greet').textContent = h < 5 ? 'Gute Nacht' : h < 11 ? 'Guten Morgen' : h < 17 ? 'Guten Tag' : h < 22 ? 'Guten Abend' : 'Gute Nacht';
-  $('#bnTime').textContent = `Los Santos · ${d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`;
+  $('#bnTime').textContent = `Los Santos, ${d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`;
 }
 function initLook() {
   $('#bnScene').innerHTML = `<div class="own-bg" style="background-image:url('${LA.day}')"></div>`; $('#spScene').innerHTML = $('#bnScene').innerHTML;
@@ -1587,10 +1707,18 @@ async function clipPush() {
 function clipUI() {
   if (!CL_RECS[CL.recorder]) CL.recorder = 'orbit';
   const own = CL.recorder === 'orbit';
-  $('#clRecs').innerHTML = Object.entries(CL_RECS).map(([k, [n, combo]]) => `<button class="cl-rec ${CL.recorder === k ? 'on' : ''}" data-rec="${k}"><b>${n}</b><span>${combo}</span></button>`).join('');
+  // each recorder: its name, and the keys that save a clip with it as small key caps
+  const caps = c => /\+/.test(c) ? c.split('+').map(k => `<kbd>${esc(k)}</kbd>`).join('') : `<em>${esc(c)}</em>`;
+  $('#clRecs').innerHTML = Object.entries(CL_RECS).map(([k, [n, combo]]) => `<button class="cl-rec ${CL.recorder === k ? 'on' : ''}" data-rec="${k}"><b>${n}${ico('check', 'i cr-ck')}</b><span class="cr-k">${caps(combo)}</span></button>`).join('');
   $('#clRecTxt').innerHTML = esc(CL_RECS[CL.recorder][2]) + (CL.recorder === 'gamebar' ? `<br><button class="btn sm mt8" onclick="clipGameBar()">${ico('zap')}Hintergrundaufnahme einschalten</button>` : '');
   $('#clOrbit').classList.toggle('hidden', !own); $('#clOrbitNote').classList.toggle('hidden', !own); $('#clExtNote').classList.toggle('hidden', own);
-  $('#clQual').innerHTML = CL_QUAL.map(([v, n, d]) => `<button class="${CL.quality === v ? 'on' : ''}" data-clq="${v}" title="${d}">${n} · ${d}</button>`).join('');
+  $('#clQual').innerHTML = CL_QUAL.map(([v, n, d]) => `<button class="${CL.quality === v ? 'on' : ''}" data-clq="${v}"><b>${n}</b><span>${d}</span></button>`).join('');
+  // the clip as a strip: seconds before the kill, the kill, seconds after
+  const tl = $('#clTl'), len = CL.before + CL.after;
+  if (tl) { tl.style.setProperty('--k', (CL.before / Math.max(1, len)).toFixed(3)); tl.style.setProperty('--n', Math.max(1, len)); }
+  if (tl) tl.innerHTML = `<div class="clt-h"><span>Länge pro Clip</span><b>${len}<small>s</small></b></div>
+    <div class="clt-bar"><i class="clt-b"></i><i class="clt-k"></i><i class="clt-a"></i></div>
+    <div class="clt-l"><span>${CL.before} s davor</span><span class="clt-km">Kill</span><span>${CL.after ? CL.after + ' s danach' : 'endet beim Kill'}</span></div>`;
   $('#clBefore').innerHTML = [10, 15, 20, 30, 45].map(v => `<button class="${CL.before === v ? 'on' : ''}" data-clb="${v}">${v} s</button>`).join('');
   $('#clAfter').innerHTML = [0, 3, 5, 8, 10].map(v => `<button class="${CL.after === v ? 'on' : ''}" data-cla="${v}">${v} s</button>`).join('');
   $('#clSound').classList.toggle('on', CL.sound);
@@ -1751,7 +1879,7 @@ function clipRender() {
     return `<div class="clipc" data-clip="${i}"><div class="v"><img alt="" data-cth="${i}"><div class="noprev">${ico('film')}</div><div class="playi">${ico('play')}</div>${bd}<span class="cl-dur${d ? '' : ' hidden'}">${d ? clFmt(d) : ''}</span></div>`
       + `<div class="m"><div class="m-t"><b>${p ? clWhen(c.date) : esc(c.name)}</b><span>${p ? (p.rest ? esc(p.rest.replace(/[()]/g, '')) + ' · ' : '') + bytes(c.size) : clWhen(c.date) + ' · ' + bytes(c.size)}</span></div>${acts}</div></div>`;
   }).join('') : clips.length ? `<div class="cl-empty sm"><p>${CL_NONE[clFilter] || 'Hier gibt es noch keine Clips.'}</p></div>`
-    : `<div class="cl-empty"><div class="cl-ei">${ico('film')}</div><b>${clLoaded ? 'Noch keine Clips' : 'Clips werden geladen…'}</b>`
+    : `<div class="cl-empty"><div class="cl-ghost" aria-hidden="true"><i></i><i>${ico('play')}</i><i></i></div><b>${clLoaded ? 'Noch keine Clips' : 'Clips werden geladen…'}</b>`
       + (clLoaded ? `<p>${CL.kills ? 'Der Kill-Clipper ist an, dein nächster Kill landet hier.' : 'Schalt den Kill-Clipper an, dann wird jeder Kill von selbst gespeichert.'}${!CL.key || kn === 'Aus' ? '' : ` Oder drück im Spiel <b>${esc(kn)}</b>.`}</p>${CL.kills ? '' : `<button class="btn p" data-clkon>${ico('crosshair')}Kill-Clipper anschalten</button>`}` : '') + '</div>';
   $$('#clGrid img[data-cth]').forEach(img => thumb('clip.thumb', { rel: clips[+img.dataset.cth].rel }, img));
   clDurNext();
@@ -1862,9 +1990,14 @@ document.addEventListener('click', e => {
   if (e.target.closest('#clMkTest')) { mkTest(); return; }
   const c = e.target.closest('[data-clip]'); if (c) {
     const cl = clips[+c.dataset.clip], src = 'https://clips.orbit/' + cl.rel.split('/').map(encodeURIComponent).join('/');
-    modal(`<div class="kicker">Clip</div><h1 style="margin-top:8px;font-size:20px">${esc(cl.name)}</h1><div class="player mt">${cl.ext === '.mkv' ? '<p>MKV kann hier nicht abgespielt werden.</p>' : `<video src="${src}" controls autoplay></video>`}</div>
-      <div class="act"><button class="btn" onclick="closeModal()">Schließen</button><button class="btn" onclick="clipOpen('${esc(cl.rel)}')">${ico('folder')}Im Ordner zeigen</button>${cl.ext === '.mp4' ? `<button class="btn" onclick="clipShareRel('${esc(cl.rel)}')">${ico('copy')}Für Discord kopieren</button>` + `<button class="btn p" onclick="cutOpen('${esc(cl.rel)}')">${ico('film')}Schneiden</button>` : ''}<button class="btn d" onclick="clipDel('${esc(cl.rel)}')">${ico('trash')}Löschen</button></div>`);
-    $('#mbox').style.width = '760px';
+    // title: what the clip is and when; the preview picture stands in until the video has loaded
+    const p = clParse(cl), k = clKind(cl), d = cl.dur || clDur.get(clDurKey(cl)) || 0, poster = c.querySelector('img[data-cth]')?.getAttribute('src') || '';
+    const name = p ? p.kind + (p.rest ? ' ' + p.rest.replace(/[()]/g, '') : '') : cl.name;
+    const sub = [clWhen(cl.date), d ? clFmt(d) : '', bytes(cl.size), p ? '' : esc(cl.folder || '')].filter(Boolean).join(' · ');
+    modal(`<div class="cpl"><div class="cpl-h"><span class="cpl-ic">${ico(k === 'kill' ? 'crosshair' : k === 'fight' ? 'target' : k === 'hl' ? 'sparkle' : 'film')}</span><div class="cpl-t"><b>${esc(name)}</b><span>${sub}</span></div><button class="ib cpl-x" onclick="closeModal()" title="Schließen (Esc)">${ico('x')}</button></div>
+      <div class="player">${cl.ext === '.mkv' ? `<div class="cpl-none"${poster ? ` style="background-image:linear-gradient(rgba(8,10,16,.8),rgba(8,10,16,.88)),url('${esc(poster)}')"` : ''}>${ico('videooff')}<b>MKV kann hier nicht abgespielt werden</b><span>Zeig den Clip im Ordner und öffne ihn mit deinem Player.</span></div>` : `<video src="${src}"${poster ? ` poster="${esc(poster)}"` : ''} controls autoplay></video>`}</div>
+      <div class="act"><button class="btn${cl.ext === '.mkv' ? ' p' : ''}" onclick="clipOpen('${esc(cl.rel)}')">${ico('folder')}Im Ordner zeigen</button>${cl.ext === '.mp4' ? `<button class="btn" onclick="clipShareRel('${esc(cl.rel)}')">${ico('copy')}Für Discord kopieren</button>` : ''}<span class="sp"></span><button class="btn gh d" onclick="clipDel('${esc(cl.rel)}')">${ico('trash')}Löschen</button>${cl.ext === '.mp4' ? `<button class="btn p" onclick="cutOpen('${esc(cl.rel)}')">${ico('film')}Schneiden</button>` : ''}</div></div>`);
+    $('#mbox').style.width = '880px';
   }
 });
 async function clipDel(rel) {
@@ -1926,9 +2059,10 @@ async function modList() {
     // a mod in FiveM's own folders only loads without pure mode; sounds in the GTA folder also on pure 1
     const warn = m.broken ? `<div class="mwarn">${ico('alert')}<span>${esc(m.broken)}</span>${m.fix ? `<button class="btn sm" data-modfix="${esc(m.id)}">${ico('refresh')}Reparieren</button>` : ''}</div>`
       : m.on && lp > (m.pure || 0) ? `<div class="mwarn">${ico('alert')}<span>Dein Launcher startet FiveM mit Pure ${lp} – dieser Mod wird dann nicht geladen.</span></div>` : '';
-    return `<div class="mod ${m.broken ? 'bad' : ''}"><div class="ti mico">${ico(m.broken ? 'alert' : MOD_CATS[m.cat]?.[1] || 'puzzle')}</div><div class="tx"><b>${esc(m.name)}</b><p>${MOD_CATS[m.cat]?.[0] || 'Sonstiges'} · ${bytes(m.size)} · <span class="mwhere" title="${esc((m.paths || []).join('\n'))}">${where}</span> · ${m.pure ? 'auch auf Pure 1' : 'nur ohne Pure-Mode'}</p>${warn}</div><span class="chip ${m.on ? 'g' : ''}">${m.on ? 'Aktiv' : 'Aus'}</span><div class="tg ${m.on ? 'on' : ''}" data-mod="${esc(m.id)}" data-title="${esc(m.name)}"></div><button class="ib" title="Löschen" data-moddel="${esc(m.id)}" data-title="${esc(m.name)}" data-orig="${(m.places || []).some(p => p !== 'mods') ? 1 : ''}">${ico('trash')}</button></div>`;
+    return `<div class="mod ${m.broken ? 'bad' : ''} ${m.on ? 'on' : ''}"><div class="ti mico">${ico(m.broken ? 'alert' : MOD_CATS[m.cat]?.[1] || 'puzzle')}</div><div class="tx"><b>${esc(m.name)}</b><p>${MOD_CATS[m.cat]?.[0] || 'Sonstiges'} · ${bytes(m.size)} · <span class="mwhere" title="${esc((m.paths || []).join('\n'))}">${where}</span> · ${m.pure ? 'auch auf Pure 1' : 'nur ohne Pure-Mode'}</p>${warn}</div><span class="chip ${m.on ? 'g' : ''}">${m.on ? 'Aktiv' : 'Aus'}</span><div class="tg ${m.on ? 'on' : ''}" data-mod="${esc(m.id)}" data-title="${esc(m.name)}"></div><button class="ib" title="Löschen" data-moddel="${esc(m.id)}" data-title="${esc(m.name)}" data-orig="${(m.places || []).some(p => p !== 'mods') ? 1 : ''}">${ico('trash')}</button></div>`;
   };
-  $('#modList').innerHTML = !r.found ? '<div class="empty">FiveM nicht gefunden. Pfad im Launcher wählen.</div>' : items.length ? items.map(row).join('') : '<div class="empty">Noch keine Mods installiert. Lade ein Pack herunter oder nimm „Datei installieren“.</div>';
+  $('#modList').innerHTML = !r.found ? emptyBox('alert', 'FiveM nicht gefunden', 'Wähl den FiveM-Ordner im Launcher, dann erscheinen deine Mods hier.', `<button class="btn" onclick="go('launcher')">${ico('rocket')}Zum Launcher</button>`)
+    : items.length ? items.map(row).join('') : emptyBox('puzzle', 'Noch keine Mods installiert', 'Lade oben ein Pack herunter oder nimm „Datei installieren“.');
   const mm = items.filter(m => m.cat === 'minimap');
   if ($('#mmMods')) $('#mmMods').innerHTML = mm.map(row).join('');
 }
@@ -2049,6 +2183,7 @@ function gpStart() {
   cancelAnimationFrame(gpRaf);
   $('#gpBtns').innerHTML = GP_NAMES.map((n, i) => `<i data-gb="${i}">${n}</i>`).join('');
   $('#gpLT').style.transition = $('#gpRT').style.transition = 'none';
+  $('#gpLT').style.transform = $('#gpRT').style.transform = 'scaleX(0)';
   const loop = () => {
     if (curPage !== 'input' || $('#padPad').classList.contains('hidden')) return;
     const gp = [...(navigator.getGamepads ? navigator.getGamepads() : [])].find(Boolean);
@@ -2056,7 +2191,7 @@ function gpStart() {
     if (gp) {
       const ax = gp.axes, mv = (el, x, y) => el.style.transform = `translate(${(x || 0) * 40}px,${(y || 0) * 40}px)`;
       mv($('#gpL'), ax[0], ax[1]); mv($('#gpR'), ax[2], ax[3]);
-      $('#gpLT').style.width = (gp.buttons[6]?.value || 0) * 100 + '%'; $('#gpRT').style.width = (gp.buttons[7]?.value || 0) * 100 + '%';
+      $('#gpLT').style.transform = `scaleX(${gp.buttons[6]?.value || 0})`; $('#gpRT').style.transform = `scaleX(${gp.buttons[7]?.value || 0})`;
       $$('#gpBtns i').forEach(i => i.classList.toggle('on', !!gp.buttons[+i.dataset.gb]?.pressed));
       const l = Math.hypot(ax[0] || 0, ax[1] || 0), r = Math.hypot(ax[2] || 0, ax[3] || 0), idle = l < .3 && r < .3;
       $('#gpDrift').textContent = `${gp.id.split('(')[0].trim().slice(0, 28)} · Drift L ${l.toFixed(2)} · R ${r.toFixed(2)}${idle ? (Math.max(l, r) > .08 ? ' · Drift erkannt!' : ' · OK') : ''}`;
@@ -2081,8 +2216,8 @@ async function netTest() {
   const btn = $('#ntBtn'); btn.disabled = true; $('#ntTxt').textContent = 'Messe…'; $('#ntBars').innerHTML = '';
   try {
     const r = await api('net.test', { target });
-    if (!r.ok) { $('#ntAvg').textContent = '--'; $('#ntJit').textContent = '--'; $('#ntLoss').textContent = '100%'; $('#ntTxt').textContent = 'Keine Verbindung'; return; }
-    countTo($('#ntAvg'), r.avg, ' ms'); $('#ntJit').textContent = r.jitter + ' ms'; $('#ntLoss').textContent = r.loss + '%';
+    if (!r.ok) { $('#ntAvg').textContent = '--'; $('#ntJit').textContent = '--'; $('#ntLoss').innerHTML = '100<small>%</small>'; $('#ntTxt').textContent = 'Keine Verbindung'; return; }
+    countTo($('#ntAvg'), r.avg, '<small>ms</small>'); $('#ntJit').innerHTML = `${nf1.format(r.jitter)}<small>ms</small>`; $('#ntLoss').innerHTML = `${r.loss}<small>%</small>`;
     const mx = Math.max(...r.samples, 1);
     $('#ntBars').innerHTML = r.samples.map((s, i) => `<i style="height:${Math.max(8, s / mx * 100)}%;animation-delay:${i * 25}ms" title="${s} ms"></i>`).join('') + Array.from({ length: r.loss / 5 }, () => '<i class="lost" style="height:100%"></i>').join('');
     const good = r.avg < 60 && r.jitter < 6 && r.loss === 0, ok = r.avg < 110 && r.jitter < 15 && r.loss <= 5;
@@ -2123,7 +2258,7 @@ function applyBg() {
   const u = bgUrl();
   // the anime theme brings its own painted scene, unless a particular photo was picked in the settings
   const painted = CUR_THEME === 'anime' && !LA_ALL.find(x => x[0] === S.settings.bgPreset)?.[2];
-  const own = painted ? `<div class="own-bg" style="background-image:${ANIME_BG ||= animeScene()};background-position:center 66%"></div>`
+  const own = painted ? `<div class="own-bg" style="background-image:${ANIME_BG ||= animeScene()};background-position:center 77%"></div>`
     : `<div class="own-bg" style="background-image:url('${u}');background-position:center ${LA_FOCUS[u] ?? 50}%"></div>`;
   $('#bnScene').innerHTML = own;
   $('#spScene').innerHTML = own;
@@ -2202,8 +2337,8 @@ async function dlList(target, filter) {
   let l = []; try { l = await api('mods.downloads'); } catch { }
   if (filter) l = l.filter(x => x.cat === filter || x.cat === 'other');
   const el = $(target); if (!el) return;
-  el.innerHTML = l.length ? l.map(f => `<div class="mod"><div class="ti" style="width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:rgba(var(--a-rgb),.1);color:var(--a)">${ico(MOD_CATS[f.cat]?.[1] || 'puzzle')}</div><div class="tx"><b>${esc(f.name)}</b><p>${bytes(f.size)} · ${new Date(f.date).toLocaleDateString('de-DE')} · ${esc(f.what || (f.rpfs > 0 ? f.rpfs + ' Mod-Datei(en)' : 'Archiv'))}</p></div><select class="in sel" data-dlcat="${esc(f.name)}">${Object.entries(MOD_CATS).map(([k, [n]]) => `<option value="${k}" ${k === (filter || f.cat) ? 'selected' : ''}>${n}</option>`).join('')}</select><button class="btn o sm" data-dl="${esc(f.name)}">${ico('download')}Installieren</button></div>`).join('')
-    : '<div class="empty">Noch nichts gefunden. Lade eine Mod herunter, sie erscheint hier automatisch.</div>';
+  el.innerHTML = l.length ? l.map(f => `<div class="mod dl"><div class="ti mico">${ico(MOD_CATS[f.cat]?.[1] || 'puzzle')}</div><div class="tx"><b>${esc(f.name)}</b><p>${bytes(f.size)} · ${new Date(f.date).toLocaleDateString('de-DE')} · ${esc(f.what || (f.rpfs > 0 ? f.rpfs + ' Mod-Datei(en)' : 'Archiv'))}</p></div><select class="in sel" data-dlcat="${esc(f.name)}">${Object.entries(MOD_CATS).map(([k, [n]]) => `<option value="${k}" ${k === (filter || f.cat) ? 'selected' : ''}>${n}</option>`).join('')}</select><button class="btn o sm" data-dl="${esc(f.name)}">${ico('download')}Installieren</button></div>`).join('')
+    : emptyBox('download', 'Noch nichts Neues', 'Lad ein Pack in Discord oder im Browser herunter, es erscheint hier von selbst.');
 }
 document.addEventListener('click', async e => {
   const b = e.target.closest('[data-dl]'); if (!b) return;
@@ -2258,7 +2393,8 @@ setInterval(() => { if (curPage === 'mods') dlList('#modDl'); if (curPage === 'm
 let CUR = null;
 function curHtml(c) {
   const s = c.server || {}, initial = (s.name || '?').replace(/\^\d/g, '').trim()[0] || '?';
-  const stat = (k, v) => v == null || v === '' ? '' : `<div><span>${k}</span><b>${esc(v)}</b></div>`;
+  const stat = (k, v, unit = '', extra = '', cls = '') => v == null || v === '' ? '' : `<div${cls ? ` class="${cls}"` : ''}><span>${k}</span><b>${esc(v)}${unit ? `<small>${unit}</small>` : ''}</b>${extra}</div>`;
+  const pct = s.max ? Math.min(100, Math.round(s.players * 100 / s.max)) : 0;
   const tags = (s.allTags && s.allTags.length ? s.allTags : s.tags || []).slice(0, 10);
   return `<div class="cs-bn ${s.banner ? '' : 'nobn'}" ${s.banner ? `style="background-image:url('${esc(s.banner)}')"` : ''}></div>
     <div class="cs-body">
@@ -2271,13 +2407,13 @@ function curHtml(c) {
         </div>
       </div>
       <div class="cs-tags">${tags.map(t => `<span class="chip">${esc(t)}</span>`).join('')}</div>
-      <div class="cs-stats">${stat('Spieler', s.max ? `${s.players}/${s.max}` : null)}${stat('Ping', s.ping != null ? s.ping + ' ms' : null)}${stat('Build', s.build ? 'b' + s.build : null)}${stat('OneSync', s.onesync ? 'An' : null)}${stat('Ressourcen', s.resources || null)}${stat('Betreiber', s.owner)}</div>
+      <div class="cs-stats">${stat('Spieler', s.max ? s.players : null, s.max ? ' / ' + s.max : '', `<i class="cs-pb"><i style="transform:scaleX(${pct / 100})"></i></i>`)}${stat('Ping', s.ping != null ? s.ping : null, ' ms')}${stat('Build', s.build ? 'b' + s.build : null)}${stat('OneSync', s.onesync ? 'An' : null)}${stat('Ressourcen', s.resources || null)}${stat('Betreiber', s.owner, '', '', 'tx')}</div>
       <div class="cs-act">
         ${c.fav ? `<button class="btn sm" disabled>${ico('check')}In Favoriten</button>` : `<button class="btn sm" onclick="curFav()">${ico('plus')}Zu Favoriten</button>`}
         ${s.discord ? `<button class="btn sm dc" onclick="api('open',{target:'${esc(s.discord)}'})"><svg class="i" viewBox="0 0 24 24"><path d="M8 12h.01M16 12h.01M7.5 7.5c3-1.3 6-1.3 9 0M7.5 16.5c3 1.3 6 1.3 9 0M15.5 17l1.5 3c2-.7 3.5-1.7 5-3-.4-4.2-1.4-8-3.5-11-1.4-.7-2.9-1.2-4.5-1.5L13.5 6M8.5 17 7 20c-2-.7-3.5-1.7-5-3 .4-4.2 1.4-8 3.5-11C6.9 5.3 8.4 4.8 10 4.5L10.5 6"/></svg>Discord</button>` : ''}
         ${s.website ? `<button class="btn sm" onclick="api('open',{target:'${esc(s.website)}'})">${ico('globe')}Website</button>` : ''}
         <button class="btn sm" onclick="copyCmd('${esc(s.connect || c.url)}')">${ico('link')}Link kopieren</button>
-        ${c.connected ? '' : `<button class="btn sm" onclick="launch('${esc(s.connect || c.url)}')">${ico('play')}Verbinden</button>`}
+        ${c.connected ? '' : `<button class="btn sm p" onclick="launch('${esc(s.connect || c.url)}')">${ico('play')}Verbinden</button>`}
       </div>
     </div>`;
 }
@@ -2299,19 +2435,25 @@ setInterval(() => { if (curPage === 'home' || curPage === 'servers') curServer()
 /* ======================= CONTROLLER DISPLAY ======================= */
 const PAD = { cfg: { mode: 'auto', layout: 'auto', body: 'black', color: 'theme', corner: 'br', size: 75, opacity: 90, key: 0, accent: '#FF7A3D' }, r: null, state: null, active: false };
 const PAD_COLORS = ['#FF3B4E', '#FF7A18', '#F5C451', '#3DDC6B', '#3D8BFF', '#8B5CF6', '#F472B6', '#FFFFFF', '#18181B'];
+const PAD_CNAME = { '#FF3B4E': 'Rot', '#FF7A18': 'Orange', '#F5C451': 'Gelb', '#3DDC6B': 'Grün', '#3D8BFF': 'Blau', '#8B5CF6': 'Lila', '#F472B6': 'Pink', '#FFFFFF': 'Weiß', '#18181B': 'Schwarz' };
 const accHex = () => getComputedStyle(document.documentElement).getPropertyValue('--a').trim();
 const padAcc = () => PAD.cfg.color.startsWith('#') ? PAD.cfg.color : accHex();
 function padDraw() { if (PAD.r) PAD.r.draw(PAD.state, { ...PAD.cfg, accent: padAcc() }); }
 function padUI() {
   const c = PAD.cfg;
-  [['#padMode', c.mode], ['#padLayout', c.layout], ['#padBody', c.body], ['#padOpacity', String(c.opacity)]].forEach(([s, v]) => $$(s + ' button').forEach(b => b.classList.toggle('on', b.dataset.v === v)));
+  [['#padMode', c.mode], ['#padLayout', c.layout], ['#padBody', c.body], ['#padOpacity', String([100, 80, 55].reduce((a, b) => Math.abs(b - c.opacity) < Math.abs(a - c.opacity) ? b : a))]].forEach(([s, v]) => $$(s + ' button').forEach(b => b.classList.toggle('on', b.dataset.v === v)));
   $$('#padCorner button').forEach(b => b.classList.toggle('on', b.dataset.v === c.corner));
-  $('#padColors').innerHTML = `<button class="btn sm ${!c.color.startsWith('#') ? 'p' : ''}" data-pc="theme">Theme</button>` +
-    PAD_COLORS.map(x => `<button class="xcol ${c.color.toUpperCase() === x ? 'on' : ''}" data-pc="${x}" style="background:${x}"></button>`).join('') + `<label class="xcustom" title="Eigene Farbe"><input type="color" id="padPick" value="${c.color.startsWith('#') ? c.color : '#FF7A3D'}"></label>`;
+  const cn = $('#padCornerV'); if (cn) cn.textContent = { tl: 'Oben links', tr: 'Oben rechts', bl: 'Unten links', br: 'Unten rechts' }[c.corner] || '';
+  const pc = $('#padCorner'); if (pc) { pc.style.setProperty('--psz', (c.size / 100).toFixed(2)); pc.style.setProperty('--pop', (c.opacity / 100).toFixed(2)); }
+  // round swatches: the first follows the theme, the last opens a colour picker; the name of the chosen one below
+  const theme = !c.color.startsWith('#'), col = c.color.toUpperCase(), own = !theme && !PAD_COLORS.includes(col);
+  $('#padColors').innerHTML = `<button class="xcol xtheme ${theme ? 'on' : ''}" data-pc="theme" title="Theme-Farbe" aria-label="Theme-Farbe"></button>` +
+    PAD_COLORS.map(x => `<button class="xcol ${col === x ? 'on' : ''}" data-pc="${x}" style="background:${x}" title="${PAD_CNAME[x]}" aria-label="${PAD_CNAME[x]}"></button>`).join('') + `<label class="xcustom ${own ? 'on' : ''}" title="Eigene Farbe"><input type="color" id="padPick" value="${c.color.startsWith('#') ? c.color : '#FF7A3D'}"></label>`
+    + `<span class="xc-n">${theme ? '<b>Theme-Farbe</b> · wechselt mit deinem Theme' : own ? `<b>Eigene Farbe</b> · ${esc(col)}` : `<b>${PAD_CNAME[col]}</b>`}</span>`;
   $('#padSize').value = c.size; $('#padSize').style.setProperty('--p', (c.size - 40) / 120 * 100 + '%'); $('#padSizeV').textContent = c.size + '%';
   $('#padKey').innerHTML = KEYS.map(([n, v]) => `<button class="${c.key === v ? 'on' : ''}" data-pk="${v}">${n}</button>`).join('');
   $('#navPad').classList.toggle('hidden', c.mode === 'off');
-  $('#navPad').textContent = c.mode === 'on' ? 'AN' : 'AUTO';
+  $('#navPad').textContent = c.mode === 'on' ? 'An' : 'Auto';
   padDraw();
 }
 let padT = 0, padArtKey = null;
@@ -2338,7 +2480,7 @@ document.addEventListener('click', e => {
   const k = e.target.closest('[data-pk]'); if (k) { PAD.cfg.key = +k.dataset.pk; padUI(); padPush(); }
 });
 document.addEventListener('input', e => {
-  if (e.target.id === 'padSize') { PAD.cfg.size = +e.target.value; e.target.style.setProperty('--p', (PAD.cfg.size - 40) / 120 * 100 + '%'); $('#padSizeV').textContent = PAD.cfg.size + '%'; padPush(); }
+  if (e.target.id === 'padSize') { PAD.cfg.size = +e.target.value; e.target.style.setProperty('--p', (PAD.cfg.size - 40) / 120 * 100 + '%'); $('#padSizeV').textContent = PAD.cfg.size + '%'; $('#padCorner')?.style.setProperty('--psz', (PAD.cfg.size / 100).toFixed(2)); padPush(); }
   if (e.target.id === 'padPick') { PAD.cfg.color = e.target.value.toUpperCase(); padDraw(); padPush(); }
 });
 document.addEventListener('change', e => { if (e.target.id === 'padPick') padUI(); });
@@ -2386,11 +2528,11 @@ function libCard(m) {
     : `<button class="btn o sm" data-lib="${esc(m.id)}">${ico('download')}Installieren</button>`;
   const foot = m.type === 'reshade' ? (st === 'active' ? 'Aktiv im Spiel' : st === 'ready' ? 'Sofort nutzbar' : 'Mit ReShade') : st === 'installed' ? 'Installiert' : m.size ? bytes(m.size) : 'Mod-Datei';
   return `<div class="lcard ${st === 'active' || st === 'installed' ? 'on' : ''}">
-    <div class="lthumb ${m.type === 'reshade' && !m.img ? 'rsf-' + esc(m.preset) : ''}" ${thumb}></div>
-    <div class="ltop"><span class="lcat">${ico(cat[2])}${LIB_ONE[cat[0]] || cat[1]}</span>${m.popular >= 85 ? '<span class="lhot">Beliebt</span>' : ''}</div>
+    <div class="lpic"><div class="lthumb ${m.type === 'reshade' && !m.img ? 'rsf-' + esc(m.preset) : ''}" ${thumb}></div>
+    <div class="ltop"><span class="lcat">${ico(cat[2])}${LIB_ONE[cat[0]] || cat[1]}</span>${m.popular >= 85 ? '<span class="lhot">Beliebt</span>' : ''}</div></div>
     <div class="lbody"><b>${esc(m.name)}</b><span class="lby">von ${esc(m.author || 'unbekannt')}${m.addedBy ? ' · eingereicht' : ''}</span><p>${esc(m.desc || '')}</p>
-      <div class="ltags">${(m.tags || []).slice(0, 4).map(t => `<span>#${esc(t)}</span>`).join('')}</div>
-      <div class="lact"><span class="lsize">${foot}</span>${btn}</div></div></div>`;
+      <div class="ltags">${(m.tags || []).slice(0, 4).map(t => `<span>${esc(t)}</span>`).join('')}</div>
+      <div class="lact"><span class="lsize st-${st}">${foot}</span>${btn}</div></div></div>`;
 }
 function libList(cat) {
   const q = LIB.q.trim().toLowerCase();
@@ -2401,11 +2543,15 @@ function libList(cat) {
 function libRender() {
   // while searching the chips count the hits, so they match the grid below
   if ($('#libCats')) $('#libCats').innerHTML = LIB_CATS.map(([k, n, i]) => { const all = k === 'all' ? LIB.items.length : LIB.items.filter(m => m.cat === k).length; if (!all && k !== LIB.cat) return ''; const c = LIB.q.trim() ? libList(k).length : all; return `<button class="lchip ${LIB.cat === k ? 'on' : ''} ${c ? '' : 'zero'}" data-lc="${k}">${ico(i)}${n}<span>${c}</span></button>`; }).join('');
-  const empty = cat => `<div class="empty">${LIB.q ? `Nichts gefunden für „${esc(LIB.q)}“.<br><button class="btn mt8" onclick="libClear()">${ico('undo')}Suche zurücksetzen</button>` : cat === 'minimap' ? `Noch keine fertigen Minimaps in der Bibliothek.<br><span style="font-size:12px">Du kannst dir aber aus jedem Bild deine eigene Minimap bauen.</span><br><button class="btn p mt8" onclick="modTab('mm')">${ico('map')}Eigene Minimap aus Bild erstellen</button>` : `Noch keine Mods in dieser Kategorie.<br><span style="font-size:12px">Eigene Datei über „Datei installieren“ hinzufügen. Neue Mods kommen automatisch, sobald sie in der Bibliothek (mods.json) stehen.</span>`}</div>`;
+  const empty = cat => LIB.q ? emptyBox('search', `Nichts gefunden für „${esc(LIB.q)}“`, 'Probier ein anderes Wort, zum Beispiel pvp, nacht oder kill.', `<button class="btn" onclick="libClear()">${ico('undo')}Suche zurücksetzen</button>`)
+    : cat === 'minimap' ? emptyBox('map', 'Noch keine fertigen Minimaps', 'Aus jedem Bild baust du dir in einer Minute deine eigene.', `<button class="btn p" onclick="modTab('mm')">${ico('map')}Eigene Minimap erstellen</button>`)
+    : emptyBox('puzzle', 'Noch nichts in dieser Kategorie', 'Neue Mods kommen von selbst, sobald sie in der Bibliothek stehen. Eigene Dateien gehen über „Datei installieren“.');
   if ($('#libGrid')) { const l = libList(LIB.cat); $('#libGrid').innerHTML = l.length ? l.map(libCard).join('') : empty(LIB.cat); }
   if ($('#mmLib')) { const l = libList('minimap'); $('#mmLib').innerHTML = l.length ? l.map(libCard).join('') : empty('minimap'); }
   rsSettings();
 }
+/** One quiet empty state for the mods page: icon, a title, one line, an optional action. */
+function emptyBox(icon, title, text, act = '') { return `<div class="empty ebox"><span class="en-ic">${ico(icon)}</span><b>${title}</b><span>${text}</span>${act}</div>`; }
 function libClear() { LIB.q = ''; if ($('#libSearch')) $('#libSearch').value = ''; libRender(); }
 window.libClear = libClear;
 /** Empty ReShade tab: straight to the looks in the library. */
@@ -2462,6 +2608,8 @@ async function rsSettings() {
   if (!RSC) try { RSC = await api('reshade.cfg.get'); } catch { RSC = null; }
   if (!RSC || !RSC.found) return;
   $('#rsVer').textContent = RS.version ? 'v' + RS.version : 'installiert';
+  const look = LIB.items.find(m => m.type === 'reshade' && m.preset === RS.preset), lk = $('#rsLook');
+  if (lk) lk.innerHTML = `<span class="rs-lt ${look && !look.img ? 'rsf-' + esc(look.preset) : ''}" style="background-image:url('${look?.img ? esc(look.img) : bgUrl()}')"></span><div class="rs-lx"><span>Aktiver Look</span><b>${esc(look?.name || RS.preset || 'Keiner')}</b><p>${esc(look?.desc || 'Wähl einen Look in der Bibliothek.')}</p></div><button class="btn" onclick="rsPick()">${ico('layers')}Look wechseln</button>`;
   $$('[data-rk]').forEach(el => {
     const k = el.dataset.rk, cur = +RSC[k] || 0, list = RS_KEYS.filter(([, v]) => k === 'keyNext' || v !== 0);
     // a key set elsewhere (e.g. in the ReShade overlay) is shown as it is, not as the first entry of the list
@@ -2524,7 +2672,14 @@ async function accRedeem() {
   passed(r.role === 'admin' ? 'Admin freigeschaltet' : 'Zugang freigeschaltet', r.rebound ? 'Neuinstallation erkannt, dein Key läuft auf diesem PC weiter' : 'Code ist jetzt an diesen PC gebunden');
 }
 async function accLogout() { if (!await confirmBox('Abmelden?', 'OrbitTweak wird gesperrt, bis du deinen Key wieder eingibst.', { ok: 'Abmelden' })) return; await api('auth.logout'); ACC.loggedIn = false; ACC.role = null; accUI(); go('home'); gate('Abgemeldet. Gib deinen Key ein, um weiterzumachen.'); }
-window.accRedeem = accRedeem; window.accLogout = accLogout;
+async function accCopyId() {
+  const id = ACC.hwid || $('#accHwid').textContent.trim(); if (!id || id === '…') return;
+  let ok = false;
+  try { const r = await api('clip', { text: id }); ok = r && r.ok; } catch { }
+  if (!ok) try { await navigator.clipboard.writeText(id); ok = true; } catch { }
+  toast(ok ? 'PC-ID kopiert' : 'Kopieren fehlgeschlagen', id, ok);
+}
+window.accRedeem = accRedeem; window.accLogout = accLogout; window.accCopyId = accCopyId;
 document.addEventListener('input', e => { if (e.target.id === 'accCode') { let v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); if (v.startsWith('ORB')) v = v.slice(3); v = v.slice(0, 12); e.target.value = v ? 'ORB-' + v.match(/.{1,4}/g).join('-') : ''; } });
 
 /* ---- add mod ---- */
@@ -2575,25 +2730,25 @@ async function admLoad() {
     const r = await srv('GET', '/api/codes'); if (r.error) return toast('Fehler', r.error, false);
     $('#admCount').textContent = r.codes.length;
     // fixed columns: code, copy, role, runtime, note, status (with PC and last seen below), actions
-    $('#admCodes').innerHTML = r.codes.length ? r.codes.map(c => `<div class="crow2 ${c.revoked ? 'off' : ''}">
+    $('#admCodes').innerHTML = r.codes.length ? '<div class="crow2 crh"><span>Key</span><span></span><span>Rolle</span><span>Laufzeit</span><span>Notiz</span><span>Status</span><span></span></div>' + r.codes.map(c => `<div class="crow2 ${c.revoked ? 'off' : ''}">
       <code class="cc">${esc(c.code)}</code><button class="ib" title="Kopieren" onclick="copyCmd('${esc(c.code)}')">${ico('copy')}</button>
       <span class="c-role"><span class="chip ${c.role === 'admin' ? 'a' : c.role === 'editor' ? 'g' : ''}">${c.role === 'admin' ? 'Admin' : c.role === 'editor' ? 'Editor' : 'Nutzer'}</span></span><span class="c-plan">${planChip(c)}</span>
       <span class="cn">${esc(c.note || '')}${c.self ? ' <span class="muted">(du)</span>' : ''}</span>
       <span class="cs">${c.revoked ? '<span class="chip r">Gesperrt</span>' : c.hwid ? `<span class="chip g">Gebunden</span><small>PC ${esc(c.hwid)} · ${ago(c.last_seen || c.bound_at)}${c.rebinds ? ` · <span title="Neuinstallation erkannt: Windows wurde auf demselben PC neu installiert, der Key ist automatisch mitgezogen (${c.rebinds}×)">neu installiert</span>` : ''}</small>` : '<span class="chip w">Noch frei</span>'}</span>
       <span class="c-act">${c.self ? '' : `${c.hwid ? `<button class="btn sm" onclick="admAct('unbind','${esc(c.code)}')">PC lösen</button>` : ''}<button class="btn sm ${c.revoked ? '' : 'd'}" onclick="admAct('revoke','${esc(c.code)}',${c.revoked ? 1 : 0})">${c.revoked ? 'Entsperren' : 'Sperren'}</button>`}</span>
-    </div>`).join('') : '<div class="empty">Noch keine Codes.</div>';
+    </div>`).join('') : `<div class="lx-empty">${ico('users')}<b>Noch keine Codes</b><span>Erzeug oben den ersten Key</span></div>`;
   } else if (admTab === 'pending') {
     const r = await srv('GET', '/api/mods/pending'); if (r.error) return toast('Fehler', r.error, false);
     $('#admPendC').textContent = r.mods.length;
     $('#admPending').innerHTML = r.mods.length ? r.mods.map(m => `<div class="lcard"><div class="lthumb" style="background-image:url('${esc(m.img || bgUrl())}')"></div>
       <div class="lbody"><b>${esc(m.name)}</b><span class="lby">${esc((LIB_CATS.find(c => c[0] === m.cat) || [0, 'Sonstiges'])[1])} · ${bytes(m.size)} · von ${esc(m.author)}</span><p>${esc(m.desc || '')}</p>
-      <code class="cc" style="font-size:10.5px;word-break:break-all">${esc(m.url)}</code>
+      <code class="cc lurl" title="${esc(m.url)}">${esc(m.url)}</code>
       <div class="lact"><button class="btn sm d" onclick="admMod('delete','${esc(m.id)}')">${ico('trash')}Ablehnen</button><button class="btn p sm" onclick="admMod('approve','${esc(m.id)}')">${ico('check')}Freigeben</button></div></div></div>`).join('')
-      : '<div class="empty">Keine offenen Einreichungen.</div>';
+      : `<div class="lx-empty ok">${ico('check')}<b>Alles erledigt</b><span>Keine offenen Einreichungen</span></div>`;
   } else {
     const r = await srv('GET', '/api/mods'); if (r.error) return toast('Fehler', r.error, false);
     if ($('#admModCount')) $('#admModCount').textContent = r.mods.length;
-    $('#admMods').innerHTML = r.mods.length ? r.mods.map(m => `<div class="mod adm-mod"><span class="am-th" style="background-image:url('${esc(m.img || picFor(m.id))}')"></span><div class="tx"><b>${esc(m.name)}</b><p>${esc((LIB_CATS.find(c => c[0] === m.cat) || [0, 'Sonstiges'])[1])} · ${bytes(m.size)}${m.author ? ' · von ' + esc(m.author) : ''}</p></div><button class="ib" title="Download-Link kopieren: ${esc(m.url)}" onclick="copyCmd('${esc(m.url)}')">${ico('link')}</button><button class="btn sm d" onclick="admMod('delete','${esc(m.id)}')">${ico('trash')}Löschen</button></div>`).join('') : '<div class="empty">Noch keine Server-Mods.</div>';
+    $('#admMods').innerHTML = r.mods.length ? r.mods.map(m => `<div class="mod adm-mod"><span class="am-th" style="background-image:url('${esc(m.img || picFor(m.id))}')"></span><div class="tx"><b>${esc(m.name)}</b><p>${esc((LIB_CATS.find(c => c[0] === m.cat) || [0, 'Sonstiges'])[1])} · ${bytes(m.size)}${m.author ? ' · von ' + esc(m.author) : ''}</p></div><button class="ib" title="Download-Link kopieren: ${esc(m.url)}" onclick="copyCmd('${esc(m.url)}')">${ico('link')}</button><button class="btn sm d" onclick="admMod('delete','${esc(m.id)}')">${ico('trash')}Löschen</button></div>`).join('') : `<div class="lx-empty">${ico('puzzle')}<b>Noch keine Server-Mods</b><span>Mods von Admins und freigegebene Einreichungen landen hier</span></div>`;
   }
 }
 /** Runtime of a key in words: "Lifetime", "30-Tage-Key · noch 12 Tage (bis 28.12.2026)", "abgelaufen am …". */
@@ -2625,7 +2780,7 @@ async function admCreate() {
   const kind = `${role === 'admin' ? 'Admin' : role === 'editor' ? 'Editor' : 'Nutzer'}-Key${codes.length > 1 ? 's' : ''} · ${days ? (days === 1 ? '1 Tag' : days + ' Tage') : 'unbegrenzt'}`;
   ADM_NEW = codes.join('\n');
   $('#admNewCode').classList.remove('hidden');
-  $('#admNewCode').innerHTML = `<div><span class="sub" style="font-size:12px">${codes.length > 1 ? codes.length + ' neue ' : 'Neuer '}${kind}, jeder wird an den ersten PC gebunden:</span>${codes.map(c => `<code>${esc(c)}</code>`).join('')}</div><button class="btn p" onclick="copyCmd(ADM_NEW)">${ico('copy')}${codes.length > 1 ? 'Alle kopieren' : 'Kopieren'}</button>`;
+  $('#admNewCode').innerHTML = `<div><span class="ac-k">${ico('check')}${codes.length > 1 ? codes.length + ' neue ' : 'Neuer '}${kind}</span>${codes.map(c => `<code>${esc(c)}</code>`).join('')}</div><button class="btn" onclick="copyCmd(ADM_NEW)">${ico('copy')}${codes.length > 1 ? 'Alle kopieren' : 'Kopieren'}</button>`;
   admLoad();
 }
 let ADM_NEW = '';
@@ -2884,7 +3039,8 @@ const Mock = {
       case 'reshade.status': return { found: true, installed: true, version: '6.8.0', preset: 'vivid', presets: [{ id: 'vivid', name: 'Lebendig', desc: 'Kräftige Farben, knackig scharf' }, { id: 'pvp', name: 'Klar (PvP)', desc: 'Maximale Sichtbarkeit, scharfe Kanten' }, { id: 'cine', name: 'Cinematic', desc: 'Filmlook mit Vignette' }, { id: 'night', name: 'Nachtsicht', desc: 'Dunkle Ecken sichtbar' }, { id: 'techni', name: 'Technicolor', desc: 'Satte Retro-Farben' }] };
       case 'reshade.install': for (let i = 1; i <= 5; i++) { onEvent('reshade', { pct: i * 20, text: 'Schritt ' + i }); await sleep(250); } return {};
       case 'reshade.preset': case 'reshade.uninstall': return {};
-      case 'thumb': case 'clip.thumb': return { url: null };
+      case 'thumb': return { url: null };
+      case 'clip.thumb': return { url: picFor(a.rel) };   // preview only: a game photo stands in for the frame of the clip
       case 'bg.list': return [];
       case 'bg.set': case 'bg.pick': case 'bg.clear': return { v: 0 };
       case 'downloads.open': return null;
@@ -2904,7 +3060,7 @@ const Mock = {
         { code: 'r2', name: '^4Blue^7Line ^5PvP ^7Arena', desc: 'Gangwar · FFA · Ranked', players: 64, max: 128, online: true, ping: 31, locale: 'DE', tags: ['pvp'] },
         { code: 'aa', name: '^2Green^7Valley RP', desc: 'Whitelist-Server', players: 0, max: 64, online: false, ping: null, locale: 'EN', tags: ['whitelist'] }];
       case 'cfx.status': return [{ name: 'Server-Liste', ok: true, ms: 41 }, { name: 'Cfx.re Web', ok: true, ms: 57 }, { name: 'Content-CDN', ok: true, ms: 23 }, { name: 'Cfx.re Forum', ok: true, ms: 64 }];
-      case 'gfx.get': return { found: true, path: 'C:\\Users\\Max\\Documents\\Rockstar Games\\GTA V\\settings.xml', values: { ...PRESETS.bal.v } };
+      case 'gfx.get': return { found: true, path: 'C:\\Users\\Max\\Documents\\Rockstar Games\\GTA V\\settings.xml', values: { ...PRESETS.bal.v, Windowed: 2 } };
       case 'ini.get': return { channel: 'production' };
       case 'clean.scan': return [['fm', 'FiveM Cache', 'cache, server-cache, server-cache-priv', 'gamepad', 3.2e9], ['logs', 'FiveM Logs & Crashes', 'Alte Logs und Crashdumps', 'file', 2.1e8], ['temp', 'Temporäre Dateien', 'Benutzer- und System-Temp', 'folder', 1.6e9], ['shader', 'Shader-Cache', 'DirectX / NVIDIA / AMD', 'monitor', 7.4e8], ['wu', 'Windows-Update Reste', 'Bereits installierte Pakete', 'download', 9.1e8], ['bin', 'Papierkorb', 'Endgültig leeren', 'trash', 2.4e8]].map(([id, name, desc, icon, size], i) => ({ id, name, desc, icon, size, sel: i < 5 }));
       case 'health': return { score: 74, items: [{ name: 'FiveM installiert', value: 'C:\\Users\\Max\\AppData\\Local\\FiveM', st: 'ok' }, { name: 'Arbeitsspeicher', value: '32 GB, perfekt für FiveM', st: 'ok' }, { name: 'Auslagerungsdatei', value: 'Von Windows verwaltet', st: 'ok' }, { name: 'Energieplan', value: 'Ausbalanciert – Höchstleistung möglich', st: 'warn', fix: 'tweak:ult' }, { name: 'Game-Bar-Hintergrundaufnahme', value: 'Läuft – kostet FPS', st: 'bad', fix: 'tweak:dvr' }, { name: 'Verbindung', value: 'WLAN – für FiveM ist ein LAN-Kabel der größte Hebel', st: 'warn', fix: 'tweak:wifiscan' }, { name: 'GPU-Treiber', value: 'NVIDIA 566.36 · 4 Monate alt', st: 'ok' }, { name: 'FiveM-Cache', value: '3.2 GB, leeren empfohlen', st: 'warn', fix: 'cache' }] };
@@ -2994,7 +3150,7 @@ async function kfTest() {
   out.innerHTML = `${r.game ? '' : `<div class="kf-err">${ico('alert')}FiveM ist nicht im Vordergrund. Starte FiveM, wechsle ins Spiel und teste dann mit der Clip-Taste oder hier nochmal.</div>`}
     ${CL.area === 'auto' && r.area ? `<p class="sub" style="font-size:12px;margin-bottom:8px">${hits ? `Kill-Feed gefunden: <b>${KF_NAMES[r.area] || r.area}</b>` : `Noch kein Kill mit deinem Namen zu sehen. Gezeigt wird die Stelle ${KF_NAMES[r.area] || r.area}, im Spiel sucht OrbitTweak alle Stellen ab.`}</p>` : ''}
     <div class="kf-cols"><div class="kf-img">${r.img ? `<img src="${r.img}" alt="">` : ''}<span>Das sieht OrbitTweak</span></div>
-    <div class="kf-lines"><b>Erkannter Text</b>${lines.length ? lines.map(l => `<div class="kf-l ${l.hit || ''}">${l.hit === 'kill' ? '<em>KILL</em>' : l.hit === 'death' ? '<em>TOD</em>' : ''}<span>${esc(l.text)}</span></div>`).join('') : '<div class="sub" style="font-size:12px">Kein Text gefunden. Stimmt die Position? Steht gerade etwas im Kill-Feed?</div>'}
+    <div class="kf-lines"><b>Erkannter Text</b>${lines.length ? lines.map(l => `<div class="kf-l ${l.hit || ''}">${l.hit === 'kill' ? '<em>Kill</em>' : l.hit === 'death' ? '<em>Tod</em>' : ''}<span>${esc(l.text)}</span></div>`).join('') : '<div class="sub" style="font-size:12px">Kein Text gefunden. Stimmt die Position? Steht gerade etwas im Kill-Feed?</div>'}
     ${lines.length && !hits ? `<p class="sub" style="font-size:11.5px;margin-top:8px">Dein Name „${esc(CL.name)}“ wurde nicht gefunden. Erst nach einem Kill steht er im Feed.</p>` : ''}</div></div>`;
 }
 window.kfTest = kfTest;
@@ -3016,7 +3172,7 @@ async function mkTest() {
     : `<div class="mk-v">${ico('eye')}<span>Gerade keine Kill-Meldung in der Bildmitte. Ohne frischen Kill ist das normal, wichtig ist: Das Bild zeigt die Mitte deines Spiels.</span></div>`;
   out.innerHTML = `${!r.game ? `<div class="kf-err">${ico('alert')}FiveM läuft nicht. Das Bild zeigt die Mitte deines Bildschirms.</div>` : !r.front ? `<div class="kf-err">${ico('alert')}FiveM war nicht im Vordergrund. Das Bild zeigt, was gerade in der Bildmitte war.</div>` : ''}${verdict}
     <div class="kf-cols"><div class="kf-img">${r.img ? `<img src="${r.img}" alt="">` : ''}<span>Das sieht OrbitTweak</span></div>
-    <div class="kf-lines"><b>Erkannter Text</b>${lines.length ? lines.map(l => `<div class="kf-l ${l.hit || ''}">${l.hit === 'kill' ? '<em>KILL</em>' : l.hit === 'death' ? '<em>TOD</em>' : ''}<span>${esc(l.text)}</span></div>`).join('') : '<div class="sub mk-none">Kein Text gefunden.</div>'}
+    <div class="kf-lines"><b>Erkannter Text</b>${lines.length ? lines.map(l => `<div class="kf-l ${l.hit || ''}">${l.hit === 'kill' ? '<em>Kill</em>' : l.hit === 'death' ? '<em>Tod</em>' : ''}<span>${esc(l.text)}</span></div>`).join('') : '<div class="sub mk-none">Kein Text gefunden.</div>'}
     ${lines.length && !r.kind ? '<p class="sub mk-none">Steht bei deinen Kills ein anderes Wort da, trag es oben bei den Kill-Wörtern ein.</p>' : ''}</div></div>`;
 }
 
@@ -3189,7 +3345,7 @@ const MG = { mode: 'grid', on: false, t0: 0, end: 0, targets: [], hits: 0, shots
 function mgBest() { try { return JSON.parse(localStorage.getItem('orbitAim') || '{}'); } catch { return {}; } }
 function mgIdle() {
   const [n, d] = MG_MODES[MG.mode];
-  $('#mgTitle').textContent = n; $('#mgDesc').textContent = d;
+  $('#mgTitle').textContent = n; $('#mgDesc').textContent = d; $('#mgOver').classList.remove('done');
   $$('#mgMode button').forEach(b => b.classList.toggle('on', b.dataset.mg === MG.mode));
   const b = mgBest()[MG.mode]; $('#mgBest').textContent = b ? b.score : 0; $('#mgBestNote').textContent = b ? `${b.acc} % Trefferquote · ${b.date}` : 'Noch kein Durchgang in diesem Modus';
 }
@@ -3207,32 +3363,40 @@ function mgDraw() {
   const life = MG_MODES[MG.mode][4];
   if (life) MG.targets = MG.targets.filter(t => now - t.born < life);
   while (MG.on && MG.targets.length < MG_MODES[MG.mode][2]) mgSpawn(cv);
+  const dp = devicePixelRatio;
   for (const t of MG.targets) {
     const k = Math.min(1, (now - t.born) / 140), fade = life ? 1 - Math.max(0, (now - t.born - life * .6) / (life * .4)) : 1, r = t.r * (.5 + .5 * k);
     g.globalAlpha = Math.max(.15, fade);
-    const gr = g.createRadialGradient(t.x - r * .3, t.y - r * .3, r * .1, t.x, t.y, r); gr.addColorStop(0, b); gr.addColorStop(1, a);
-    g.shadowColor = a; g.shadowBlur = 22 * devicePixelRatio; g.fillStyle = gr; g.beginPath(); g.arc(t.x, t.y, r, 0, 7); g.fill();
-    g.shadowBlur = 0; g.fillStyle = 'rgba(255,255,255,.9)'; g.beginPath(); g.arc(t.x, t.y, r * .22, 0, 7); g.fill();
+    // a solid disc with light from above, a soft shadow below, a fine ring and a bright centre
+    g.shadowColor = 'rgba(0,0,0,.55)'; g.shadowBlur = 18 * dp; g.shadowOffsetY = 6 * dp;
+    g.fillStyle = a; g.beginPath(); g.arc(t.x, t.y, r, 0, 7); g.fill();
+    g.shadowColor = 'transparent'; g.shadowBlur = 0; g.shadowOffsetY = 0;
+    const lt = g.createLinearGradient(0, t.y - r, 0, t.y + r); lt.addColorStop(0, 'rgba(255,255,255,.3)'); lt.addColorStop(.55, 'rgba(255,255,255,0)'); lt.addColorStop(1, 'rgba(0,0,0,.12)');
+    g.fillStyle = lt; g.beginPath(); g.arc(t.x, t.y, r, 0, 7); g.fill();
+    g.strokeStyle = 'rgba(255,255,255,.5)'; g.lineWidth = 1.25 * dp; g.beginPath(); g.arc(t.x, t.y, r * .6, 0, 7); g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,.16)'; g.lineWidth = 1 * dp; g.beginPath(); g.arc(t.x, t.y, r + 4 * dp, 0, 7); g.stroke();
+    g.fillStyle = 'rgba(255,255,255,.95)'; g.beginPath(); g.arc(t.x, t.y, r * .18, 0, 7); g.fill();
   }
   g.globalAlpha = 1;
   MG.pops = MG.pops.filter(p => now - p.t < 420);
   for (const p of MG.pops) {
     const k = (now - p.t) / 420;
-    g.strokeStyle = p.hit ? a : 'rgba(248,113,113,.9)'; g.globalAlpha = 1 - k; g.lineWidth = 2 * devicePixelRatio;
+    g.strokeStyle = p.hit ? a : 'rgba(242,139,139,.9)'; g.globalAlpha = 1 - k; g.lineWidth = 1.5 * dp;
     g.beginPath(); g.arc(p.x, p.y, p.r * (1 + k * 1.2), 0, 7); g.stroke();
   }
   g.globalAlpha = 1;
   if (MG.on) {
     const left = Math.max(0, (MG.end - now) / 1000), el = $('#mgTime');
     el.textContent = nf1.format(left); el.classList.toggle('low', left < 5);
+    const bar = $('#mgBar'); if (bar) bar.style.transform = `scaleX(${(left / 30).toFixed(4)})`;
     if (left <= 0) return mgStop();
   }
   if (MG.on || MG.pops.length) MG.raf = requestAnimationFrame(mgDraw);
 }
 function mgStats() {
   $('#mgScore').textContent = MG.score;
-  $('#mgAcc').textContent = MG.shots ? Math.round(MG.hits / MG.shots * 100) + ' %' : '–';
-  $('#mgAvg').textContent = MG.hits ? Math.round(MG.sum / MG.hits) + ' ms' : '–';
+  $('#mgAcc').innerHTML = MG.shots ? Math.round(MG.hits / MG.shots * 100) + '<small>%</small>' : '–';
+  $('#mgAvg').innerHTML = MG.hits ? Math.round(MG.sum / MG.hits) + '<small>ms</small>' : '–';
 }
 function mgStart() {
   const cv = $('#mgCv'), r = cv.getBoundingClientRect();
@@ -3246,7 +3410,8 @@ function mgStop() {
   const best = !old || MG.score > old.score;
   if (best && MG.score > 0) { all[MG.mode] = { score: MG.score, acc, date: new Date().toLocaleDateString('de-DE') }; try { localStorage.setItem('orbitAim', JSON.stringify(all)); } catch { } }
   mgIdle();
-  $('#mgTitle').textContent = best && MG.score > 0 ? `Neuer Bestwert: ${MG.score}` : `${MG.score} Punkte`;
+  $('#mgBig').textContent = MG.score; $('#mgOver').classList.add('done');
+  $('#mgTitle').textContent = best && MG.score > 0 ? 'Neuer Bestwert' : MG.score === 1 ? 'Punkt' : 'Punkte';
   $('#mgDesc').textContent = `${MG.hits} Treffer bei ${MG.shots} Klicks, ${acc} % Trefferquote${MG.hits ? `, ${Math.round(MG.sum / MG.hits)} ms pro Treffer` : ''}.`;
   $('#mgStart').innerHTML = `${ico('refresh')}Nochmal`;
   $('#mgOver').classList.remove('off'); $('#mgTime').textContent = '30,0'; $('#mgTime').classList.remove('low');
@@ -3320,13 +3485,13 @@ setInterval(() => {
 
 /* ======================= CLIP EDITOR: cut a part out of a clip ======================= */
 const CUT = { rel: '', from: 0, to: 0, dur: 0, busy: false };
-const cutFmt = t => { const m = Math.floor(t / 60), s = t - m * 60; return `${m}:${s.toFixed(1).padStart(4, '0')}`; };
+const cutFmt = t => { const m = Math.floor(t / 60), s = t - m * 60; return `${m}:${s.toFixed(1).padStart(4, '0').replace('.', ',')}`; };
 function cutUI() {
   const bar = $('#cutBar'); if (!bar) return;
   const a = CUT.from / CUT.dur * 100, b = CUT.to / CUT.dur * 100;
   $('#cutSel').style.left = a + '%'; $('#cutSel').style.width = (b - a) + '%';
   $('#cutA').style.left = a + '%'; $('#cutB').style.left = b + '%';
-  $('#cutInfo').innerHTML = `Ausschnitt <b>${cutFmt(CUT.from)}</b> bis <b>${cutFmt(CUT.to)}</b> · <b>${(CUT.to - CUT.from).toFixed(1)} s</b> von ${CUT.dur.toFixed(1)} s`;
+  $('#cutInfo').innerHTML = `<b>${cutFmt(CUT.from)}</b> bis <b>${cutFmt(CUT.to)}</b> · ${(CUT.to - CUT.from).toFixed(1).replace('.', ',')} s von ${CUT.dur.toFixed(1).replace('.', ',')} s`;
 }
 window.cutOpen = rel => {
   const v = $('#mbox video'); if (!v || !isFinite(v.duration)) return toast('Clip lädt noch', 'Einen Moment, dann nochmal', false);
@@ -3335,11 +3500,11 @@ window.cutOpen = rel => {
   $('#mbox .act').outerHTML = `
     <div class="cut">
       <div class="cut-bar" id="cutBar"><i class="cut-sel" id="cutSel"></i><i class="cut-pos" id="cutPos"></i><b class="cut-h" id="cutA"></b><b class="cut-h" id="cutB"></b></div>
-      <div class="row mt8"><span class="sub" id="cutInfo" style="font-size:12.5px"></span><span class="sp"></span>
-        <button class="btn sm" id="cutPlay">${ico('play')}Ausschnitt abspielen</button><button class="btn sm" data-cutset="from">Anfang hier</button><button class="btn sm" data-cutset="to">Ende hier</button></div>
-      <p class="sub" style="font-size:12px;margin-top:8px">Zieh die beiden Griffe, oder klick in die Leiste, um an eine Stelle zu springen. Das Original bleibt unverändert.</p>
+      <div class="cut-row"><button class="btn sm" id="cutPlay">${ico('play')}Ausschnitt abspielen</button><span class="cut-info" id="cutInfo"></span><span class="sp"></span>
+        <button class="btn sm gh" data-cutset="from">Anfang hier</button><button class="btn sm gh" data-cutset="to">Ende hier</button></div>
+      <p class="cut-hint">Zieh die beiden Griffe oder klick in die Leiste, um an eine Stelle zu springen. Das Original bleibt, wie es ist.</p>
     </div>
-    <div class="act"><button class="btn" onclick="closeModal()">Abbrechen</button><button class="btn" id="cutShare">${ico('copy')}Schnitt für Discord kopieren</button><button class="btn p" id="cutSave">${ico('check')}Als neuen Clip speichern</button></div>`;
+    <div class="act"><button class="btn gh" onclick="closeModal()">Abbrechen</button><span class="sp"></span><button class="btn" id="cutShare">${ico('copy')}Schnitt für Discord kopieren</button><button class="btn p" id="cutSave">${ico('check')}Als neuen Clip speichern</button></div>`;
   v.ontimeupdate = () => { const p = $('#cutPos'); if (p) p.style.left = v.currentTime / CUT.dur * 100 + '%'; if (CUT.playing && v.currentTime >= CUT.to) { v.pause(); CUT.playing = false; } };
   cutUI();
 };
@@ -3433,8 +3598,8 @@ function whatsNew(version) {
     try { const n = JSON.parse(localStorage.getItem('orbitNotes') || 'null'); if (n && n.v === version && n.notes.length) list = n.notes.map(t => ['zap', t, '']); } catch { }
   }
   if (!list) return;
-  modal(`<div class="kicker">Update</div><h1 style="margin-top:8px">Das ist neu in <span class="grad">v${esc(version)}</span></h1>
-    <div class="wn">${list.map(([ic, t, d], i) => `<div class="wn-row" style="--i:${i}"><div class="qi">${ico(ic)}</div><div><b>${t}</b><span>${d}</span></div></div>`).join('')}</div>
+  modal(`<div class="m-ic">${ico('sparkle')}</div><div class="kicker">Update installiert</div><h1>Das ist neu in <span class="grad">v${esc(version)}</span></h1>
+    <div class="wn">${list.map(([ic, t, d], i) => `<div class="wn-row" style="--i:${i}"><div class="qi">${ico(ic)}</div><div><b>${t}</b>${d ? `<span>${d}</span>` : ''}</div></div>`).join('')}</div>
     <div class="act"><button class="btn p lg" onclick="closeModal()">${ico('check')}Alles klar</button></div>`);
   $('#mbox').style.width = '620px';
 }

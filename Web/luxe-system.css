@@ -1,0 +1,409 @@
+/* =====================================================================
+   LUXE, system pages: Cleaner, Diagnose, Einstellungen, Admin.
+   Loaded right after uhq.css and uses its tokens (--plat, --edge, --lift, --well, --fill ...).
+   Everything is scoped to the four pages so it cannot leak into other screens.
+   Only transforms and opacity move; no backdrop blur.
+   ===================================================================== */
+
+/* ---------- shared: instrument (chapter ring like the boost gauge), lists, empty states ---------- */
+:is(#p-cleaner,#p-diag) .lx-inst{padding:22px 22px 0;display:flex;flex-direction:column;align-items:stretch;overflow:hidden;
+  background:radial-gradient(90% 46% at 50% 36%,rgba(var(--a-rgb),.075),transparent 70%),var(--plat)}
+:is(#p-cleaner,#p-diag,#p-settings,#p-admin) .lx-ih{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:30px}
+:is(#p-cleaner,#p-diag) .lx-inst .chip{background:rgba(255,255,255,.05);color:var(--sub)}
+:is(#p-cleaner,#p-diag) .lx-inst .chip.g{background:rgba(95,212,163,.1);color:var(--good)}
+:is(#p-cleaner,#p-diag) .lx-inst .chip.w{background:rgba(242,196,107,.1);color:var(--warn)}
+:is(#p-cleaner,#p-diag) .lx-inst .chip.r{background:rgba(242,139,139,.1);color:var(--bad)}
+:is(#p-cleaner,#p-diag) .lx-inst .chip.a{background:rgba(var(--a-rgb),.12);color:var(--a)}
+:is(#p-cleaner,#p-diag) .lx-ic{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px 0 22px}
+:is(#p-cleaner,#p-diag) .lx-g{width:212px;height:212px;margin:0 0 4px}
+:is(#p-cleaner,#p-diag) .lx-g .mid b{font-variant-numeric:tabular-nums}
+:is(#p-cleaner,#p-diag) .lx-g .mid b.long{font-size:48px;letter-spacing:-.045em}
+:is(#p-cleaner,#p-diag) .lx-g .mid b.long small{font-size:17px}
+:is(#p-cleaner,#p-diag) .lx-inst h3{font-family:var(--disp);font-size:17px;font-weight:560;letter-spacing:-.018em;margin-top:22px;color:var(--text)}
+:is(#p-cleaner,#p-diag) .lx-inst p{font-size:13px;line-height:1.5;color:var(--sub);margin-top:6px;max-width:262px;text-wrap:balance}
+:is(#p-cleaner,#p-diag) .lx-go{align-self:stretch;justify-content:center;margin-top:22px;height:48px;border-radius:14px;font-size:15px}
+:is(#p-cleaner,#p-diag) .lx-go:not(.p){font-weight:550}
+:is(#p-cleaner,#p-diag) .lx-go svg.i{width:17px;height:17px}
+:is(#p-cleaner,#p-diag) .lx-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin:0 -22px;border-top:1px solid var(--line)}
+:is(#p-cleaner,#p-diag) .lx-stats div{padding:16px 8px 18px;text-align:center;min-width:0}
+:is(#p-cleaner,#p-diag) .lx-stats div+div{box-shadow:inset 1px 0 0 var(--line)}
+:is(#p-cleaner,#p-diag) .lx-stats b{display:block;font-family:var(--disp);font-size:19px;font-weight:420;letter-spacing:-.025em;font-variant-numeric:tabular-nums;white-space:nowrap}
+:is(#p-cleaner,#p-diag) .lx-stats span{display:block;margin-top:3px;font-size:11.5px;color:var(--mute)}
+
+/* a list on one surface: a quiet head, rows with a hairline that starts at the text */
+:is(#p-cleaner,#p-diag) .lx-list{padding:6px 8px 8px}
+:is(#p-cleaner,#p-diag) .lx-lh{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 14px 8px}
+:is(#p-cleaner,#p-diag) .lx-lh b{display:block;font-family:var(--disp);font-size:15.5px;font-weight:580;letter-spacing:-.015em}
+:is(#p-cleaner,#p-diag) .lx-lh p{font-size:12.5px;color:var(--mute);margin-top:3px}
+
+/* empty and waiting states: a round mark, one line, one quiet line below */
+:is(#p-cleaner,#p-diag,#p-settings,#p-admin) .lx-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;padding:26px 16px;text-align:center;grid-column:1/-1}
+:is(#p-cleaner,#p-diag,#p-settings,#p-admin) .lx-empty>svg.i{width:20px;height:20px;padding:12px;box-sizing:content-box;border-radius:50%;
+  background:rgba(255,255,255,.05);color:var(--sub);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+:is(#p-cleaner,#p-diag,#p-settings,#p-admin) .lx-empty.ok>svg.i{background:rgba(95,212,163,.1);color:var(--good)}
+:is(#p-cleaner,#p-diag,#p-settings,#p-admin) .lx-wait>svg.i{background:rgba(var(--a-rgb),.1);color:var(--a)}
+#p-cleaner #cleanList>.lx-empty{padding:56px 16px 64px}
+:is(#p-cleaner,#p-diag,#p-settings,#p-admin) .lx-empty b{margin-top:14px;font-size:14px;font-weight:550;letter-spacing:-.008em;color:var(--text)}
+:is(#p-cleaner,#p-diag,#p-settings,#p-admin) .lx-empty span{margin-top:4px;font-size:12.5px;color:var(--mute);max-width:320px;line-height:1.45}
+
+/* =====================================================================
+   CLEANER
+   ===================================================================== */
+#p-cleaner .cgrid{grid-template-columns:minmax(0,1fr) 336px;gap:20px;align-items:stretch}
+#p-cleaner .col{gap:20px}
+#p-cleaner .crow{position:relative;display:flex;align-items:center;gap:16px;margin:0;padding:13px 14px;border:0;border-radius:14px;background:none;box-shadow:none;cursor:pointer;transition:background .2s}
+#p-cleaner .crow+.crow::before{content:'';position:absolute;left:106px;right:14px;top:0;height:1px;background:var(--line);transition:opacity .2s}
+#p-cleaner .crow:hover{background:rgba(255,255,255,.028)}
+#p-cleaner .crow:hover::before,#p-cleaner .crow:hover+.crow::before{opacity:0}
+#p-cleaner .crow:focus-visible{outline:2px solid rgba(var(--a-rgb),.75);outline-offset:-2px}
+/* the checkbox: a sunken square, filled with the accent like a switch when chosen */
+#p-cleaner .cb{width:20px;height:20px;border:0;border-radius:7px;background:rgba(255,255,255,.07);box-shadow:inset 0 1px 2px rgba(0,0,0,.4),inset 0 0 0 1px rgba(255,255,255,.06);transition:background .25s,box-shadow .25s}
+#p-cleaner .cb.on{background:var(--fill);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 1px 2px rgba(0,0,0,.35)}
+#p-cleaner .cb svg{width:12px;height:12px;stroke:var(--on);stroke-width:3.2}
+#p-cleaner .crow .ti{width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,.045);color:var(--mute);box-shadow:inset 0 1px 0 rgba(255,255,255,.05);transition:color .25s}
+#p-cleaner .crow .ti svg.i{width:18px;height:18px}
+#p-cleaner .crow.sel .ti{color:var(--sub)}
+#p-cleaner .crow .tx{flex:1;min-width:0}
+#p-cleaner .crow .tx b{font-size:14px;font-weight:550;letter-spacing:-.008em;color:#C9CED8;transition:color .25s}
+#p-cleaner .crow.sel .tx b{color:var(--text)}
+#p-cleaner .crow .tx p{font-size:12.5px;color:var(--mute);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#p-cleaner .crow .sz{display:flex;flex-direction:column;align-items:flex-end;gap:9px;min-width:96px;font-size:inherit;font-weight:400;text-align:right}
+#p-cleaner .crow .sz b{font-family:var(--disp);font-size:17px;font-weight:400;letter-spacing:-.025em;color:var(--sub);font-variant-numeric:tabular-nums;white-space:nowrap;transition:color .25s}
+#p-cleaner .crow.sel .sz b{color:var(--text)}
+#p-cleaner .crow .sz b small{font-size:12px;font-weight:450;color:var(--mute);margin-left:3px;letter-spacing:0}
+#p-cleaner .lx-share{display:block;width:72px;height:2px;border-radius:2px;background:rgba(255,255,255,.06);overflow:hidden}
+#p-cleaner .lx-share i{display:block;height:100%;border-radius:2px;background:rgba(255,255,255,.16);transform-origin:left;transition:transform .6s var(--ease),background .25s}
+#p-cleaner .crow.sel .lx-share i{background:rgba(255,255,255,.42)}
+#p-cleaner .lx-lh .btn{flex:none}
+#p-cleaner #cleanBtn[disabled]{opacity:1;cursor:default}
+
+/* the RAM: one row under the list. A large quiet number, a fine meter, a quiet button */
+#p-cleaner .lx-ram{display:flex;align-items:center;gap:26px;padding:18px 22px}
+#p-cleaner .lx-ramh{flex:none;display:flex;flex-direction:column;gap:4px;min-width:150px}
+#p-cleaner .lx-cap{padding-left:23px;font-size:12px;color:var(--mute);font-variant-numeric:tabular-nums;white-space:nowrap}
+#p-cleaner .lx-ram .big{flex:none;min-width:84px;font-size:40px;font-weight:300;letter-spacing:-.05em;line-height:1;text-shadow:none}
+#p-cleaner .lx-ram .big small{font-size:14px;font-weight:400;color:var(--mute);margin-left:3px;letter-spacing:0}
+#p-cleaner .lx-ram .bar{flex:1;min-width:60px;height:3px;border-radius:3px;background:rgba(255,255,255,.06)}
+/* the value changes every second: no width transition, which would re-layout for most of every second */
+#p-cleaner .lx-ram .bar i{border-radius:3px;background:rgba(var(--a-rgb),.85);box-shadow:none;transition:none}
+#p-cleaner .lx-ram .btn{flex:none;height:38px}
+
+/* =====================================================================
+   DIAGNOSE
+   ===================================================================== */
+#p-diag .dgrid{grid-template-columns:minmax(0,1fr) 336px;gap:20px;align-items:stretch;
+  grid-template-areas:"chk inst" "net crash" "log log"}
+#p-diag .lx-checks{grid-area:chk}
+#p-diag #hInst{grid-area:inst}
+#p-diag .lx-net{grid-area:net}
+#p-diag .lx-crash{grid-area:crash}
+#p-diag .lx-log{grid-area:log}
+
+/* the checks: problems first; a round status mark, the value below the name */
+#p-diag .hc{position:relative;gap:16px;padding:14px 14px;border:0;border-radius:14px;transition:background .2s}
+#p-diag .hc+.hc::before{content:'';position:absolute;left:66px;right:14px;top:0;height:1px;background:var(--line);transition:opacity .2s}
+#p-diag .hc:hover{background:rgba(255,255,255,.028)}
+#p-diag .hc:hover::before,#p-diag .hc:hover+.hc::before{opacity:0}
+#p-diag .hc .st{width:36px;height:36px;border-radius:50%;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+#p-diag .hc .st svg.i{width:16px;height:16px}
+#p-diag .hc .st.ok{background:rgba(95,212,163,.09);color:var(--good)}
+#p-diag .hc .st.warn{background:rgba(242,196,107,.1);color:var(--warn)}
+#p-diag .hc .st.bad{background:rgba(242,139,139,.11);color:var(--bad)}
+#p-diag .hc .tx b{font-size:14px;font-weight:550;letter-spacing:-.008em}
+#p-diag .hc.ok .tx b{color:#C9CED8}
+#p-diag .hc .tx p{font-size:12.5px;color:var(--mute);margin-top:3px}
+#p-diag .hc.ok .tx p{color:var(--mute)}
+#p-diag .hc:not(.ok) .tx p{color:var(--sub)}
+#p-diag .hc-ok{flex:none;font-size:12px;color:var(--mute)}
+/* fixing is a quiet button: the accent stays with the check itself */
+#p-diag .btn.o,#p-diag .btn.o:hover{color:var(--text);background:rgba(255,255,255,.055);border:0;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06),inset 0 0 0 1px rgba(255,255,255,.045),0 1px 2px rgba(0,0,0,.25)}
+#p-diag .btn.o:hover{background:rgba(255,255,255,.085)}
+#p-diag .btn.o[disabled]{opacity:.45}
+
+/* connection test: three large values as columns, the samples as a fine row of bars */
+#p-diag .lx-net{padding:20px 22px 0;display:flex;flex-direction:column}
+#p-diag #ntHost{margin-top:16px}
+#p-diag .nt-res{grid-template-columns:repeat(3,minmax(0,1fr));gap:0;margin:18px -22px 0;border-top:1px solid var(--line)}
+#p-diag .nt-res div{padding:18px 22px 0;border:0;border-radius:0;background:none;text-align:left;min-width:0}
+#p-diag .nt-res div+div{box-shadow:inset 1px 0 0 var(--line)}
+#p-diag .nt-res span{display:block;font-size:12px;color:var(--mute)}
+#p-diag .nt-res b{display:block;margin-top:14px;font-family:var(--disp);font-size:40px;font-weight:300;letter-spacing:-.05em;line-height:1;color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap}
+#p-diag .nt-res b small{font-size:14px;font-weight:400;color:var(--mute);margin-left:3px;letter-spacing:0}
+#p-diag .nt-bars{justify-content:space-between;gap:0;height:44px;margin:24px 0 0;align-items:flex-end}
+#p-diag .nt-bars i{flex:none;width:5px;border-radius:2px;background:linear-gradient(180deg,rgba(236,239,245,.62),rgba(236,239,245,.18));box-shadow:none}
+#p-diag .nt-bars i.idle{background:rgba(255,255,255,.055)}
+#p-diag .nt-bars i.lost{background:rgba(242,139,139,.55)}
+#p-diag .lx-nf{display:flex;align-items:center;gap:16px;margin:20px -22px 0;padding:14px 22px 16px;border-top:1px solid var(--line)}
+#p-diag .lx-nf .sub{flex:1;min-width:0;font-size:12.5px;color:var(--mute)}
+#p-diag .lx-nf .btn{flex:none}
+
+/* crashes: the files as two-line rows, or one calm all-clear */
+#p-diag .lx-crash{padding:20px 22px 18px;display:flex;flex-direction:column}
+#p-diag #crashList{flex:1;display:flex;flex-direction:column;justify-content:center;margin-top:10px}
+#p-diag #crashList .svc{flex-direction:column;align-items:flex-start;gap:3px;padding:11px 0;border-bottom:1px solid var(--line)}
+#p-diag #crashList .svc:last-child{border:0}
+#p-diag #crashList .nm{max-width:100%;font-family:var(--mono);font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#p-diag #crashList .cr-m{font-size:11.5px;color:var(--mute);font-variant-numeric:tabular-nums}
+#p-diag .lx-crash .lx-empty{padding:18px 8px 10px}
+
+/* the log: a sunken well with quiet monospace lines */
+#p-diag .lx-log{padding:20px 22px 22px}
+#p-diag .lx-log .row{gap:8px}
+#p-diag .logv{height:228px;margin-top:16px;padding:14px 16px;border:0;border-radius:14px;background:var(--well);box-shadow:var(--well-edge);
+  font-size:11.5px;line-height:1.7;color:var(--sub)}
+#p-diag .logv .e{color:var(--bad)}
+#p-diag .logv .w{color:var(--warn)}
+
+/* =====================================================================
+   EINSTELLUNGEN
+   ===================================================================== */
+/* the account sits on top of the section list (like an account in a system settings window), the content beside it */
+#p-settings .sgrid{grid-template-columns:252px minmax(0,1fr);gap:24px;align-items:start}
+#p-settings .sside{position:sticky;top:24px;display:flex;flex-direction:column;gap:14px;min-width:0}
+#p-settings .sprof{display:block;margin:0;padding:18px;background:var(--plat)}
+#p-settings .sp-top{display:flex;align-items:center;gap:12px}
+#p-settings .sp-av{width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.05);color:var(--sub);box-shadow:var(--edge)}
+#p-settings .sp-av.adm{background:rgba(var(--a-rgb),.12);color:var(--a);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),inset 0 0 0 1px rgba(var(--a-rgb),.16)}
+#p-settings .sp-av svg.i{width:20px;height:20px}
+#p-settings .sp-tx{min-width:0}
+#p-settings .sp-tx b{font-family:var(--disp);font-size:15px;font-weight:580;letter-spacing:-.015em}
+#p-settings .sp-tx p{font-size:12px;line-height:1.4;color:var(--mute);margin-top:2px}
+#p-settings .sp-ms{display:grid;grid-template-columns:1fr 1fr;margin:18px -18px -18px;border-top:1px solid var(--line)}
+#p-settings .sp-m{min-width:0;padding:12px 18px 14px;border:0}
+#p-settings .sp-m+.sp-m{box-shadow:inset 1px 0 0 var(--line)}
+#p-settings .sp-m span{font-size:11.5px;color:var(--mute)}
+#p-settings .sp-m b{display:block;margin-top:2px;font-family:var(--disp);font-size:15px;font-weight:450;letter-spacing:-.012em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* section list: no box, the chosen one raised and neutral */
+#p-settings .snav{position:static;gap:2px;padding:0;border:0;border-radius:0;background:none;box-shadow:none}
+#p-settings .snav .tab{height:auto;padding:9px 12px;gap:12px;border-radius:12px;background:none;box-shadow:none;transition:background .25s,color .25s}
+#p-settings .snav .tab:hover{background:rgba(255,255,255,.025)}
+#p-settings .snav .tab>svg.i{width:18px;height:18px;color:var(--mute)}
+#p-settings .snav .tab span{font-size:13.5px;font-weight:500;letter-spacing:-.005em;color:var(--sub)}
+#p-settings .snav .tab small{font-size:11.5px;font-weight:400;color:var(--mute);margin-top:1px;letter-spacing:0}
+#p-settings .snav .tab.on{background:linear-gradient(180deg,rgba(255,255,255,.075),rgba(255,255,255,.045));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 1px 2px rgba(0,0,0,.35),0 8px 18px -12px rgba(0,0,0,.8)}
+#p-settings .snav .tab.on span{color:var(--text)}
+#p-settings .snav .tab.on>svg.i{color:var(--a)}
+#p-settings .snav .tab em.c{padding:2px 8px;font-size:10.5px;font-weight:600;letter-spacing:.01em;background:rgba(var(--a-rgb),.13);color:var(--a)}
+#p-settings .snav .tab em.c.hidden{display:none}
+
+/* the cards: a quiet heading, rows with hairlines */
+#p-settings .sbody .card{padding:22px}
+#p-settings .sbody .card.mt{margin-top:20px}
+#p-settings .sh{gap:12px;margin-bottom:6px;align-items:baseline}
+#p-settings .sh b{font-family:var(--disp);font-size:17px;font-weight:560;letter-spacing:-.018em}
+#p-settings .sh .sub{font-size:12.5px!important;color:var(--mute);text-align:right}
+#p-settings .srow{gap:16px;padding:16px 0;border-bottom:1px solid var(--line)}
+#p-settings .srow:last-child,#p-settings .srow:has(+ .hidden:last-child){border-bottom:0}
+#p-settings .srow b{font-size:14px;font-weight:550;letter-spacing:-.008em}
+#p-settings .srow p{font-size:12.5px;line-height:1.45;color:var(--sub);margin-top:3px}
+#p-settings .slink:hover b{color:var(--text)}
+#p-settings .slink .ch{width:16px;height:16px;color:var(--mute)}
+#p-settings p.sub{font-size:13px!important;line-height:1.55!important;color:var(--sub)}
+#p-settings .muted{color:var(--mute)}
+
+/* account */
+#p-settings .acc-ok{gap:14px;margin:10px 0 4px;padding:16px 18px;border:0;border-radius:16px;background:rgba(95,212,163,.055);box-shadow:inset 0 0 0 1px rgba(95,212,163,.13)}
+#p-settings .acc-ok>svg.i{flex:none;width:18px;height:18px;padding:10px;box-sizing:content-box;border-radius:50%;background:rgba(95,212,163,.12);color:var(--good)}
+#p-settings .acc-ok>div{min-width:0}
+#p-settings .acc-ok b{font-size:14px;font-weight:550}
+#p-settings .acc-ok p{font-size:12.5px;line-height:1.45;color:var(--sub);margin-top:2px}
+#p-settings .acc-ok .btn{flex:none}
+#p-settings #accRole{height:24px;padding:0 10px}
+#p-settings .hwid{padding:7px 12px;border-radius:10px;background:var(--well);box-shadow:var(--well-edge);font-size:12.5px;letter-spacing:.02em;color:var(--sub);user-select:text}
+#p-settings .srow .ib{flex:none;width:32px;height:32px;margin-left:-8px}
+#p-settings .acc-login{max-width:none;margin-top:16px;gap:10px}
+#p-settings .acc-login .in{height:44px;font-size:14px;letter-spacing:.06em}
+#p-settings .acc-login .in::placeholder{letter-spacing:.06em}
+#p-settings .acc-login .btn{height:44px;padding:0 20px}
+#p-settings .warnline{color:var(--warn);font-size:12.5px}
+
+/* colours: solid accents with light from above, the chosen one ringed in white */
+#p-settings .themes{display:grid;grid-template-columns:repeat(auto-fill,minmax(66px,1fr));gap:18px 6px;margin-top:14px}
+#p-settings .sw{gap:9px;font-size:12px;font-weight:450;color:var(--mute);transition:color .25s}
+#p-settings .sw:hover{color:var(--sub)}
+#p-settings .sw i{width:40px;height:40px;border-radius:50%;
+  background:linear-gradient(180deg,rgba(255,255,255,.24),rgba(255,255,255,0) 56%),linear-gradient(140deg,var(--sa,#888) 46%,var(--sb,var(--sa,#888)));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.34),inset 0 0 0 1px rgba(0,0,0,.14),0 1px 2px rgba(0,0,0,.45),0 8px 16px -10px rgba(0,0,0,.9);
+  outline:1.5px solid transparent;outline-offset:3px;transition:transform .35s var(--ease),outline-color .25s}
+#p-settings .sw:hover i{transform:scale(1.06)}
+#p-settings .sw.on{color:var(--text);font-weight:500}
+#p-settings .sw.on i{outline-color:rgba(255,255,255,.85);box-shadow:inset 0 1px 0 rgba(255,255,255,.34),inset 0 0 0 1px rgba(0,0,0,.14),0 1px 2px rgba(0,0,0,.45),0 8px 16px -10px rgba(0,0,0,.9)}
+#p-settings .scn-h{margin-top:26px;padding-top:22px;border-top:1px solid var(--line)}
+#p-settings .scn{gap:12px;margin-top:12px}
+#p-settings .scn-c{gap:14px;padding:10px;border:0;border-radius:16px;background:rgba(255,255,255,.02);box-shadow:inset 0 0 0 1px rgba(196,210,255,.05);transition:background .25s,box-shadow .25s}
+#p-settings .scn-c:hover{transform:none;background:rgba(255,255,255,.035)}
+#p-settings .scn-c.on{background:var(--plat);box-shadow:var(--edge),inset 0 0 0 1px rgba(255,255,255,.08),var(--lift)}
+#p-settings .scn-c i{width:84px;height:52px;border:0;border-radius:11px;box-shadow:inset 0 1px 0 rgba(255,255,255,.12),inset 0 0 0 1px rgba(255,255,255,.05)}
+#p-settings .scn-c b{font-size:14px;font-weight:550;letter-spacing:-.008em}
+#p-settings .scn-c small{font-size:12.5px;color:var(--mute);margin-top:3px}
+#p-settings .scn-ck{right:14px;top:50%;margin-top:-8px;color:var(--text)}
+#p-settings #fxRow{margin-top:8px}
+
+/* backgrounds: pictures first, the name below; the chosen one ringed in white */
+#p-settings .bg-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:22px 16px;margin-top:18px}
+#p-settings .bgc{display:flex;flex-direction:column;gap:10px;aspect-ratio:auto;border:0;border-radius:0;background:none;overflow:visible;text-align:left;transition:none}
+#p-settings .bgc:hover{transform:none}
+#p-settings .bgc img{width:100%;height:auto;aspect-ratio:16/9;object-fit:cover;border-radius:14px;background:#0C1018;
+  box-shadow:0 1px 2px rgba(0,0,0,.4),0 12px 26px -16px rgba(0,0,0,.9);transition:opacity .4s,transform .35s var(--ease)}
+#p-settings .bgc::before{content:'';position:absolute;left:0;right:0;top:0;aspect-ratio:16/9;border-radius:14px;z-index:2;pointer-events:none;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.1),inset 0 0 0 1px rgba(255,255,255,.05);outline:2px solid transparent;outline-offset:3px;transition:outline-color .25s,transform .35s var(--ease)}
+#p-settings .bgc:hover img,#p-settings .bgc:hover::before{transform:translateY(-2px)}
+#p-settings .bgc.on{border:0;box-shadow:none}
+#p-settings .bgc.on::before{outline-color:rgba(255,255,255,.85)}
+#p-settings .bgc span{position:static;padding:0 2px;border-radius:0;background:none;font-size:13px;font-weight:500;letter-spacing:-.005em;color:var(--sub)}
+#p-settings .bgc.on span{color:var(--text)}
+#p-settings .bgc.auto img{filter:blur(2px) brightness(.4) saturate(.5);transform:none}
+#p-settings .bgc.auto:hover img{transform:translateY(-2px)}
+#p-settings .bgc.auto em{inset:0 0 auto 0;aspect-ratio:16/9;padding:0;gap:6px;z-index:1;border-radius:14px;overflow:hidden;transition:transform .35s var(--ease)}
+#p-settings .bgc.auto:hover em{transform:translateY(-2px)}
+#p-settings .bgc.auto em svg.i{width:18px;height:18px;color:var(--text)}
+#p-settings .bgc.auto em small{font-size:12px;color:rgba(236,239,245,.75)}
+#p-settings #st-design p.muted{font-size:12px!important;margin-top:20px!important}
+
+/* Discord: the setup steps in a well with numbered marks, the live state as one quiet line */
+#p-settings .dc-guide{margin:12px 0 4px;padding:18px 20px;border:0;border-radius:16px;background:var(--well);box-shadow:var(--well-edge);font-size:13px;color:var(--sub);line-height:1.55}
+#p-settings .dc-guide>b{font-size:14px;font-weight:550}
+#p-settings .dc-guide>span{font-size:12px;color:var(--mute);margin-top:2px}
+#p-settings .dc-guide ol{list-style:none;counter-reset:dc;margin:16px 0 0;padding:0;gap:12px}
+#p-settings .dc-guide li{position:relative;padding-left:34px;counter-increment:dc}
+#p-settings .dc-guide li::before{content:counter(dc);position:absolute;left:0;top:0;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;
+  background:rgba(255,255,255,.07);box-shadow:inset 0 1px 0 rgba(255,255,255,.07);font:600 11.5px/1 var(--disp);color:var(--text)}
+#p-settings .dc-guide li b{font-weight:550}
+#p-settings .dc-id .in{height:38px;max-width:300px}
+#p-settings .dc-id .btn{height:38px}
+#p-settings .dc-live{gap:12px;margin-top:14px;padding:13px 16px;border-radius:14px;background:rgba(255,255,255,.025);box-shadow:inset 0 0 0 1px rgba(196,210,255,.05);font-size:13px;font-weight:500;color:var(--text)}
+#p-settings .dc-live>i{margin-top:6px;width:7px;height:7px}
+#p-settings .dc-live.g>i{box-shadow:0 0 0 3px rgba(95,212,163,.14)}
+#p-settings .dc-live small{font-size:12px;color:var(--mute);margin-top:3px}
+#p-settings .dc-note{font-size:12px!important;line-height:1.55;margin-top:14px;color:var(--mute)}
+#p-settings .dc-note b{font-weight:550;color:var(--sub)}
+#p-settings .dc-need{font-size:12.5px;font-weight:500;margin:10px 0 0}
+
+/* updates: the version as a large quiet number, a waiting update in a well */
+#p-settings .supd{gap:18px}
+#p-settings .su-ic{width:52px;height:52px;border-radius:16px;background:rgba(var(--a-rgb),.12);color:var(--a);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),inset 0 0 0 1px rgba(var(--a-rgb),.16)}
+#p-settings .su-ic svg.i{width:22px;height:22px}
+#p-settings .su-v{font-family:var(--disp);font-size:34px;font-weight:300;letter-spacing:-.045em;line-height:1.05;font-variant-numeric:tabular-nums}
+#p-settings #updTxt{display:block;margin-top:4px;font-size:13px;color:var(--sub)}
+#p-settings .updnote{margin-top:20px;padding:18px 20px;border:0;border-radius:16px;background:var(--well);box-shadow:var(--well-edge)}
+#p-settings .updnote b{font-family:var(--disp);font-size:15.5px;font-weight:580;letter-spacing:-.015em}
+#p-settings .updnote .chip{height:22px}
+#p-settings .changes{margin-top:12px;font-size:13px;line-height:1.5;color:var(--sub)}
+#p-settings .changes li{padding:4px 0 4px 18px}
+#p-settings .changes li::before{left:3px;top:12px;width:5px;height:5px;background:rgba(255,255,255,.28)}
+#p-settings #updMeter{height:3px;border-radius:3px}
+#p-settings #updMeter i{border-radius:3px;background:var(--a);box-shadow:none}
+
+/* safety: one list of actions, round marks, the risky one in red */
+#p-settings .slinks{margin:4px -10px -8px}
+#p-settings .slinks button{position:relative;gap:16px;margin:0;padding:14px 12px;border-radius:14px;transition:background .2s}
+#p-settings .slinks button+button{border-top:0}
+#p-settings .slinks button+button::before{content:'';position:absolute;left:66px;right:12px;top:0;height:1px;background:var(--line);transition:opacity .2s}
+#p-settings .slinks button:hover{background:rgba(255,255,255,.028)}
+#p-settings .slinks button:hover::before,#p-settings .slinks button:hover+button::before{opacity:0}
+#p-settings .slinks .qi{width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.05);color:var(--sub);box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+#p-settings .slinks .qi svg.i{width:17px;height:17px}
+#p-settings .slinks b{font-size:14px;font-weight:550;letter-spacing:-.008em}
+#p-settings .slinks small{font-size:12.5px;color:var(--sub);margin-top:2px}
+#p-settings .slinks button.bad .qi{background:rgba(242,139,139,.1);color:var(--bad)}
+#p-settings .slinks button.bad b{color:#F0A3A3}
+
+/* about */
+#p-settings #st-about code{font-family:var(--mono);font-size:12px;padding:2px 7px;border-radius:7px;background:var(--well);color:var(--text)}
+#p-settings .xnote{gap:14px;margin-top:18px;padding:16px 18px;border:0;border-radius:16px;background:rgba(242,196,107,.05);box-shadow:inset 0 0 0 1px rgba(242,196,107,.13);font-size:13px;line-height:1.55}
+#p-settings .xnote>svg.i{width:17px;height:17px;margin-top:1px}
+#p-settings .xnote b{font-weight:550}
+
+/* =====================================================================
+   ADMIN
+   ===================================================================== */
+#p-admin #admTabs{margin-bottom:20px}
+#p-admin #admTabs .tab{padding:0 18px}
+#p-admin .tab .c{margin-left:8px;padding:1px 7px;font-size:11px;font-weight:550;background:rgba(255,255,255,.08);color:var(--sub)}
+#p-admin .tab.on .c{background:rgba(var(--a-rgb),.14);color:var(--a)}
+#p-admin .sh{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+#p-admin .sh b{margin-right:0;font-family:var(--disp);font-size:17px;font-weight:560;letter-spacing:-.018em}
+#p-admin .sh>.sub{font-size:12.5px;color:var(--mute);margin-left:auto}
+#p-admin .sh .chip{height:22px;padding:0 8px;font-variant-numeric:tabular-nums}
+
+/* new key: two choices on top, the note, the count and the one accent action below */
+#p-admin .lx-admnew{padding:22px 22px 24px}
+#p-admin .adm-form{gap:20px 14px;margin-top:18px}
+#p-admin .adm-form>.af:nth-child(1){margin-right:18px}
+#p-admin .af{gap:8px}
+#p-admin .af>span{font-size:12.5px;font-weight:500;color:var(--sub)}
+#p-admin .af small{font-size:12px;color:var(--mute)}
+#p-admin .af-go{height:40px;padding:0 20px}
+#p-admin .af-num .in{text-align:center;font-variant-numeric:tabular-nums}
+#p-admin .adm-code{gap:20px;margin-top:20px;padding:18px 20px;border:0;border-radius:16px;background:var(--well);box-shadow:var(--well-edge)}
+#p-admin .adm-code .ac-k{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--sub);margin-bottom:10px}
+#p-admin .adm-code .ac-k svg.i{width:15px;height:15px;color:var(--good)}
+#p-admin .adm-code code{margin-top:0;font-family:var(--mono);font-size:17px;font-weight:500;letter-spacing:.07em;line-height:1.6;color:var(--text)}
+#p-admin .adm-code code+code{margin-top:0}
+#p-admin .adm-code .btn{flex:none}
+
+/* all codes: a calm table with a quiet head row */
+#p-admin .lx-admlist{padding:20px 22px 14px}
+#p-admin #admCodes,#p-admin #admMods{margin-top:10px}
+/* only fixed or fixed-minimum tracks: every row is its own grid and must come out with the same columns */
+#p-admin .crow2{position:relative;grid-template-columns:minmax(140px,150px) 28px 70px minmax(104px,124px) minmax(64px,1fr) minmax(150px,226px) 164px;gap:10px;
+  margin:0 -12px;padding:13px 12px;border:0;border-radius:12px;transition:background .2s}
+#p-admin .crow2+.crow2::before{content:'';position:absolute;left:12px;right:12px;top:0;height:1px;background:var(--line);transition:opacity .2s}
+#p-admin .crow2:not(.crh):hover{background:rgba(255,255,255,.028)}
+#p-admin .crow2:not(.crh):hover::before,#p-admin .crow2:not(.crh):hover+.crow2::before{opacity:0}
+#p-admin .crow2.crh{padding:4px 12px 10px;font-size:12px;color:var(--mute)}
+#p-admin .crow2.off{opacity:.5}
+#p-admin .crow2 .cc{font-size:12.5px;letter-spacing:.03em;color:var(--text)}
+#p-admin .crow2 .ib{width:28px;height:28px;border-radius:8px;background:transparent;box-shadow:none;color:var(--mute)}
+#p-admin .crow2 .ib:hover{background:rgba(255,255,255,.06);color:var(--text)}
+#p-admin .crow2 .ib svg.i{width:14px;height:14px}
+#p-admin .crow2 .chip{height:22px;padding:0 9px}
+#p-admin .crow2 .cn{font-size:13px;color:var(--text)}
+#p-admin .crow2 .cs{gap:4px}
+#p-admin .crow2 .cs small{font-size:12px;color:var(--mute)}
+#p-admin .crow2 .c-act{gap:6px}
+
+/* submissions: picture-first cards, the one accent action is approving */
+#p-admin .lib-grid{grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px}
+#p-admin .lcard{padding:10px;border:0;border-radius:20px;background:var(--plat);box-shadow:var(--edge),var(--lift)}
+#p-admin .lcard:hover{transform:none;box-shadow:var(--edge),inset 0 0 0 1px rgba(255,255,255,.04),var(--lift)}
+#p-admin .lthumb{position:relative;height:150px;border-radius:14px;box-shadow:0 1px 2px rgba(0,0,0,.4)}
+#p-admin .lthumb::after{content:'';position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 1px 0 rgba(255,255,255,.1),inset 0 0 0 1px rgba(255,255,255,.05)}
+#p-admin .lcard:hover .lthumb{transform:none}
+#p-admin .lbody{padding:14px 8px 6px;background:none}
+#p-admin .lbody b{font-family:var(--disp);font-size:15.5px;font-weight:580;letter-spacing:-.015em}
+#p-admin .lby{font-size:12px;color:var(--mute);margin-top:3px}
+#p-admin .lbody p{font-size:13px;color:var(--sub);margin-top:8px;flex:none}
+#p-admin .lurl{display:block;margin-top:12px;padding:8px 10px;border-radius:10px;background:var(--well);box-shadow:var(--well-edge);
+  font-size:11.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#p-admin .lact{margin-top:16px;gap:8px}
+#p-admin .lact .btn{height:34px;padding:0 14px}
+
+/* server mods: rows with a small picture */
+#p-admin .adm-mod{position:relative;gap:14px;margin:0 -12px;padding:12px;border:0;border-radius:14px;transition:background .2s}
+#p-admin .adm-mod+.adm-mod::before{content:'';position:absolute;left:70px;right:12px;top:0;height:1px;background:var(--line)}
+#p-admin .adm-mod:hover{background:rgba(255,255,255,.028)}
+#p-admin .am-th{width:44px;height:44px;border:0;border-radius:12px;box-shadow:inset 0 1px 0 rgba(255,255,255,.1),0 1px 2px rgba(0,0,0,.4)}
+#p-admin .adm-mod .tx b{font-size:14px;font-weight:550;letter-spacing:-.008em}
+#p-admin .adm-mod .tx p{font-size:12.5px;color:var(--mute);margin-top:2px}
+#p-admin .adm-mod .ib{width:32px;height:32px}
+#p-admin #adm-pending>.lib-grid>.lx-empty,#p-admin #admMods>.lx-empty,#p-admin #admCodes>.lx-empty{padding:40px 16px}
+#p-admin #adm-pending>.lib-grid>.lx-empty{border-radius:20px;background:rgba(255,255,255,.015);box-shadow:inset 0 0 0 1px rgba(196,210,255,.05)}
+
+/* =====================================================================
+   NARROW WINDOWS
+   ===================================================================== */
+@media (max-width:1100px){
+  #p-cleaner .cgrid{grid-template-columns:1fr}
+  #p-diag .dgrid{grid-template-columns:1fr;grid-template-areas:"inst" "chk" "net" "crash" "log"}
+  #p-settings .sgrid{grid-template-columns:1fr}
+  #p-settings .sside{position:static}
+  #p-settings .snav{flex-direction:row;flex-wrap:wrap}
+  #p-settings .snav .tab small{display:none}
+  #p-admin .adm-form{grid-template-columns:1fr 1fr;grid-template-areas:"role days" "note note" "num go"}
+  #p-admin .crow2{grid-template-columns:150px 28px 72px minmax(50px,1fr) 150px 164px}
+  #p-admin .crow2 .c-plan,#p-admin .crow2.crh span:nth-child(4){display:none}
+}

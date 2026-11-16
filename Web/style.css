@@ -318,7 +318,7 @@ input[type=range]::-webkit-slider-thumb:hover{box-shadow:0 0 0 7px rgba(var(--a-
 .gc .seg button{height:26px;padding:0 9px;font-size:11.5px}
 .gc .rng{display:flex;align-items:center;gap:10px;width:220px}
 .gc .rng b{font-family:var(--disp);width:38px;text-align:right;font-weight:600}
-.savebar{position:sticky;bottom:-26px;margin:16px -30px -26px;padding:14px 30px;display:flex;align-items:center;gap:10px;background:rgba(10,10,11,.8);backdrop-filter:blur(16px);border-top:1px solid var(--line)}
+.savebar{position:sticky;bottom:-26px;margin:16px -30px -26px;padding:14px 30px;display:flex;align-items:center;gap:10px;background:rgba(10,10,11,.8);border-top:1px solid var(--line)}
 .savebar .sp{flex:1;font-size:12px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* ============ INPUT LAB ============ */
@@ -376,7 +376,7 @@ input[type=range]::-webkit-slider-thumb:hover{box-shadow:0 0 0 7px rgba(var(--a-
 .sc-day{--glow:.8;--s1:#4F8FD6;--s2:#A9CDEB;--s3:#E7D9C2;--sun:#FFF6D8;--hill:#8FA2A8;--far:#9AA9B5;--city:#6E7D8C;--win:#DDE6EE;--wino:.25;--ground:#6F6A5E;--road:#3C3D40;--road2:#5A5B5D;--curb:#9B968A;--lane:#E8E2C8;--palm:#2F3A26;--ped:#1C1E22;--map:#7E9C6B;--mapr:#D8D3C4}
 .sc-dusk{--glow:1;--s1:#3A3F7A;--s2:#E0835A;--s3:#F6C27A;--sun:#FFD08A;--hill:#5B4A5E;--far:#6A4F5C;--city:#3A3047;--win:#FFD27A;--wino:.55;--ground:#3D3236;--road:#26232A;--road2:#3B3440;--curb:#7A6A66;--lane:#E6C98E;--palm:#1B1520;--ped:#120F15;--map:#5E7457;--mapr:#C9BFAE}
 .sc-night{--glow:.35;--s1:#05070F;--s2:#121A33;--s3:#2A2B45;--sun:#E8EEFF;--hill:#151A2B;--far:#1A2036;--city:#0E1220;--win:#FFD77A;--wino:.9;--ground:#14151C;--road:#0D0E13;--road2:#1B1C24;--curb:#3A3B46;--lane:#9C9682;--palm:#05060A;--ped:#050608;--map:#2F4030;--mapr:#7E8577}
-.xzoom{position:absolute;right:12px;bottom:12px;z-index:3;width:104px;height:104px;border-radius:12px;background:rgba(0,0,0,.35);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);display:grid;place-items:center;z-index:2}
+.xzoom{position:absolute;right:12px;bottom:12px;z-index:3;width:104px;height:104px;border-radius:12px;background:rgba(0,0,0,.62);border:1px solid rgba(255,255,255,.12);display:grid;place-items:center;z-index:2}
 .xzoom canvas{width:96px;height:96px;image-rendering:pixelated}
 .xzoom span{position:absolute;left:8px;top:6px;font-size:10px;font-weight:600;color:rgba(255,255,255,.7)}
 .xpresets{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:10px}
@@ -540,7 +540,7 @@ input[type=range]::-webkit-slider-thumb:hover{box-shadow:0 0 0 7px rgba(var(--a-
 
 /* ============ TOAST ============ */
 #toasts{position:fixed;right:24px;bottom:24px;z-index:60;display:flex;flex-direction:column;gap:10px;align-items:flex-end}
-.toast{display:flex;gap:12px;align-items:center;width:360px;padding:12px 16px 12px 12px;border-radius:16px;background:rgba(28,28,32,.82);backdrop-filter:blur(20px);
+.toast{display:flex;gap:12px;align-items:center;width:360px;padding:12px 16px 12px 12px;border-radius:16px;background:rgba(28,28,32,.96);
   border:1px solid var(--line2);box-shadow:0 20px 50px -14px rgba(0,0,0,.8);animation:tin .5s var(--spring)}
 .toast.out{animation:tout .3s var(--ease) forwards}
 .toast .ti{width:32px;height:32px;border-radius:11px;background:var(--grad);display:grid;place-items:center;flex:none}
@@ -553,7 +553,7 @@ input[type=range]::-webkit-slider-thumb:hover{box-shadow:0 0 0 7px rgba(var(--a-
 @keyframes tout{to{opacity:0;transform:translateY(10px) scale(.96)}}
 
 /* ============ MODAL ============ */
-.modal{position:fixed;inset:0;z-index:70;background:rgba(5,5,6,.6);backdrop-filter:blur(10px);display:none;place-items:center}
+.modal{position:fixed;inset:0;z-index:70;background:rgba(5,5,6,.78);display:none;place-items:center}
 .modal.show{display:grid;animation:fade .35s var(--ease)}
 @keyframes fade{from{opacity:0}}
 .mbox{width:560px;padding:32px;border-radius:24px;text-align:center;animation:pop .55s var(--spring);background:linear-gradient(180deg,rgba(var(--a-rgb),.06),transparent 40%),var(--card)}
@@ -689,8 +689,8 @@ input[type=range]::-webkit-slider-thumb:hover{box-shadow:0 0 0 7px rgba(var(--a-
 @keyframes barIn{from{transform:scaleY(0);transform-origin:bottom}}
 
 /* ============ 2.9.0 ============ */
-.bn-chip{display:inline-flex;align-items:center;height:28px;padding:0 12px;border-radius:99px;font-size:12px;font-weight:600;color:#fff;background:rgba(10,10,12,.62);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.14)}
-.bn-edit{position:absolute;right:16px;bottom:14px;z-index:1;display:flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:99px;font-size:11.5px;font-weight:600;color:#E4E4E7;background:rgba(10,10,12,.55);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.12);opacity:0;transition:opacity .3s}
+.bn-chip{display:inline-flex;align-items:center;height:28px;padding:0 12px;border-radius:99px;font-size:12px;font-weight:600;color:#fff;background:rgba(10,10,12,.62);border:1px solid rgba(255,255,255,.14)}
+.bn-edit{position:absolute;right:16px;bottom:14px;z-index:1;display:flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:99px;font-size:11.5px;font-weight:600;color:#E4E4E7;background:rgba(10,10,12,.55);border:1px solid rgba(255,255,255,.12);opacity:0;transition:opacity .3s}
 .banner:hover .bn-edit{opacity:1}
 .bn-edit svg.i{width:13px;height:13px}
 .own-bg{position:absolute;inset:-4%;background:center/cover no-repeat;animation:pan 40s ease-in-out infinite alternate}
@@ -812,7 +812,7 @@ select.sel{width:auto;height:30px;padding:0 8px;font-size:12px;border-radius:9px
 .lthumb{height:132px;background:center/cover no-repeat;transition:transform .6s var(--ease)}
 .lcard:hover .lthumb{transform:scale(1.05)}
 .ltop{position:absolute;left:10px;right:10px;top:10px;display:flex;gap:6px;justify-content:space-between}
-.lcat{display:flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:99px;font-size:11px;font-weight:600;background:rgba(10,10,12,.7);backdrop-filter:blur(8px);color:#fff}
+.lcat{display:flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:99px;font-size:11px;font-weight:600;background:rgba(10,10,12,.78);color:#fff}
 .lcat svg.i{width:12px;height:12px;color:var(--a)}
 .lhot{height:24px;padding:0 9px;border-radius:99px;font-size:11px;font-weight:700;background:var(--grad);color:var(--on);display:flex;align-items:center}
 .lbody{padding:12px 14px 14px;display:flex;flex-direction:column;flex:1;position:relative;background:var(--card)}
@@ -878,7 +878,7 @@ select.sel{width:auto;height:30px;padding:0 8px;font-size:12px;border-radius:9px
 .lk-bar button:hover{background:rgba(255,255,255,.07);color:#fff}
 .lk-bar button.x:hover{background:#E81123}
 .lk-bar svg.i{width:15px;height:15px}
-.lk-card{position:relative;z-index:1;width:520px;padding:40px 40px 26px;border-radius:26px;text-align:center;background:linear-gradient(180deg,rgba(28,28,32,.78),rgba(16,16,19,.82));backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,.1);box-shadow:0 40px 90px -30px rgba(0,0,0,.9),0 0 0 1px rgba(var(--a-rgb),.08) inset;animation:lkIn .9s var(--spring) both}
+.lk-card{position:relative;z-index:1;width:520px;padding:40px 40px 26px;border-radius:26px;text-align:center;background:linear-gradient(180deg,rgba(28,28,32,.78),rgba(16,16,19,.82));border:1px solid rgba(255,255,255,.1);box-shadow:0 40px 90px -30px rgba(0,0,0,.9),0 0 0 1px rgba(var(--a-rgb),.08) inset;animation:lkIn .9s var(--spring) both}
 @keyframes lkIn{from{opacity:0;transform:translateY(30px) scale(.92);filter:blur(8px)}}
 .lk-card.shake{animation:shake .5s cubic-bezier(.36,.07,.19,.97)}
 @keyframes shake{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}30%,50%,70%{transform:translateX(-8px)}40%,60%{transform:translateX(8px)}}
@@ -1270,7 +1270,7 @@ input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.18);box-shadow:0
 .mg-wrap{display:grid;grid-template-columns:1fr 230px;gap:16px;height:calc(100% - 120px);min-height:420px}
 .mg-stage{padding:0;overflow:hidden;cursor:crosshair;min-height:420px}
 .mg-stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
-.mg-over{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;background:rgba(10,10,11,.55);backdrop-filter:blur(6px);transition:opacity .35s;cursor:default}
+.mg-over{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;background:rgba(10,10,11,.72);transition:opacity .35s;cursor:default}
 .mg-over.off{opacity:0;pointer-events:none}
 .mg-over h2{font-size:26px}
 .mg-over p{color:var(--sub);max-width:340px;line-height:1.5}
@@ -1348,7 +1348,7 @@ input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.18);box-shadow:0
 .sp-logo{filter:drop-shadow(0 0 26px rgba(var(--a-rgb),.8))}
 .sp-name{text-shadow:0 0 40px rgba(var(--a-rgb),.45)}
 .sp-bar{width:260px;box-shadow:0 0 20px -4px rgba(var(--a-rgb),.6)}
-.lk-card{backdrop-filter:blur(26px) saturate(150%);box-shadow:0 40px 90px -40px rgba(0,0,0,.95),0 0 0 1px rgba(var(--a-rgb),.14),0 0 90px -30px rgba(var(--a-rgb),.55)}
+.lk-card{box-shadow:0 40px 90px -40px rgba(0,0,0,.95),0 0 0 1px rgba(var(--a-rgb),.14),0 0 90px -30px rgba(var(--a-rgb),.55)}
 .lk-key input{transition:border-color .25s,box-shadow .3s,transform .3s var(--spring)}
 .lk-key input:focus{transform:translateY(-2px);box-shadow:0 0 0 4px rgba(var(--a-rgb),.14),0 10px 26px -10px rgba(var(--a-rgb),.9)}
 .lk-ring{filter:drop-shadow(0 0 30px rgba(var(--a-rgb),.55))}
@@ -1469,84 +1469,7 @@ html.game .fx,html.game .amb{display:none}
 .sw[data-th=winter] i::after{content:'❄';color:#0B2A4A}
 .sw[data-th=anime] i::after{content:'✿';color:#fff;text-shadow:0 1px 6px rgba(120,20,80,.45)}
 
-/* =====================================================================
-   WINTER: cold night, northern lights, frost on the cards, icicles on the banner, three layers of snow
-   ===================================================================== */
-html.th-winter{--bg:#050912;--card:#0E1420;--card2:#121A28;--raise:#17202F;--on:#06121F;--line:rgba(190,225,255,.09);--line2:rgba(190,225,255,.17);--sub:#A3B4C8;--mute:#7A8BA2}
-html.th-winter body{background:radial-gradient(1300px 640px at 72% -12%,#0E1D33,transparent 70%),radial-gradient(900px 520px at 0% 105%,#0A1428,transparent 70%),var(--bg)}
-html.th-winter .card{background:
-    radial-gradient(180px 80px at 0 0,rgba(214,238,255,.10),transparent 70%),
-    radial-gradient(140px 60px at 100% 100%,rgba(140,200,255,.05),transparent 70%),
-    linear-gradient(180deg,rgba(210,236,255,.06),transparent 50%),rgba(11,17,29,.8);
-  box-shadow:0 1px 0 rgba(235,247,255,.22) inset,0 0 0 1px rgba(180,220,255,.03) inset,0 22px 44px -34px rgba(0,0,0,.9)}
-html.th-winter .titlebar{background:rgba(5,9,17,.72)}
-html.th-winter .side{background:rgba(6,10,18,.62)}
-html.th-winter .amb i:nth-child(1){background:radial-gradient(closest-side,rgba(110,195,255,.16),transparent)}
-html.th-winter .amb i:nth-child(2){background:radial-gradient(closest-side,rgba(150,120,255,.11),transparent)}
-html.th-winter h1{text-shadow:0 0 42px rgba(150,210,255,.35)}
-/* northern lights: a soft band with fine rays, swaying slowly (behind the page) */
-.amb .aur{display:none}
-html.th-winter .amb .aur{display:block;position:absolute;left:18%;top:-150px;width:95%;height:420px;border-radius:0;opacity:.9;
-  background:repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 2px,transparent 2px 11px),
-    linear-gradient(90deg,transparent,rgba(70,255,190,.13) 18%,rgba(80,210,255,.15) 42%,rgba(150,120,255,.12) 68%,transparent 92%);
-  -webkit-mask:radial-gradient(55% 42% at 50% 52%,#000 30%,transparent 100%);mask:radial-gradient(55% 42% at 50% 52%,#000 30%,transparent 100%);
-  transform-origin:50% 0;animation:aurora 26s ease-in-out infinite alternate}
-@keyframes aurora{from{transform:translate3d(-6%,0,0) skewX(-12deg) scaleY(.85)}to{transform:translate3d(5%,10px,0) skewX(10deg) scaleY(1.12)}}
-/* banner: cold grade instead of a colour shift, frost from the right, icicles on the top edge */
-html.th-winter .bn-scene .own-bg,html.th-winter .sp-scene .own-bg{filter:saturate(.5) brightness(.9) contrast(1.05)}
-html.th-winter .sp-scene .own-bg{filter:saturate(.3) brightness(.78) contrast(1.06)}
-html.th-winter .sp-shade{background:radial-gradient(600px 400px at 50% 55%,rgba(5,9,18,.45),rgba(5,9,18,.92)),linear-gradient(180deg,rgba(120,185,255,.2),rgba(40,90,160,.22))}
-html.th-winter .bn-shade{background:
-    linear-gradient(90deg,rgba(5,9,18,.92) 0%,rgba(5,9,18,.6) 32%,rgba(40,90,150,.16) 64%,rgba(150,205,255,.16) 100%),
-    linear-gradient(0deg,rgba(5,9,18,.55),transparent 55%),
-    linear-gradient(180deg,rgba(140,200,255,.18),transparent 40%)}
-html.th-winter .banner::after{content:'';position:absolute;left:0;right:0;top:0;height:26px;z-index:1;pointer-events:none;background:var(--icicles) top left/420px 26px round no-repeat;filter:drop-shadow(0 2px 3px rgba(0,20,50,.35))}
-html.th-winter .banner{border-color:rgba(190,225,255,.18)}
-/* snow with small icicles lies on the start button */
-html.th-winter .launch{overflow:visible}
-html.th-winter .launch::before{content:'';position:absolute;left:10px;right:10px;top:-7px;height:16px;pointer-events:none;
-  background:var(--snowcap) left top/200px 16px round no-repeat;border-radius:6px 6px 0 0;filter:drop-shadow(0 1px 1.5px rgba(0,30,60,.3))}
-html.th-winter .launch .pi::after{border-color:rgba(6,18,31,.45)}
-html.th-winter .kicker::before,html.th-anime .kicker::before{width:auto;height:auto;background:none;box-shadow:none;border-radius:0;line-height:1;color:var(--a);margin-right:-2px}
-html.th-winter .kicker::before{content:'❄';font-size:12px}
-
-/* =====================================================================
-   ANIME: dusk sky over the city, sakura petals, rounded headings, screentone and manga focus lines
-   ===================================================================== */
-@font-face{font-family:'MPRounded';font-weight:800;font-display:swap;src:url(fonts/mplus-rounded.woff2) format('woff2')}
-html.th-anime{--bg:#0B0713;--card:#171022;--card2:#1C1429;--raise:#241A33;--on:#2B0A1F;--line:rgba(255,190,230,.085);--line2:rgba(255,190,230,.16);--sub:#C4B3D0;--mute:#93839F;
-  --disp:'MPRounded','Geist','Inter','Segoe UI',sans-serif}
-html.th-anime body{background:radial-gradient(1200px 640px at 82% -14%,#2B1139,transparent 70%),radial-gradient(900px 600px at -8% 110%,#121A3D,transparent 70%),var(--bg)}
-html.th-anime body::before{background-image:radial-gradient(rgba(255,200,235,.06) 1px,transparent 1.5px);background-size:22px 22px;opacity:.8}
-html.th-anime .card{background:
-    radial-gradient(240px 120px at 100% 0,rgba(255,120,190,.08),transparent 70%),
-    linear-gradient(180deg,rgba(255,225,242,.05),transparent 55%),rgba(21,13,31,.8);
-  box-shadow:0 1px 0 rgba(255,214,236,.17) inset,0 22px 44px -34px rgba(0,0,0,.9)}
-html.th-anime .titlebar{background:rgba(11,7,19,.74)}
-html.th-anime .side{background:rgba(13,8,21,.64)}
-html.th-anime .amb i:nth-child(1){background:radial-gradient(closest-side,rgba(255,110,180,.2),transparent)}
-html.th-anime .amb i:nth-child(2){background:radial-gradient(closest-side,rgba(110,150,255,.15),transparent)}
-html.th-anime .amb::before{border-color:rgba(255,150,205,.22);outline-color:rgba(255,220,240,.06)}
-html.th-anime h1{letter-spacing:-.01em;font-weight:800;text-shadow:0 0 38px rgba(255,120,190,.3)}
-html.th-anime .big,html.th-anime .gauge .mid b{font-weight:800;letter-spacing:-.02em}
-html.th-anime .kicker::before{content:'✿';font-size:13px}
-/* manga focus lines bursting out around the boost gauge (instead of the pulsing glow) */
-html.th-anime .gauge::after{inset:-40px;border-radius:50%;animation:none;opacity:1;
-  background:repeating-conic-gradient(from 3deg,rgba(255,215,240,.16) 0 .8deg,transparent .8deg 6deg);
-  -webkit-mask:radial-gradient(closest-side,transparent 85%,#000 89%,#000 95%,transparent 100%);mask:radial-gradient(closest-side,transparent 85%,#000 89%,#000 95%,transparent 100%)}
-/* screentone dots fading in from the right of the quick tiles */
-html.th-anime .qt::after{display:block;content:'';position:absolute;top:0;bottom:0;right:0;left:auto;width:46%;padding:0;opacity:.6;border-radius:inherit;pointer-events:none;
-  background:radial-gradient(rgba(255,182,220,.24) 1px,transparent 1.6px) 0 0/7px 7px;
-  -webkit-mask:linear-gradient(270deg,#000 5%,transparent);mask:linear-gradient(270deg,#000 5%,transparent);-webkit-mask-composite:source-over;mask-composite:add}
-/* banner: the painted scene, a soft shade and a title-card label */
-html.th-anime .bn-shade{background:linear-gradient(90deg,rgba(11,7,19,.86) 0%,rgba(11,7,19,.5) 34%,rgba(11,7,19,.05) 66%,transparent 100%),linear-gradient(0deg,rgba(11,7,19,.45),transparent 50%)}
-html.th-anime .banner{border-color:rgba(255,190,230,.16)}
-html.th-anime .banner::after{content:'オービット';position:absolute;right:22px;bottom:14px;transition:opacity .3s;z-index:1;writing-mode:vertical-rl;font-family:'Yu Gothic UI','Yu Gothic','Meiryo',sans-serif;font-weight:700;font-size:11.5px;letter-spacing:.32em;
-  color:rgba(255,240,248,.85);padding:10px 5px;border-radius:99px;background:rgba(20,8,26,.45);border:1px solid rgba(255,200,230,.22);text-shadow:0 0 10px rgba(255,120,190,.6)}
-html.th-anime .banner:hover::after{opacity:0}
-html.th-anime .bn-chip{background:rgba(26,10,32,.6)}
-html.th-anime .launch .pi::after{border-color:rgba(43,10,31,.45)}
-html.th-winter .launch::after{display:none}   /* its shine would show beside the button once it no longer clips */
+/* WINTER and ANIME live in luxe-themes.css */
 
 /* =====================================================================
    INPUT-LAB: what really changes movement, what only helps typing, testers

@@ -33,7 +33,6 @@ html[data-page=games] .fx,html[data-page=xhair] .fx,html[data-page=mods][data-mt
 .hero>.hstats{margin-bottom:auto}
 .hero p{min-height:0}
 .hero h3,.hero p{position:relative;z-index:1}
-html.th-anime .hero .gauge{margin-bottom:24px}   /* room for the focus lines around the gauge */
 .qt>div:last-child{min-width:0}
 .qt span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* GPU tile built like the others: value line, then the sub line at the same height */
