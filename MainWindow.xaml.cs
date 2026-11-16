@@ -405,7 +405,9 @@ public partial class MainWindow : Window
                 var sys = await Task.Run(() => new { cpu = SysInfo.CpuName, gpu = SysInfo.GpuName, os = SysInfo.OsName, ramGb = Math.Round(Native.Memory().total / 1073741824.0) });
                 Native.CpuUsage();
                 if (!_timer.IsEnabled) { _timer.Tick += Timer_Tick; _timer.Start(); }
-                return new { user = Environment.UserName, admin = Proc.IsAdmin(), version = Updater.Current.ToString(3), sys, fivem = FiveMInfo(), settings = S };
+                WebRest();   // the window may have been minimized or the game in front before the page was ready
+                // focus and game state as they are now: changes before this moment were sent before the page listened
+                return new { user = Environment.UserName, admin = Proc.IsAdmin(), version = Updater.Current.ToString(3), sys, fivem = FiveMInfo(), settings = S, focused = IsActive, game = _lastGame };
             case "settings.set":
                 var key = Str(a, "key");
                 var val = a.GetProperty("value");
@@ -1319,9 +1321,17 @@ public partial class MainWindow : Window
         return (x, d, c, pk);
     }
 
+    private int _padPending;
     private void PadToUi()
     {
-        if (DateTime.Now - _padEmit < TimeSpan.FromMilliseconds(33)) return;
+        // at most 30 updates a second; a change inside that window is sent once it has passed (see PadOverlay.OnInput)
+        var wait = TimeSpan.FromMilliseconds(33) - (DateTime.Now - _padEmit);
+        if (wait > TimeSpan.Zero)
+        {
+            if (Interlocked.Exchange(ref _padPending, 1) == 0)
+                Task.Delay(wait).ContinueWith(_ => { Volatile.Write(ref _padPending, 0); PadToUi(); });
+            return;
+        }
         _padEmit = DateTime.Now;
         Emit("pad", PadInput.State);
     }

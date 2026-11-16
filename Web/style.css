@@ -1446,7 +1446,8 @@ input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.18);box-shadow:0
    REST: while FiveM is in front or another program is being used, the page draws nothing new.
    html.rest = paused (window in the background), html.game = FiveM is in front (effect layers removed too)
    ===================================================================== */
-html.rest *,html.rest *::before,html.rest *::after{animation-play-state:paused!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+/* (the endless animations are paused from app.js restSync; short ones like toasts keep playing) */
+html.game *,html.game *::before,html.game *::after{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 html.game .fx,html.game .amb{display:none}
 
 /* =====================================================================
@@ -1501,19 +1502,20 @@ html.th-winter .amb .aur{display:block;position:absolute;left:18%;top:-150px;wid
   transform-origin:50% 0;animation:aurora 26s ease-in-out infinite alternate}
 @keyframes aurora{from{transform:translate3d(-6%,0,0) skewX(-12deg) scaleY(.85)}to{transform:translate3d(5%,10px,0) skewX(10deg) scaleY(1.12)}}
 /* banner: cold grade instead of a colour shift, frost from the right, icicles on the top edge */
-html.th-winter .own-bg{filter:saturate(.5) brightness(.9) contrast(1.05)}
+html.th-winter .bn-scene .own-bg,html.th-winter .sp-scene .own-bg{filter:saturate(.5) brightness(.9) contrast(1.05)}
 html.th-winter .bn-shade{background:
     linear-gradient(90deg,rgba(5,9,18,.92) 0%,rgba(5,9,18,.6) 32%,rgba(40,90,150,.16) 64%,rgba(150,205,255,.16) 100%),
     linear-gradient(0deg,rgba(5,9,18,.55),transparent 55%),
     linear-gradient(180deg,rgba(140,200,255,.18),transparent 40%)}
-html.th-winter .banner::after{content:'';position:absolute;left:0;right:0;top:0;height:26px;z-index:1;pointer-events:none;background:var(--icicles) top left/420px 26px repeat-x;filter:drop-shadow(0 2px 3px rgba(0,20,50,.35))}
+html.th-winter .banner::after{content:'';position:absolute;left:0;right:0;top:0;height:26px;z-index:1;pointer-events:none;background:var(--icicles) top left/420px 26px round no-repeat;filter:drop-shadow(0 2px 3px rgba(0,20,50,.35))}
 html.th-winter .banner{border-color:rgba(190,225,255,.18)}
 /* snow with small icicles lies on the start button */
 html.th-winter .launch{overflow:visible}
 html.th-winter .launch::before{content:'';position:absolute;left:10px;right:10px;top:-7px;height:16px;pointer-events:none;
-  background:var(--snowcap) left top/200px 16px repeat-x;filter:drop-shadow(0 1px 1.5px rgba(0,30,60,.3))}
+  background:var(--snowcap) left top/200px 16px round no-repeat;border-radius:6px 6px 0 0;filter:drop-shadow(0 1px 1.5px rgba(0,30,60,.3))}
 html.th-winter .launch .pi::after{border-color:rgba(6,18,31,.45)}
-html.th-winter .kicker::before{content:'❄';font-size:12px;margin-right:-2px}
+html.th-winter .kicker::before,html.th-anime .kicker::before{width:auto;height:auto;background:none;box-shadow:none;border-radius:0;line-height:1;color:var(--a);margin-right:-2px}
+html.th-winter .kicker::before{content:'❄';font-size:12px}
 
 /* =====================================================================
    ANIME: dusk sky over the city, sakura petals, rounded headings, screentone and manga focus lines
@@ -1534,7 +1536,7 @@ html.th-anime .amb i:nth-child(2){background:radial-gradient(closest-side,rgba(1
 html.th-anime .amb::before{border-color:rgba(255,150,205,.22);outline-color:rgba(255,220,240,.06)}
 html.th-anime h1{letter-spacing:-.01em;font-weight:800;text-shadow:0 0 38px rgba(255,120,190,.3)}
 html.th-anime .big,html.th-anime .gauge .mid b{font-weight:800;letter-spacing:-.02em}
-html.th-anime .kicker::before{content:'✿';font-size:13px;margin-right:-2px}
+html.th-anime .kicker::before{content:'✿';font-size:13px}
 /* manga focus lines bursting out around the boost gauge (instead of the pulsing glow) */
 html.th-anime .gauge::after{inset:-40px;border-radius:50%;animation:none;opacity:1;
   background:repeating-conic-gradient(from 3deg,rgba(255,215,240,.16) 0 .8deg,transparent .8deg 6deg);

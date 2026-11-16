@@ -144,6 +144,10 @@ internal static class PadInput
             }
             // XInput is used whenever no PlayStation pad sent data in the last second
             bool sonyLive = DateTime.Now - _sonySeen <= TimeSpan.FromSeconds(1);
+            // the PlayStation pad just went quiet: the Xbox pad (or "none") has to be published again even if its packet
+            // number did not change meanwhile, otherwise the state keeps showing the unplugged PlayStation pad
+            if (!sonyLive && _sonyWas) _xPacket = unchecked(_xPacket + 1);
+            _sonyWas = sonyLive;
             if (!sonyLive) PollXInput();
             // read fast only while an Xbox pad is really there; without one this thread just looks for a pad now and then
             Thread.Sleep(_xSlot >= 0 && !sonyLive ? 6 : 120);
@@ -154,6 +158,7 @@ internal static class PadInput
     private static int _xSlot = -1;                 // slot the Xbox pad sits in, -1 = none
     private static uint _xPacket;                   // XInput counts up on every change, same number = nothing new
     private static DateTime _xProbe = DateTime.MinValue;
+    private static bool _sonyWas;
     private static void PollXInput()
     {
         try
@@ -430,11 +435,19 @@ internal sealed class PadOverlay
             var l = PadInput.State.T == "ps" ? "ps" : "xbox";
             if (l != _view.Layout) _w?.Dispatcher.BeginInvoke(() => { _view.Layout = l; if (_view.Pack is { } pk) { _view.Width = pk.W; _view.Height = pk.H; } });
         }
-        // redraw at most ~60 fps, on the UI thread
-        if (DateTime.Now - _lastDraw < TimeSpan.FromMilliseconds(15)) return;
+        // redraw at most ~60 fps, on the UI thread. A change inside that window is drawn as soon as it has passed:
+        // the last movement (a stick springing back) must not be dropped, nothing else would redraw it
+        var wait = TimeSpan.FromMilliseconds(15) - (DateTime.Now - _lastDraw);
+        if (wait > TimeSpan.Zero)
+        {
+            if (Interlocked.Exchange(ref _drawPending, 1) == 0)
+                Task.Delay(wait).ContinueWith(_ => { Volatile.Write(ref _drawPending, 0); OnInput(); });
+            return;
+        }
         _lastDraw = DateTime.Now;
         _w?.Dispatcher.BeginInvoke(() => _view.InvalidateVisual());
     }
+    private int _drawPending;
 
     /// <summary>Called by the UI timer. In "auto" mode the input reader keeps running to notice a controller.</summary>
     public void Tick()

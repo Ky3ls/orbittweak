@@ -57,6 +57,8 @@ function applyTheme(k) {
   if (!$('.amb .aur')) $('.amb')?.insertAdjacentHTML('beforeend', '<i class="aur"></i>');
   fxStart(key);
   if (S.settings && S.settings.accent !== undefined && typeof applyBg === 'function') applyBg();   // the anime theme paints its own banner
+  if ($('#bgGrid')?.children.length) bgGrid();
+  restSync();   // newly started endless animations pause too if the page is resting
 }
 
 /* ======================= THEME EFFECTS (winter snow, anime petals and dusk scene) ======================= */
@@ -202,9 +204,16 @@ function animeScene() {
 const REST = { game: false, away: false };
 const resting = () => REST.game || REST.away || document.hidden;
 function restSync() {
-  const root = document.documentElement;
-  root.classList.toggle('rest', REST.game || REST.away);
+  const root = document.documentElement, rest = REST.game || REST.away;
+  root.classList.toggle('rest', rest);
   root.classList.toggle('game', REST.game);
+  // only the endless decorations pause. Toasts, dialogs and other short animations still play, so a message that
+  // arrives meanwhile is shown (pausing everything froze them at their invisible first frame)
+  for (const a of document.getAnimations()) {
+    if (!a.effect || a.effect.getTiming().iterations !== Infinity) continue;
+    if (rest && a.playState === 'running') { a.pause(); a._rest = true; }
+    else if (!rest && a._rest) { a._rest = false; a.play(); }
+  }
 }
 function countTo(el, to, suffix = '', dur = 700) {
   if (!el) return;
@@ -324,7 +333,7 @@ function onEvent(ev, d) {
 function setNum(el, v, suffix) { if (!el || el._v === v) return; el._v = v; el.innerHTML = Math.round(v) + suffix; }
 function stats(d) {
   S.cpuHist.push(d.cpu); if (S.cpuHist.length > 40) S.cpuHist.shift();
-  if (REST.game) return;   // FiveM covers the window: keep the history, draw nothing; the next tick after the game catches up
+  // (also while FiveM is in front: OrbitTweak may be open on a second screen; a few numbers once a second cost nothing)
   $('#tbCpu').textContent = d.cpu + '%'; $('#tbRam').textContent = d.ram + '%';
   setNum($('#mCpu'), d.cpu, '<small>%</small>');
   setNum($('#mRam'), d.ram, '<small>%</small>');
@@ -1863,7 +1872,9 @@ function xhScene(k) {
 }
 async function bgGrid() {
   const g = $('#bgGrid'), cur = LA_ALL.some(x => x[0] === S.settings.bgPreset) ? S.settings.bgPreset : 'auto';
-  g.innerHTML = LA_ALL.map(([k, n, src]) => `<button class="bgc ${cur === k ? 'on' : ''}" data-bgp="${k}"><img alt="" class="ok" src="${src || LA[timeOfDay()]}"><span>${n}</span></button>`).join('');
+  // "Automatisch" shows what it really is: the painted scene in the anime theme, otherwise the photo for the time of day
+  const auto = CUR_THEME === 'anime' ? (ANIME_BG ||= animeScene()).slice(5, -2) : LA[timeOfDay()];
+  g.innerHTML = LA_ALL.map(([k, n, src]) => `<button class="bgc ${cur === k ? 'on' : ''}" data-bgp="${k}"><img alt="" class="ok" src="${src || auto}"><span>${n}</span></button>`).join('');
 }
 document.addEventListener('click', async e => {
   const pr = e.target.closest('[data-bgp]');
@@ -2396,7 +2407,9 @@ async function boot() {
 
   const d = await api('init');
   S.settings = d.settings; S.fivem = d.fivem;
+  REST.away = d.focused === false; REST.game = !!d.game;
   applyTheme(S.settings.accent);
+  restSync();
   moveInd(); enterPage($('#p-home')); if (document.fonts) document.fonts.ready.then(moveInd);
   $('#uname').textContent = d.user;
   $('#verTxt').textContent = 'v' + d.version; $('#verCur').textContent = 'v' + d.version;
@@ -2883,7 +2896,6 @@ function liveCurve(hist, line, fill, max) {
   $(line).setAttribute('d', d); $(fill).setAttribute('d', d + ` L200,60 L${pts[0][0].toFixed(1)},60 Z`);
 }
 setInterval(() => {
-  if (REST.game) return;
   const cpu = parseFloat($('#tbCpu').textContent), ram = parseFloat($('#tbRam').textContent), ping = parseFloat($('#tbPing').textContent);
   if (!isNaN(cpu)) { $('#tbCpuP').style.setProperty('--v', cpu); $('#tbCpuP').classList.toggle('hot', cpu >= 90); }
   if (!isNaN(ram)) { $('#tbRamP').style.setProperty('--v', ram); $('#tbRamP').classList.toggle('hot', ram >= 90); LIVE.ram.push(ram); if (LIVE.ram.length > 40) LIVE.ram.shift(); }
@@ -2985,6 +2997,7 @@ const CHANGES = {
     ['gauge', 'Viel sparsamer', 'Die App zeichnet nur noch, was sich bewegt: kein Weichzeichner hinter jeder Karte, keine Dauer-Animationen. Im Spiel, im Hintergrund und minimiert ruht sie fast ganz.'],
     ['gamepad', 'Controller-Erkennung entlastet', 'Ohne Controller wird nur noch alle zwei Sekunden nachgesehen statt 160-mal pro Sekunde.'],
     ['sparkle', 'Anime-Theme', 'Abendhimmel über der Stadt mit Kirschblüten, runde Überschriften, Rasterpunkte und Fokuslinien.'],
+    ['keyboard', 'Input-Lab aufgeräumt', 'Snap Tap steht vorn, bei jeder Einstellung steht ehrlich, ob sie im Spiel wirkt. Der Tester zeigt den Stillstand beim Richtungswechsel.'],
     ['sun', 'Winter-Theme überarbeitet', 'Nordlichter, Raureif auf den Karten, Eiszapfen am Banner, Schnee in drei Ebenen. Effekte unter Einstellungen → Design abschaltbar.'],
   ],
   '2.22.0': [
