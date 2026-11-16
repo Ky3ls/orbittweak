@@ -376,7 +376,7 @@ input[type=range]::-webkit-slider-thumb:hover{box-shadow:0 0 0 7px rgba(var(--a-
 .sc-day{--glow:.8;--s1:#4F8FD6;--s2:#A9CDEB;--s3:#E7D9C2;--sun:#FFF6D8;--hill:#8FA2A8;--far:#9AA9B5;--city:#6E7D8C;--win:#DDE6EE;--wino:.25;--ground:#6F6A5E;--road:#3C3D40;--road2:#5A5B5D;--curb:#9B968A;--lane:#E8E2C8;--palm:#2F3A26;--ped:#1C1E22;--map:#7E9C6B;--mapr:#D8D3C4}
 .sc-dusk{--glow:1;--s1:#3A3F7A;--s2:#E0835A;--s3:#F6C27A;--sun:#FFD08A;--hill:#5B4A5E;--far:#6A4F5C;--city:#3A3047;--win:#FFD27A;--wino:.55;--ground:#3D3236;--road:#26232A;--road2:#3B3440;--curb:#7A6A66;--lane:#E6C98E;--palm:#1B1520;--ped:#120F15;--map:#5E7457;--mapr:#C9BFAE}
 .sc-night{--glow:.35;--s1:#05070F;--s2:#121A33;--s3:#2A2B45;--sun:#E8EEFF;--hill:#151A2B;--far:#1A2036;--city:#0E1220;--win:#FFD77A;--wino:.9;--ground:#14151C;--road:#0D0E13;--road2:#1B1C24;--curb:#3A3B46;--lane:#9C9682;--palm:#05060A;--ped:#050608;--map:#2F4030;--mapr:#7E8577}
-.xzoom{position:absolute;right:12px;bottom:12px;z-index:3;width:104px;height:104px;border-radius:12px;background:rgba(0,0,0,.35);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);display:grid;place-items:center;z-index:2}
+.xzoom{position:absolute;right:12px;bottom:12px;z-index:3;width:104px;height:104px;border-radius:12px;background:rgba(0,0,0,.62);border:1px solid rgba(255,255,255,.12);display:grid;place-items:center;z-index:2}
 .xzoom canvas{width:96px;height:96px;image-rendering:pixelated}
 .xzoom span{position:absolute;left:8px;top:6px;font-size:10px;font-weight:600;color:rgba(255,255,255,.7)}
 .xpresets{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:10px}
@@ -812,7 +812,7 @@ select.sel{width:auto;height:30px;padding:0 8px;font-size:12px;border-radius:9px
 .lthumb{height:132px;background:center/cover no-repeat;transition:transform .6s var(--ease)}
 .lcard:hover .lthumb{transform:scale(1.05)}
 .ltop{position:absolute;left:10px;right:10px;top:10px;display:flex;gap:6px;justify-content:space-between}
-.lcat{display:flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:99px;font-size:11px;font-weight:600;background:rgba(10,10,12,.7);backdrop-filter:blur(8px);color:#fff}
+.lcat{display:flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:99px;font-size:11px;font-weight:600;background:rgba(10,10,12,.78);color:#fff}
 .lcat svg.i{width:12px;height:12px;color:var(--a)}
 .lhot{height:24px;padding:0 9px;border-radius:99px;font-size:11px;font-weight:700;background:var(--grad);color:var(--on);display:flex;align-items:center}
 .lbody{padding:12px 14px 14px;display:flex;flex-direction:column;flex:1;position:relative;background:var(--card)}

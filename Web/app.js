@@ -641,6 +641,9 @@ const PRESETS = {
   cine: { n: 'Kino', d: 'Maximale Qualität für Screenshots, Clips und High-End-PCs.', fps: 1, q: 5,
     v: { TextureQuality: 2, ShadowQuality: 3, ReflectionQuality: 3, GrassQuality: 2, WaterQuality: 2, ParticleQuality: 3, ShaderQuality: 2, PostFX: 3, SSAO: 2, Tessellation: 3, MSAA: 2, FXAA_Enabled: 'true', AnisotropicFiltering: 16, Shadow_SoftShadows: 3, LodScale: 1, CityDensity: 1, MotionBlurStrength: 0 } },
 };
+const PRESET_ICO = { comp: 'zap', bal: 'sliders', cine: 'film' };
+const GFX_GROUPS = [['Anzeige & Welt', 'monitor', ['Windowed', 'LodScale', 'CityDensity', 'MotionBlurStrength']], ['Texturen & Kanten', 'layers', ['TextureQuality', 'AnisotropicFiltering', 'FXAA_Enabled', 'MSAA']],
+  ['Licht & Schatten', 'sun', ['ShadowQuality', 'Shadow_SoftShadows', 'ReflectionQuality', 'SSAO', 'ShaderQuality', 'PostFX']], ['Details', 'sparkle', ['GrassQuality', 'WaterQuality', 'ParticleQuality', 'Tessellation']]];
 const pips = n => Array.from({ length: 5 }, (_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('');
 const num = v => v === 'true' ? 1 : v === 'false' ? 0 : parseFloat(v);
 async function loadGfx() {
@@ -649,17 +652,21 @@ async function loadGfx() {
   $('#gfxState').className = 'chip ' + (S.gfx.found ? 'g' : 'r');
   $('#gfxState').textContent = S.gfx.found ? 'settings.xml gefunden' : 'settings.xml fehlt';
   $('#gfxPath').textContent = S.gfx.found ? S.gfx.path : 'GTA V settings.xml nicht gefunden. Starte GTA V oder FiveM einmal.';
-  $('#presets').innerHTML = Object.entries(PRESETS).map(([k, p]) => `<div class="card hov preset" data-pr="${k}"><div class="ck chip a">Aktiv</div><div class="pt">${p.n}</div><p>${p.d}</p><div class="meter"><span>FPS</span><div class="pips">${pips(p.fps)}</div><span>Optik</span><div class="pips">${pips(p.q)}</div></div></div>`).join('');
+  $('#presets').innerHTML = Object.entries(PRESETS).map(([k, p]) => `<div class="card hov preset" data-pr="${k}"><div class="pr-h"><span class="pr-ic">${ico(PRESET_ICO[k] || 'sliders')}</span><span class="ck">${ico('check')}Aktiv</span></div><div class="pt">${p.n}</div><p>${p.d}</p><div class="meter"><span>FPS</span><div class="pips">${pips(p.fps)}</div><span>Optik</span><div class="pips">${pips(p.q)}</div></div></div>`).join('');
   $('#presets').onclick = e => { const c = e.target.closest('[data-pr]'); if (!c) return; Object.assign(S.gfxEdit, PRESETS[c.dataset.pr].v); renderGfx(true); };
   renderGfx(false);
 }
 function renderGfx(dirty) {
   const v = S.gfxEdit;
-  $('#gctl').innerHTML = GFX.map(g => {
+  const row = g => {
     const cur = v[g.k];
     if (g.r) { const n = Math.round(parseFloat(cur ?? 1) * 100); return `<div class="gc"><div class="gn"><b>${g.n}</b><span>${g.d}</span></div><div class="rng"><input type="range" min="0" max="100" value="${n}" style="--p:${n}%" data-r="${g.k}"><b>${n}%</b></div></div>`; }
     return `<div class="gc"><div class="gn"><b>${g.n}</b><span>${g.d}</span></div><div class="seg" data-g="${g.k}">${g.o.map(([n, val]) => `<button class="${String(cur) === String(val) ? 'on' : ''}" data-v="${val}">${n}</button>`).join('')}</div></div>`;
-  }).join('');
+  };
+  // grouped like a settings app; anything not in a group still shows up at the end
+  const inG = new Set(GFX_GROUPS.flatMap(x => x[2])), rest = GFX.filter(g => !inG.has(g.k));
+  $('#gctl').innerHTML = GFX_GROUPS.concat(rest.length ? [['Weitere', 'sliders', rest.map(g => g.k)]] : []).map(([n, i, ks]) =>
+    `<div class="gcg"><div class="gcg-h">${ico(i)}<b>${n}</b></div><div class="gcg-b">${ks.map(k => GFX.find(g => g.k === k)).filter(Boolean).map(row).join('')}</div></div>`).join('');
   $('#gfxDirty').classList.toggle('hidden', !dirty);
   $$('.preset').forEach(p => { const pv = PRESETS[p.dataset.pr].v; p.classList.toggle('sel', Object.keys(pv).every(k => Math.abs(num(pv[k]) - num(v[k])) < .02)); });
 }
@@ -989,6 +996,7 @@ const XH_STYLES = [
 ];
 const XH_COLORS = ['#3DFF8B', '#FFFFFF', '#3DE0FF', '#FFE03D', '#FF3B5C', '#FF4DF0', '#FF8A3D'];
 const XH_SLIDERS = [['size', 'Länge', 1, 40], ['thick', 'Dicke', 1, 8], ['gap', 'Lücke', 0, 20], ['alpha', 'Deckkraft', 20, 100, '%'], ['oThick', 'Kontur', 0, 3], ['dotSize', 'Punkt', 1, 8], ['offsetX', 'Versatz X', -60, 60], ['offsetY', 'Versatz Y', -60, 60]];
+const XH_GROUPS = [['Maße', ['size', 'thick', 'gap', 'dotSize']], ['Kontur und Deckkraft', ['oThick', 'alpha']], ['Position', ['offsetX', 'offsetY']]];
 const XH_RULES = 'Manche FiveM-Server verbieten Fadenkreuz-Overlays. Prüfe vorher die Regeln deines Servers, die Nutzung erfolgt auf eigene Verantwortung.';
 const XH = { cfg: { ...XH_DEF }, on: false, onlyGame: false, key: 0x79, offsetX: 0, offsetY: 0 };
 
@@ -1062,8 +1070,10 @@ function xhUI() {
   $('#xhColors').innerHTML = XH_COLORS.map(c => `<button class="xcol ${XH.cfg.color.toUpperCase() === c ? 'on' : ''}" data-xc="${c}" style="background:${c}"></button>`).join('') +
     `<label class="xcustom ${custom ? 'on' : ''}" title="Eigene Farbe"><input type="color" id="xhPick" value="${XH.cfg.color}"></label>`;
   const val = k => k === 'offsetX' || k === 'offsetY' ? XH[k] : XH.cfg[k];
-  $('#xhSliders').innerHTML = `<div class="xs tgl"><span>Schwarze Kontur</span><div class="tg ${XH.cfg.outline ? 'on' : ''}" data-xb="outline"></div></div><div class="xs tgl"><span>Mittelpunkt</span><div class="tg ${XH.cfg.dot ? 'on' : ''}" data-xb="dot"></div></div>` +
-    XH_SLIDERS.map(([k, n, mi, ma, u = '']) => { const v = val(k), p = (v - mi) / (ma - mi) * 100; return `<div class="xs"><span>${n}</span><input type="range" min="${mi}" max="${ma}" value="${v}" style="--p:${p}%" data-xr="${k}"><b>${v}${u}</b></div>`; }).join('');
+  const slider = ([k, n, mi, ma, u = '']) => { const v = val(k), p = (v - mi) / (ma - mi) * 100; return `<div class="xs"><span>${n}</span><input type="range" min="${mi}" max="${ma}" value="${v}" style="--p:${p}%" data-xr="${k}"><b>${v}${u}</b></div>`; };
+  const group = (h, keys) => `<div class="xsec"><div class="xsec-h">${h}</div>${keys.map(k => XH_SLIDERS.find(x => x[0] === k)).filter(Boolean).map(slider).join('')}</div>`;
+  $('#xhSliders').innerHTML = `<div class="xsec xtgl"><div class="xs tgl"><span>Schwarze Kontur</span><div class="tg ${XH.cfg.outline ? 'on' : ''}" data-xb="outline"></div></div><div class="xs tgl"><span>Mittelpunkt</span><div class="tg ${XH.cfg.dot ? 'on' : ''}" data-xb="dot"></div></div></div>` +
+    XH_GROUPS.map(([h, keys]) => group(h, keys)).join('');
   xhState();
   xhRender();
 }
@@ -1076,6 +1086,7 @@ function xhState() {
   $('#xhKey').innerHTML = KEYS.map(([n, v]) => `<button class="${XH.key === v ? 'on' : ''}" data-xk="${v}">${n}</button>`).join('');
   const kn = KEYS.find(k => k[1] === XH.key)?.[0];
   $('#xhKeyTxt').textContent = XH.key ? `${kn} schaltet das Fadenkreuz im Spiel an und aus` : 'Keine Taste, nur hier umschaltbar';
+  const lv = $('#xhLive'); if (lv) { lv.className = 'chip' + (XH.on ? ' g' : ''); lv.textContent = XH.on ? (kn && XH.key ? `An · ${kn}` : 'An') : 'Aus'; }
 }
 function xhToggle(confirmed) {
   if (!XH.on && !S.settings.xhairAck && !confirmed) {
@@ -1131,7 +1142,7 @@ const dpFmt = (k, v) => k === 'gamma' ? (v / 100).toFixed(2).replace('.', ',') :
 const dpFilter = c => `saturate(${1 + c.vibrance / 45}) brightness(${1 + c.brightness / 70 + (c.gamma - 100) / 220}) contrast(${1 + c.contrast / 60})`;
 function dpUI() {
   const c = DP.cfg;
-  $('#dpPresets').innerHTML = Object.entries(DP_PRESETS).map(([k, [n, d, v]]) => { const on = Object.keys(v).every(x => v[x] === c[x]); return `<div class="card dpre ${on ? 'on' : ''}" data-dp="${k}"><i style="filter:${dpFilter(v)}"></i><b>${n}</b><span>${d}</span></div>`; }).join('');
+  $('#dpPresets').innerHTML = Object.entries(DP_PRESETS).map(([k, [n, d, v]]) => { const on = Object.keys(v).every(x => v[x] === c[x]); return `<button class="dpre ${on ? 'on' : ''}" data-dp="${k}"><i style="filter:${dpFilter(v)}"></i><b>${n}</b><span>${d}</span></button>`; }).join('');
   $('#dpSliders').innerHTML = DP_SL.map(([k, n, d, mi, ma]) => {
     const v = c[k], p = (v - mi) / (ma - mi) * 100, off = k === 'vibrance' && !DP.nvidia;
     return `<div class="dps ${off ? 'off' : ''}"><div class="n"><b>${n}</b><span>${off ? 'Nur mit NVIDIA-Grafikkarte' : d}</span></div><input type="range" min="${mi}" max="${ma}" value="${v}" style="--p:${p}%" data-dr="${k}" ${off ? 'disabled' : ''}><b>${dpFmt(k, v)}</b></div>`;
@@ -1171,6 +1182,14 @@ function dpPush() {
 }
 function dpToggle() { DP.cfg.on = !DP.cfg.on; dpState(); dpPush(); toast(DP.cfg.on ? 'Farbprofil an' : 'Farbprofil aus', DP.cfg.on && DP.cfg.onlyGame ? 'Wirkt, sobald FiveM im Vordergrund ist' : ''); }
 function dpReset() { Object.assign(DP.cfg, DP_PRESETS.std[2]); dpUI(); dpPush(); }
+// before and after in one picture: drag the line to compare
+document.addEventListener('pointerdown', e => {
+  const v = e.target.closest('#dpView'); if (!v || e.button) return;
+  const set = ev => { const r = v.getBoundingClientRect(); v.style.setProperty('--split', Math.max(3, Math.min(97, (ev.clientX - r.left) / r.width * 100)).toFixed(2) + '%'); };
+  set(e); v.setPointerCapture(e.pointerId); v.classList.add('drag');
+  const up = () => { v.classList.remove('drag'); v.removeEventListener('pointermove', set); v.removeEventListener('pointerup', up); v.removeEventListener('pointercancel', up); };
+  v.addEventListener('pointermove', set); v.addEventListener('pointerup', up); v.addEventListener('pointercancel', up);
+});
 async function dpUnlock() { const r = await api('display.unlock'); DP.unlocked = !!r.ok; dpState(); toast('Gamma-Bereich freigeschaltet', 'Starte den PC einmal neu'); }
 document.addEventListener('click', e => {
   const p = e.target.closest('[data-dp]'); if (p) { Object.assign(DP.cfg, DP_PRESETS[p.dataset.dp][2]); if (p.dataset.dp !== 'std') DP.cfg.on = true; dpUI(); dpPush(); return; }
@@ -1269,10 +1288,13 @@ async function loadF8() { try { Object.assign(f8Val, await api('f8.values')); } 
 /* ======================= LIVE DISPLAY MODE ======================= */
 async function gwRefresh() {
   try {
-    const g = await api('gw.info');
-    const el = $('#gwState');
-    el.className = 'chip ' + (g.found ? (g.mode === 'windowed' ? 'w' : 'g') : '');
-    el.textContent = !g.found ? 'FiveM nicht gestartet' : g.mode === 'windowed' ? `Fenster · ${g.w}×${g.h}` : g.mode === 'borderless' ? `Randlos/Vollbild · ${g.w}×${g.h}` : `Vollbild · ${g.w}×${g.h}`;
+    const g = await api('gw.info'), st = $('#gwSt');
+    // mode as a quiet value with a status dot: borderless is the goal, a window works, exclusive full screen hides overlays
+    const m = !g.found ? ['off', 'Nicht gestartet', 'FiveM läuft gerade nicht'] : g.mode === 'windowed' ? ['warn', 'Fenster', 'Mit Rand, Alt-Tab etwas langsamer']
+      : g.mode === 'borderless' ? ['ok', 'Randlos', 'Ideal für Fadenkreuz und Alt-Tab'] : ['warn', 'Vollbild', 'Overlays sind hier unsichtbar'];
+    if (st) st.dataset.st = m[0];
+    $('#gwState').textContent = m[1]; $('#gwStateS').textContent = m[2];
+    $('#gwRes').textContent = g.found && g.w ? `${g.w}×${g.h}` : '—';
     $('#gwAuto').classList.toggle('on', !!S.settings.autoBorderless);
   } catch { }
 }
@@ -1902,9 +1924,10 @@ async function modList() {
     // a mod in FiveM's own folders only loads without pure mode; sounds in the GTA folder also on pure 1
     const warn = m.broken ? `<div class="mwarn">${ico('alert')}<span>${esc(m.broken)}</span>${m.fix ? `<button class="btn sm" data-modfix="${esc(m.id)}">${ico('refresh')}Reparieren</button>` : ''}</div>`
       : m.on && lp > (m.pure || 0) ? `<div class="mwarn">${ico('alert')}<span>Dein Launcher startet FiveM mit Pure ${lp} – dieser Mod wird dann nicht geladen.</span></div>` : '';
-    return `<div class="mod ${m.broken ? 'bad' : ''}"><div class="ti mico">${ico(m.broken ? 'alert' : MOD_CATS[m.cat]?.[1] || 'puzzle')}</div><div class="tx"><b>${esc(m.name)}</b><p>${MOD_CATS[m.cat]?.[0] || 'Sonstiges'} · ${bytes(m.size)} · <span class="mwhere" title="${esc((m.paths || []).join('\n'))}">${where}</span> · ${m.pure ? 'auch auf Pure 1' : 'nur ohne Pure-Mode'}</p>${warn}</div><span class="chip ${m.on ? 'g' : ''}">${m.on ? 'Aktiv' : 'Aus'}</span><div class="tg ${m.on ? 'on' : ''}" data-mod="${esc(m.id)}" data-title="${esc(m.name)}"></div><button class="ib" title="Löschen" data-moddel="${esc(m.id)}" data-title="${esc(m.name)}" data-orig="${(m.places || []).some(p => p !== 'mods') ? 1 : ''}">${ico('trash')}</button></div>`;
+    return `<div class="mod ${m.broken ? 'bad' : ''} ${m.on ? 'on' : ''}"><div class="ti mico">${ico(m.broken ? 'alert' : MOD_CATS[m.cat]?.[1] || 'puzzle')}</div><div class="tx"><b>${esc(m.name)}</b><p>${MOD_CATS[m.cat]?.[0] || 'Sonstiges'} · ${bytes(m.size)} · <span class="mwhere" title="${esc((m.paths || []).join('\n'))}">${where}</span> · ${m.pure ? 'auch auf Pure 1' : 'nur ohne Pure-Mode'}</p>${warn}</div><span class="chip ${m.on ? 'g' : ''}">${m.on ? 'Aktiv' : 'Aus'}</span><div class="tg ${m.on ? 'on' : ''}" data-mod="${esc(m.id)}" data-title="${esc(m.name)}"></div><button class="ib" title="Löschen" data-moddel="${esc(m.id)}" data-title="${esc(m.name)}" data-orig="${(m.places || []).some(p => p !== 'mods') ? 1 : ''}">${ico('trash')}</button></div>`;
   };
-  $('#modList').innerHTML = !r.found ? '<div class="empty">FiveM nicht gefunden. Pfad im Launcher wählen.</div>' : items.length ? items.map(row).join('') : '<div class="empty">Noch keine Mods installiert. Lade ein Pack herunter oder nimm „Datei installieren“.</div>';
+  $('#modList').innerHTML = !r.found ? emptyBox('alert', 'FiveM nicht gefunden', 'Wähl den FiveM-Ordner im Launcher, dann erscheinen deine Mods hier.', `<button class="btn" onclick="go('launcher')">${ico('rocket')}Zum Launcher</button>`)
+    : items.length ? items.map(row).join('') : emptyBox('puzzle', 'Noch keine Mods installiert', 'Lade oben ein Pack herunter oder nimm „Datei installieren“.');
   const mm = items.filter(m => m.cat === 'minimap');
   if ($('#mmMods')) $('#mmMods').innerHTML = mm.map(row).join('');
 }
@@ -2177,8 +2200,8 @@ async function dlList(target, filter) {
   let l = []; try { l = await api('mods.downloads'); } catch { }
   if (filter) l = l.filter(x => x.cat === filter || x.cat === 'other');
   const el = $(target); if (!el) return;
-  el.innerHTML = l.length ? l.map(f => `<div class="mod"><div class="ti" style="width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:rgba(var(--a-rgb),.1);color:var(--a)">${ico(MOD_CATS[f.cat]?.[1] || 'puzzle')}</div><div class="tx"><b>${esc(f.name)}</b><p>${bytes(f.size)} · ${new Date(f.date).toLocaleDateString('de-DE')} · ${esc(f.what || (f.rpfs > 0 ? f.rpfs + ' Mod-Datei(en)' : 'Archiv'))}</p></div><select class="in sel" data-dlcat="${esc(f.name)}">${Object.entries(MOD_CATS).map(([k, [n]]) => `<option value="${k}" ${k === (filter || f.cat) ? 'selected' : ''}>${n}</option>`).join('')}</select><button class="btn o sm" data-dl="${esc(f.name)}">${ico('download')}Installieren</button></div>`).join('')
-    : '<div class="empty">Noch nichts gefunden. Lade eine Mod herunter, sie erscheint hier automatisch.</div>';
+  el.innerHTML = l.length ? l.map(f => `<div class="mod dl"><div class="ti mico">${ico(MOD_CATS[f.cat]?.[1] || 'puzzle')}</div><div class="tx"><b>${esc(f.name)}</b><p>${bytes(f.size)} · ${new Date(f.date).toLocaleDateString('de-DE')} · ${esc(f.what || (f.rpfs > 0 ? f.rpfs + ' Mod-Datei(en)' : 'Archiv'))}</p></div><select class="in sel" data-dlcat="${esc(f.name)}">${Object.entries(MOD_CATS).map(([k, [n]]) => `<option value="${k}" ${k === (filter || f.cat) ? 'selected' : ''}>${n}</option>`).join('')}</select><button class="btn o sm" data-dl="${esc(f.name)}">${ico('download')}Installieren</button></div>`).join('')
+    : emptyBox('download', 'Noch nichts Neues', 'Lad ein Pack in Discord oder im Browser herunter, es erscheint hier von selbst.');
 }
 document.addEventListener('click', async e => {
   const b = e.target.closest('[data-dl]'); if (!b) return;
@@ -2361,11 +2384,11 @@ function libCard(m) {
     : `<button class="btn o sm" data-lib="${esc(m.id)}">${ico('download')}Installieren</button>`;
   const foot = m.type === 'reshade' ? (st === 'active' ? 'Aktiv im Spiel' : st === 'ready' ? 'Sofort nutzbar' : 'Mit ReShade') : st === 'installed' ? 'Installiert' : m.size ? bytes(m.size) : 'Mod-Datei';
   return `<div class="lcard ${st === 'active' || st === 'installed' ? 'on' : ''}">
-    <div class="lthumb ${m.type === 'reshade' && !m.img ? 'rsf-' + esc(m.preset) : ''}" ${thumb}></div>
-    <div class="ltop"><span class="lcat">${ico(cat[2])}${LIB_ONE[cat[0]] || cat[1]}</span>${m.popular >= 85 ? '<span class="lhot">Beliebt</span>' : ''}</div>
+    <div class="lpic"><div class="lthumb ${m.type === 'reshade' && !m.img ? 'rsf-' + esc(m.preset) : ''}" ${thumb}></div>
+    <div class="ltop"><span class="lcat">${ico(cat[2])}${LIB_ONE[cat[0]] || cat[1]}</span>${m.popular >= 85 ? '<span class="lhot">Beliebt</span>' : ''}</div></div>
     <div class="lbody"><b>${esc(m.name)}</b><span class="lby">von ${esc(m.author || 'unbekannt')}${m.addedBy ? ' · eingereicht' : ''}</span><p>${esc(m.desc || '')}</p>
-      <div class="ltags">${(m.tags || []).slice(0, 4).map(t => `<span>#${esc(t)}</span>`).join('')}</div>
-      <div class="lact"><span class="lsize">${foot}</span>${btn}</div></div></div>`;
+      <div class="ltags">${(m.tags || []).slice(0, 4).map(t => `<span>${esc(t)}</span>`).join('')}</div>
+      <div class="lact"><span class="lsize st-${st}">${foot}</span>${btn}</div></div></div>`;
 }
 function libList(cat) {
   const q = LIB.q.trim().toLowerCase();
@@ -2376,11 +2399,15 @@ function libList(cat) {
 function libRender() {
   // while searching the chips count the hits, so they match the grid below
   if ($('#libCats')) $('#libCats').innerHTML = LIB_CATS.map(([k, n, i]) => { const all = k === 'all' ? LIB.items.length : LIB.items.filter(m => m.cat === k).length; if (!all && k !== LIB.cat) return ''; const c = LIB.q.trim() ? libList(k).length : all; return `<button class="lchip ${LIB.cat === k ? 'on' : ''} ${c ? '' : 'zero'}" data-lc="${k}">${ico(i)}${n}<span>${c}</span></button>`; }).join('');
-  const empty = cat => `<div class="empty">${LIB.q ? `Nichts gefunden für „${esc(LIB.q)}“.<br><button class="btn mt8" onclick="libClear()">${ico('undo')}Suche zurücksetzen</button>` : cat === 'minimap' ? `Noch keine fertigen Minimaps in der Bibliothek.<br><span style="font-size:12px">Du kannst dir aber aus jedem Bild deine eigene Minimap bauen.</span><br><button class="btn p mt8" onclick="modTab('mm')">${ico('map')}Eigene Minimap aus Bild erstellen</button>` : `Noch keine Mods in dieser Kategorie.<br><span style="font-size:12px">Eigene Datei über „Datei installieren“ hinzufügen. Neue Mods kommen automatisch, sobald sie in der Bibliothek (mods.json) stehen.</span>`}</div>`;
+  const empty = cat => LIB.q ? emptyBox('search', `Nichts gefunden für „${esc(LIB.q)}“`, 'Probier ein anderes Wort, zum Beispiel pvp, nacht oder kill.', `<button class="btn" onclick="libClear()">${ico('undo')}Suche zurücksetzen</button>`)
+    : cat === 'minimap' ? emptyBox('map', 'Noch keine fertigen Minimaps', 'Aus jedem Bild baust du dir in einer Minute deine eigene.', `<button class="btn p" onclick="modTab('mm')">${ico('map')}Eigene Minimap erstellen</button>`)
+    : emptyBox('puzzle', 'Noch nichts in dieser Kategorie', 'Neue Mods kommen von selbst, sobald sie in der Bibliothek stehen. Eigene Dateien gehen über „Datei installieren“.');
   if ($('#libGrid')) { const l = libList(LIB.cat); $('#libGrid').innerHTML = l.length ? l.map(libCard).join('') : empty(LIB.cat); }
   if ($('#mmLib')) { const l = libList('minimap'); $('#mmLib').innerHTML = l.length ? l.map(libCard).join('') : empty('minimap'); }
   rsSettings();
 }
+/** One quiet empty state for the mods page: icon, a title, one line, an optional action. */
+function emptyBox(icon, title, text, act = '') { return `<div class="empty ebox"><span class="en-ic">${ico(icon)}</span><b>${title}</b><span>${text}</span>${act}</div>`; }
 function libClear() { LIB.q = ''; if ($('#libSearch')) $('#libSearch').value = ''; libRender(); }
 window.libClear = libClear;
 /** Empty ReShade tab: straight to the looks in the library. */
@@ -2437,6 +2464,8 @@ async function rsSettings() {
   if (!RSC) try { RSC = await api('reshade.cfg.get'); } catch { RSC = null; }
   if (!RSC || !RSC.found) return;
   $('#rsVer').textContent = RS.version ? 'v' + RS.version : 'installiert';
+  const look = LIB.items.find(m => m.type === 'reshade' && m.preset === RS.preset), lk = $('#rsLook');
+  if (lk) lk.innerHTML = `<span class="rs-lt ${look && !look.img ? 'rsf-' + esc(look.preset) : ''}" style="background-image:url('${look?.img ? esc(look.img) : bgUrl()}')"></span><div class="rs-lx"><span>Aktiver Look</span><b>${esc(look?.name || RS.preset || 'Keiner')}</b><p>${esc(look?.desc || 'Wähl einen Look in der Bibliothek.')}</p></div><button class="btn" onclick="rsPick()">${ico('layers')}Look wechseln</button>`;
   $$('[data-rk]').forEach(el => {
     const k = el.dataset.rk, cur = +RSC[k] || 0, list = RS_KEYS.filter(([, v]) => k === 'keyNext' || v !== 0);
     // a key set elsewhere (e.g. in the ReShade overlay) is shown as it is, not as the first entry of the list
