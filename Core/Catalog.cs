@@ -74,7 +74,9 @@ internal static class Catalog
                 Desc = "Trägt FiveM in den Windows-Grafikeinstellungen auf „Hohe Leistung“ ein – auf Laptops und PCs mit zwei Grafikchips ein Sicherheitsnetz, das Cfx.re bei endlosem Laden oder fehlender Spiel-UI empfiehlt (FiveM wählt die starke Karte meist schon selbst), mit nur einer Grafikkarte ändert sich nichts.",
                 RecWhen = () => Hw.SwitchableGpus,
                 Hint = () => Hw.SwitchableGpus ? null : "Nur eine Grafikkarte erkannt: hier ändert sich nichts",
-                Check = () => FiveM.Exe is { } e && GpuPrefs.Get(e, "GpuPreference") == "2",
+                // the game renders in the GTAProcess exe of its build, not in FiveM.exe: a build downloaded without the
+                // field (versions before 2.26 never added it to new builds) shows the tweak as off, so it can be applied again
+                Check = () => GpuPrefs.Main() is { } e && GpuPrefs.Get(e, "GpuPreference") == "2",
                 Owned = () => GpuPrefs.Backed(GPU_BK).Length > 0,
                 Apply = () =>
                 {
