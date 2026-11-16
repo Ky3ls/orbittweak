@@ -150,7 +150,14 @@ internal sealed class ModBrowser : Window
             if (r.Choose != null)
             {
                 // several versions in the archive: it goes to the Downloads folder, the user picks the version under "Meine Mods"
-                try { File.Copy(path, Path.Combine(ModDownloads.Dir, name), true); } catch { }
+                // never over a file of the same name that is already there: " (2)" like a browser does
+                try
+                {
+                    var to = Path.Combine(ModDownloads.Dir, name);
+                    for (int i = 2; File.Exists(to); i++) to = Path.Combine(ModDownloads.Dir, $"{Path.GetFileNameWithoutExtension(name)} ({i}){Path.GetExtension(name)}");
+                    File.Copy(path, to);
+                }
+                catch { }
                 Status($"{name} enthält mehrere Versionen – in OrbitTweak unter Mods → Meine Mods auf „Installieren“ klicken und eine auswählen.");
                 return;
             }

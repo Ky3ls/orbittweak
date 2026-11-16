@@ -354,9 +354,11 @@ internal static class Mods
 
     private static void TurnOff(InstalledMod m)
     {
+        // without the GTA path its files would stay active and the original only in the backup: refuse instead
+        if (m.Files.Any(f => Target(f) == null)) throw new IOException("GTA-V-Ordner nicht gefunden (Pfad in CitizenFX.ini fehlt)");
         foreach (var f in m.Files)
         {
-            if (Target(f) is not { } t) continue;
+            var t = Target(f)!;
             if (File.Exists(t))
             {
                 if (f.Root != "mods" && new FileInfo(t).Length != f.Size)
@@ -602,6 +604,13 @@ internal static class Mods
             if (o.Variant != null)
                 keep.RemoveAll(c => all.Any(l => l != o.Variant && l.Length > 0 && c.Rel.StartsWith(l + "/", StringComparison.OrdinalIgnoreCase)));
         }
+        // a pack that ships its FiveM files next to a singleplayer .oiv ("FiveM/…", "Singleplayer/x.oiv"): the .oiv is not for FiveM
+        if (keep.Any(c => c.Kind == CK.Sound || (c.Kind != CK.Oiv && c.Rel.Contains("fivem", StringComparison.OrdinalIgnoreCase))))
+            foreach (var c in keep.Where(c => c.Kind == CK.Oiv).ToList())
+            {
+                keep.Remove(c);
+                p.Notes.Add($"{c.Name.TrimEnd('_')}.oiv übersprungen: Singleplayer-Version, installiert wird die FiveM-Version.");
+            }
         if (keep.Count == 0)
         {
             p.Error = rejects.FirstOrDefault()?.Reject ?? (sounds > 0 ? ModText.LooseSound : "Keine installierbare Mod-Datei gefunden");
@@ -746,8 +755,18 @@ internal static class Mods
         return r.Length > 0 ? r : "mod";
     }
 
-    /// <summary>File name for a package in the mods folder: ASCII and a small ".rpf", FiveM's check is case-sensitive.</summary>
-    private static string PkgName(string title) => $"ot-{Slug(title)}-{NewId()[..4]}.rpf";
+    /// <summary>
+    /// File name for a package in the mods folder: ASCII and a small ".rpf", FiveM's check is case-sensitive.
+    /// Never the name of a file that is there or belongs to a listed mod (the old copy of a reinstalled pack is removed after the copy).
+    /// </summary>
+    private static string PkgName(string title, InstalledMod mod)
+    {
+        string n;
+        do n = $"ot-{Slug(title)}-{NewId()[..4]}.rpf";
+        while (File.Exists(Path.Combine(Dir!, n))
+               || mod.Files.Concat(M.Mods.SelectMany(m => m.Files)).Any(f => f.Root == "mods" && f.Rel.Equals(n, StringComparison.OrdinalIgnoreCase)));
+        return n;
+    }
 
     private static void CopyInto(string src, string target)
     {
@@ -796,7 +815,7 @@ internal static class Mods
                 {
                     case CK.Package:
                     {
-                        var rel = PkgName(c.Title ?? Path.GetFileNameWithoutExtension(c.Name));
+                        var rel = PkgName(c.Title ?? Path.GetFileNameWithoutExtension(c.Name), mod);
                         mod.Files.Add(new ModFile { Root = "mods", Rel = rel });
                         CopyInto(c.Path, Path.Combine(dir, rel));
                         mod.Files[^1].Size = new FileInfo(Path.Combine(dir, rel)).Length;
@@ -805,7 +824,7 @@ internal static class Mods
                     }
                     case CK.Oiv:
                     {
-                        var rel = PkgName(title);
+                        var rel = PkgName(title, mod);
                         var target = Path.Combine(dir, rel);
                         mod.Files.Add(new ModFile { Root = "mods", Rel = rel });
                         PackageBuilder.RepackOiv(c.Path, target);
@@ -832,7 +851,7 @@ internal static class Mods
             }
             if (wrap.Any)
             {
-                var rel = PkgName(title);
+                var rel = PkgName(title, mod);
                 mod.Files.Add(new ModFile { Root = "mods", Rel = rel });
                 PackageBuilder.Build(wrap, Path.Combine(dir, rel), title, Guid.NewGuid());
                 mod.Files[^1].Size = new FileInfo(Path.Combine(dir, rel)).Length;
