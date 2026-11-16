@@ -51,6 +51,11 @@ public partial class MainWindow : Window
     private string _hudKey = "";
     private FileSystemWatcher? _dlWatch;
     private DateTime? _playSince; private uint _playPid;
+    // Discord status ("Spielt OrbitTweak"), see DiscordTick. The _dcGame/_dcFm values come from ProbeFiveM (set on the UI thread).
+    private readonly DiscordPresence _dc = new();
+    private Presence? _dcLast;
+    private bool _dcFm, _dcProbed; private int _dcGamePid; private DateTime? _dcGameStart;
+    private (string? name, string? icon, int pid, DateTime at) _dcSrv; private bool _dcSrvBusy;
     private DateTime _flashUntil;
     // short note in the game when a kill was noticed, with the kill count of the round
     private readonly CrosshairOverlay _banner = new() { Anchor = Anchor.TopCenter, Animate = true };
@@ -102,6 +107,7 @@ public partial class MainWindow : Window
         Deactivated += (_, _) => Emit("winfocus", new { on = false });
         Loaded += async (_, _) => await InitWeb();
         Closing += (_, _) => { S.Save(); Catalog.SetTimerResolution(false); StopLive(); };
+        Closing += (_, _) => _dc.Dispose();   // takes the card off the Discord profile at once
         AppDomain.CurrentDomain.ProcessExit += (_, _) => { ScreenColor.Restore(); NvVibrance.Restore(); };
         Application.Current.ShutdownMode = ShutdownMode.OnMainWindowClose;
         _live.Tick += (_, _) => LiveTick();
@@ -138,6 +144,7 @@ public partial class MainWindow : Window
 #endif
         _rec.Log += Log;
         _rec.Log += ClipLog.Add;
+        _dc.Log += m => Log("💬 " + m);
         // a pack saved from Discord (or any browser) into the Downloads folder is noticed at once and offered for installing
         try
         {
@@ -429,9 +436,24 @@ public partial class MainWindow : Window
                     case "fx": S.Fx = val.GetBoolean(); break;
                     case "snapTap": S.SnapTap = val.GetBoolean(); SnapApply(); Log(S.SnapTap ? "⌨ Snap Tap aktiv (nur im Spiel)" : "⌨ Snap Tap aus"); break;
                     case "launch": S.Launch = val.Deserialize<LaunchCfg>(JIn) ?? new LaunchCfg(); break;
+                    case "discordOn": S.DiscordOn = val.GetBoolean(); DiscordTick(); break;
+                    case "discordServer": S.DiscordServer = val.GetBoolean(); DiscordTick(); break;
+                    case "discordKills": S.DiscordKills = val.GetBoolean(); DiscordTick(); break;
+                    case "discordAppId":
+                    {
+                        // the Application ID is a Discord snowflake: 17 to 20 digits (a pasted line around it is fine)
+                        var raw = val.GetString()?.Trim() ?? "";
+                        var m = System.Text.RegularExpressions.Regex.Match(raw, @"\d{17,20}");
+                        if (raw.Length > 0 && !m.Success) throw new InvalidOperationException("Das ist keine Application ID (17 bis 20 Ziffern)");
+                        if (m.Success && S.DiscordAppId.Length == 0) S.DiscordOn = true;   // on by default once there is an ID
+                        S.DiscordAppId = m.Success ? m.Value : "";
+                        DiscordTick();
+                        break;
+                    }
                 }
                 S.Save();
                 return null;
+            case "discord.state": return DiscordState();
 
             // ---------- tweaks ----------
             case "tweaks.list": return await TweakList();
@@ -1684,6 +1706,87 @@ public partial class MainWindow : Window
     }
 
     // =====================================================================
+    //  DISCORD STATUS
+    // =====================================================================
+    private string DiscordAppId => S.DiscordAppId is { Length: > 0 } id ? id : DiscordPresence.DefaultAppId;
+
+    /// <summary>Works out what the Discord profile shows (every 2 s from the live timer). DiscordPresence sends it only
+    /// when it changed, at most every 15 s, and never on the UI thread.</summary>
+    private void DiscordTick()
+    {
+        var id = DiscordAppId;
+        if (!S.DiscordOn || id.Length == 0 || !_authed) { _dcLast = null; _dc.Set(id, null); return; }
+        if (!_dcProbed) return;   // game state not known yet: no "Nicht im Spiel" for 15 s right after the start
+        var p = new Presence
+        {
+            LargeImage = "logo",                                   // asset key uploaded in the Developer Portal
+            LargeText = $"OrbitTweak {Updater.Current.ToString(3)}",
+            Buttons = new[] { ("OrbitTweak", $"https://github.com/{Updater.Repo}/releases/latest") },
+        };
+        if (_dcGamePid != 0)
+        {
+            // the server: looked up again every 30 s (and at once for a new game), never while it is hidden
+            if (_dcSrv.pid != _dcGamePid) _dcSrv = (null, null, _dcGamePid, default);
+            if (S.DiscordServer && !_dcSrvBusy && DateTime.Now - _dcSrv.at > TimeSpan.FromSeconds(30)) _ = DiscordServerLookup(_dcGamePid);
+            var srv = S.DiscordServer ? _dcSrv.name : null;
+            // kills are counted per game process (_roundPid); _playPid stays while the game is only tabbed out
+            uint rp = _roundPid;
+            int kills = S.DiscordKills && rp != 0 && (rp == (uint)_dcGamePid || rp == _playPid) ? _roundKills : 0;
+            var state = kills > 0 ? $"Im Spiel · {kills} {(kills == 1 ? "Kill" : "Kills")}" : "Im Spiel";
+            p = p with
+            {
+                Details = srv ?? "FiveM", State = state, Since = _dcGameStart ?? _playSince,
+                SmallImage = (S.DiscordServer ? _dcSrv.icon : null) ?? "ingame", SmallText = srv ?? "Im Spiel",
+            };
+        }
+        else if (_dcFm) p = p with { Details = "FiveM", State = "Launcher offen", SmallImage = "launcher", SmallText = "Launcher offen" };
+        else p = p with { State = "Nicht im Spiel" };
+        _dcLast = p;
+        _dc.Set(id, p);
+    }
+
+    /// <summary>Name and icon of the server the game is on: FiveM's last server (crashometry), if it was written after
+    /// the game started, looked up at Cfx.re (cached there for 60 s). Same rule as "server.current".</summary>
+    private async Task DiscordServerLookup(int pid)
+    {
+        _dcSrvBusy = true;
+        try
+        {
+            var start = _dcGameStart;
+            var (url, at) = await Task.Run(Servers.LastServer);
+            string? key = null;
+            if (!string.IsNullOrWhiteSpace(url) && start is DateTime gs && at >= gs.AddSeconds(-5)) try { key = Servers.Parse(url); } catch { }
+            string? name = null, icon = null;
+            if (key != null)
+            {
+                var el = JsonSerializer.SerializeToElement(await Servers.Fetch(key));
+                string? Get(string n) => el.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+                if (el.TryGetProperty("online", out var on) && on.ValueKind == JsonValueKind.True && Get("name") is { } n) name = CleanServerName(n);
+                icon = Get("icon");
+            }
+            if (_dcSrv.pid == pid) _dcSrv = (name, icon, pid, DateTime.Now);
+        }
+        catch { if (_dcSrv.pid == pid) _dcSrv = (null, null, pid, DateTime.Now); }
+        finally { _dcSrvBusy = false; }
+    }
+
+    /// <summary>"^1Nova^7City ~r~RP" → "NovaCity RP": FiveM/GTA colour codes and tags out.</summary>
+    private static string? CleanServerName(string s)
+    {
+        s = System.Text.RegularExpressions.Regex.Replace(s, @"\^\d|~[a-zA-Z]~|<[^>]{1,40}>", "");
+        s = System.Text.RegularExpressions.Regex.Replace(s, @"\s+", " ").Trim();
+        return s.Length >= 2 ? s : null;
+    }
+
+    /// <summary>For the card in Einstellungen › Verhalten: status line and what Discord shows right now.</summary>
+    private object DiscordState() => new
+    {
+        status = !S.DiscordOn ? "off" : DiscordAppId.Length == 0 ? "noid" : _dc.Connected ? "on" : _dc.Refused ? "refused" : "nodiscord",
+        user = _dc.User, error = _dc.LastError, appId = S.DiscordAppId, builtIn = DiscordPresence.DefaultAppId.Length > 0,
+        preview = _dcLast == null ? null : new { details = _dcLast.Details, state = _dcLast.State, since = _dcLast.Since },
+    };
+
+    // =====================================================================
     //  LIVE STATS
     // =====================================================================
     private void Timer_Tick(object? sender, EventArgs e)
@@ -1699,6 +1802,7 @@ public partial class MainWindow : Window
             fm = _fm
         });
         if (_tick % 2 == 0 && !_probing) _ = ProbeFiveM();
+        if (_tick % 2 == 1) DiscordTick();
     }
 
     private async Task ProbeFiveM()
@@ -1706,6 +1810,7 @@ public partial class MainWindow : Window
         _probing = true;
         try
         {
+            bool fmOpen = false; int gamePid = 0; DateTime? gameStart = null;   // for the Discord status
             _fm = await Task.Run(() =>
             {
                 var procs = FiveM.Processes();
@@ -1768,10 +1873,13 @@ public partial class MainWindow : Window
                         }
                         catch { }
                     }
+                    fmOpen = procs.Length > 0;
+                    if (game != null) { gamePid = game.Id; try { gameStart = game.StartTime; } catch { } }
                     return (object)new { running = procs.Length > 0, game = game != null, build, prio, gameRam = ram };
                 }
                 finally { foreach (var p in procs) p.Dispose(); }
             });
+            _dcFm = fmOpen; _dcGamePid = gamePid; _dcGameStart = gameStart; _dcProbed = true;
         }
         finally { _probing = false; }
     }

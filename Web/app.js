@@ -819,6 +819,59 @@ document.addEventListener('click', e => {
   const st = e.target.closest('[data-set]') || e.target.closest('.sclick')?.querySelector('[data-set]');
   if (st) { const k = st.dataset.set; S.settings[k] = !S.settings[k]; st.classList.toggle('on'); api('settings.set', { key: k, value: S.settings[k] }); if (!k.startsWith('auto') || k === 'autoRamClean' || k === 'autoPriority') loadTweaks(); }
 });
+/* ======================= DISCORD STATUS (settings › Verhalten) ======================= */
+const DC_SETS = [
+  ['discordOn', 'Discord-Status', 'Dein Profil zeigt „Spielt OrbitTweak“, ob du im Spiel bist und wie lange'],
+  ['discordServer', 'Servername zeigen', 'Aus: nur „FiveM“, ohne Servername und Server-Icon'],
+  ['discordKills', 'Kills zeigen', 'Kills der Runde, z. B. „Im Spiel · 3 Kills“. Braucht die Kill-Erkennung'],
+];
+let DC = null;
+const dcOn = k => S.settings[k] !== false;   // all three are on by default
+async function dcLoad() { try { DC = await api('discord.state'); } catch { return; } dcRender(); }
+function dcRender() {
+  if (!$('#dcCard')) return;
+  const noId = DC ? DC.status === 'noid' || (!DC.builtIn && !S.settings.discordAppId) : !S.settings.discordAppId;
+  $('#dcSets').innerHTML = DC_SETS.map(([k, n, d]) => `<div class="srow sclick ${k !== 'discordOn' && !dcOn('discordOn') ? 'dis' : ''}" data-dcset="${k}"><div><b>${n}</b><p>${d}</p></div><div class="tg ${dcOn(k) ? 'on' : ''}"></div></div>`).join('');
+  $('#dcGuide').classList.toggle('hidden', !noId);
+  const inp = $('#dcAppId');
+  if (document.activeElement !== inp) inp.value = S.settings.discordAppId || '';
+  if (DC?.builtIn) inp.placeholder = 'Leer: App von OrbitTweak';
+  if (!DC) return;
+  const v = DC.preview, min = v?.since ? Math.max(0, Math.round((Date.now() - new Date(v.since)) / 60000)) : null;
+  const time = min == null ? '' : min < 60 ? `seit ${min} min` : `seit ${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}`;
+  const shown = v ? [v.details, v.state, time].filter(Boolean).join(' · ') : '';
+  const [cls, txt] = {
+    on: ['g', 'Verbunden' + (DC.user ? ' als ' + DC.user : '')],
+    nodiscord: ['w', 'Discord nicht offen. Verbindet sich, sobald Discord läuft'],
+    refused: ['r', 'Discord kennt diese App-ID nicht. Prüf die ID'],
+    noid: ['w', 'Keine App-ID. Folge der Anleitung oben'],
+    off: ['', 'Aus. Discord zeigt nichts von OrbitTweak'],
+  }[DC.status] || ['', ''];
+  $('#dcLive').className = 'dc-live ' + cls;
+  $('#dcLiveTx').innerHTML = esc(txt) + (DC.status === 'on' && shown ? `<small>Zeigt gerade: ${esc(shown)}</small>` : '')
+    + (DC.error && DC.status !== 'off' && DC.status !== 'noid' ? `<small class="dc-err">Discord: ${esc(DC.error)}</small>` : '');
+}
+async function dcSaveId() {
+  const raw = $('#dcAppId').value.trim(), m = raw.match(/\d{17,20}/);
+  if (raw && !m) return toast('Keine gültige App-ID', 'Die Application ID hat 17 bis 20 Ziffern', false);
+  const id = m ? m[0] : '';
+  if (id && !S.settings.discordAppId) S.settings.discordOn = true;   // on by default once there is an ID
+  try { await api('settings.set', { key: 'discordAppId', value: id }); } catch (e) { return toast('Nicht gespeichert', e.message, false); }
+  S.settings.discordAppId = id; $('#dcAppId').value = id;
+  toast(id ? 'App-ID gespeichert' : 'App-ID entfernt', id ? 'OrbitTweak verbindet sich mit Discord' : '');
+  dcLoad();
+}
+document.addEventListener('click', async e => {
+  if (e.target.closest('#dcSave')) return dcSaveId();
+  const r = e.target.closest('[data-dcset]'); if (!r) return;
+  const k = r.dataset.dcset; S.settings[k] = !dcOn(k); dcRender();
+  try { await api('settings.set', { key: k, value: S.settings[k] }); } catch { }
+  dcLoad();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'dcAppId') dcSaveId(); });
+// the status line stays current while the card is open (Discord started or closed, game state, kills)
+setInterval(() => { if (curPage === 'settings' && !$('#st-general')?.classList.contains('hidden')) dcLoad(); }, 3000);
+
 async function restorePoint() { toast('Wird erstellt…', 'Kann bis zu einer Minute dauern'); const r = await api('restore'); toast(r.ok ? 'Wiederherstellungspunkt erstellt' : 'Fehlgeschlagen', r.ok ? 'Du kannst jederzeit zurück' : 'Ist der Computerschutz aktiviert?', r.ok); }
 
 /* ======================= MODAL / WIZARD ======================= */
@@ -1889,6 +1942,7 @@ function setTab(t) {
   $$('.stab').forEach(s => s.classList.toggle('hidden', s.id !== 'st-' + t));
   if (t === 'design') bgGrid();
   if (t === 'account') accLoad();
+  if (t === 'general') { dcRender(); dcLoad(); }
   enterPage($('#p-settings'));
 }
 window.setTab = setTab;
@@ -2501,6 +2555,11 @@ const Mock = {
       case 'srv': return MOCKSRV(a);
       case 'reshade.cfg.get': return { found: true, keyOverlay: 36, keyEffects: 145, keyScreenshot: 44, keyNext: 0, showFps: false, perf: true };
       case 'reshade.cfg.set': case 'reshade.shots': return {};
+      case 'discord.state': {   // Discord status card: as if Discord runs and the game is on NovaCity
+        const s = M.settings, on = s.discordOn !== false, id = s.discordAppId || '';
+        return { status: !on ? 'off' : !id ? 'noid' : 'on', user: 'Max', error: null, appId: id, builtIn: false,
+          preview: on && id ? { details: s.discordServer !== false ? 'NovaCity | Roleplay [GER]' : 'FiveM', state: s.discordKills !== false ? 'Im Spiel · 3 Kills' : 'Im Spiel', since: new Date(Date.now() - 42 * 60e3).toISOString() } : null };
+      }
       case 'server.current': return { found: true, connected: true, key: 'cfx:abc123', url: 'cfx.re/join/abc123', fav: false, server: { name: '^1Nova^7City ^3| Roleplay [GER]', desc: 'Die lebendigste Stadt Deutschlands · Whitelist · Eigene Wirtschaft', allTags: ['roleplay', 'deutsch', 'economy', 'whitelist', 'jobs', 'gangs', 'custom cars'], locale: 'DE', players: 187, max: 256, ping: 22, build: '3095', onesync: true, resources: 412, owner: 'NovaTeam', discord: 'https://discord.gg/novacity', website: 'https://novacity.de', connect: 'cfx.re/join/abc123', online: true } };
       case 'mods.downloads': return [{ name: 'satellite_minimap_v2.zip', size: 18e6, date: new Date().toISOString(), rpfs: 1, cat: 'minimap' }, { name: 'KillFX_RedPulse.rar', size: 2.4e6, date: new Date(Date.now() - 864e5).toISOString(), rpfs: -1, cat: 'kill' }];
       case 'mods.installDl': await sleep(600); return { count: 1 };

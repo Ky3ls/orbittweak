@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>OrbitTweak</title>
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="discord.css">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute">
@@ -942,6 +943,21 @@
             <div class="card">
               <div class="sh"><b>Leistung &amp; Boost</b></div>
               <div id="setList"></div>
+            </div>
+            <div class="card mt" id="dcCard">
+              <div class="sh"><b>Discord-Status</b><span class="sub" style="font-size:12px">„Spielt OrbitTweak“ in deinem Discord-Profil</span></div>
+              <div id="dcSets"></div>
+              <div class="dc-guide hidden" id="dcGuide">
+                <b>So bekommst du eine App-ID</b><span>Einmalig, dauert 2 Minuten</span>
+                <ol>
+                  <li>Öffne das <a onclick="api('open',{target:'https://discord.com/developers/applications'})">Discord Developer Portal</a> und klick auf <b>New Application</b>. Name: <b>OrbitTweak</b></li>
+                  <li>Kopier unter <b>General Information</b> die <b>Application ID</b> und füg sie unten ein</li>
+                  <li>Lad unter <b>Rich Presence › Art Assets</b> das OrbitTweak-Logo mit dem Namen <b>logo</b> hoch (1024 × 1024). Optional fürs kleine Bild: <b>ingame</b> und <b>launcher</b></li>
+                </ol>
+              </div>
+              <div class="srow dc-id"><div><b>App-ID</b><p>Application ID deiner Discord-App</p></div><input class="in mono" id="dcAppId" placeholder="ID einfügen" maxlength="60" spellcheck="false" autocomplete="off"><button class="btn sm" id="dcSave">Speichern</button></div>
+              <div class="dc-live" id="dcLive"><i></i><span id="dcLiveTx">…</span></div>
+              <p class="muted dc-note">Sehen alle, die dein Profil sehen. In Discord muss <b>Aktivitätsstatus teilen</b> an sein. Den Button „OrbitTweak“ sehen nur die anderen, nicht du selbst.</p>
             </div>
           </div>
 

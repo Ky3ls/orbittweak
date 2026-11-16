@@ -1,0 +1,19 @@
+/* ============ DISCORD STATUS (Einstellungen › Verhalten) ============ */
+#dcSets .srow.dis{opacity:.4;pointer-events:none}
+.dc-guide{margin:6px 0 4px;padding:14px 16px;border-radius:12px;background:rgba(var(--a-rgb),.06);border:1px solid rgba(var(--a-rgb),.22);font-size:12.5px;color:var(--sub);line-height:1.55}
+.dc-guide>b{display:block;color:var(--text);font-size:13.5px}
+.dc-guide>span{display:block;font-size:11.5px;color:var(--mute);margin-top:1px}
+.dc-guide ol{margin:10px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:6px}
+.dc-guide li b{color:var(--text);font-weight:600}
+.dc-guide a{color:var(--a);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.dc-id .in{width:230px;flex:none;height:36px;font-size:13px}
+.dc-live{display:flex;gap:10px;align-items:flex-start;margin-top:12px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.035);font-size:12.5px;font-weight:550;color:var(--sub)}
+.dc-live>i{flex:none;width:8px;height:8px;margin-top:5px;border-radius:50%;background:var(--mute)}
+.dc-live.g>i{background:var(--good);box-shadow:0 0 0 3px rgba(74,222,154,.18)}
+.dc-live.w>i{background:var(--warn)}
+.dc-live.r>i{background:var(--bad)}
+.dc-live small{display:block;margin-top:2px;font-size:11.5px;font-weight:450;color:var(--mute)}
+.dc-live small.dc-err{color:var(--warn)}
+.dc-note{font-size:11.5px;line-height:1.55;margin-top:10px}
+.dc-note b{color:var(--sub);font-weight:600}
+@media (max-width:760px){.dc-id{flex-wrap:wrap}.dc-id .in{width:100%}}
