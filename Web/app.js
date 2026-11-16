@@ -462,7 +462,11 @@ function tweakHtml(t, compact) {
   return `<div class="tw ${t.applied ? 'on' : ''}">${body}</div>`;
 }
 function renderTweaks() {
-  $('#tabs').innerHTML = Object.entries(CATS).map(([k, [n, i]]) => { const l = S.tweaks.filter(t => t.cat === k); return `<button class="tab ${k === curTab ? 'on' : ''}" data-c="${k}">${ico(i)}${n}<span class="vt-s">${l.filter(t => t.applied).length}/${l.length} aktiv</span></button>`; }).join('');
+  // each category: its name, how many of its tweaks are on as a large number, and a fine bar for the same
+  $('#tabs').innerHTML = Object.entries(CATS).map(([k, [n, i]]) => {
+    const l = S.tweaks.filter(t => t.cat === k), on = l.filter(t => t.applied).length;
+    return `<button class="tab ${k === curTab ? 'on' : ''}" data-c="${k}"><span class="tc-h">${ico(i)}${n}</span><span class="tc-n"><b>${on}</b>von ${l.length} aktiv</span><span class="tc-bar"><i style="transform:scaleX(${l.length ? on / l.length : 0})"></i></span></button>`;
+  }).join('');
   const cur = S.tweaks.filter(t => t.cat === curTab);
   $('#tlDesc').textContent = CATS[curTab][2];
   $('#tgrid').innerHTML = cur.map(t => tweakHtml(t)).join('');
@@ -1297,7 +1301,7 @@ function banner() {
   const d = new Date(), h = d.getHours(), tod = timeOfDay(d);
   $('#bnScene').className = 'bn-scene';
   $('#greet').textContent = h < 5 ? 'Gute Nacht' : h < 11 ? 'Guten Morgen' : h < 17 ? 'Guten Tag' : h < 22 ? 'Guten Abend' : 'Gute Nacht';
-  $('#bnTime').textContent = `Los Santos · ${d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`;
+  $('#bnTime').textContent = `Los Santos, ${d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`;
 }
 function initLook() {
   $('#bnScene').innerHTML = `<div class="own-bg" style="background-image:url('${LA.day}')"></div>`; $('#spScene').innerHTML = $('#bnScene').innerHTML;
@@ -2843,7 +2847,8 @@ const Mock = {
       case 'reshade.status': return { found: true, installed: true, version: '6.8.0', preset: 'vivid', presets: [{ id: 'vivid', name: 'Lebendig', desc: 'Kräftige Farben, knackig scharf' }, { id: 'pvp', name: 'Klar (PvP)', desc: 'Maximale Sichtbarkeit, scharfe Kanten' }, { id: 'cine', name: 'Cinematic', desc: 'Filmlook mit Vignette' }, { id: 'night', name: 'Nachtsicht', desc: 'Dunkle Ecken sichtbar' }, { id: 'techni', name: 'Technicolor', desc: 'Satte Retro-Farben' }] };
       case 'reshade.install': for (let i = 1; i <= 5; i++) { onEvent('reshade', { pct: i * 20, text: 'Schritt ' + i }); await sleep(250); } return {};
       case 'reshade.preset': case 'reshade.uninstall': return {};
-      case 'thumb': case 'clip.thumb': return { url: null };
+      case 'thumb': return { url: null };
+      case 'clip.thumb': return { url: picFor(a.rel) };   // preview only: a game photo stands in for the frame of the clip
       case 'bg.list': return [];
       case 'bg.set': case 'bg.pick': case 'bg.clear': return { v: 0 };
       case 'downloads.open': return null;

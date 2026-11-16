@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="discord.css">
 <link rel="stylesheet" href="clip-ui.css">
 <link rel="stylesheet" href="design.css">
+<link rel="stylesheet" href="uhq.css">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute">
@@ -89,7 +90,7 @@
       <div class="pill mv" id="tbCpuP">CPU <b id="tbCpu">0%</b></div>
       <div class="pill mv" id="tbRamP">RAM <b id="tbRam">0%</b></div>
     </div>
-    <button class="upd" id="updPill" onclick="go('settings')"><svg class="i"><use href="#download"/></svg><span id="updPillTxt">UPDATE</span></button>
+    <button class="upd" id="updPill" onclick="go('settings')"><svg class="i"><use href="#download"/></svg><span id="updPillTxt">Update</span></button>
     <div class="wc">
       <button onclick="api('win.min')"><svg class="i"><use href="#minus"/></svg></button>
       <button onclick="api('win.max')"><svg class="i"><use href="#square"/></svg></button>
@@ -131,39 +132,37 @@
   <main id="main">
     <!-- ================= HOME ================= -->
     <section class="page show" id="p-home">
-      <div class="banner" id="banner">
-        <div class="bn-scene" id="bnScene"></div>
-        <div class="bn-shade"></div>
-        <div class="bn-txt">
-          <div class="kicker" id="bnTime">Los Santos · 20:14</div>
-          <h1><span id="greet">Guten Abend</span>, <span class="grad" id="uname">Player</span></h1>
-          <p class="pd">Bereit für die Stadt? Live-Status, Boost und alles Wichtige auf einen Blick.</p>
-        </div>
-        <div class="bn-r"><span class="bn-chip hidden" id="lastBoost">Letzter Boost: noch keiner</span></div>
-        <button class="bn-edit" onclick="go('settings');setTab('design')" title="Hintergrund ändern"><svg class="i"><use href="#monitor"/></svg>Bild ändern</button>
-      </div>
-      <div class="quick">
-        <div class="card hov qt" onclick="clearFmCache()"><div class="qi"><svg class="i"><use href="#trash"/></svg></div><div><b>Cache leeren</b><span>Gegen Texture-Loss</span></div></div>
-        <div class="card hov qt" onclick="cleanRam()"><div class="qi"><svg class="i"><use href="#ram"/></svg></div><div><b>RAM freigeben</b><span>Mehr freier Speicher</span></div></div>
-        <div class="card hov qt" onclick="go('xhair')"><div class="qi"><svg class="i"><use href="#crosshair"/></svg></div><div><b>Fadenkreuz</b><span>Eigenes Overlay</span></div></div>
-        <div class="card hov qt" onclick="go('display')"><div class="qi"><svg class="i"><use href="#sun"/></svg></div><div><b>Live-Farben</b><span>Mehr Farbe im Spiel</span></div></div>
-      </div>
       <div class="home">
+        <div class="banner" id="banner">
+          <div class="bn-scene" id="bnScene"></div>
+          <div class="bn-shade"></div>
+          <div class="bn-txt">
+            <div class="kicker" id="bnTime">Los Santos, 20:14</div>
+            <h1><span id="greet">Guten Abend</span>, <span class="grad" id="uname">Player</span></h1>
+            <p class="pd">Bereit für die Stadt? Live-Status, Boost und alles Wichtige auf einen Blick.</p>
+          </div>
+          <div class="bn-r"><span class="bn-chip hidden" id="lastBoost">Letzter Boost: noch keiner</span></div>
+          <button class="bn-edit" onclick="go('settings');setTab('design')" title="Hintergrund ändern"><svg class="i"><use href="#monitor"/></svg>Bild ändern</button>
+        </div>
         <div class="card gb hero">
           <div class="hk"><span class="lbl"><svg class="i"><use href="#zap"/></svg>Ein-Klick-Boost</span><span class="chip" id="scoreChip">Bereit</span></div>
-          <div class="gauge" id="gauge">
-            <div class="glow"></div>
-            <svg viewBox="0 0 250 250">
-              <circle class="trk" cx="125" cy="125" r="108"/>
-              <circle class="inner" cx="125" cy="125" r="88"/>
-              <circle class="val" id="scoreRing" cx="125" cy="125" r="108" stroke-dasharray="678.6" stroke-dashoffset="678.6"/>
-              <g class="orbit" style="transform-origin:125px 125px"><circle class="comet" cx="125" cy="125" r="108" stroke-dasharray="46 632.6"/></g>
-            </svg>
-            <div class="mid"><b id="ringNum">0<small>%</small></b><span id="boostSub">optimiert</span></div>
+          <div class="hero-c">
+            <div class="gauge" id="gauge">
+              <div class="glow"></div>
+              <svg viewBox="0 0 250 250">
+                <circle class="tick" cx="125" cy="125" r="121" stroke-dasharray="1 11.671"/>
+                <circle class="tick big" cx="125" cy="125" r="121.5" stroke-dasharray="1.6 62.016"/>
+                <circle class="trk" cx="125" cy="125" r="108"/>
+                <circle class="inner" cx="125" cy="125" r="88"/>
+                <circle class="val" id="scoreRing" cx="125" cy="125" r="108" stroke-dasharray="678.6" stroke-dashoffset="678.6"/>
+                <g class="orbit" style="transform-origin:125px 125px"><circle class="comet" cx="125" cy="125" r="108" stroke-dasharray="46 632.6"/></g>
+              </svg>
+              <div class="mid"><b id="ringNum">0<small>%</small></b><span id="boostSub">optimiert</span></div>
+            </div>
+            <h3 id="heroTitle">Kompletter FiveM-Boost</h3>
+            <p id="heroText">Ein Klick: Windows, Netzwerk, Input und FiveM werden optimiert. Alles umkehrbar.</p>
+            <button class="boostbtn" id="boostBtn" onclick="boost()"><svg class="i" id="boostIco"><use href="#zap"/></svg><span id="boostTxt">Boost starten</span></button>
           </div>
-          <h3 id="heroTitle">Kompletter FiveM-Boost</h3>
-          <p id="heroText">Ein Klick: Windows, Netzwerk, Input und FiveM werden optimiert. Alles umkehrbar.</p>
-          <button class="boostbtn" id="boostBtn" onclick="boost()"><svg class="i" id="boostIco"><use href="#zap"/></svg><span id="boostTxt">Boost starten</span></button>
           <div class="hstats">
             <div><b id="hsTweaks">0/0</b><span>Tweaks</span></div>
             <div><b id="hsFreed">0 MB</b><span>Freigegeben</span></div>
@@ -171,49 +170,57 @@
           </div>
         </div>
 
-        <div class="card fm" id="fmCard">
-          <div class="fm-ico off" id="fmIco"><svg class="i"><use href="#gamepad"/></svg></div>
-          <div style="min-width:0">
-            <div class="row"><h2 id="fmState">FiveM offline</h2><span class="chip" id="fmChip">STANDBY</span></div>
-            <div class="fm-stats">
-              <div><span>Build</span><b id="fmBuild">—</b></div>
-              <div><span>Priorität</span><b id="fmPrio">—</b></div>
-              <div><span>Game-RAM</span><b id="fmRam">—</b></div>
-              <div><span>Cache</span><b id="fmCache">—</b></div>
+        <!-- FiveM status and the live numbers share one surface -->
+        <div class="card live">
+          <div class="fm" id="fmCard">
+            <div class="fm-ico off" id="fmIco"><svg class="i"><use href="#gamepad"/></svg></div>
+            <div style="min-width:0">
+              <div class="row"><h2 id="fmState">FiveM offline</h2><span class="chip" id="fmChip">Standby</span></div>
+              <div class="fm-stats">
+                <div><span>Build</span><b id="fmBuild">—</b></div>
+                <div><span>Priorität</span><b id="fmPrio">—</b></div>
+                <div><span>Game-RAM</span><b id="fmRam">—</b></div>
+                <div><span>Cache</span><b id="fmCache">—</b></div>
+              </div>
+            </div>
+            <div class="fm-act">
+              <button class="btn p" id="fmStart" onclick="launch('')"><svg class="i"><use href="#play"/></svg>Starten</button>
+              <button class="btn d hidden" id="fmStop" onclick="killFiveM()"><svg class="i"><use href="#power"/></svg>Beenden</button>
             </div>
           </div>
-          <div class="fm-act">
-            <button class="btn p" id="fmStart" onclick="launch('')"><svg class="i"><use href="#play"/></svg>Starten</button>
-            <button class="btn d hidden" id="fmStop" onclick="killFiveM()"><svg class="i"><use href="#power"/></svg>Beenden</button>
+          <div class="tele">
+            <div class="metric">
+              <div class="lbl"><svg class="i"><use href="#cpu"/></svg>CPU</div>
+              <div class="big" id="mCpu">0<small>%</small></div>
+              <div class="msub" id="mCpuName">—</div>
+              <svg class="spark" viewBox="0 0 200 60" preserveAspectRatio="none"><path id="sparkF" fill="url(#sg)"/><path id="sparkL" fill="none" stroke="var(--a)" stroke-width="2"/></svg>
+            </div>
+            <div class="metric">
+              <div class="lbl"><svg class="i"><use href="#ram"/></svg>RAM</div>
+              <div class="big" id="mRam">0<small>%</small></div>
+              <div class="msub" id="mRamTxt">—</div>
+              <svg class="spark" viewBox="0 0 200 60" preserveAspectRatio="none"><path id="sparkRF" fill="url(#sg)"/><path id="sparkRL" fill="none" stroke="var(--a)" stroke-width="2"/></svg>
+            </div>
+            <div class="metric">
+              <div class="lbl"><svg class="i"><use href="#wifi"/></svg>Ping</div>
+              <div class="big" id="mPing">--<small>ms</small></div>
+              <div class="msub" id="mPingTxt">zu Cfx.re</div>
+              <svg class="spark" viewBox="0 0 200 60" preserveAspectRatio="none"><path id="sparkPF" fill="url(#sg)"/><path id="sparkPL" fill="none" stroke="var(--a)" stroke-width="2"/></svg>
+            </div>
+            <div class="metric">
+              <div class="lbl"><svg class="i"><use href="#monitor"/></svg>GPU</div>
+              <div class="gpu" id="mGpu">—</div>
+              <div class="msub" id="mOs">—</div>
+            </div>
           </div>
         </div>
-
-        <div class="tele">
-          <div class="card metric">
-            <div class="lbl"><svg class="i"><use href="#cpu"/></svg>CPU</div>
-            <div class="big" id="mCpu">0<small>%</small></div>
-            <div class="msub" id="mCpuName">—</div>
-            <svg class="spark" viewBox="0 0 200 60" preserveAspectRatio="none"><path id="sparkF" fill="url(#sg)"/><path id="sparkL" fill="none" stroke="var(--a)" stroke-width="2"/></svg>
-          </div>
-          <div class="card metric">
-            <div class="lbl"><svg class="i"><use href="#ram"/></svg>RAM</div>
-            <div class="big" id="mRam">0<small>%</small></div>
-            <div class="msub" id="mRamTxt">—</div>
-            <svg class="spark" viewBox="0 0 200 60" preserveAspectRatio="none"><path id="sparkRF" fill="url(#sg)"/><path id="sparkRL" fill="none" stroke="var(--a)" stroke-width="2"/></svg>
-          </div>
-          <div class="card metric">
-            <div class="lbl"><svg class="i"><use href="#wifi"/></svg>Ping</div>
-            <div class="big" id="mPing">--<small>ms</small></div>
-            <div class="msub" id="mPingTxt">zu Cfx.re</div>
-            <svg class="spark" viewBox="0 0 200 60" preserveAspectRatio="none"><path id="sparkPF" fill="url(#sg)"/><path id="sparkPL" fill="none" stroke="var(--a)" stroke-width="2"/></svg>
-          </div>
-          <div class="card metric">
-            <div class="lbl"><svg class="i"><use href="#monitor"/></svg>GPU</div>
-            <div class="gpu" id="mGpu">—</div>
-            <div class="msub" id="mOs">—</div>
-          </div>
+        <!-- quick actions: one quiet row of buttons -->
+        <div class="card quick">
+          <button class="qt" onclick="clearFmCache()"><span class="qi"><svg class="i"><use href="#trash"/></svg></span><span class="qx"><b>Cache leeren</b><span>Gegen Texture-Loss</span></span></button>
+          <button class="qt" onclick="cleanRam()"><span class="qi"><svg class="i"><use href="#ram"/></svg></span><span class="qx"><b>RAM freigeben</b><span>Mehr freier Speicher</span></span></button>
+          <button class="qt" onclick="go('xhair')"><span class="qi"><svg class="i"><use href="#crosshair"/></svg></span><span class="qx"><b>Fadenkreuz</b><span>Eigenes Overlay</span></span></button>
+          <button class="qt" onclick="go('display')"><span class="qi"><svg class="i"><use href="#sun"/></svg></span><span class="qx"><b>Live-Farben</b><span>Mehr Farbe im Spiel</span></span></button>
         </div>
-
         <div class="card cur-srv hidden" id="curSrv"></div>
         <div class="card actv">
           <div class="lbl"><svg class="i"><use href="#activity"/></svg>Letzte Aktivität</div>
@@ -461,6 +468,16 @@
 
       <!-- ===== tab: your clips ===== -->
       <div data-pane="clip:gal">
+        <!-- the clips come first, the video made from them below -->
+        <div class="card cl-lib">
+          <div class="cl-bar">
+            <div class="cl-h"><svg class="i"><use href="#film"/></svg>Deine Clips</div>
+            <div class="seg" id="clFilter"></div><span class="sp"></span>
+            <button class="btn sm d hidden" id="clTrash"><svg class="i"><use href="#trash"/></svg><span></span></button>
+            <button class="ib" onclick="clipList()" title="Neu laden"><svg class="i"><use href="#refresh"/></svg></button>
+          </div>
+          <div class="cl-grid" id="clGrid"></div>
+        </div>
         <div class="card hl" id="hlCard">
           <div class="hl-head">
             <div class="ac-ic"><svg class="i"><use href="#film"/></svg></div>
@@ -487,15 +504,6 @@
           </div>
           <div class="mmb-prog hidden" id="hlProg"><div><i id="hlBar"></i></div><span id="hlTxt"></span></div>
           <div class="row hl-auto"><div class="tg sm" id="hlAuto"></div><span>Nach jeder Runde von selbst ein Video machen<em>sobald du FiveM schließt, ab zwei Kills</em></span></div>
-        </div>
-        <div class="card cl-lib">
-          <div class="cl-bar">
-            <div class="cl-h"><svg class="i"><use href="#film"/></svg>Deine Clips</div>
-            <div class="seg" id="clFilter"></div><span class="sp"></span>
-            <button class="btn sm d hidden" id="clTrash"><svg class="i"><use href="#trash"/></svg><span></span></button>
-            <button class="ib" onclick="clipList()" title="Neu laden"><svg class="i"><use href="#refresh"/></svg></button>
-          </div>
-          <div class="cl-grid" id="clGrid"></div>
         </div>
       </div>
 
