@@ -7,9 +7,9 @@ namespace OrbitTweak.Core;
 /// The plan and the ffmpeg filter graph of a montage. Nothing of Windows in here, so the same code can be tried on
 /// made-up clips anywhere (tests/ClipLogic.Tests renders one). Per clip:
 ///  - the part around its kills (a few seconds of build-up, then the kills, then a short tail),
-///  - a speed ramp into slow motion on the last kill and out of it again, the in-between pictures blended,
+///  - a speed ramp into 2x slow motion on the last kill and out of it again, the in-between pictures blended, 60 fps CFR,
 ///  - a quick punch-in zoom at every kill and a slow push-in during the slow motion, cinema bars sliding in with it,
-///  - a short brightness hit at every kill, a soft colour grade (contrast, curves, a touch of teal/orange, vignette),
+///  - a short brightness hit at every kill, a light colour grade in YUV (eq only, no RGB filters) and dark corners,
 ///  - the kill counter as a killfeed chip that slides in at the kill ("KILL 3 / 8"), "DOUBLE KILL" etc. for streaks,
 ///  - the game sound slowed (and lowered) with the picture.
 /// Around it: an intro over the blurred first clip with title and date, an outro, smooth cross transitions between
@@ -24,14 +24,15 @@ internal static class MontageCut
     public sealed record Source(string File, double Dur, bool Audio, int W, int H, double[] Kills, int Count = 1);
 
     /// <summary>After: seconds the clipper keeps after a kill; Intro: intro and outro; Slow: slow motion factor on the last kill of a clip (1 = none).</summary>
-    public sealed record Options(double After = 5, bool Intro = true, double Slow = 2.5);
+    public sealed record Options(double After = 5, bool Intro = true, double Slow = 2);
 
     /// <summary>A kill moment: seconds into its part of the montage, the running kill number, the streak inside the clip.</summary>
     public sealed record Kill(double T, int Number, int Streak);
 
     public const int Fps = 60;
     // how much of a clip is shown around its kills, and the transitions
-    private const double Pre = 2.8, Post = 1.75, MaxSpan = 7, StreakGap = 4.5;
+    // (about 4 to 5 s per kill in the montage, slow motion included)
+    private const double Pre = 2.4, Post = 1.5, MaxSpan = 7, StreakGap = 4.5;
     public const double TIn = 0.5, TClip = 0.4, TOut = 0.6, IntroLen = 2.0, OutroLen = 2.4;
 
     public sealed class Part
@@ -86,6 +87,23 @@ internal static class MontageCut
 
     /// <summary>Kill times of a clip without marks: the clipper keeps max(2, after) seconds after the last kill.</summary>
     public static double Guess(double dur, double after) => Math.Clamp(dur - Math.Max(2, after) - 0.55, 1.0, Math.Max(1.0, dur - 0.6));
+
+    /// <summary>
+    /// The part of a clip that a montage or highlight video without ffmpeg keeps, as seconds before the end of the clip
+    /// (from &gt; to &gt;= 0; the clip's length is not needed): "lead" seconds before its first kill up to "post" seconds
+    /// after its last one, at most maxLen long (then the last kills are kept). marks = seconds before the end at which
+    /// the kills happened (ClipMarks); without them the kill is guessed from the seconds kept after a kill.
+    /// </summary>
+    public static (double from, double to) Window(IReadOnlyCollection<double> marks, double after, double lead, double post, double maxLen)
+    {
+        var ks = marks.Where(m => m >= 0 && m < 600).ToList();
+        if (ks.Count == 0) ks.Add(Math.Max(2, after) + 0.55);
+        double last = ks.Min(), first = ks.Max();
+        double to = Math.Max(0, last - post);
+        double from = Math.Min(first + lead, to + Math.Max(maxLen, lead + post));
+        from = Math.Max(from, last + lead);
+        return (Math.Round(from, 2), Math.Round(to, 2));
+    }
 
     public static Plan Make(IReadOnlyList<Source> clips, Options o)
     {
@@ -158,6 +176,9 @@ internal static class MontageCut
     /// <summary>0 before t0, up to 1 within "rise" seconds, then fading with time constant "fall".</summary>
     private static string Pulse(string v, double t0, double rise, double fall)
         => $"if(gte({v},{N(t0)}),if(lt({v},{N(t0 + rise)}),({v}-{N(t0)})/{N(rise)},exp(-({v}-{N(t0 + rise)})/{N(fall)})),0)";
+    /// <summary>Like Pulse, but eased in (no sudden jump at the start): for the zoom, where a jump would be seen.</summary>
+    private static string Ease(string v, double t0, double rise, double fall)
+        => $"if(gte({v},{N(t0)}),if(lt({v},{N(t0 + rise)}),{Smooth($"({v}-{N(t0)})/{N(rise)}")},exp(-({v}-{N(t0 + rise)})/{N(fall)})),0)";
 
     /// <summary>
     /// The ffmpeg arguments (inputs, mapping, encoding) and the filter graph (to be written to graphFile, which the
@@ -186,7 +207,7 @@ internal static class MontageCut
         }
         // the soft colour grade of the clips, all in YUV (curves, colour balance and sharpening would each need a
         // round trip through RGB and made the whole cut five times slower); "flash" brightens for a moment at kills
-        string Grade(string flash) => $"eq=contrast=1.08:saturation=1.2:gamma=0.96:brightness='{flash}':eval=frame";
+        string Grade(string flash) => $"eq=contrast=1.05:saturation=1.08:gamma=0.97:brightness='{flash}':eval=frame";
         // the dark corners: one picture, overlaid on every clip and the cards (the vignette filter costs as much as the rest)
         int shadeAt = art.Shade != null ? Input($"-i \"{art.Shade}\"") : -1;
         int shades = 0;
@@ -202,13 +223,13 @@ internal static class MontageCut
             int iv = Input($"{(c.A > 0.01 ? $"-ss {N(c.A)} " : "")}-t {N(len + 0.15)} -i \"{s.File}\"");
             // zoom: a quick punch-in at every kill, a slow push-in during the slow motion
             var z = new StringBuilder("1");
-            foreach (var k in c.Kills) z.Append("+0.045*").Append(Pulse("it", k.T - 0.03, 0.06, 0.22));
+            foreach (var k in c.Kills) z.Append("+0.07*").Append(Ease("it", k.T - 0.05, 0.1, 0.3));
             if (c.K > 1) z.Append($"+0.085*{Smooth($"(it-{N(c.SlowFrom)})/{N(Math.Max(0.2, c.SlowKill - c.SlowFrom))}")}*(1-{Smooth($"(it-{N(c.SlowTo - 0.1)})/0.45")})");
             var flash = new StringBuilder("0");
             foreach (var k in c.Kills) flash.Append("+0.075*").Append(Pulse("t", k.T - 0.02, 0.04, 0.14));
             bool big = s.H > H * 1.25;   // 4K and the like: made smaller first, the blending of frames is cheaper then
             g.Append($"[{iv}:v]setpts=PTS-STARTPTS,trim=duration={N(len)},{Std(s.W, s.H)}{(big ? $"scale={W}:{H}," : "")}setsar=1,"
-                   + $"setpts='{c.SetPts()}',framerate=fps={Fps}:scene=100,{Zoom(z.ToString())},"
+                   + $"setpts='{c.SetPts()}',framerate=fps={Fps}:interp_start=0:interp_end=255:scene=100,{Zoom(z.ToString())},"
                    + $"tpad=stop_mode=clone:stop_duration=0.5,trim=duration={N(c.Len)},{Grade(flash.ToString())}[c{i}e];{Shade($"c{i}e", $"c{i}g")}\n");
             string cur = $"c{i}g";
             // cinema bars sliding in with the slow motion
@@ -240,7 +261,7 @@ internal static class MontageCut
                     cur = $"c{i}s{j}";
                 }
             }
-            g.Append($"[{cur}]fps={Fps},format=yuv420p,setsar=1[v{i}];\n");
+            g.Append($"[{cur}]fps={Fps},settb=1/{Fps},format=yuv420p,setsar=1[v{i}];\n");
             // sound: normal, slowed (and so lower) through the slow motion, normal again
             if (s.Audio)
             {
@@ -278,7 +299,7 @@ internal static class MontageCut
                 g.Append($"{Still(it, IntroLen)},fade=t=in:st=0.15:d=0.5:alpha=1[it];[ib][it]overlay=x=0:y='{N(28 * u)}*pow(1-{Clip01("(t-0.15)/0.6")},3)':shortest=1");
             }
             else g.Append("[ib]null");
-            g.Append($",fade=t=in:st=0:d=0.25,fps={Fps},format=yuv420p,setsar=1[vin];\n");
+            g.Append($",fade=t=in:st=0:d=0.25,fps={Fps},settb=1/{Fps},format=yuv420p,setsar=1[vin];\n");
             if (!hasMusic && f.Src.Audio)
                 g.Append($"[{ib}:a]asetpts=PTS-STARTPTS,aresample=48000,{AFmt},lowpass=f=700,volume=0.55,afade=t=in:d=0.8,apad=whole_dur={N(IntroLen)},atrim=duration={N(IntroLen)}[ain];\n");
             else g.Append($"{Silence},atrim=duration={N(IntroLen)}[ain];\n");
@@ -292,7 +313,7 @@ internal static class MontageCut
                 g.Append($"{Still(ot, OutroLen)},fade=t=in:st=0.25:d=0.5:alpha=1[ot];[ob][ot]overlay=x=0:y='{N(28 * u)}*pow(1-{Clip01("(t-0.25)/0.6")},3)':shortest=1");
             }
             else g.Append("[ob]null");
-            g.Append($",fade=t=out:st={N(OutroLen - 0.7)}:d=0.7,fps={Fps},format=yuv420p,setsar=1[vout];\n");
+            g.Append($",fade=t=out:st={N(OutroLen - 0.7)}:d=0.7,fps={Fps},settb=1/{Fps},format=yuv420p,setsar=1[vout];\n");
             if (!hasMusic && l.Src.Audio)
                 g.Append($"[{ob}:a]asetpts=PTS-STARTPTS,aresample=48000,{AFmt},lowpass=f=900,volume=0.5,afade=t=out:st={N(OutroLen - 1.2)}:d=1.2,apad=whole_dur={N(OutroLen)},atrim=duration={N(OutroLen)}[aout];\n");
             else g.Append($"{Silence},atrim=duration={N(OutroLen)}[aout];\n");
@@ -333,7 +354,8 @@ internal static class MontageCut
 
         if (shades > 0) g.Insert(0, $"[{shadeAt}:v]format=yuva420p,split={shades}{string.Concat(Enumerable.Range(0, shades).Select(k => $"[sh{k}]"))};\n");
         args.Append(newSyntax ? $"-/filter_complex \"{graphFile}\" " : $"-filter_complex_script \"{graphFile}\" ");
-        args.Append($"-map \"[{vEnd}]\" -map \"[aend]\" -c:v libx264 -preset veryfast -crf 19 -pix_fmt yuv420p -c:a aac -b:a 192k -movflags +faststart -t {N(p.Total)} -progress pipe:1 -nostats \"{target}\"");
+        // a steady 60 frames a second (ffmpeg before 7 knows -vsync only)
+        args.Append($"-map \"[{vEnd}]\" -map \"[aend]\" -r {Fps} {(newSyntax ? "-fps_mode cfr" : "-vsync cfr")} -c:v libx264 -preset veryfast -crf 19 -pix_fmt yuv420p -c:a aac -b:a 192k -movflags +faststart -t {N(p.Total)} -progress pipe:1 -nostats \"{target}\"");
         return (args.ToString(), g.ToString());
     }
 }

@@ -198,7 +198,7 @@ internal sealed class KillMessages
         if (fresh && name.Length >= 3 && gap < 2.5 && KillLogic.SameText(name, Name(_text, _word))) fresh = false;
         // another name right away: the next kill replaced the message
         bool replaced = !fresh && gap <= 0.8 && Other(name, Name(_text, _word));
-        bool count = (fresh || replaced) && (now - _death).TotalSeconds > 3 && (now - _counted).TotalSeconds > 0.6;
+        bool count = (fresh || replaced) && (now - _death).TotalSeconds > 3 && (now - _counted).TotalSeconds > 0.5;
         _seen = now;
         if (name.Length >= Name(_text, _word).Length || count || fresh) { _text = text; _word = word; }
         if (count) _counted = now;
@@ -236,5 +236,133 @@ internal sealed class KillMerge
         if (same) return false;
         _last = at; _how = how;
         return true;
+    }
+}
+
+/// <summary>
+/// Which recognised text is a kill message and which one a death message (the part of KillText without Windows).
+/// A kill word counts only at the start of a word: "KILLED Max" and "KILLEDMAX" (glued by the recognition) are kills,
+/// "Skilled_Sniper" is not. Long words may have one letter misread ("KILLEO", "K1LLED"), but words that are one letter
+/// away from a kill word without being one ("KILLER", "FILLED", "BILLED") never count. Short words have to stand
+/// alone ("+1 KILL" yes, "KILLS 12" no).
+/// </summary>
+internal static partial class KillText
+{
+    /// <summary>Words that mean "you killed somebody" (the user can change the list).</summary>
+    public const string DefaultWords = "KILLED, KILL, GETÖTET, ELIMINATED, ELIMINIERT, ERLEDIGT";
+
+    public enum Kind { None, Kill, Death }
+
+    // "… by / von …" turns a kill word into the opposite; these also mark a death on their own (anywhere in the line)
+    private static readonly string[] DeathPhrases =
+    {
+        "KILLEDBY", "GETOTETVON", "ELIMINATEDBY", "ELIMINIERTVON", "ERLEDIGTVON", "YOUDIED", "YOUWEREKILLED", "YOUAREDEAD",
+        "DUWURDEST", "DUBISTTOT", "DUBISTGESTORBEN", "WASTED", "BEENKILLED", "BEENELIMINATED", "GOTKILLED"
+    };
+    // … and these only where a word ends right after them ("Max killed you" is a death, "You killed Young_Bob" is not)
+    private static readonly string[] DeathAtEnd = { "KILLEDYOU", "ELIMINATEDYOU" };
+    // words that look like a kill word to the recognition but are none
+    private static readonly string[] NotKill = { "KILLER", "SKILL", "FILLED", "BILLED", "MILLED", "PILLED", "TILLED", "WILLED" };
+
+    /// <summary>Upper case, umlauts folded (the English recognizer has none), everything but letters and digits removed.</summary>
+    public static string Fold(string s, bool keepSpaces = false)
+    {
+        var sb = new System.Text.StringBuilder(s.Length);
+        foreach (var ch in s.ToUpperInvariant())
+        {
+            switch (ch)
+            {
+                case 'Ä': sb.Append('A'); break;
+                case 'Ö': sb.Append('O'); break;
+                case 'Ü': sb.Append('U'); break;
+                case 'ẞ': case 'ß': sb.Append("SS"); break;
+                default:
+                    if (char.IsLetterOrDigit(ch)) sb.Append(ch);
+                    else if (keepSpaces && sb.Length > 0 && sb[^1] != ' ') sb.Append(' ');
+                    break;
+            }
+        }
+        return sb.ToString().Trim();
+    }
+
+    /// <summary>
+    /// A line folded without spaces, and where its words start and end in it. A word that begins with digits ("+1KILL")
+    /// also starts after them.
+    /// </summary>
+    private static (string t, bool[] start, bool[] end) Words(string line)
+    {
+        var spaced = Fold(line, true);
+        var t = new System.Text.StringBuilder(spaced.Length);
+        var start = new bool[spaced.Length + 1]; var end = new bool[spaced.Length + 1];
+        bool inWord = false, digits = false;
+        foreach (var ch in spaced)
+        {
+            if (ch == ' ') { if (inWord) end[t.Length] = true; inWord = false; continue; }
+            if (!inWord) { start[t.Length] = true; inWord = true; digits = char.IsDigit(ch); }
+            else if (digits && !char.IsDigit(ch)) { start[t.Length] = true; digits = false; }
+            else if (!char.IsDigit(ch)) digits = false;
+            t.Append(ch);
+        }
+        if (inWord) end[t.Length] = true;
+        return (t.ToString(), start[..(t.Length + 1)], end[..(t.Length + 1)]);
+    }
+
+    /// <summary>The word stands at position i of t: exactly, or with one wrong letter in words of six or more letters.</summary>
+    private static bool At(string t, int i, string w)
+    {
+        if (w.Length == 0 || i + w.Length > t.Length) return false;
+        int diff = 0, allowed = w.Length >= 6 ? 1 : 0;
+        for (int k = 0; k < w.Length && diff <= allowed; k++) if (t[i + k] != w[k]) diff++;
+        return diff <= allowed;
+    }
+
+    /// <summary>A death message ("KILLED BY …", "You have been eliminated", "Max killed you", "WASTED").</summary>
+    public static bool IsDeath(string line)
+    {
+        var (t, _, end) = Words(line);
+        for (int i = 0; i < t.Length; i++)
+        {
+            foreach (var p in DeathPhrases) if (At(t, i, p)) return true;
+            foreach (var p in DeathAtEnd) if (At(t, i, p) && end[i + p.Length]) return true;
+        }
+        return false;
+    }
+
+    /// <summary>The kill word w (folded) is in the line, at the start of a word and not as part of a look-alike word.</summary>
+    public static bool HasKillWord(string line, string w) => HasKillWord(Words(line), w);
+
+    private static bool HasKillWord((string t, bool[] start, bool[] end) l, string w)
+    {
+        var (t, start, end) = l;
+        if (w.Length == 0) return false;
+        for (int i = 0; i + w.Length <= t.Length; i++)
+        {
+            if (!start[i] || !At(t, i, w)) continue;
+            // short words have to stand alone; long ones may be glued to the name
+            if (w.Length < 6 && !end[i + w.Length]) continue;
+            if (NotKill.Any(n => !w.StartsWith(n, StringComparison.Ordinal) && string.CompareOrdinal(t, i, n, 0, n.Length) == 0)) continue;
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Looks through recognised lines: a death phrase wins, otherwise the first line with one of the kill words.
+    /// Returns the line as it was read and the kill word it matched.
+    /// </summary>
+    public static (Kind kind, string text, string word) Classify(IEnumerable<string> lines, string? words)
+    {
+        var list = (string.IsNullOrWhiteSpace(words) ? DefaultWords : words)
+            .Split(new[] { ',', ';', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries).Select(x => Fold(x)).Where(x => x.Length >= 3).Distinct().ToList();
+        (Kind, string, string) kill = (Kind.None, "", "");
+        foreach (var line in lines)
+        {
+            if (IsDeath(line)) return (Kind.Death, line.Trim(), "");
+            if (kill.Item1 != Kind.None) continue;
+            var l = Words(line);
+            foreach (var w in list)
+                if (HasKillWord(l, w)) { kill = (Kind.Kill, line.Trim(), w); break; }
+        }
+        return kill;
     }
 }

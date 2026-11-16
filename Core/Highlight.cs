@@ -24,6 +24,9 @@ internal static class Highlight
     {
         public List<string> Files { get; set; } = new();
         public double Tail { get; set; }          // 0 = whole clips, otherwise only the last seconds of each clip
+        // per clip (same order as Files): the part kept, as seconds before its end [from, to], placed around its kills;
+        // missing or empty = the last "Tail" seconds
+        public List<double[]> Cuts { get; set; } = new();
         public long MaxBytes { get; set; }        // 0 = as recorded, otherwise the result has to stay below this size
         public string Out { get; set; } = "";
         public double From { get; set; }          // cut: seconds from the start of the (single) clip …
@@ -90,16 +93,34 @@ internal static class Highlight
 
     private static uint Even(double v) => (uint)Math.Max(2, Math.Round(v / 2) * 2);
 
+    /// <summary>Keeps the part of clip number i that the job asks for: its window around the kills, or the last "Tail" seconds.</summary>
+    private static void Trim(MediaClip clip, Job job, int i)
+    {
+        double dur = clip.OriginalDuration.TotalSeconds;
+        if (i < job.Cuts.Count && job.Cuts[i] is { Length: 2 } w && w[0] > w[1] && dur > 1.5)
+        {
+            double from = Math.Clamp(dur - w[0], 0, dur - 1), to = Math.Clamp(dur - w[1], from + 1, dur);
+            clip.TrimTimeFromStart = TimeSpan.FromSeconds(from);
+            clip.TrimTimeFromEnd = TimeSpan.FromSeconds(dur - to);
+        }
+        else if (job.Tail > 0 && dur > job.Tail + 0.5) clip.TrimTimeFromStart = clip.OriginalDuration - TimeSpan.FromSeconds(job.Tail);
+    }
+
+    /// <summary>Where every clip is cut: around its kills (see MontageCut.Window).</summary>
+    private static List<double[]> KillCuts(IEnumerable<string> files, double after, double lead, double post, double maxLen)
+        => files.Select(f => { var (a, b) = MontageCut.Window(ClipMarks.Get(f), after, lead, post, maxLen); return new[] { a, b }; }).ToList();
+
     private static async Task Join(Job job, double factor, Action<double> progress)
     {
         var comp = new MediaComposition();
         uint w = 0, h = 0, bitrate = 0; double fps = 60;
-        foreach (var path in job.Files)
+        for (int fi = 0; fi < job.Files.Count; fi++)
         {
+            var path = job.Files[fi];
             MediaClip clip;
             try { clip = await MediaClip.CreateFromFileAsync(await StorageFile.GetFileFromPathAsync(path)); }
             catch { continue; } // a clip that cannot be read (still being written, damaged) is left out
-            if (job.Tail > 0 && clip.OriginalDuration.TotalSeconds > job.Tail + 0.5) clip.TrimTimeFromStart = clip.OriginalDuration - TimeSpan.FromSeconds(job.Tail);
+            Trim(clip, job, fi);
             if (job.To > job.From)
             {
                 double dur = clip.OriginalDuration.TotalSeconds, from = Math.Clamp(job.From, 0, dur), to = Math.Clamp(job.To, from, dur);
@@ -160,12 +181,13 @@ internal static class Highlight
         var starts = new List<TimeSpan>(); var at = TimeSpan.Zero;
         bool music = !string.IsNullOrEmpty(job.Music) && File.Exists(job.Music);
         if (job.Intro != null) { var c = await MediaClip.CreateFromImageFileAsync(await F(job.Intro), TimeSpan.FromSeconds(1.8)); comp.Clips.Add(c); at += c.TrimmedDuration; }
-        foreach (var path in job.Files)
+        for (int fi = 0; fi < job.Files.Count; fi++)
         {
+            var path = job.Files[fi];
             MediaClip clip;
             try { clip = await MediaClip.CreateFromFileAsync(await F(path)); }
             catch { continue; }
-            if (job.Tail > 0 && clip.OriginalDuration.TotalSeconds > job.Tail + 0.5) clip.TrimTimeFromStart = clip.OriginalDuration - TimeSpan.FromSeconds(job.Tail);
+            Trim(clip, job, fi);
             if (w == 0)
             {
                 var v = clip.GetVideoEncodingProperties();
@@ -238,7 +260,7 @@ internal static class Highlight
     /// Makes a montage of the newest kill clips ("Montage date time.mp4" in the clips folder). Has to be called on
     /// the app's main thread (the cards are drawn there). Returns the file or an error text, and how many clips went in.
     /// </summary>
-    public static async Task<(string? file, string? error, int clips)> MakeMontage(int count, string? music, string? accentHex, Action<int, string> progress)
+    public static async Task<(string? file, string? error, int clips)> MakeMontage(int count, string? music, string? accentHex, Action<int, string> progress, double after = 5)
     {
         var all = KillClips(false);
         if (all.Count < 2) return (null, "Dafür braucht es mindestens zwei Kill-Clips", all.Count);
@@ -247,7 +269,10 @@ internal static class Highlight
         try
         {
             Directory.CreateDirectory(tmp);
-            var job = new Job { Files = clips.Select(c => c.FullName).ToList(), Tail = 6.5, Montage = true, Music = music, Out = Path.Combine(Clipper.OwnDir, $"Montage {DateTime.Now:yyyy-MM-dd HH-mm-ss}.mp4") };
+            var files = clips.Select(c => c.FullName).ToList();
+            // every clip from 3 s before its first kill to 2 s after its last (not simply its last seconds: with the
+            // usual 5 s kept after a kill that left hardly anything before it)
+            var job = new Job { Files = files, Tail = 6.5, Cuts = KillCuts(files, after, 3.0, 2.0, 9), Montage = true, Music = music, Out = Path.Combine(Clipper.OwnDir, $"Montage {DateTime.Now:yyyy-MM-dd HH-mm-ss}.mp4") };
             job.Intro = Path.Combine(tmp, "intro.png"); job.Outro = Path.Combine(tmp, "outro.png"); job.Vignette = Path.Combine(tmp, "frame.png");
             var first = clips[0].LastWriteTime; var last = clips[^1].LastWriteTime;
             MontageArt.Card(job.Intro, "HIGHLIGHTS", $"{clips.Count} Kills · {(first.Date == last.Date ? last.ToString("dd.MM.yyyy") : first.ToString("dd.MM.") + " bis " + last.ToString("dd.MM.yyyy"))}", accentHex);
@@ -291,19 +316,26 @@ internal static class Highlight
     }
 
     /// <summary>Joins the kill clips (of today or all) into "Highlights date time.mp4" in the clips folder. Returns the file or an error text.</summary>
-    public static Task<(string? file, string? error, int clips)> Make(bool todayOnly, double tail, Action<int, string> progress)
+    public static Task<(string? file, string? error, int clips)> Make(bool todayOnly, double tail, Action<int, string> progress, double after = 5)
     {
         var clips = KillClips(todayOnly);
         if (clips.Count < 2) return Task.FromResult<(string?, string?, int)>((null, todayOnly ? "Dafür braucht es mindestens zwei Kill-Clips von heute" : "Dafür braucht es mindestens zwei Kill-Clips", clips.Count));
-        return Make(clips, tail, progress);
+        return Make(clips, tail, progress, after);
     }
 
-    /// <summary>Joins the given clips, in this order.</summary>
-    public static async Task<(string? file, string? error, int clips)> Make(List<FileInfo> clips, double tail, Action<int, string> progress)
+    /// <summary>
+    /// Joins the given clips, in this order. tail &gt; 0: only about that many seconds of each, placed around its kills
+    /// (from tail − 2.5 s before the first kill to 2.5 s after the last); "after" = the seconds the clipper keeps after a
+    /// kill, for clips without kill marks.
+    /// </summary>
+    public static async Task<(string? file, string? error, int clips)> Make(List<FileInfo> clips, double tail, Action<int, string> progress, double after = 5)
     {
         if (clips.Count > 40) clips = clips.Skip(clips.Count - 40).ToList(); // the newest 40
         var target = Path.Combine(Clipper.OwnDir, $"Highlights {DateTime.Now:yyyy-MM-dd HH-mm-ss}.mp4");
-        var err = await RunJob(new Job { Files = clips.Select(c => c.FullName).ToList(), Tail = tail, Out = target }, pct => progress(pct, $"{clips.Count} Clips werden zusammengefügt…"));
+        var files = clips.Select(c => c.FullName).ToList();
+        var job = new Job { Files = files, Tail = tail, Out = target };
+        if (tail > 0) job.Cuts = KillCuts(files, after, Math.Max(1, tail - 2.5), Math.Min(2.5, tail / 2), tail + 4);
+        var err = await RunJob(job, pct => progress(pct, $"{clips.Count} Clips werden zusammengefügt…"));
         return err == null ? (target, null, clips.Count) : (null, err, clips.Count);
     }
 

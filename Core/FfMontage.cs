@@ -15,7 +15,10 @@ namespace OrbitTweak.Core;
 internal static class FfMontage
 {
     private static string OwnDir => Path.Combine(AppDirs.Local, "ffmpeg");
-    private const string Url = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip";
+    // a fixed version (the one the montage was tried with), not "latest": a new ffmpeg may drop options. If that
+    // file is ever gone, the current release is taken (the montage also works with it, see MontageCut.Build).
+    private const string Url = "https://github.com/GyanD/codexffmpeg/releases/download/7.1.1/ffmpeg-7.1.1-essentials_build.zip";
+    private const string Latest = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip";
 
     /// <summary>ffmpeg.exe with ffprobe.exe next to it (version 5 or newer, older ones lack filters the montage needs), or null.</summary>
     public static string? Find()
@@ -63,7 +66,9 @@ internal static class FfMontage
         try
         {
             using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(15) };
-            using var res = await http.GetAsync(Url, HttpCompletionOption.ResponseHeadersRead);
+            var res = await http.GetAsync(Url, HttpCompletionOption.ResponseHeadersRead);
+            if (!res.IsSuccessStatusCode) { res.Dispose(); res = await http.GetAsync(Latest, HttpCompletionOption.ResponseHeadersRead); }
+            using var owned = res;
             res.EnsureSuccessStatusCode();
             long total = res.Content.Headers.ContentLength ?? 0, got = 0;
             await using (var src = await res.Content.ReadAsStreamAsync())
@@ -156,7 +161,7 @@ internal static class FfMontage
             }
             if (src.Count < 2) return (null, "Zu wenige lesbare Kill-Clips", src.Count);
             int n = src.Count;
-            var plan = MontageCut.Make(src, new MontageCut.Options(after, intro, slow ? 2.5 : 1));
+            var plan = MontageCut.Make(src, new MontageCut.Options(after, intro, slow ? 2 : 1));
 
             // the pictures, at the size of the video
             string? introPng = null, outroPng = null, shade = Path.Combine(tmp, "shade.png");

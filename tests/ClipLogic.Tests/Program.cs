@@ -169,6 +169,40 @@ Check(KillLogic.SameText("ZM Blaze killed Kronos", "|ZM Blaze killed Kronos"), "
 Check(KillLogic.SameText("ZM Blaze killed Kronos77", "ZM Blaze kiIled Kronos77"), "one misread letter is the same line");
 Check(!KillLogic.SameText("ZM Blaze killed Kronos77", "ZM Blaze killed Viper_12"), "another victim is another line");
 
+// ---------- kill words ----------
+{
+    string? K(string line) { var r = KillText.Classify(new[] { line }, null); return r.kind == KillText.Kind.Kill ? r.word : r.kind == KillText.Kind.Death ? "DEATH" : null; }
+    foreach (var (line, want) in new (string, string?)[]
+    {
+        ("KILLED ZM_Blaze", "KILLED"), ("KILLEO Kronos77", "KILLED"), ("K1LLED Max", "KILLED"), ("KILLEDZM_Blaze", "KILLED"),
+        ("+1 KILL", "KILL"), ("+1KILL", "KILL"), ("ELIMINATED Viper_12", "ELIMINATED"), ("Du hast Max getötet", "GETOTET"),
+        ("You killed Young_Bob", "KILLED"),
+        ("KILLER", null), ("Top Killer: Max", null), ("Skilled_Sniper", null), ("SKILL", null), ("FILLED", null), ("BILLED", null),
+        ("KILLS 12", null), ("Overkill", null),
+        ("KILLED BY Max", "DEATH"), ("You have been eliminated", "DEATH"), ("You have been killed", "DEATH"), ("Max killed you", "DEATH"),
+        ("Max killed you!", "DEATH"), ("WASTED", "DEATH"), ("Du wurdest getötet", "DEATH"),
+    })
+        Check(K(line) == want, $"\"{line}\" is {want ?? "nothing"} (got {K(line) ?? "nothing"})");
+    // a word of the user's own that starts like a look-alike still works
+    Check(KillText.Classify(new[] { "KILLERSTREAK 3" }, "KILLERSTREAK").kind == KillText.Kind.Kill, "own word KILLERSTREAK counts");
+}
+
+// ---------- the part of a clip kept without ffmpeg ----------
+{
+    // one kill 5.35 s before the end (the clipper keeps 5 s after a kill): 3 s before it to 2 s after it
+    var (f, t) = MontageCut.Window(new[] { 5.35 }, 5, 3, 2, 9);
+    Check(Math.Abs(f - 8.35) < 1e-9 && Math.Abs(t - 3.35) < 1e-9, $"window around one kill ({f}..{t})");
+    // no marks: the kill is guessed from "after"
+    (f, t) = MontageCut.Window(Array.Empty<double>(), 5, 3, 2, 9);
+    Check(Math.Abs(f - 8.55) < 1e-9 && Math.Abs(t - 3.55) < 1e-9, $"window without marks ({f}..{t})");
+    // two kills far apart: the last ones are kept, never longer than maxLen
+    (f, t) = MontageCut.Window(new[] { 20.0, 6.0 }, 5, 3, 2, 9);
+    Check(Math.Abs(f - t - 9) < 1e-9 && t < 6 && f > 6, $"window of a long multi kill ({f}..{t})");
+    // a kill at the very end of the clip
+    (f, t) = MontageCut.Window(new[] { 0.5 }, 5, 5.5, 2.5, 12);
+    Check(t == 0 && Math.Abs(f - 6) < 1e-9, $"window of a kill at the end ({f}..{t})");
+}
+
 // ---------- montage plan ----------
 {
     var src = new List<MontageCut.Source>
@@ -183,7 +217,9 @@ Check(!KillLogic.SameText("ZM Blaze killed Kronos77", "ZM Blaze killed Viper_12"
     Check(p.Kills == 5, $"kills are counted over all clips ({p.Kills})");
     var a = p.Parts[0];
     Check(Math.Abs(a.Out(a.KX) - a.SlowKill) < 1e-9 && a.K > 1, "the slow motion sits on the kill");
-    Check(Math.Abs(a.A - 17.2) < 0.01 && Math.Abs(a.D - 21.75) < 0.01, $"part around the kill ({a.A}..{a.D})");
+    Check(Math.Abs(a.A - 17.6) < 0.01 && Math.Abs(a.D - 21.5) < 0.01, $"part around the kill ({a.A}..{a.D})");
+    Check(a.Len >= 4.5 && a.Len <= 5.6, $"about 4 to 5 s per kill ({a.Len})");
+    Check(a.K == 2, "slow motion is 2x");
     double prev = -1; bool mono = true;
     for (double x = 0; x <= a.D - a.A; x += 0.01) { double o = a.Out(x); if (o < prev - 1e-9) mono = false; prev = o; }
     Check(mono, "the speed ramp never runs backwards");
@@ -198,6 +234,11 @@ Check(!KillLogic.SameText("ZM Blaze killed Kronos77", "ZM Blaze killed Viper_12"
     Check(Math.Abs(p.Total - sum) < 1e-9, "total length");
     var (margs, graph) = MontageCut.Build(p, new MontageCut.Art("i.png", "o.png", new Dictionary<int, string> { [1] = "k1.png", [3] = "k3.png" }, new Dictionary<int, string> { [3] = "t3.png" }, "s.png"), "m.mp3", "g.txt", "out.mp4", true);
     Check(margs.Contains("-/filter_complex \"g.txt\"") && graph.Contains("xfade=") && graph.Contains("sidechaincompress"), "graph has transitions and ducking");
+    Check(margs.Contains("-fps_mode cfr") && margs.Contains("-r 60"), "steady 60 fps");
+    Check(graph.Contains("crop=1920:1080"), "ultrawide is cropped to 16:9, not padded");
+    Check(graph.Contains("interp_start=0") && graph.Contains("settb=1/60"), "blended slow motion, xfade inputs on one time base");
+    var (oargs, _) = MontageCut.Build(p, new MontageCut.Art(null, null, new Dictionary<int, string>(), new Dictionary<int, string>()), null, "g.txt", "out.mp4", false);
+    Check(oargs.Contains("-filter_complex_script \"g.txt\"") && oargs.Contains("-vsync cfr") && !oargs.Contains("-/filter_complex"), "ffmpeg before 7: the old options");
     Check(!graph.Contains("NaN") && !graph.Contains("Infinity") && !graph.Contains("∞"), "no broken numbers in the graph");
 }
 

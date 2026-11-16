@@ -747,7 +747,7 @@ public partial class MainWindow : Window
                         var title = S.Clip.MontageTitle.Length > 0 ? S.Clip.MontageTitle : S.Clip.Name;
                         (file, err, n) = await FfMontage.Make(ff, pick, S.Clip.After, music, _accentHex, (pct, text) => Emit("highlight", new { pct, text }), title, S.Clip.MontageIntro, S.Clip.MontageCounter, slow);
                     }
-                    else (file, err, n) = await Highlight.MakeMontage(Int(a, "count"), music, _accentHex, (pct, text) => Emit("highlight", new { pct, text }));
+                    else (file, err, n) = await Highlight.MakeMontage(Int(a, "count"), music, _accentHex, (pct, text) => Emit("highlight", new { pct, text }), S.Clip.After);
                     if (file == null) { ClipLog.Add("Montage nicht erstellt: " + err); return new { error = err }; }
                     ClipLog.Add($"Montage aus {n} Kill-Clips: {Path.GetFileName(file)}");
                     Log($"🎬 Montage aus {n} Clips → {Path.GetFileName(file)}");
@@ -761,7 +761,7 @@ public partial class MainWindow : Window
                 try
                 {
                     bool today = Str(a, "scope") != "all";
-                    var (file, err, n) = await Highlight.Make(today, S.Clip.HighlightTail, (pct, text) => Emit("highlight", new { pct, text }));
+                    var (file, err, n) = await Highlight.Make(today, S.Clip.HighlightTail, (pct, text) => Emit("highlight", new { pct, text }), S.Clip.After);
                     if (file != null)
                     {
                         ClipLog.Add($"Highlight-Video aus {n} Kill-Clips: {Path.GetFileName(file)}");
@@ -1409,7 +1409,13 @@ public partial class MainWindow : Window
         }
         // from "Before" seconds ahead of the first kill (or of the first shot, if the model did not say when) up to now
         var killAt = v.FirstKillT is double t ? from.AddSeconds(t - 0.6).ToLocalTime() : started;
-        await SaveClip($"Auto-Clip: {(v.Kills == 1 ? "Kill" : v.Kills + " Kills")} erkannt (KI)", v.Kills == 1 ? "Kill" : $"{v.Kills} Kills", S.Clip.Before + Math.Max(0, (DateTime.Now - killAt).TotalSeconds), 0, new List<DateTime> { killAt });
+        // … and it ends "After" seconds after the fight, not now: the model answers up to half a minute later, that
+        // would leave dead footage at the end (an end in the past is fine for the recorder, the kill marks follow it)
+        var fightEnd = started.AddSeconds(span);
+        var endAt = (killAt > fightEnd ? killAt : fightEnd).AddSeconds(Math.Max(2, S.Clip.After));
+        double after = Math.Min(S.Clip.After, (endAt - DateTime.Now).TotalSeconds);
+        await SaveClip($"Auto-Clip: {(v.Kills == 1 ? "Kill" : v.Kills + " Kills")} erkannt (KI)", v.Kills == 1 ? "Kill" : $"{v.Kills} Kills",
+            S.Clip.Before + Math.Max(0, (DateTime.Now - killAt).TotalSeconds), after, new List<DateTime> { killAt });
         return true;
     }
 
@@ -1497,7 +1503,7 @@ public partial class MainWindow : Window
         try
         {
             ClipLog.Add($"Runde beendet: Highlight-Video aus {clips.Count} Kill-Clips wird erstellt");
-            var (file, err, n) = await Highlight.Make(clips, S.Clip.HighlightTail, (pct, text) => Emit("highlight", new { pct, text }));
+            var (file, err, n) = await Highlight.Make(clips, S.Clip.HighlightTail, (pct, text) => Emit("highlight", new { pct, text }), S.Clip.After);
             if (file != null)
             {
                 ClipLog.Add($"Highlight-Video aus {n} Kill-Clips: {Path.GetFileName(file)}");
@@ -1542,7 +1548,7 @@ public partial class MainWindow : Window
                 Emit("clip", new { recorder = "orbit", auto, error = why });
                 return why;
             }
-            ClipLog.Add($"Clip gespeichert: {Path.GetFileName(file)} ({before:0} s davor, {after:0} s danach)");
+            ClipLog.Add($"Clip gespeichert: {Path.GetFileName(file)} ({before:0} s davor, {(after < 0 ? $"endet {-after:0} s vor dem Speichern" : $"{after:0} s danach")})");
             if (kind == "Kill" || kind.EndsWith(" Kills")) _roundClips.Add(file);   // for the highlight video of this round
             if (kills is { Count: > 0 }) ClipMarks.Add(file, kills.Select(k => (cutAt - k).TotalSeconds));   // where the kills sit, for the slow motion of a montage
             Log($"🎬 {auto ?? "Clip gespeichert"} → {Path.GetFileName(file)}");
