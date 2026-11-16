@@ -72,6 +72,12 @@ public class Settings
     public bool RestoreBeforeBoost { get; set; } = true;
     public bool PurgeStandby { get; set; } = true;
     public bool TimerRes { get; set; }
+    /// <summary>Discord status ("Spielt OrbitTweak"): game state, server, play time and kills of the round on the Discord profile.
+    /// Only works with an app ID (DiscordPresence.DefaultAppId or one pasted by the user).</summary>
+    public bool DiscordOn { get; set; } = true;
+    public bool DiscordServer { get; set; } = true;     // server name and icon (off: just "FiveM")
+    public bool DiscordKills { get; set; } = true;      // "Im Spiel · 3 Kills" (needs the kill detection of the clipper)
+    public string DiscordAppId { get; set; } = "";
     public bool FirstRun { get; set; } = true;
     public string? FiveMPath { get; set; }
     public DateTime? LastBoost { get; set; }
