@@ -319,13 +319,29 @@ internal static partial class KillText
     /// <summary>A death message ("KILLED BY …", "You have been eliminated", "Max killed you", "WASTED").</summary>
     public static bool IsDeath(string line)
     {
-        var (t, _, end) = Words(line);
-        for (int i = 0; i < t.Length; i++)
+        var l = Words(line);
+        for (int i = 0; i < l.t.Length; i++)
         {
-            foreach (var p in DeathPhrases) if (At(t, i, p)) return true;
-            foreach (var p in DeathAtEnd) if (At(t, i, p) && end[i + p.Length]) return true;
+            foreach (var p in DeathPhrases) if (Phrase(l, i, p, false)) return true;
+            foreach (var p in DeathAtEnd) if (Phrase(l, i, p, true)) return true;
         }
         return false;
+    }
+
+    /// <summary>
+    /// A death phrase at position i: read exactly (anywhere), or with one wrong letter only where a word starts
+    /// ("HEADSHOT KILLED" is no "GOT KILLED") and not in its closing "BY", "VON" or "YOU" unless that stands as a word
+    /// of its own ("KILLED Bob", "KILLED Kyle" are kills, "KILLED 8Y Max" is a death). atEnd: a word has to end after it.
+    /// </summary>
+    private static bool Phrase((string t, bool[] start, bool[] end) l, int i, string p, bool atEnd)
+    {
+        var (t, start, end) = l;
+        if (i + p.Length > t.Length || (atEnd && !end[i + p.Length])) return false;
+        if (string.CompareOrdinal(t, i, p, 0, p.Length) == 0) return true;
+        if (!start[i] || !At(t, i, p)) return false;
+        int tail = p.EndsWith("BY", StringComparison.Ordinal) ? 2 : p.EndsWith("VON", StringComparison.Ordinal) || p.EndsWith("YOU", StringComparison.Ordinal) ? 3 : 0;
+        if (string.CompareOrdinal(t, i + p.Length - tail, p, p.Length - tail, tail) == 0) return true;
+        return !atEnd && end[i + p.Length];
     }
 
     /// <summary>The kill word w (folded) is in the line, at the start of a word and not as part of a look-alike word.</summary>

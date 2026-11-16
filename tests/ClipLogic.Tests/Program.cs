@@ -176,7 +176,8 @@ Check(!KillLogic.SameText("ZM Blaze killed Kronos77", "ZM Blaze killed Viper_12"
     {
         ("KILLED ZM_Blaze", "KILLED"), ("KILLEO Kronos77", "KILLED"), ("K1LLED Max", "KILLED"), ("KILLEDZM_Blaze", "KILLED"),
         ("+1 KILL", "KILL"), ("+1KILL", "KILL"), ("ELIMINATED Viper_12", "ELIMINATED"), ("Du hast Max getötet", "GETOTET"),
-        ("You killed Young_Bob", "KILLED"),
+        ("You killed Young_Bob", "KILLED"), ("KILLED Bob", "KILLED"), ("KILLED Kyle", "KILLED"), ("KILLED Lou", "KILLED"),
+        ("HEADSHOT KILLED Max", "KILLED"), ("ELIMINATED Bob", "ELIMINATED"), ("KILLED 8Y Max", "DEATH"), ("K1LLED BY Max", "DEATH"),
         ("KILLER", null), ("Top Killer: Max", null), ("Skilled_Sniper", null), ("SKILL", null), ("FILLED", null), ("BILLED", null),
         ("KILLS 12", null), ("Overkill", null),
         ("KILLED BY Max", "DEATH"), ("You have been eliminated", "DEATH"), ("You have been killed", "DEATH"), ("Max killed you", "DEATH"),
