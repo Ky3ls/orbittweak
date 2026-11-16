@@ -89,14 +89,16 @@ internal sealed class FightEye
 
     /// <summary>
     /// The pictures of one firefight, in time order: crosshair strips spread evenly over it and a few whole pictures,
-    /// the last one always among them (it shows a kill cam, if the player died).
+    /// the last one always among them (it shows a kill cam, if the player died). Their times are seconds after fromUtc
+    /// (not after the first picture, which is only taken at the first shot), so a kill seen in one of them can be put
+    /// at the right place in the clip.
     /// </summary>
     public List<KillJudge.Frame> Take(DateTime fromUtc, DateTime toUtc, int maxCrops = 14, int maxFulls = 4)
     {
         List<Shot> all;
         lock (_ring) all = _ring.Where(x => x.At >= fromUtc && x.At <= toUtc).ToList();
         if (all.Count == 0) return new();
-        var t0 = all[0].At;
+        var t0 = fromUtc;
         var pick = Spread(all.Where(x => !x.Full).ToList(), maxCrops).Concat(Spread(all.Where(x => x.Full).ToList(), maxFulls));
         return pick.OrderBy(x => x.At).ThenBy(x => x.Full).Select(x => new KillJudge.Frame(Math.Round((x.At - t0).TotalSeconds, 1), x.Full, x.Jpeg)).ToList();
     }

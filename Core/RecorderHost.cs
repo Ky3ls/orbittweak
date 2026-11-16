@@ -212,7 +212,7 @@ internal sealed class RecorderProxy
     {
         // also right after the recording ended (game closed or minimized): the helper still holds the last seconds
         if (!Alive) { Error ??= "Aufnahme läuft nicht"; return null; }
-        var r = await Call(new() { ["cmd"] = "save", ["before"] = before, ["after"] = after, ["folder"] = folder, ["name"] = name }, (int)(after * 1000) + 60000);
+        var r = await Call(new() { ["cmd"] = "save", ["before"] = before, ["after"] = after, ["folder"] = folder, ["name"] = name }, (int)(Math.Max(0, after) * 1000) + 60000);   // (after < 0: a clip that ends in the past)
         if (r is not { } m) { Error = "Clip konnte nicht gespeichert werden (keine Antwort der Aufnahme)"; return null; }
         if (m.GetProperty("ok").GetBoolean()) return m.GetProperty("file").GetString();
         Error = Err(m) ?? "Clip konnte nicht gespeichert werden";

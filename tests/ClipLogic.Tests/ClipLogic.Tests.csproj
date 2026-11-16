@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Checks of the pure logic of the clipper (kill detection, montage plan) that run anywhere, also on Linux.
+       How to run them: see Program.cs -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>OrbitTweak.Tests</RootNamespace>
+    <RollForward>Major</RollForward>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Core/MontageCut.cs" Link="Core/MontageCut.cs" />
+    <Compile Include="../../Core/KillLogic.cs" Link="Core/KillLogic.cs" />
+  </ItemGroup>
+</Project>

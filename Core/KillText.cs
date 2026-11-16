@@ -8,23 +8,13 @@ namespace OrbitTweak.Core;
 /// Kill detection by the kill message that PvP servers show right at the crosshair ("KILLED name", "+3 Streak",
 /// "Eliminated …"). FiveM does not show GTA Online's red X on most servers, the message is what the player sees.
 /// The strip around the middle of the picture is read with the Windows text recognition and searched for kill words.
-/// This file has no dependencies on the rest of the app, so the same code can be tried on recorded clips.
+/// This file has no dependencies on the rest of the app, so the same code can be tried on recorded clips; which
+/// text counts as a kill or a death is decided in KillLogic.cs (no Windows there, so it is checked by tests/ClipLogic.Tests).
 /// </summary>
-internal static class KillText
+internal static partial class KillText
 {
-    /// <summary>Words that mean "you killed somebody" (the user can change the list).</summary>
-    public const string DefaultWords = "KILLED, KILL, GETÖTET, ELIMINATED, ELIMINIERT, ERLEDIGT";
     /// <summary>Part of the game picture that is read, as fractions of the picture height around the centre (±324 × ±162 px at 1080p).</summary>
     public const double HalfW = 0.30, HalfH = 0.15;
-
-    public enum Kind { None, Kill, Death }
-
-    // "… by / von …" turns a kill word into the opposite; these also mark a death on their own
-    private static readonly string[] DeathPhrases =
-    {
-        "KILLEDBY", "GETOTETVON", "ELIMINATEDBY", "ELIMINIERTVON", "ERLEDIGTVON", "YOUDIED", "YOUWEREKILLED", "YOUAREDEAD",
-        "DUWURDEST", "DUBISTTOT", "DUBISTGESTORBEN", "WASTED"
-    };
 
     private static OcrEngine? _ocr; private static bool _tried;
     public static OcrEngine? Engine()
@@ -92,72 +82,5 @@ internal static class KillText
         using var sb = SoftwareBitmap.CreateCopyFromBuffer(bgra.AsBuffer(), BitmapPixelFormat.Bgra8, w, h, BitmapAlphaMode.Premultiplied);
         var res = await eng.RecognizeAsync(sb);
         return res.Lines.Select(l => l.Text).ToList();
-    }
-
-    /// <summary>Upper case, umlauts folded (the English recognizer has none), everything but letters and digits removed.</summary>
-    public static string Fold(string s, bool keepSpaces = false)
-    {
-        var sb = new System.Text.StringBuilder(s.Length);
-        foreach (var ch in s.ToUpperInvariant())
-        {
-            switch (ch)
-            {
-                case 'Ä': sb.Append('A'); break;
-                case 'Ö': sb.Append('O'); break;
-                case 'Ü': sb.Append('U'); break;
-                case 'ẞ': case 'ß': sb.Append("SS"); break;
-                default:
-                    if (char.IsLetterOrDigit(ch)) sb.Append(ch);
-                    else if (keepSpaces && sb.Length > 0 && sb[^1] != ' ') sb.Append(' ');
-                    break;
-            }
-        }
-        return sb.ToString().Trim();
-    }
-
-    /// <summary>Text recognition is allowed one wrong letter in words of six or more letters ("KILLEO", "K1LLED").</summary>
-    private static bool Has(string hay, string needle)
-    {
-        if (needle.Length == 0) return false;
-        if (hay.Contains(needle, StringComparison.Ordinal)) return true;
-        if (needle.Length < 6 || hay.Length < needle.Length) return false;
-        for (int i = 0; i + needle.Length <= hay.Length; i++)
-        {
-            int diff = 0;
-            for (int k = 0; k < needle.Length && diff <= 1; k++) if (hay[i + k] != needle[k]) diff++;
-            if (diff <= 1) return true;
-        }
-        return false;
-    }
-
-    public static bool IsDeath(string line)
-    {
-        var t = Fold(line);
-        foreach (var p in DeathPhrases) if (Has(t, p)) return true;
-        return false;
-    }
-
-    /// <summary>
-    /// Looks through recognised lines: a death phrase wins, otherwise the first line with one of the kill words.
-    /// Returns the line as it was read and the kill word it matched.
-    /// </summary>
-    public static (Kind kind, string text, string word) Classify(IEnumerable<string> lines, string? words)
-    {
-        var list = (string.IsNullOrWhiteSpace(words) ? DefaultWords : words)
-            .Split(new[] { ',', ';', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries).Select(x => Fold(x)).Where(x => x.Length >= 3).Distinct().ToList();
-        (Kind, string, string) kill = (Kind.None, "", "");
-        foreach (var line in lines)
-        {
-            if (IsDeath(line)) return (Kind.Death, line.Trim(), "");
-            if (kill.Item1 != Kind.None) continue;
-            var t = Fold(line); var tokens = Fold(line, true).Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            foreach (var w in list)
-            {
-                // long words may be glued to the name by the recognition ("KILLEDZM"), short ones have to stand alone
-                bool hit = w.Length >= 6 ? Has(t, w) : tokens.Contains(w);
-                if (hit) { kill = (Kind.Kill, line.Trim(), w); break; }
-            }
-        }
-        return kill;
     }
 }

@@ -48,6 +48,9 @@ public class ClipCfg
     public bool Banner { get; set; } = true;          // short note with the kill count of the round in the game when a kill was noticed
     public bool Hud { get; set; } = true;             // small counter in the game: recording dot and the kills of the round
     public string? MontageMusic { get; set; }         // music file laid under montages (null = game sound only)
+    public string MontageTitle { get; set; } = "";    // big line of the montage intro (empty = in-game name, else "HIGHLIGHTS")
+    public bool MontageIntro { get; set; } = true;    // montage: intro over the blurred first clip and "GG" outro
+    public bool MontageCounter { get; set; } = true;  // montage: kill counter chip ("KILL 3 / 8") and "DOUBLE KILL" tags
     public bool HudClock { get; set; }                // the counter also shows the time of day
     public bool HudTime { get; set; } = true;         // … and how long the game has been running
     public bool AutoHighlight { get; set; }           // after the game was closed: join the kill clips of that round into a highlight video
