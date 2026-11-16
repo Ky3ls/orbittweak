@@ -150,7 +150,9 @@ internal sealed class SnapTap
 #if DEBUG
             test = TestKeys;   // a test instance leaves the real keyboard alone, the Windows keys too
 #endif
-            if (!test && k.extra != Marker && (k.vk == 0x5B || k.vk == 0x5C))   // VK_LWIN, VK_RWIN
+            // only the physical keys (not LLKHF_INJECTED): a slip is what the lock is for, while a program that sends the key
+            // means it, above all the clipper's own Win+Alt+G for the Game Bar recorder, sent while the game is in front
+            if (!test && k.extra != Marker && (k.flags & 0x10) == 0 && (k.vk == 0x5B || k.vk == 0x5C))   // VK_LWIN, VK_RWIN
             {
                 int msg = wp.ToInt32();
                 bool down = msg is 0x100 or 0x104, up = msg is 0x101 or 0x105;

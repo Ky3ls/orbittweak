@@ -372,9 +372,11 @@ internal static class Health
         items.Add(T("ult") ? new("Energieplan", "Höchstleistung aktiv", "ok")
             : ult == null || !ult.IsRecommended ? new("Energieplan", "Ausbalanciert bzw. eigener Plan (für diesen PC richtig)", "ok")
             : new("Energieplan", "Ausbalanciert – Höchstleistung möglich", "warn", "tweak:ult"));
-        items.Add(Reg.Is(@"HKCU\Software\Microsoft\Windows\CurrentVersion\GameDVR", "HistoricalCaptureEnabled", 1)
-            ? new("Game-Bar-Hintergrundaufnahme", "Läuft – kostet FPS", "bad", "tweak:dvr")
-            : new("Game-Bar-Hintergrundaufnahme", "Aus", "ok"));
+        // the clipper's Game Bar recorder needs it: then it is no fault, and the tweak could not switch it off anyway
+        bool clipNeedsDvr = tweaks.FirstOrDefault(t => t.Id == "dvr") is { IsUsable: false };
+        items.Add(!Reg.Is(@"HKCU\Software\Microsoft\Windows\CurrentVersion\GameDVR", "HistoricalCaptureEnabled", 1) ? new("Game-Bar-Hintergrundaufnahme", "Aus", "ok")
+            : clipNeedsDvr ? new("Game-Bar-Hintergrundaufnahme", "Läuft – dein Clipper nimmt darüber auf", "ok")
+            : new("Game-Bar-Hintergrundaufnahme", "Läuft – kostet FPS", "bad", "tweak:dvr"));
         if (Hw.SwitchableGpus)
             items.Add(T("gpu") ? new("FiveM-Grafikkarte", "In Windows auf „Hohe Leistung“", "ok") : new("FiveM-Grafikkarte", "Zwei Grafikchips – FiveM nicht fest auf der starken Karte", "warn", "tweak:gpu"));
         var net = NetLink.DefaultRoute();
