@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="uhq.css">
 <link rel="stylesheet" href="luxe-fivem.css">
 <link rel="stylesheet" href="luxe-optik.css">
+<link rel="stylesheet" href="luxe-tools.css">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute">
@@ -581,11 +582,18 @@
           <p class="ke-hint" id="clExtNote">Stell die Instant-Replay-Länge in deinem Aufnahme-Programm auf mindestens 30 Sekunden.</p>
         </div>
         <div class="card ke">
-          <div class="ke-h"><b>Clips</b></div>
+          <div class="ke-h"><b>Clips</b><p>Wie gut und wie lang jeder Clip wird</p></div>
           <div id="clOrbit">
-            <div class="ke-opt"><div><b>Qualität</b></div><div class="seg" id="clQual"></div></div>
-            <div class="ke-opt"><div><b>Sekunden vor dem Kill</b></div><div class="seg" id="clBefore"></div></div>
-            <div class="ke-opt"><div><b>Sekunden danach</b></div><div class="seg" id="clAfter"></div></div>
+            <p class="cl-lb">Qualität</p>
+            <div class="cl-qual" id="clQual"></div>
+            <!-- the clip as a strip: the time before the kill, the kill, the time after; the two choices right under it -->
+            <div class="cl-tl">
+              <div id="clTl"></div>
+              <div class="clt-c">
+                <div class="clt-g"><span>Sekunden vor dem Kill</span><div class="seg" id="clBefore"></div></div>
+                <div class="clt-g"><span>Sekunden danach</span><div class="seg" id="clAfter"></div></div>
+              </div>
+            </div>
             <div class="ke-opt"><div><b>Spielsound aufnehmen</b></div><div class="tg" id="clSound"></div></div>
           </div>
           <div class="ke-opt"><div><b>Clip-Taste</b><p>Speichert im Spiel die letzten Sekunden als Clip</p></div><div class="seg keyseg" id="clKey"></div></div>
@@ -728,14 +736,19 @@
       <div class="mg-wrap">
         <div class="card mg-stage" id="mgStage">
           <canvas id="mgCv"></canvas>
-          <div class="mg-over" id="mgOver"><h2 id="mgTitle">Raster</h2><p id="mgDesc">Drei große Ziele gleichzeitig. Triff so viele wie möglich.</p><button class="btn p lg" id="mgStart"><svg class="i"><use href="#play"/></svg>Starten</button></div>
+          <div class="mg-over" id="mgOver">
+            <svg class="mg-dial" viewBox="0 0 120 120" aria-hidden="true"><circle class="d-tick" cx="60" cy="60" r="55" pathLength="240"/><circle class="d-ring" cx="60" cy="60" r="42"/><circle class="d-ring" cx="60" cy="60" r="27"/><circle class="d-core" cx="60" cy="60" r="12"/><circle class="d-dot" cx="60" cy="60" r="3.2"/></svg>
+            <div class="mg-big" id="mgBig"></div>
+            <h2 id="mgTitle">Raster</h2><p id="mgDesc">Drei große Ziele gleichzeitig. Triff so viele wie möglich.</p><button class="btn p lg" id="mgStart"><svg class="i"><use href="#play"/></svg>Starten</button>
+          </div>
+          <div class="mg-bar"><i id="mgBar"></i></div>
           <div class="mg-time" id="mgTime">30,0</div>
         </div>
-        <div class="mg-side">
-          <div class="card"><div class="lbl"><svg class="i"><use href="#zap"/></svg>Punkte</div><div class="big num" id="mgScore">0</div></div>
-          <div class="card"><div class="lbl"><svg class="i"><use href="#crosshair"/></svg>Trefferquote</div><div class="big num" id="mgAcc">–</div></div>
-          <div class="card"><div class="lbl"><svg class="i"><use href="#activity"/></svg>Zeit pro Treffer</div><div class="big num" id="mgAvg">–</div></div>
-          <div class="card gb"><div class="lbl"><svg class="i"><use href="#trophy"/></svg>Bestwert</div><div class="big num" id="mgBest">0</div><p class="sub" id="mgBestNote" style="font-size:12px;margin-top:6px"></p></div>
+        <div class="card mg-side">
+          <div class="mg-st"><span><svg class="i"><use href="#zap"/></svg>Punkte</span><b class="num" id="mgScore">0</b></div>
+          <div class="mg-st"><span><svg class="i"><use href="#crosshair"/></svg>Trefferquote</span><b class="num" id="mgAcc">–</b></div>
+          <div class="mg-st"><span><svg class="i"><use href="#timer"/></svg>Zeit pro Treffer</span><b class="num" id="mgAvg">–</b></div>
+          <div class="mg-st best"><span><svg class="i"><use href="#trophy"/></svg>Bestwert</span><b class="num" id="mgBest">0</b><p id="mgBestNote"></p></div>
         </div>
       </div>
     </section>
@@ -775,33 +788,39 @@
     <!-- ================= CONTROLLER ================= -->
     <section class="page" id="p-pad">
       <div class="ph">
-        <div><div class="kicker">Controller</div><h1>Controller-<span class="grad">Anzeige</span></h1><p class="pd">Zeigt deinen Controller und jede gedrückte Taste live, als Overlay im Spiel. Xbox, PS4 und PS5 werden automatisch erkannt.</p></div>
+        <div><div class="kicker">Controller</div><h1>Controller-<span class="grad">Anzeige</span></h1><p class="pd">Zeigt deinen Controller und jede gedrückte Taste live als Overlay im Spiel. Xbox, PS4 und PS5 erkennt OrbitTweak von selbst.</p></div>
         <div class="ph-r"><div class="seg pmode" id="padMode"><button data-v="auto">Automatisch</button><button data-v="on">Immer an</button><button data-v="off">Aus</button></div></div>
       </div>
       <div class="xgrid">
         <div class="col">
-          <div class="card">
-            <div class="row"><div class="lbl"><svg class="i"><use href="#eye"/></svg>Live-Vorschau</div><span class="sp"></span><span class="chip" id="padName">Kein Controller</span></div>
+          <!-- the controller on a lit stage, as it shows up in the game -->
+          <div class="card pad-live">
+            <div class="pl-head"><div class="pl-t"><b>Live-Vorschau</b><span>Drück eine Taste, sie leuchtet hier mit.</span></div><span class="chip" id="padName">Kein Controller</span></div>
             <div class="padprev" id="padStage"><div class="padhost" id="padPrev"></div></div>
-            <p class="sub" id="padHint" style="font-size:12px;margin-top:10px;line-height:1.5">Automatisch: Das Overlay erscheint, sobald ein Controller angeschlossen ist und benutzt wird, und verschwindet nach 45 Sekunden ohne Eingabe oder wenn er getrennt wird.</p>
-            <p class="muted" style="font-size:11px;margin-top:8px">Controller-Grafiken: Gamepad Viewer Skin „Dracula“ (MIT-Lizenz).</p>
+            <p class="pl-hint" id="padHint">Automatisch: Das Overlay erscheint, sobald du einen Controller benutzt, und verschwindet nach 45 Sekunden ohne Eingabe oder wenn er getrennt wird.</p>
+            <p class="pl-credit">Controller-Grafiken: Gamepad Viewer Skin „Dracula“ (MIT-Lizenz)</p>
           </div>
         </div>
-        <div class="card">
-          <div class="lbl"><svg class="i"><use href="#gamepad"/></svg>Controller-Typ</div>
-          <div class="seg mt8" id="padLayout"><button data-v="auto">Automatisch</button><button data-v="xbox">Xbox</button><button data-v="ps">PlayStation</button></div>
-          <div class="lbl mt"><svg class="i"><use href="#sparkle"/></svg>Gehäuse</div>
-          <div class="seg mt8" id="padBody"><button data-v="black">Schwarz</button><button data-v="white">Weiß</button></div>
-          <div class="lbl mt"><svg class="i"><use href="#sun"/></svg>Farbe beim Drücken</div>
-          <div class="xcolors" id="padColors"></div>
-          <div class="lbl mt"><svg class="i"><use href="#monitor"/></svg>Position am Bildschirm</div>
-          <div class="corners" id="padCorner"><button data-v="tl" title="Oben links" aria-label="Oben links"><svg class="i"><use href="#gamepad"/></svg></button><button data-v="tr" title="Oben rechts" aria-label="Oben rechts"><svg class="i"><use href="#gamepad"/></svg></button><button data-v="bl" title="Unten links" aria-label="Unten links"><svg class="i"><use href="#gamepad"/></svg></button><button data-v="br" title="Unten rechts" aria-label="Unten rechts"><svg class="i"><use href="#gamepad"/></svg></button></div>
-          <div class="xs mt8"><span>Größe</span><input type="range" min="40" max="160" id="padSize"><b id="padSizeV">75%</b></div>
-          <div class="lbl mt"><svg class="i"><use href="#layers"/></svg>Deckkraft</div>
-          <div class="seg mt8" id="padOpacity"><button data-v="100">Voll</button><button data-v="80">Leicht durchsichtig</button><button data-v="55">Halb</button></div>
-          <div class="lbl mt"><svg class="i"><use href="#keyboard"/></svg>Ein/Aus-Taste</div>
-          <div class="seg keyseg mt8" id="padKey"></div>
-          <div class="xnote"><svg class="i"><use href="#alert"/></svg><div><p>Das Overlay ist im Modus <b>Randlos</b> oder <b>Fenster</b> sichtbar, nicht im exklusiven Vollbild.</p></div></div>
+        <div class="col pad-set">
+          <div class="card pset">
+            <div class="ps-h"><b>Aussehen</b><span>Typ, Gehäuse und die Farbe gedrückter Tasten</span></div>
+            <div class="pf"><span class="pf-l">Controller-Typ</span><div class="seg" id="padLayout"><button data-v="auto">Automatisch</button><button data-v="xbox">Xbox</button><button data-v="ps">PlayStation</button></div></div>
+            <div class="pf"><span class="pf-l">Gehäuse</span><div class="seg" id="padBody"><button data-v="black">Schwarz</button><button data-v="white">Weiß</button></div></div>
+            <div class="pf"><span class="pf-l">Farbe beim Drücken</span><div class="xcolors" id="padColors"></div></div>
+          </div>
+          <div class="card pset">
+            <div class="ps-h"><b>Im Spiel</b><span>Wo und wie groß das Overlay erscheint</span></div>
+            <div class="pf"><span class="pf-l">Position</span>
+              <div class="pos-row">
+                <div class="corners" id="padCorner"><button data-v="tl" title="Oben links" aria-label="Oben links"><svg class="i"><use href="#gamepad"/></svg></button><button data-v="tr" title="Oben rechts" aria-label="Oben rechts"><svg class="i"><use href="#gamepad"/></svg></button><button data-v="bl" title="Unten links" aria-label="Unten links"><svg class="i"><use href="#gamepad"/></svg></button><button data-v="br" title="Unten rechts" aria-label="Unten rechts"><svg class="i"><use href="#gamepad"/></svg></button></div>
+                <div class="pos-t"><b id="padCornerV">Unten rechts</b><span>Klick auf eine Ecke des Bildschirms.</span></div>
+              </div>
+            </div>
+            <div class="pf"><div class="xs"><span>Größe</span><input type="range" min="40" max="160" id="padSize"><b id="padSizeV">75%</b></div></div>
+            <div class="pf"><span class="pf-l">Deckkraft</span><div class="seg" id="padOpacity"><button data-v="100">Voll</button><button data-v="80">Leicht durchsichtig</button><button data-v="55">Halb</button></div></div>
+            <div class="pf"><span class="pf-l">Ein/Aus-Taste</span><div class="seg keyseg" id="padKey"></div></div>
+            <p class="pnote"><svg class="i"><use href="#monitor"/></svg><span>Sichtbar im Modus <b>Randlos</b> oder <b>Fenster</b>, nicht im exklusiven Vollbild.</span></p>
+          </div>
         </div>
       </div>
     </section>
@@ -814,69 +833,89 @@
       </div>
       <div class="lab">
         <div class="col">
-          <div class="card snap">
-            <div class="row"><div class="lbl"><svg class="i"><use href="#zap"/></svg>Snap Tap</div><span class="eff g">wirkt im Spiel</span><span class="sp"></span><div class="tg" id="snapTg"></div></div>
-            <p class="il-txt">Die zuletzt gedrückte Taste gewinnt, kein Stillstand bei A+D.</p>
-            <details class="il-more"><summary><svg class="i"><use href="#chev"/></svg>Details</summary><p class="il-txt">Hältst du A und drückst D dazu, bleibt die Figur normalerweise kurz stehen, weil das Spiel beide Tasten sieht. Mit Snap Tap kommt der Richtungswechsel ohne Stillstand. Gilt für A/D und W/S, nur solange FiveM vorne ist. Im Tester rechts siehst du den Unterschied.</p></details>
-            <p class="warnline"><svg class="i"><use href="#alert"/></svg>Auf manchen Servern als unfair verboten. Regeln beachten.</p>
+          <!-- what changes the game: one list, a row per setting -->
+          <div class="card il-list">
+            <div class="il-h"><b>Im Spiel</b><span>Wirkt nur, solange FiveM vorne ist</span></div>
+            <div class="il-row snap">
+              <div class="il-ic"><svg class="i"><use href="#zap"/></svg></div>
+              <div class="il-tx"><div class="il-n"><b>Snap Tap</b><span class="eff g">wirkt im Spiel</span></div>
+                <p class="il-txt">Die zuletzt gedrückte Taste gewinnt, kein Stillstand bei A+D.</p>
+                <details class="il-more"><summary><svg class="i"><use href="#chev"/></svg>Details</summary><p class="il-txt">Hältst du A und drückst D dazu, bleibt die Figur normalerweise kurz stehen, weil das Spiel beide Tasten sieht. Mit Snap Tap kommt der Richtungswechsel ohne Stillstand. Gilt für A/D und W/S, nur solange FiveM vorne ist. Im Tester rechts siehst du den Unterschied.</p></details>
+                <p class="warnline"><svg class="i"><use href="#alert"/></svg>Auf manchen Servern als unfair verboten. Regeln beachten.</p></div>
+              <div class="tg" id="snapTg"></div>
+            </div>
+            <div class="il-row wasd" id="chopCard">
+              <div class="il-ic"><svg class="i"><use href="#activity"/></svg></div>
+              <div class="il-tx"><div class="il-n"><b>Laggen</b></div>
+                <p class="il-txt">Tippt beim Laufen abwechselnd kurz die Tasten daneben an, die Figur zuckt zur Seite.</p>
+                <button class="il-fold" id="chopMore" type="button"><svg class="i"><use href="#chev"/></svg>Einstellungen</button>
+                <p class="warnline"><svg class="i"><use href="#alert"/></svg>Auf vielen Servern als Makro verboten. Regeln beachten.</p></div>
+              <div class="tg" id="chopTg"></div>
+              <div class="chop-more">
+                <div class="seg" id="chopPre"><button data-v="1">Leicht</button><button data-v="2">Mittel</button><button data-v="3">Stark</button><button data-v="4">Extrem</button></div>
+                <div class="xs"><span>Zucker</span><input type="range" min="10" max="250" step="5" id="chopGap"><b id="chopGapV"></b></div>
+                <div class="xs"><span>Abstand</span><input type="range" min="40" max="500" step="5" id="chopEvery"><b id="chopEveryV"></b></div>
+                <p class="wasd-note" id="chopNote"></p>
+                <div class="il-key"><span>Taste im Spiel</span><div class="seg keyseg" id="chopKey"></div></div>
+                <p class="wasd-note" id="chopKeyNote"></p>
+              </div>
+            </div>
           </div>
-          <div class="card kb">
-            <div class="lbl"><svg class="i"><use href="#keyboard"/></svg>Tastatur</div>
-            <div class="kb-row">
-              <div class="kb-t"><div class="row"><b>Schnelle Tastenwiederholung</b><span class="eff">nur beim Tippen</span></div>
+          <div class="card il-list kb">
+            <div class="il-h"><b>Tastatur</b><span>Windows-Einstellungen für deine Tastatur</span></div>
+            <div class="il-row">
+              <div class="il-ic"><svg class="i"><use href="#keyboard"/></svg></div>
+              <div class="il-tx"><div class="il-n"><b>Schnelle Tastenwiederholung</b><span class="eff">nur beim Tippen</span></div>
                 <p class="il-txt">Gehaltene Tasten wiederholen sich schneller. Hilft nur beim Tippen.</p>
                 <details class="il-more"><summary><svg class="i"><use href="#chev"/></svg>Details</summary><p class="il-txt">Eine gehaltene Taste wiederholt sich alle 15&nbsp;ms statt etwa alle 33&nbsp;ms. GTA fragt den Zustand der Tasten direkt ab, auf das Laufen hat das keinen Einfluss.</p></details>
                 <p class="wasd-note" id="lagNote"></p></div>
               <div class="tg" id="lagTg"></div>
             </div>
-            <div class="kb-row v">
-              <div class="kb-t"><div class="row"><b>Tastatur-Puffer</b><span class="eff">kaum messbar</span><span class="eff w">Neustart</span></div>
+            <div class="il-row v">
+              <div class="il-ic"><svg class="i"><use href="#layers"/></svg></div>
+              <div class="il-tx"><div class="il-n"><b>Tastatur-Puffer</b><span class="eff">kaum messbar</span><span class="eff w">Neustart</span></div>
                 <p class="il-txt">Merkst du nichts, bleib bei Standard. Werden Tasten verschluckt, nimm eine größere Zahl.</p>
-                <details class="il-more"><summary><svg class="i"><use href="#chev"/></svg>Details</summary><p class="il-txt">Größe des Puffers im Tastaturtreiber (<code>KeyboardDataQueueSize</code>, Windows-Standard 100). Ein kleinerer Puffer macht Tasten nicht schneller, er wird nur bei sehr vielen Anschlägen auf einmal überhaupt gefüllt.</p></details></div>
-              <div class="seg" id="wasdSeg"></div>
-              <p class="wasd-note" id="wasdNote"></p>
+                <details class="il-more"><summary><svg class="i"><use href="#chev"/></svg>Details</summary><p class="il-txt">Größe des Puffers im Tastaturtreiber (<code>KeyboardDataQueueSize</code>, Windows-Standard 100). Ein kleinerer Puffer macht Tasten nicht schneller, er wird nur bei sehr vielen Anschlägen auf einmal überhaupt gefüllt.</p></details>
+                <div class="seg" id="wasdSeg"></div>
+                <p class="wasd-note" id="wasdNote"></p></div>
             </div>
           </div>
-          <div class="card wasd" id="chopCard">
-            <div class="row"><div class="lbl"><svg class="i"><use href="#keyboard"/></svg>Laggen</div><span class="sp"></span><button class="btn sm ghost" id="chopMore">Einstellungen<svg class="i"><use href="#chev"/></svg></button><div class="tg" id="chopTg"></div></div>
-            <p class="il-txt">Tippt beim Laufen abwechselnd kurz die Tasten daneben an, die Figur zuckt zur Seite. Nur aktiv, solange FiveM vorne ist.</p>
-            <div class="chop-more">
-              <div class="seg mt8" id="chopPre"><button data-v="1">Leicht</button><button data-v="2">Mittel</button><button data-v="3">Stark</button><button data-v="4">Extrem</button></div>
-              <div class="xs"><span>Zucker</span><input type="range" min="10" max="250" step="5" id="chopGap"><b id="chopGapV"></b></div>
-              <div class="xs"><span>Abstand</span><input type="range" min="40" max="500" step="5" id="chopEvery"><b id="chopEveryV"></b></div>
-              <p class="wasd-note" id="chopNote"></p>
-              <div class="il-key"><span>Taste im Spiel</span><div class="seg keyseg" id="chopKey"></div></div>
-              <p class="wasd-note" id="chopKeyNote"></p>
-            </div>
-            <p class="warnline"><svg class="i"><use href="#alert"/></svg>Auf vielen Servern als Makro verboten. Regeln beachten.</p>
+          <div class="card tlist il-list il-win">
+            <div class="il-h"><b>Windows-Eingabe</b><span class="chip" id="inputTwCount"></span></div>
+            <div id="inputTweaks"></div>
           </div>
         </div>
         <div class="col lab-side">
-          <div class="card">
-            <div class="row"><div class="lbl"><svg class="i"><use href="#keyboard"/></svg>WASD-Tester</div><span class="eff" id="wsMode">Snap Tap aus</span><span class="sp"></span><button class="btn sm" onclick="resetWasd()">Zurücksetzen</button></div>
-            <div class="keys"><div class="key w" data-k="KeyW">W</div><div class="key" data-k="KeyA">A</div><div class="key" data-k="KeyS">S</div><div class="key" data-k="KeyD">D</div></div>
-            <div class="ws-game" id="wsGame">Halte A, drück D dazu und lass A los: so testest du einen Richtungswechsel.</div>
+          <!-- instruments: keys you can watch, numbers you can measure -->
+          <div class="card ws">
+            <div class="il-h"><b>WASD-Tester</b><span class="eff" id="wsMode">Snap Tap aus</span><span class="sp"></span><button class="btn sm gh" onclick="resetWasd()"><svg class="i"><use href="#refresh"/></svg>Zurücksetzen</button></div>
+            <div class="ws-stage">
+              <div class="keys"><div class="key w" data-k="KeyW">W</div><div class="key" data-k="KeyA">A</div><div class="key" data-k="KeyS">S</div><div class="key" data-k="KeyD">D</div></div>
+              <div class="ws-game" id="wsGame">Halte A, drück D dazu und lass A los: so testest du einen Richtungswechsel.</div>
+            </div>
             <div class="labstats">
-              <div><b id="wsSwitch">--</b><span>Richtungswechsel</span></div>
-              <div><b id="wsStill">--</b><span>Stillstand ohne Snap Tap</span></div>
-              <div><b id="wsRepeat">--</b><span>Wiederholung</span></div>
+              <div><span>Richtungswechsel</span><b id="wsSwitch">–</b></div>
+              <div><span>Stillstand ohne Snap Tap</span><b id="wsStill">–</b></div>
+              <div><span>Wiederholung</span><b id="wsRepeat">–</b></div>
             </div>
           </div>
-          <div class="card">
-            <div class="seg" id="labTabs"><button class="on" data-t="poll">Maus-Polling</button><button data-t="react">Reaktion</button><button data-t="pad">Controller</button></div>
-            <div class="pad" id="pollPad"><div><div class="big" id="pollHz">0<small>Hz</small></div><div class="sub" id="pollTxt">Maus hier schnell im Kreis bewegen</div></div></div>
+          <div class="card meter">
+            <div class="il-h"><b>Messen</b><span class="sp"></span><div class="seg" id="labTabs"><button class="on" data-t="poll">Maus-Polling</button><button data-t="react">Reaktion</button><button data-t="pad">Controller</button></div></div>
+            <div class="pad" id="pollPad"><div class="pp-in">
+              <div class="big" id="pollHz">0<small>Hz</small></div><div class="sub" id="pollTxt">Maus hier schnell im Kreis bewegen</div>
+              <div class="pp-scale" aria-hidden="true"><i class="pp-mark" id="pollMark"></i><span style="--x:.125">125</span><span style="--x:.25">250</span><span style="--x:.5">500</span><span style="--x:1">1000</span></div>
+            </div></div>
             <div class="gpad hidden" id="padPad">
-              <div class="gp-none" id="gpNone">Controller anschließen und eine Taste drücken</div>
+              <div class="gp-none" id="gpNone"><svg class="i"><use href="#gamepad"/></svg><span>Controller anschließen und eine Taste drücken</span></div>
               <div class="gp-live hidden" id="gpLive">
                 <div class="gp-sticks"><div class="stick"><i id="gpL"></i><span>L</span></div><div class="stick"><i id="gpR"></i><span>R</span></div></div>
-                <div class="gp-trig"><div><span>LT</span><div class="bar"><i id="gpLT" style="width:0"></i></div></div><div><span>RT</span><div class="bar"><i id="gpRT" style="width:0"></i></div></div></div>
+                <div class="gp-trig"><div><span>LT</span><div class="bar"><i id="gpLT"></i></div></div><div><span>RT</span><div class="bar"><i id="gpRT"></i></div></div></div>
                 <div class="gp-btns" id="gpBtns"></div>
-                <div class="row" style="margin-top:10px"><span class="sub" id="gpDrift" style="font-size:12px">Drift: --</span><span class="sp"></span><button class="btn sm" onclick="gpRumble()"><svg class="i"><use href="#activity"/></svg>Vibration testen</button></div>
+                <div class="row gp-foot"><span class="sub" id="gpDrift">Drift: –</span><span class="sp"></span><button class="btn sm" onclick="gpRumble()"><svg class="i"><use href="#activity"/></svg>Vibration testen</button></div>
               </div>
             </div>
             <div class="react hidden" id="reactPad"><div><div class="big" id="reactMs">Klicken</div><div class="sub" id="reactTxt">Klicken, auf Grün warten, dann so schnell wie möglich klicken</div></div></div>
           </div>
-          <div class="card"><div class="row"><div class="lbl"><svg class="i"><use href="#settings"/></svg>Windows-Eingabe</div><span class="sp"></span><span class="chip" id="inputTwCount"></span></div><div class="mt8" id="inputTweaks"></div></div>
         </div>
       </div>
     </section>

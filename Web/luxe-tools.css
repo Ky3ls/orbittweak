@@ -1,0 +1,455 @@
+/* =====================================================================
+   LUXE · TOOLS: controller, input lab, aim training, and the clipper's detection, recording and player.
+   Loaded right after uhq.css and builds on its tokens (--plat, --edge, --lift, --well, --fill …).
+   Same rules as there: depth from light instead of borders, large quiet numbers, the accent only for the
+   one main action of an area (and for the value of an instrument). Only transforms and opacity move.
+   ===================================================================== */
+
+/* ---------- shared: a card head with a title and a quiet line ---------- */
+:is(.pl-t,.ps-h,.il-h) b{font-family:var(--disp);font-size:15.5px;font-weight:580;letter-spacing:-.015em;color:var(--text)}
+:is(.pl-t,.ps-h)>span{display:block;font-size:12.5px;color:var(--mute);margin-top:3px;line-height:1.45}
+
+/* sliders on these pages: a fine sunken track, the accent up to the value, a lit knob like the switch */
+:is(#p-pad,#p-input) input[type=range]{height:22px;background:none;border-radius:0;cursor:pointer}
+:is(#p-pad,#p-input) input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:4px;
+  background:linear-gradient(var(--a),var(--a)) 0/var(--p,50%) 100% no-repeat,rgba(255,255,255,.085);box-shadow:inset 0 1px 1px rgba(0,0,0,.4)}
+:is(#p-pad,#p-input) input[type=range]::-webkit-slider-thumb{width:20px;height:20px;margin-top:-8px;border-radius:50%;
+  background:linear-gradient(180deg,#F2F4F8,#C6CCD6);box-shadow:0 1px 3px rgba(0,0,0,.5),0 0 0 .5px rgba(0,0,0,.25);transition:transform .25s var(--ease)}
+:is(#p-pad,#p-input) input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.08);box-shadow:0 1px 3px rgba(0,0,0,.5),0 0 0 .5px rgba(0,0,0,.25)}
+:is(#p-pad,#p-input) input[type=range]:focus-visible{outline:2px solid rgba(var(--a-rgb),.6);outline-offset:4px;border-radius:6px}
+:is(#p-pad,#p-input) .xs{grid-template-columns:auto minmax(0,1fr) 52px;gap:16px;padding:0}
+:is(#p-pad,#p-input) .xs span{font-size:12.5px;font-weight:500;color:var(--sub)}
+:is(#p-pad,#p-input) .xs b{font-family:var(--disp);font-size:15px;font-weight:420;letter-spacing:-.01em;color:var(--text)}
+
+/* the choice in the page head stays on one line in narrow windows */
+:is(#p-pad,#p-games) .ph-r{flex:none}
+:is(#p-pad,#p-games) .ph-r .seg{flex-wrap:nowrap;white-space:nowrap}
+
+/* key pickers: one even grid in a sunken well */
+:is(#p-pad,#p-input) .keyseg button{height:30px;font-variant-numeric:tabular-nums}
+
+/* =====================================================================
+   CONTROLLER
+   ===================================================================== */
+#p-pad .xgrid{grid-template-columns:minmax(0,1fr) 400px;gap:20px}
+#p-pad .pad-set{gap:20px}
+
+/* the preview: the controller on a lit stage, a soft shadow on the floor below it */
+.pad-live{padding:20px 22px 22px}
+.pl-head{display:flex;align-items:flex-start;gap:12px}
+.pl-t{flex:1;min-width:0}
+#padName{flex:none;height:24px;padding:0 10px;gap:7px}
+#padName.g::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 0 3px rgba(95,212,163,.16)}
+#p-pad .padprev{margin-top:18px;padding:52px 0 60px;border:0;border-radius:16px;overflow:hidden;
+  background:
+    radial-gradient(56% 46% at 50% -6%,rgba(255,255,255,.085),transparent 72%),
+    radial-gradient(44% 10% at 50% 89%,rgba(0,0,0,.6),transparent 74%),
+    radial-gradient(46% 40% at 50% 50%,rgba(var(--a-rgb),.05),transparent 72%),
+    linear-gradient(180deg,rgba(0,0,0,.16),rgba(0,0,0,.3));
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.4),inset 0 0 0 1px rgba(255,255,255,.035)}
+#p-pad .padhost{width:74% !important;max-width:460px}
+.pl-hint{font-size:12.5px;line-height:1.55;color:var(--sub);margin-top:16px;max-width:560px}
+.pl-credit{font-size:11.5px;color:var(--mute);margin-top:6px}
+
+/* settings: two surfaces, each a column of labelled controls divided by hairlines */
+.pset{padding:20px 22px 6px}
+.ps-h{padding-bottom:6px}
+.pf{padding:16px 0;border-top:1px solid var(--line)}
+.ps-h+.pf{margin-top:12px}
+.pf-l{display:block;font-size:12.5px;font-weight:500;color:var(--sub);margin-bottom:10px}
+.pf>.seg:not(.keyseg){display:flex}
+.pf>.seg:not(.keyseg) button{flex:1 1 auto;padding:0 10px;white-space:nowrap}
+#p-pad .pf>.keyseg{margin-top:0}
+
+/* colour: round swatches lit from above, the chosen one ringed; the first follows the theme */
+#p-pad .xcolors{gap:6px;margin-top:0}
+#p-pad .xcol,#p-pad .xcustom{width:26px;height:26px;flex:none;border:0;border-radius:50%;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.28),inset 0 0 0 1px rgba(255,255,255,.12),0 1px 2px rgba(0,0,0,.4);transition:transform .25s var(--ease),box-shadow .2s}
+#p-pad .xcol:hover,#p-pad .xcustom:hover{transform:scale(1.1)}
+#p-pad .xcol.on,#p-pad .xcustom.on{box-shadow:inset 0 1px 0 rgba(255,255,255,.28),inset 0 0 0 1px rgba(255,255,255,.12),0 0 0 2.5px #12161F,0 0 0 4px #E6EAF1}
+#p-pad .xcol[data-pc="#18181B"]{box-shadow:inset 0 1px 0 rgba(255,255,255,.14),inset 0 0 0 1px rgba(255,255,255,.2),0 1px 2px rgba(0,0,0,.4)}
+#p-pad .xcol[data-pc="#18181B"].on{box-shadow:inset 0 1px 0 rgba(255,255,255,.14),inset 0 0 0 1px rgba(255,255,255,.2),0 0 0 2.5px #12161F,0 0 0 4px #E6EAF1}
+#p-pad .xtheme{position:relative;background:var(--fill)}
+.xc-n{flex-basis:100%;margin-top:6px;font-size:12px;color:var(--mute)}
+.xc-n b{font-weight:550;color:var(--sub)}
+
+/* position: a small screen with a game picture, the overlay sits in the chosen corner at its size and opacity */
+.pos-row{display:flex;align-items:center;gap:20px}
+#p-pad .corners{width:176px;flex:none;aspect-ratio:16/9;margin:0 0 9px;padding:7px;gap:4px;border:0;border-radius:9px;
+  background:linear-gradient(180deg,rgba(5,7,12,.25),rgba(5,7,12,.6)),url('img/ls-night.jpg') center/cover;
+  box-shadow:0 0 0 3px #1A1F29,0 0 0 4px rgba(255,255,255,.07),0 14px 26px -14px rgba(0,0,0,.9)}
+#p-pad .corners::after{bottom:-12px;width:44px;height:5px;margin-left:-22px;border-radius:0 0 6px 6px;background:#1A1F29;box-shadow:0 1px 0 rgba(255,255,255,.05)}
+#p-pad .corners button{padding:0;border-radius:6px;background:transparent;box-shadow:none}
+#p-pad .corners button:hover{background:rgba(255,255,255,.07)}
+#p-pad .corners button svg.i{width:30px;height:21px;padding:3px 5px;border-radius:6px;opacity:0;color:#0B0F17;background:rgba(236,239,245,.5);box-shadow:none;transition:opacity .2s,transform .3s var(--ease)}
+#p-pad .corners button:hover svg.i{opacity:.55}
+#p-pad .corners button.on{background:transparent}
+#p-pad .corners button.on svg.i{opacity:var(--pop,1);background:#ECEFF5;box-shadow:0 2px 8px rgba(0,0,0,.5);transform:scale(calc(.55 + var(--psz,.75) * .45))}
+#p-pad .corners button[data-v=tl] svg.i{transform-origin:0 0}
+#p-pad .corners button[data-v=tr] svg.i{transform-origin:100% 0}
+#p-pad .corners button[data-v=bl] svg.i{transform-origin:0 100%}
+#p-pad .corners button[data-v=br] svg.i{transform-origin:100% 100%}
+.pos-t{min-width:0}
+.pos-t b{display:block;font-family:var(--disp);font-size:17px;font-weight:480;letter-spacing:-.02em;color:var(--text)}
+.pos-t span{display:block;font-size:12px;color:var(--mute);margin-top:4px;line-height:1.45}
+
+.pnote{display:flex;gap:10px;align-items:flex-start;padding:14px 0 16px;border-top:1px solid var(--line);font-size:12.5px;line-height:1.5;color:var(--sub)}
+.pnote svg.i{width:15px;height:15px;flex:none;margin-top:2px;color:var(--mute)}
+.pnote b{font-weight:550;color:var(--text)}
+
+/* =====================================================================
+   INPUT LAB
+   ===================================================================== */
+#p-input .lab{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}
+#p-input .col{gap:20px}
+
+/* settings: rows on one surface like the tweak list, a hairline from the text edge */
+.il-list{padding:6px 8px 8px}
+.il-h{display:flex;align-items:center;gap:10px;padding:14px 16px 8px;min-width:0}
+.il-list .il-h>span:not(.chip){margin-left:auto;font-size:12.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.il-list .il-h>.chip{margin-left:auto}
+.il-row{position:relative;display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:16px;align-items:start;padding:16px;border-radius:14px;transition:background .2s}
+.il-row+.il-row::before{content:'';position:absolute;left:72px;right:16px;top:0;height:1px;background:var(--line)}
+.il-ic{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:rgba(255,255,255,.045);color:var(--mute);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05);transition:background .3s,color .3s,box-shadow .3s}
+.il-ic svg.i{width:18px;height:18px}
+.il-row:has(>.tg.on) .il-ic{background:rgba(var(--a-rgb),.12);color:var(--a);box-shadow:inset 0 1px 0 rgba(255,255,255,.05),inset 0 0 0 1px rgba(var(--a-rgb),.14)}
+.il-tx{min-width:0}
+.il-n{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;min-height:22px}
+.il-n b{font-size:14px;font-weight:550;letter-spacing:-.008em;color:var(--text)}
+.il-n .eff{margin-left:0}
+#p-input .il-row>.tg{margin-top:7px}
+#p-input .il-txt{font-size:12.5px;line-height:1.5;color:var(--sub);margin-top:4px}
+#p-input .il-more{margin-top:6px}
+#p-input .il-more summary{color:var(--sub);font-size:12px;font-weight:500}
+#p-input .il-more summary:hover{color:var(--text)}
+#p-input .il-more summary svg.i{color:var(--mute)}
+#p-input .il-more .il-txt{color:var(--mute)}
+#p-input .warnline{gap:7px;margin-top:8px;font-size:12px;color:rgba(242,196,107,.88)}
+#p-input .warnline svg.i{width:13px;height:13px}
+#p-input .wasd-note{font-size:12.5px;line-height:1.5;color:var(--sub);margin-top:8px}
+#p-input .wasd-note b{font-weight:550}
+#p-input .wasd-pend{color:var(--warn)}
+#p-input .il-row.v .seg{display:flex;margin-top:12px}
+#p-input .il-row.v .seg button{flex:1 0 auto;padding:0 6px}
+/* Laggen: its settings fold out from a link under the text, like the details */
+.il-fold{display:inline-flex;align-items:center;gap:5px;margin-top:6px;padding:0;background:none;font-size:12px;font-weight:500;color:var(--sub);cursor:pointer}
+.il-fold:hover,#p-input #chopMore:hover{color:var(--text);background:none}
+#p-input #chopMore svg.i{width:13px;height:13px;color:var(--mute);transform:none;transition:transform .3s var(--ease)}
+#p-input #chopCard.open #chopMore svg.i{transform:rotate(90deg)}
+/* Laggen's settings fold out under the row as a sunken panel */
+#p-input #chopCard .chop-more{grid-column:2/-1;margin-top:2px;padding:16px 18px 14px;border-radius:16px;background:var(--well);box-shadow:var(--well-edge)}
+#p-input #chopPre{display:flex;margin-bottom:12px;background:rgba(255,255,255,.035);box-shadow:inset 0 0 0 1px rgba(255,255,255,.035)}
+#p-input #chopPre button{flex:1}
+#p-input .chop-more .xs{padding:7px 0}
+#p-input .il-key{margin-top:14px;gap:10px}
+#p-input .il-key>span{font-size:12.5px;font-weight:500;color:var(--sub)}
+#p-input .il-key .keyseg{background:rgba(255,255,255,.035);box-shadow:inset 0 0 0 1px rgba(255,255,255,.035)}
+#p-input #chopKey{grid-template-columns:repeat(5,minmax(0,1fr))}
+#p-input #chopKey button{padding:0 4px}
+/* Windows input: the same rows as on the tweak page */
+#p-input .il-win #inputTweaks .tw{cursor:pointer}
+
+/* instruments: the WASD keys on a lit stage, values large and light below */
+#p-input .ws{padding:20px 22px 0;overflow:hidden}
+#p-input .ws .il-h,#p-input .meter .il-h{padding:0}
+#p-input .ws .il-h .eff{margin-left:0}
+#wsMode.g{background:rgba(95,212,163,.1);color:var(--good)}
+#p-input .ws .btn.gh{margin-right:-8px}
+.ws-stage{margin-top:18px;padding:30px 20px 22px;border-radius:16px;text-align:center;
+  background:radial-gradient(60% 70% at 50% -10%,rgba(255,255,255,.06),transparent 70%),var(--well);box-shadow:var(--well-edge)}
+#p-input .keys{grid-template-columns:repeat(3,62px);grid-template-rows:62px 62px;gap:8px;margin:0 0 22px}
+#p-input .key{border:0;border-radius:14px;font-family:var(--disp);font-size:19px;font-weight:500;color:var(--sub);
+  background:linear-gradient(180deg,rgba(255,255,255,.1),rgba(255,255,255,.045));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.12),inset 0 0 0 1px rgba(255,255,255,.04),0 3px 0 rgba(0,0,0,.5),0 10px 18px -8px rgba(0,0,0,.85);
+  transition:transform .08s,background .12s,color .12s,box-shadow .12s}
+#p-input .key.dn{transform:translateY(2px);background:linear-gradient(180deg,#F5F7FA,#D6DBE4);color:#0B0F17;
+  box-shadow:inset 0 1px 0 #fff,0 1px 0 rgba(0,0,0,.5),0 0 30px -6px rgba(255,255,255,.32)}
+#p-input .key.muted{opacity:.4}
+#p-input .key.muted::after{left:18%;right:18%;height:1.5px;background:var(--bad)}
+#p-input .ws-game{max-width:380px;min-height:38px;margin:0 auto;padding:0;border:0;border-radius:0;background:none;font-size:12.5px;line-height:1.55;color:var(--mute)}
+#p-input .ws-game.hot{color:var(--text);background:none}
+#p-input .labstats{grid-template-columns:repeat(3,minmax(0,1fr));gap:0;margin:18px -22px 0;border-top:1px solid var(--line)}
+#p-input .labstats div{display:flex;flex-direction:column;padding:16px 22px 20px;border:0;border-radius:0;background:none;text-align:left;min-width:0}
+#p-input .labstats div+div{box-shadow:inset 1px 0 0 var(--line)}
+#p-input .labstats span{font-size:12px;color:var(--mute);line-height:1.35;min-height:32px}
+#p-input .labstats b{margin-top:8px;font-family:var(--disp);font-size:28px;font-weight:300;letter-spacing:-.04em;line-height:1;color:var(--text);white-space:nowrap}
+#p-input .labstats b small{font-size:13px;font-weight:400;color:var(--mute);margin-left:3px;letter-spacing:0}
+
+/* measuring: one sunken instrument per test */
+#p-input .meter{padding:20px 22px 22px}
+#p-input .meter #labTabs button{height:28px;padding:0 11px;font-size:12px}
+#p-input :is(.pad,.react,.gp-none){height:228px;margin-top:18px;border:0;border-radius:16px;
+  background:radial-gradient(60% 70% at 50% -10%,rgba(255,255,255,.055),transparent 70%),var(--well);box-shadow:var(--well-edge)}
+#p-input .pad{position:relative;overflow:hidden}
+#p-input .pad:hover{border-color:transparent}
+#p-input :is(.pad,.react) .big{font-family:var(--disp);font-size:60px;font-weight:300;letter-spacing:-.055em;line-height:1;color:var(--text);text-shadow:none}
+#p-input :is(.pad,.react) .big small{font-size:18px;font-weight:400;color:var(--mute);margin-left:4px;letter-spacing:0}
+#p-input :is(.pad,.react) .sub{font-size:12.5px;color:var(--mute);margin-top:10px}
+.pp-in{display:flex;flex-direction:column;align-items:center}
+/* a fine scale under the number: 0 to 1000 Hz, the needle shows the peak */
+.pp-scale{position:relative;width:260px;height:30px;margin-top:22px;
+  background:linear-gradient(rgba(255,255,255,.12),rgba(255,255,255,.12)) 0 0/100% 1px no-repeat,
+    repeating-linear-gradient(90deg,rgba(255,255,255,.12) 0 1px,transparent 1px 13px) 0 0/100% 5px no-repeat}
+.pp-scale span{position:absolute;top:12px;left:calc(var(--x) * 100%);transform:translateX(-50%);font-size:10.5px;font-weight:500;color:var(--mute);font-variant-numeric:tabular-nums}
+.pp-scale span::before{content:'';position:absolute;left:50%;top:-12px;width:1px;height:8px;background:rgba(255,255,255,.3)}
+.pp-mark{position:absolute;left:0;top:-4px;width:100%;height:13px;transform:translateX(calc(var(--x,0) * 100%));transition:transform .5s var(--ease),opacity .3s;opacity:0}
+.pp-mark::before{content:'';position:absolute;left:-1px;top:0;width:2px;height:13px;border-radius:2px;background:var(--a);box-shadow:0 0 8px rgba(var(--a-rgb),.6)}
+#p-input .pad.meas .pp-mark{opacity:1}
+/* reaction: waiting tints red, go tints green; no glow that pulses */
+#p-input .react.wait{background:radial-gradient(60% 70% at 50% -10%,rgba(242,139,139,.12),transparent 70%),rgba(242,139,139,.06);box-shadow:inset 0 0 0 1px rgba(242,139,139,.22)}
+#p-input .react.go{background:radial-gradient(60% 70% at 50% -10%,rgba(95,212,163,.2),transparent 70%),rgba(95,212,163,.1);box-shadow:inset 0 0 0 1px rgba(95,212,163,.4)}
+#p-input .react.go .big{color:var(--good)}
+/* controller tester: sticks inside fine chapter rings, triggers as fine bars, buttons as small caps */
+#p-input .gpad{margin-top:0;min-height:0}
+#p-input .gp-none{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--mute);font-size:12.5px}
+#p-input .gp-none svg.i{width:26px;height:26px;color:var(--sub);stroke-width:1.5}
+#p-input .gp-live{margin-top:18px;padding:22px 20px 18px;border-radius:16px;background:var(--well);box-shadow:var(--well-edge)}
+#p-input .gp-sticks{gap:36px}
+#p-input .stick{width:104px;height:104px;border:0;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.05) 0 30%,transparent 31%),rgba(255,255,255,.02);box-shadow:inset 0 0 0 1px rgba(255,255,255,.07)}
+#p-input .stick::before{content:'';position:absolute;inset:-7px;border-radius:50%;pointer-events:none;
+  background:repeating-conic-gradient(rgba(255,255,255,.22) 0 1.2deg,transparent 1.2deg 15deg);
+  -webkit-mask:radial-gradient(circle,transparent 0 55px,#000 56px 59px,transparent 60px);mask:radial-gradient(circle,transparent 0 55px,#000 56px 59px,transparent 60px)}
+#p-input .stick i{width:14px;height:14px;margin:-7px;background:#ECEFF5;box-shadow:0 1px 4px rgba(0,0,0,.6)}
+#p-input .stick span{right:-18px;top:-6px;font-size:11px;font-weight:550;color:var(--mute)}
+#p-input .gp-trig{gap:24px;margin-top:22px}
+#p-input .gp-trig div{font-size:11px;font-weight:550;color:var(--mute)}
+#p-input .gp-trig .bar{height:4px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden}
+#p-input .gp-trig .bar i{display:block;width:100%;height:100%;border-radius:4px;background:var(--a);transform-origin:0 50%;transform:scaleX(0)}
+#p-input .gp-btns{gap:5px;margin-top:16px;justify-content:center}
+#p-input .gp-btns i{min-width:30px;height:24px;padding:0 7px;border-radius:99px;font-size:10.5px;font-weight:550;background:rgba(255,255,255,.05);color:var(--mute);box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)}
+#p-input .gp-btns i.on{background:#ECEFF5;color:#0B0F17;box-shadow:0 0 14px -4px rgba(255,255,255,.4)}
+#p-input .gp-foot{margin-top:14px}
+#gpDrift{font-size:12px;color:var(--mute);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* =====================================================================
+   AIM TRAINING
+   ===================================================================== */
+#p-games.show{display:flex;flex-direction:column}
+#p-games .mg-wrap{flex:1 1 auto;height:auto;min-height:440px;grid-template-columns:minmax(0,1fr) 264px;grid-template-rows:minmax(0,1fr);gap:20px}
+/* the arena: a sunken range with a faint grid that fades out towards the edges, lit from above */
+#p-games .mg-stage{border-radius:var(--r-plat);
+  background:radial-gradient(70% 55% at 50% -8%,rgba(255,255,255,.06),transparent 70%),radial-gradient(45% 45% at 50% 52%,rgba(var(--a-rgb),.045),transparent 72%),#070A10;
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.5),inset 0 0 0 1px rgba(255,255,255,.045),0 1px 0 rgba(255,255,255,.035)}
+#p-games .mg-stage::after{content:'';display:block;position:absolute;inset:0;pointer-events:none;border-radius:inherit;
+  background:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px) 50% 50%/44px 44px,linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px) 50% 50%/44px 44px;
+  -webkit-mask:radial-gradient(70% 70% at 50% 50%,#000,transparent 100%);mask:radial-gradient(70% 70% at 50% 50%,#000,transparent 100%)}
+#p-games .mg-stage canvas{z-index:1}
+#p-games .mg-over{z-index:2;gap:0;background:radial-gradient(60% 60% at 50% 46%,rgba(5,7,12,.5),rgba(5,7,12,.18))}
+.mg-dial{width:104px;height:104px;margin-bottom:22px}
+.mg-dial .d-tick{fill:none;stroke:rgba(255,255,255,.2);stroke-width:5;stroke-dasharray:1 9}
+.mg-dial .d-ring{fill:none;stroke:rgba(255,255,255,.12);stroke-width:1}
+.mg-dial .d-core{fill:var(--a)}
+.mg-dial .d-dot{fill:#fff}
+.mg-big{display:none;font-family:var(--disp);font-size:84px;font-weight:300;letter-spacing:-.06em;line-height:1;color:var(--text);font-variant-numeric:tabular-nums}
+#p-games .mg-over h2{font-family:var(--disp);font-size:28px;font-weight:560;letter-spacing:-.025em}
+#p-games .mg-over p{max-width:360px;margin-top:8px;font-size:13.5px;line-height:1.55;color:var(--sub)}
+#p-games .mg-over .btn{margin-top:26px;min-width:168px;justify-content:center}
+#p-games .mg-over.done .mg-dial{display:none}
+#p-games .mg-over.done .mg-big{display:block}
+#p-games .mg-over.done h2{margin-top:10px;font-family:var(--body);font-size:14px;font-weight:500;letter-spacing:0;color:var(--sub)}
+#p-games .mg-time{z-index:3;top:16px;padding:6px 14px;border:0;border-radius:99px;font-family:var(--disp);font-size:20px;font-weight:350;letter-spacing:-.02em;
+  background:rgba(5,7,12,.7);box-shadow:var(--edge);transition:opacity .3s,color .3s}
+#p-games .mg-time.low{color:var(--bad)}
+#p-games .mg-over:not(.off)~.mg-time{opacity:0}
+/* the time left as a fine line along the top edge (scaled, not resized) */
+.mg-bar{position:absolute;left:24px;right:24px;top:0;z-index:3;height:2px;opacity:0;transition:opacity .3s;pointer-events:none}
+.mg-bar i{display:block;height:100%;border-radius:0 0 2px 2px;background:var(--a);transform-origin:0 50%;box-shadow:0 0 10px rgba(var(--a-rgb),.6)}
+#p-games .mg-over.off~.mg-bar{opacity:1}
+/* the numbers: one surface, a row each, large and light */
+#p-games .mg-side{display:grid;grid-template-rows:repeat(3,minmax(0,1fr)) auto;gap:0;padding:4px 22px;overflow:hidden}
+.mg-st{display:flex;flex-direction:column;justify-content:center;padding:18px 0;min-width:0}
+.mg-st+.mg-st{border-top:1px solid var(--line)}
+.mg-st>span{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500;color:var(--sub)}
+.mg-st>span svg.i{width:14px;height:14px;color:var(--mute)}
+.mg-st>b{margin-top:10px;font-family:var(--disp);font-size:40px;font-weight:300;letter-spacing:-.05em;line-height:1;color:var(--text)}
+.mg-st>b small{font-size:14px;font-weight:400;color:var(--mute);margin-left:3px;letter-spacing:0}
+.mg-st.best>b{color:var(--text)}
+.mg-st.best p{font-size:12px;line-height:1.45;color:var(--mute);margin-top:8px}
+
+/* =====================================================================
+   CLIPPER: kill detection, recording, player
+   ===================================================================== */
+/* heads of the cards */
+#p-clip .ke-head{gap:16px}
+#p-clip .ke-h b{display:block}
+#p-clip .ke-h p{font-size:13px;color:var(--sub);margin-top:4px;line-height:1.5}
+#p-clip .ke-head .hl-t p{font-size:13px;line-height:1.5}
+#p-clip .ke-lbl{margin-top:22px;padding-top:20px;font-size:12.5px;font-weight:500;color:var(--sub)}
+
+/* how kills are noticed: two tiles; the chosen one is raised and neutral, its icon takes the accent */
+#p-clip .ke-methods{gap:12px;margin-top:12px}
+#p-clip .ke-m{gap:14px;padding:16px;border:0;border-radius:18px;background:rgba(255,255,255,.018);box-shadow:inset 0 0 0 1px rgba(196,210,255,.05);transition:background .3s,box-shadow .3s}
+#p-clip .ke-m:hover{background:rgba(255,255,255,.035)}
+#p-clip .ke-m.on{background:linear-gradient(180deg,rgba(255,255,255,.075),rgba(255,255,255,.035));box-shadow:var(--edge),var(--lift)}
+#p-clip .ke-mi{width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,.045);color:var(--mute);box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+#p-clip .ke-m.on .ke-mi{background:rgba(var(--a-rgb),.12);color:var(--a);box-shadow:inset 0 1px 0 rgba(255,255,255,.05),inset 0 0 0 1px rgba(var(--a-rgb),.14)}
+#p-clip .ke-mt b{font-size:14px;font-weight:550;letter-spacing:-.008em;color:var(--sub)}
+#p-clip .ke-m.on .ke-mt b{color:var(--text)}
+#p-clip .ke-mt b em{height:19px;display:inline-flex;align-items:center;padding:0 7px;font-size:10.5px;font-weight:550;background:rgba(255,255,255,.06);color:var(--sub)}
+#p-clip .ke-mt>span{font-size:12.5px;color:var(--mute);margin-top:4px;line-height:1.5}
+#p-clip .ke-m.on .ke-mt>span{color:var(--sub)}
+#p-clip .ke-r{width:18px;height:18px;border:0;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.18)}
+#p-clip .ke-m.on .ke-r{box-shadow:inset 0 0 0 1.5px #ECEFF5}
+#p-clip .ke-m.on .ke-r::after{inset:4px;background:#ECEFF5}
+
+/* the sunken settings box under the methods */
+#p-clip .ke-box{margin-top:14px;padding:4px 20px 18px}
+#p-clip .km-words{margin-top:16px}
+#p-clip .km-words span,#p-clip .ac-grid label span{font-size:12.5px;font-weight:500;color:var(--sub);margin-bottom:8px}
+#p-clip .km-words span em,#p-clip .ac-grid label span em{font-weight:400;color:var(--mute);opacity:1;margin-left:8px}
+#p-clip .ac-grid label span em:not(:empty){color:var(--good)}
+#p-clip .ke-box .in{height:40px;background:rgba(255,255,255,.035);box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
+#p-clip .ke-box .in:focus{background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,.06),0 0 0 3px rgba(var(--a-rgb),.22)}
+#p-clip .km-words .in{letter-spacing:.01em}
+#p-clip .ke-box .seg{background:rgba(255,255,255,.035);box-shadow:inset 0 0 0 1px rgba(255,255,255,.035)}
+#p-clip .ke-hint{font-size:12.5px;line-height:1.55;color:var(--mute);margin-top:10px}
+#p-clip .ke-hint b{font-weight:550;color:var(--sub)}
+#p-clip .km-last{gap:12px;margin-top:14px;padding:12px 14px;border:0;border-radius:12px;background:rgba(255,255,255,.025);box-shadow:inset 0 0 0 1px rgba(255,255,255,.04);font-size:12.5px;color:var(--sub)}
+#p-clip .km-last img{border:0;border-radius:8px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+#p-clip .ke-more{margin-top:14px;padding-top:6px}
+#p-clip .ke-more summary{padding:8px 0;font-size:13px;font-weight:500;color:var(--sub)}
+#p-clip .ke-more summary svg.i{color:var(--mute)}
+#p-clip .ke-more summary:hover{color:var(--text)}
+#p-clip .ke-foot{gap:8px;margin-top:14px;padding-top:14px}
+#p-clip .ke-foot .sub{font-size:12px;color:var(--mute)}
+/* the result of a test: what OrbitTweak saw, and what it read */
+#p-clip .kf-out{margin-top:14px;padding:16px;border:0;border-radius:14px;background:rgba(255,255,255,.025);box-shadow:inset 0 0 0 1px rgba(255,255,255,.045)}
+#p-clip .kf-cols{gap:16px}
+#p-clip .kf-img img{border:0;border-radius:10px;box-shadow:0 0 0 1px rgba(255,255,255,.06),0 10px 24px -14px rgba(0,0,0,.9)}
+#p-clip .kf-img:not(:has(img))::before{content:'Kein Bild';display:grid;place-items:center;aspect-ratio:5/2;border-radius:10px;background:var(--well);box-shadow:var(--well-edge);font-size:12px;color:var(--mute)}
+#p-clip .kf-img span{font-size:11.5px;color:var(--mute)}
+#p-clip .kf-lines b{font-size:12.5px;font-weight:550;color:var(--sub);margin-bottom:8px}
+#p-clip .kf-l{padding:7px 10px;border-radius:9px;font-size:12px}
+#p-clip .kf-l em{height:18px;display:inline-flex;align-items:center;padding:0 7px;font-size:10.5px;font-weight:600}
+#p-clip .kf-l.kill{background:rgba(95,212,163,.08)}
+#p-clip .kf-l.kill em{background:rgba(95,212,163,.16);color:var(--good)}
+#p-clip .kf-l.death{background:rgba(242,139,139,.07)}
+#p-clip .kf-l.death em{background:rgba(242,139,139,.15);color:var(--bad)}
+#p-clip .kf-err{color:var(--warn);font-size:12.5px}
+#p-clip .mk-v{gap:10px;margin-bottom:14px;padding:11px 14px;border-radius:12px;font-size:12.5px}
+#p-clip .mk-v.kill{background:rgba(95,212,163,.08)}
+#p-clip .mk-v.kill svg.i{color:var(--good)}
+#p-clip .mk-v.death{background:rgba(242,139,139,.07)}
+
+/* plain rows with a hairline */
+#p-clip .ke-opt{gap:16px;padding:16px 0}
+#p-clip .ke-opt b{font-size:13.5px;font-weight:550;letter-spacing:-.005em}
+#p-clip .ke-opt p{font-size:12.5px;color:var(--mute);margin-top:3px;line-height:1.5}
+#p-clip .ke-h+.ke-opt,#p-clip .ke-h+div>.ke-opt:first-child{margin-top:14px}
+#p-clip .ke-opt .seg button{height:28px;padding:0 11px;font-size:12px}
+#p-clip .ke>.ke-opt:last-child,#p-clip .ke>div>.ke-opt:last-child{padding-bottom:4px}
+#p-clip #clAutoOpts{margin-top:14px}
+
+/* what records: five tiles, the keys that save a clip as small key caps */
+#p-clip .cl-recs{gap:10px;margin-top:18px}
+#p-clip .cl-rec{display:flex;flex-direction:column;gap:10px;min-width:0;padding:14px 14px 13px;border:0;border-radius:16px;text-align:left;
+  background:rgba(255,255,255,.018);box-shadow:inset 0 0 0 1px rgba(196,210,255,.05);transition:background .3s,box-shadow .3s}
+#p-clip .cl-rec:hover{background:rgba(255,255,255,.035)}
+#p-clip .cl-rec.on{background:linear-gradient(180deg,rgba(255,255,255,.075),rgba(255,255,255,.035));box-shadow:var(--edge),var(--lift)}
+#p-clip .cl-rec b{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13.5px;font-weight:550;letter-spacing:-.008em;color:var(--sub)}
+#p-clip .cl-rec.on b{color:var(--text)}
+.cr-ck{width:12px;height:12px;flex:none;padding:3px;box-sizing:content-box;border-radius:50%;background:#ECEFF5;color:#0B0F17;stroke-width:3;opacity:0;transform:scale(.6);transition:opacity .2s,transform .3s var(--ease)}
+.cl-rec.on .cr-ck{opacity:1;transform:none}
+.cr-k{display:flex;flex-wrap:wrap;align-items:center;gap:3px;min-height:20px;font-family:var(--body)}
+#p-clip .cl-rec span.cr-k{font-family:var(--body);font-size:12px;color:var(--mute)}
+.cr-k kbd{display:inline-grid;place-items:center;height:20px;min-width:20px;padding:0 6px;border-radius:6px;font-family:var(--body);font-size:11px;font-weight:550;color:var(--sub);
+  background:rgba(255,255,255,.06);box-shadow:inset 0 -1px 0 rgba(0,0,0,.35),inset 0 0 0 1px rgba(255,255,255,.06)}
+.cr-k em{font-style:normal}
+#p-clip #clRecTxt{font-size:13px;color:var(--sub)}
+/* with another recorder only the key and sharing are left: the line about quality and length goes */
+#p-clip .ke-h:has(+#clOrbit.hidden) p{display:none}
+#p-clip #clExtNote{margin-top:16px}
+
+/* quality as three tiles */
+.cl-lb{margin-top:18px;font-size:12.5px;font-weight:500;color:var(--sub)}
+.cl-qual{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:10px}
+.cl-qual button{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:14px 16px;border-radius:16px;text-align:left;
+  background:rgba(255,255,255,.018);box-shadow:inset 0 0 0 1px rgba(196,210,255,.05);transition:background .3s,box-shadow .3s}
+.cl-qual button:hover{background:rgba(255,255,255,.035)}
+.cl-qual button.on{background:linear-gradient(180deg,rgba(255,255,255,.075),rgba(255,255,255,.035));box-shadow:var(--edge),var(--lift)}
+.cl-qual b{font-size:13.5px;font-weight:550;color:var(--sub)}
+.cl-qual button.on b{color:var(--text)}
+.cl-qual span{font-size:12px;color:var(--mute);font-variant-numeric:tabular-nums}
+
+/* the length of a clip as a strip with a second scale: before the kill, the kill, after it */
+.cl-tl{position:relative;margin:20px 0 4px;padding:18px 20px 18px;border-radius:16px;background:var(--well);box-shadow:var(--well-edge)}
+.cl-tl+.ke-opt{border-top:0}
+.clt-c{display:flex;justify-content:space-between;gap:16px 24px;flex-wrap:wrap;margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+.clt-g{display:flex;flex-direction:column;gap:8px;min-width:0}
+.clt-g:last-child{align-items:flex-end}
+.clt-g>span{font-size:12px;font-weight:500;color:var(--mute)}
+.clt-g .seg{background:rgba(255,255,255,.035);box-shadow:inset 0 0 0 1px rgba(255,255,255,.035)}
+.clt-g .seg button{height:28px;padding:0 11px;font-size:12px}
+.clt-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.clt-h span{font-size:12.5px;font-weight:500;color:var(--sub)}
+.clt-h b{font-family:var(--disp);font-size:30px;font-weight:300;letter-spacing:-.045em;line-height:1;color:var(--text);font-variant-numeric:tabular-nums}
+.clt-h b small{font-size:14px;font-weight:400;color:var(--mute);margin-left:3px;letter-spacing:0}
+.clt-bar{position:relative;display:flex;align-items:center;height:8px;margin-top:16px}
+.clt-bar::after{content:'';position:absolute;left:0;right:0;top:14px;height:5px;
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.16) 0 1px,transparent 1px calc(100% / var(--n,25)))}
+.clt-b,.clt-a{display:block;height:8px;border-radius:4px}
+.clt-b{flex:var(--k,.8) 1 0;background:linear-gradient(90deg,rgba(255,255,255,.07),rgba(255,255,255,.2))}
+.clt-a{flex:calc(1 - var(--k,.8)) 1 0;background:rgba(255,255,255,.1)}
+.clt-k{position:relative;flex:none;width:2px;height:22px;margin:0 3px;border-radius:2px;background:var(--a);box-shadow:0 0 10px rgba(var(--a-rgb),.55)}
+.clt-l{position:relative;display:flex;justify-content:space-between;margin-top:18px;font-size:12px;color:var(--mute);font-variant-numeric:tabular-nums}
+.clt-km{position:absolute;left:calc(var(--k,.8) * 100%);transform:translateX(-50%);color:var(--sub);font-weight:550}
+
+/* =====================================================================
+   CLIP PLAYER: an opaque window, picture first; the accent only on "Schneiden"
+   ===================================================================== */
+/* the empty clip library: three faint frames, the middle one with a play button */
+#p-clip .cl-empty{padding:40px 20px 36px}
+.cl-ghost{position:relative;width:236px;height:78px;margin-bottom:14px}
+.cl-ghost i{position:absolute;top:10px;left:50%;width:104px;height:58px;margin-left:-52px;border-radius:10px;display:grid;place-items:center;
+  background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02));box-shadow:inset 0 1px 0 rgba(255,255,255,.07),inset 0 0 0 1px rgba(255,255,255,.05),0 10px 22px -12px rgba(0,0,0,.9)}
+.cl-ghost i:nth-child(1){transform:translateX(-62px) rotate(-6deg) scale(.9);opacity:.6}
+.cl-ghost i:nth-child(3){transform:translateX(62px) rotate(6deg) scale(.9);opacity:.6}
+.cl-ghost i:nth-child(2){top:4px;z-index:1;width:116px;height:66px;margin-left:-58px;background:linear-gradient(180deg,rgba(255,255,255,.085),rgba(255,255,255,.035)),#0E121A}
+.cl-ghost svg.i{width:14px;height:14px;padding:9px;box-sizing:content-box;border-radius:50%;background:rgba(255,255,255,.9);color:#0B0F17;fill:#0B0F17}
+
+#mbox:has(>.cpl){padding:0;text-align:left;overflow:hidden;max-width:calc(100vw - 64px);border-radius:24px;
+  background:radial-gradient(80% 50% at 50% -10%,rgba(255,255,255,.04),transparent 70%),linear-gradient(180deg,#10141D,#0B0F16);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07),inset 0 0 0 1px rgba(196,210,255,.06),0 50px 120px -40px rgba(0,0,0,.95),0 0 0 1px rgba(0,0,0,.5)}
+#mbox:has(>.cpl)::before{display:none}
+.cpl-h{display:flex;align-items:center;gap:14px;padding:18px 18px 16px 22px}
+.cpl-ic{width:40px;height:40px;flex:none;border-radius:12px;display:grid;place-items:center;background:rgba(255,255,255,.045);color:var(--sub);box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+.cpl-ic svg.i{width:18px;height:18px}
+.cpl-t{flex:1;min-width:0}
+.cpl-t b{display:block;font-family:var(--disp);font-size:17px;font-weight:560;letter-spacing:-.02em;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cpl-t span{display:block;font-size:12.5px;color:var(--mute);margin-top:2px;font-variant-numeric:tabular-nums}
+.cpl-x{flex:none;background:transparent;box-shadow:none}
+.cpl-x:hover{background:rgba(255,255,255,.06)}
+.cpl .player{margin:0 14px;border-radius:16px;overflow:hidden;background:#000;box-shadow:0 0 0 1px rgba(255,255,255,.05),0 20px 40px -24px rgba(0,0,0,.9)}
+.cpl .player video{display:block;width:100%;max-height:62vh;aspect-ratio:16/9;border-radius:0;background:#000;object-fit:contain}
+.cpl-none{aspect-ratio:16/9;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;background:#07090E center/cover no-repeat}
+.cpl-none svg.i{width:26px;height:26px;color:var(--mute);margin-bottom:6px}
+.cpl-none b{font-size:14px;font-weight:550;color:var(--text)}
+.cpl-none span{font-size:12.5px;color:var(--mute)}
+#mbox .cpl .act{justify-content:flex-start;gap:8px;margin:0;padding:16px 18px 18px}
+.cpl .act .sp{flex:1}
+/* cutting: a sunken strip, the selection framed in light, the play head in the accent */
+.cpl .cut{margin:16px 18px 0}
+.cpl .cut-bar{height:46px;border:0;border-radius:12px;background:repeating-linear-gradient(90deg,rgba(255,255,255,.05) 0 1px,transparent 1px 3.33%),var(--well);box-shadow:var(--well-edge)}
+.cpl .cut-sel{border:0;border-radius:11px;background:rgba(255,255,255,.07);box-shadow:inset 0 0 0 2px #E6EAF1}
+.cpl .cut-h{top:0;bottom:0;width:12px;margin-left:-6px;border-radius:6px;background:#ECEFF5;box-shadow:0 2px 8px rgba(0,0,0,.5)}
+.cpl .cut-h::after{left:5px;top:15px;bottom:15px;width:2px;background:#0B0F17;opacity:.45}
+.cpl .cut-h:hover{transform:scaleX(1.15)}
+.cpl .cut-pos{top:-5px;bottom:-5px;background:var(--a);box-shadow:0 0 8px rgba(var(--a-rgb),.7)}
+.cut-row{display:flex;align-items:center;gap:8px;margin-top:12px}
+.cut-row .sp{flex:1}
+.cut-info{font-size:12.5px;color:var(--mute);font-variant-numeric:tabular-nums;margin-left:6px}
+.cut-info b{font-weight:550;color:var(--text)}
+#mbox .cpl .cut-hint{max-width:none;margin:10px 0 0;font-size:12px;line-height:1.5;color:var(--mute)}
+
+/* =====================================================================
+   NARROW WINDOWS, LESS MOTION
+   ===================================================================== */
+@media (max-width:1100px){
+  #p-pad .xgrid,#p-input .lab{grid-template-columns:1fr}
+  #p-games .mg-wrap{grid-template-columns:minmax(0,1fr) 220px}
+  .cl-qual{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media (prefers-reduced-motion:reduce){
+  .pp-mark,#p-input .key,.cr-ck,#p-pad .corners button svg.i{transition:none}
+}

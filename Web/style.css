@@ -1262,7 +1262,7 @@ input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.18);box-shadow:0
 .mg-wrap{display:grid;grid-template-columns:1fr 230px;gap:16px;height:calc(100% - 120px);min-height:420px}
 .mg-stage{padding:0;overflow:hidden;cursor:crosshair;min-height:420px}
 .mg-stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
-.mg-over{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;background:rgba(10,10,11,.55);backdrop-filter:blur(6px);transition:opacity .35s;cursor:default}
+.mg-over{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;background:rgba(10,10,11,.72);transition:opacity .35s;cursor:default}
 .mg-over.off{opacity:0;pointer-events:none}
 .mg-over h2{font-size:26px}
 .mg-over p{color:var(--sub);max-width:340px;line-height:1.5}
