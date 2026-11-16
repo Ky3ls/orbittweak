@@ -29,7 +29,7 @@ public partial class MainWindow : Window
     private readonly SnapTap _snap = new();
     private readonly AutoClip _autoClip = new();
     private readonly KillFeed _killFeed = new();
-    private DateTime _kfSaveAt, _kfFirst; private bool _kfPending; private int _kfKills, _kfDeaths;
+    private DateTime _kfSaveAt, _kfFirst; private bool _kfPending, _kfDied; private int _kfKills, _kfDeaths;
     private readonly KillMark _killMark = new();
     private readonly RecorderProxy _rec = new();
     private bool _recBusy; private DateTime _recRetry; private string? _recError; private string _recKey = "";
@@ -123,6 +123,8 @@ public partial class MainWindow : Window
             // Where they are, a fight without a kill needs no look (and the free daily requests are kept for other servers).
             if (!S.Clip.Auto && AiOn && !NetQuiet && await AiJudge(n, span, started)) return;
             if (!S.Clip.Auto && !NetOn) return;
+            // the player's own death was read in this fight: a fight lost, not worth a safety-net clip
+            if (!S.Clip.Auto && _lastDeathAt > started.AddSeconds(-1)) { ClipLog.Add($"Gefecht ({n}, {span:0.0} s) ohne Kill, dein Tod erkannt: nicht gespeichert"); return; }
             // the safety net is only for places where kills are not noticed. Where they are (a kill was noticed a short
             // while ago), a fight without a kill is just that, mostly the player's own death, and is not saved.
             if (!S.Clip.Auto && NetQuiet)
@@ -141,6 +143,7 @@ public partial class MainWindow : Window
         // when the kill happened is taken where it was noticed (the main thread may be busy for a moment)
         _killFeed.Hit += kill => { var at = DateTime.Now.AddSeconds(-KillLogic.LagFeed); Dispatcher.InvokeAsync(() => OnKill(kill, null, at)); };
         _killMark.Kill += (how, at) => Dispatcher.InvokeAsync(() => OnKill(true, how, at));
+        _killMark.Death += text => Dispatcher.InvokeAsync(() => OnDeath(text));
         _killMark.Note += ClipLog.Add;
 #if DEBUG
         if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ORBIT_TEST_GAME"))) _killMark.NeedShot = false; // the stand-in game is not shot at
@@ -706,6 +709,29 @@ public partial class MainWindow : Window
                     return res;
                 }
                 catch (Exception ex) { KfApply(); return new { ok = false, error = ex.Message }; }
+            }
+
+            case "clip.marktest":
+            {
+                // reads the strip around the crosshair once, all three ways. A running game gets a few seconds to be put in front.
+                try
+                {
+                    bool running = GameFocus.Window != IntPtr.Zero;
+                    if (!running)
+                        foreach (var p in Process.GetProcesses())
+                        {
+                            try { running |= p.ProcessName.Contains("GTAProcess", StringComparison.OrdinalIgnoreCase) || p.ProcessName.Equals("GTA5", StringComparison.OrdinalIgnoreCase); } catch { }
+                            p.Dispose();
+                        }
+                    var until = DateTime.Now.AddSeconds(Math.Clamp(Int(a, "wait"), 0, 10));
+                    bool front = GameFocus.IsGame();
+                    while (running && !front && DateTime.Now < until) { await Task.Delay(100); front = GameFocus.IsGame(); }
+                    if (front) await Task.Delay(400);   // the picture settles after switching
+                    var r = await Task.Run(() => _killMark.Test());
+                    static string? Hit(KillText.Kind k) => k == KillText.Kind.Kill ? "kill" : k == KillText.Kind.Death ? "death" : null;
+                    return new { ok = true, game = running, front, img = r.image, kind = Hit(r.kind), text = r.text, word = r.word, how = r.how, lines = r.lines.Select(l => new { l.text, hit = Hit(l.hit) }).ToList() };
+                }
+                catch (Exception ex) { return new { ok = false, error = ex.Message }; }
             }
 
             // ---------- custom minimap from a picture ----------
@@ -1404,7 +1430,7 @@ public partial class MainWindow : Window
     /// <summary>Snap Tap and WASD "Laggen" share one keyboard hook; both only work with a valid key and while the game is in front.</summary>
     private void SnapApply() => _snap.Apply(_authed && S.SnapTap, _authed && S.Lag.On, S.Lag.Gap, S.Lag.Every);
 
-    private DateTime _lastKillAt, _lastFightClip;
+    private DateTime _lastKillAt, _lastFightClip, _lastDeathAt;
     private readonly List<DateTime> _kfTimes = new();   // when the kills of the clip that is about to be saved happened
     private int _statKills, _statFights;
     /// <summary>Safety net of the kill clipper: a firefight in which no kill was noticed is clipped anyway.</summary>
@@ -1472,7 +1498,9 @@ public partial class MainWindow : Window
         var fightEnd = started.AddSeconds(span);
         var endAt = (killAt > fightEnd ? killAt : fightEnd).AddSeconds(Math.Max(2, S.Clip.After));
         double after = Math.Min(S.Clip.After, (endAt - DateTime.Now).TotalSeconds);
-        await SaveClip($"Auto-Clip: {(v.Kills == 1 ? "Kill" : v.Kills + " Kills")} erkannt (KI)", v.Kills == 1 ? "Kill" : $"{v.Kills} Kills",
+        // the player died in this fight as well (the model saw it, or the death message was read)
+        var what = (v.Kills == 1 ? "Kill" : $"{v.Kills} Kills") + (v.Died || _lastDeathAt > started.AddSeconds(-1) ? " + Tod" : "");
+        await SaveClip($"Auto-Clip: {what} erkannt (KI)", what,
             S.Clip.Before + Math.Max(0, (DateTime.Now - killAt).TotalSeconds), after, new List<DateTime> { killAt });
         return true;
     }
@@ -1511,7 +1539,7 @@ public partial class MainWindow : Window
     private async void OnKill(bool kill, string? how = null, DateTime? at = null)
     {
         if (!_authed || !S.Clip.Kills) return;
-        if (kill) { _kfKills++; _statKills++; } else _kfDeaths++;
+        if (kill) { _kfKills++; _statKills++; } else { _kfDeaths++; if (_kfKills > 0) _kfDied = true; }
         if (kill) _kfTimes.Add(at ?? DateTime.Now.AddSeconds(-KillLogic.LagMessage));   // when the kill itself happened, a moment before it was noticed
         _lastKillAt = DateTime.Now;
         ClipLog.Add(kill ? (how != null ? $"Kill erkannt ({how})" : "Kill im Kill-Feed erkannt") : "Tod im Kill-Feed erkannt");
@@ -1540,14 +1568,29 @@ public partial class MainWindow : Window
         if (_kfPending) return;
         _kfPending = true; _kfFirst = DateTime.Now;
         while (DateTime.Now < _kfSaveAt && DateTime.Now - _kfFirst < TimeSpan.FromSeconds(50)) await Task.Delay(250);
-        var what = _kfKills > 1 ? $"{_kfKills} Kills" : _kfKills == 1 ? "Kill" : "Tod";
+        var what = (_kfKills > 1 ? $"{_kfKills} Kills" : _kfKills == 1 ? "Kill" : "Tod") + (_kfKills > 0 && _kfDied ? " + Tod" : "");
         // the first kill itself, not when it was noticed (a red X counts only once it is gone again, a second or more later)
         var firstAt = _kfTimes.Count > 0 && _kfTimes.Min() < _kfFirst ? _kfTimes.Min() : _kfFirst;
         var since = (DateTime.Now - firstAt).TotalSeconds;
-        _kfKills = 0; _kfDeaths = 0; _kfPending = false;
+        _kfKills = 0; _kfDeaths = 0; _kfDied = false; _kfPending = false;
         // built-in recorder: from "Before" seconds ahead of the first kill up to now (the seconds after are already over)
         var killTimes = _kfTimes.ToList(); _kfTimes.Clear();
         await SaveClip($"Auto-Clip: {what} erkannt", what, S.Clip.Before + since, 0, killTimes);
+    }
+
+    /// <summary>
+    /// The player's own death was read at the crosshair ("KILLED BY …", "WASTED"). A kill clip that is about to be saved
+    /// becomes "Kill + Tod" and runs a moment longer so the death is in it; a fight with this death is no safety-net clip.
+    /// </summary>
+    private void OnDeath(string text)
+    {
+        if (!_authed || !S.Clip.Kills) return;
+        _lastDeathAt = DateTime.Now;
+        ClipLog.Add($"Tod erkannt („{text}“ am Fadenkreuz){(_kfPending && _kfKills > 0 ? ", der Kill-Clip heißt „Kill + Tod“" : "")}");
+        if (!_kfPending || _kfKills == 0) return;
+        _kfDied = true;
+        var end = DateTime.Now.AddSeconds(2);
+        if (end > _kfSaveAt) _kfSaveAt = end;
     }
 
     /// <summary>
@@ -1609,7 +1652,8 @@ public partial class MainWindow : Window
                 return why;
             }
             ClipLog.Add($"Clip gespeichert: {Path.GetFileName(file)} ({before:0} s davor, {(after < 0 ? $"endet {-after:0} s vor dem Speichern" : $"{after:0} s danach")})");
-            if (kind == "Kill" || kind.EndsWith(" Kills")) _roundClips.Add(file);   // for the highlight video of this round
+            var killKind = kind.EndsWith(" + Tod") ? kind[..^6] : kind;
+            if (killKind == "Kill" || killKind.EndsWith(" Kills")) _roundClips.Add(file);   // for the highlight video of this round
             if (kills is { Count: > 0 }) ClipMarks.Add(file, kills.Select(k => (cutAt - k).TotalSeconds));   // where the kills sit, for the slow motion of a montage
             Log($"🎬 {auto ?? "Clip gespeichert"} → {Path.GetFileName(file)}");
             Emit("clip", new { recorder = "orbit", auto, file = Path.GetFileName(file) });

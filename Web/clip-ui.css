@@ -112,8 +112,21 @@ button.kc-st:hover{border-color:var(--line2);background:rgba(255,255,255,.045)}
 .ke-more[open] summary{margin-bottom:6px}
 .ke-more .km-words{margin-top:2px}
 .ke-foot{display:flex;align-items:center;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
-.ke-foot .sub{font-size:12px;line-height:1.45}
+.ke-foot .sub{font-size:12px;line-height:1.45;min-width:0}
+.ke-foot .btn{flex:none}
 #p-clip .km-last:empty{display:none}
+#p-clip .km-last img.strip{width:108px;object-fit:cover;image-rendering:auto}
+/* "Erkennung testen" at the crosshair: what was read, as for the kill feed */
+#clMkOut .mk-wait{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--sub)}
+#clMkOut .mk-wait svg.i{width:15px;height:15px;flex:none}
+.mk-v{display:flex;align-items:center;gap:9px;margin-bottom:12px;padding:9px 11px;border-radius:10px;font-size:12.5px;line-height:1.45;color:var(--sub);background:rgba(255,255,255,.035)}
+.mk-v svg.i{width:15px;height:15px;flex:none}
+.mk-v b{color:var(--text);font-size:inherit}
+.mk-v.kill{background:rgba(52,211,153,.08);color:var(--text)}
+.mk-v.kill svg.i{color:#34D399}
+.mk-v.death{background:rgba(248,113,113,.08);color:var(--text)}
+.mk-v.death svg.i{color:var(--bad)}
+#clMkOut .mk-none{font-size:12px;line-height:1.45;margin-top:8px}
 #clAiKey{text-transform:none;letter-spacing:0}
 #clFeedBox .ac-grid{margin-top:14px}
 #clFeedBox .ke-opt{margin-top:12px}

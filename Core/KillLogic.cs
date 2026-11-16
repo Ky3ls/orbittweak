@@ -106,6 +106,39 @@ internal static class KillLogic
         if (len < 4) return false;
         return Distance(x, y) <= Math.Max(1, len / 6);
     }
+
+    /// <summary>
+    /// Which crosshair pictures of a fight go to the AI check (indices, in time order), from the share of bright text
+    /// pixels in each (<see cref="KillText.TextShare"/>): first where that share stands out or changes (a message comes
+    /// or goes), then the gaps are filled so quiet stretches and the end are covered too. Neighbours that look alike are
+    /// one moment and are taken once, so a message of 1.5 s (four pictures) does not use up all places.
+    /// </summary>
+    public static List<int> PickFrames(IReadOnlyList<double> share, int max)
+    {
+        int n = share.Count;
+        if (n <= max) return Enumerable.Range(0, n).ToList();
+        var pick = new SortedSet<int> { 0, n - 1 };
+        // stands out against the usual level of the fight (a bright sky is there all the time), or changed since the last picture
+        double usual = share.OrderBy(x => x).ElementAt(n / 2);
+        var score = new double[n];
+        for (int i = 0; i < n; i++) score[i] = Math.Max(0, share[i] - usual) + (i > 0 ? Math.Abs(share[i] - share[i - 1]) : 0);
+        bool Alike(int a, int b) => b >= 0 && b < n && pick.Contains(b) && Math.Abs(share[a] - share[b]) < Math.Max(0.002, 0.2 * Math.Max(share[a], share[b]));
+        int room = max - Math.Max(2, max / 4);   // a quarter of the places stays for the gaps
+        foreach (var i in Enumerable.Range(0, n).Where(i => score[i] > 0.001).OrderByDescending(i => score[i]))
+        {
+            if (pick.Count >= room) break;
+            if (!pick.Contains(i) && !Alike(i, i - 1) && !Alike(i, i + 1)) pick.Add(i);
+        }
+        // the rest: always into the middle of the longest gap
+        while (pick.Count < max)
+        {
+            int best = -1, gap = 0, prev = -1;
+            foreach (var p in pick) { if (prev >= 0 && p - prev > gap) { gap = p - prev; best = prev + gap / 2; } prev = p; }
+            if (gap < 2) break;
+            pick.Add(best);
+        }
+        return pick.ToList();
+    }
 }
 
 /// <summary>
@@ -186,9 +219,13 @@ internal sealed class KillMessages
     /// <summary>The game is not in front: a message that is there when it comes back is not new.</summary>
     public void Pause(DateTime now) { _seen = now; _text = ""; _word = ""; }
 
+    /// <summary>The last reading was the player's own death, and a new one (no death message in the 4 s before it).</summary>
+    public bool NewDeath { get; private set; }
+
     /// <summary>One reading: a kill message (with its text and kill word), a death message, or neither. Returns true for a new kill.</summary>
     public bool Read(DateTime now, bool kill, bool death, string text = "", string word = "")
     {
+        NewDeath = death && (now - _death).TotalSeconds > 4;
         if (death) { _death = now; _gone = now; return false; }
         if (!kill) { _gone = now; return false; }
         double gap = (now - _seen).TotalSeconds;
@@ -240,6 +277,28 @@ internal sealed class KillMerge
 }
 
 /// <summary>
+/// Which way the message strip is read (0 = the picture as it is, 1 = only its white text, 2 = only its bright white or
+/// coloured text). One way per reading, in turns, so the work stays that of a single reading. While a message is on
+/// screen ("both"), the way that found the last one goes first and one other way follows only when it finds nothing.
+/// </summary>
+internal sealed class ReadTurns
+{
+    public const int Ways = 3;
+    private int _turn = -1, _good = 1;
+
+    /// <summary>The way(s) for the next reading; second is -1 when there is none.</summary>
+    public (int first, int second) Next(bool both)
+    {
+        _turn = (_turn + 1) % Ways;
+        if (!both) return (_turn, -1);
+        return (_good, _turn == _good ? (_turn + 1) % Ways : _turn);
+    }
+
+    /// <summary>This way found a message.</summary>
+    public void Found(int way) { if (way is >= 0 and < Ways) _good = way; }
+}
+
+/// <summary>
 /// Which recognised text is a kill message and which one a death message (the part of KillText without Windows).
 /// A kill word counts only at the start of a word: "KILLED Max" and "KILLEDMAX" (glued by the recognition) are kills,
 /// "Skilled_Sniper" is not. Long words may have one letter misread ("KILLEO", "K1LLED"), but words that are one letter
@@ -253,16 +312,20 @@ internal static partial class KillText
 
     public enum Kind { None, Kill, Death }
 
-    // "… by / von …" turns a kill word into the opposite; these also mark a death on their own (anywhere in the line)
+    // "… by / von …" turns a kill word into the opposite; these also mark a death on their own. A phrase counts only
+    // where a word ends right after it: "KILLED BY Max" is a death, "ELIMINATED Byron" and "GETÖTET Vonda" are kills.
     private static readonly string[] DeathPhrases =
     {
         "KILLEDBY", "GETOTETVON", "ELIMINATEDBY", "ELIMINIERTVON", "ERLEDIGTVON", "YOUDIED", "YOUWEREKILLED", "YOUAREDEAD",
-        "DUWURDEST", "DUBISTTOT", "DUBISTGESTORBEN", "WASTED", "BEENKILLED", "BEENELIMINATED", "GOTKILLED"
+        "DUWURDEST", "DUBISTTOT", "DUBISTGESTORBEN", "WASTED", "BEENKILLED", "BEENELIMINATED", "GOTKILLED",
+        "DICHGETOTET", "DICHELIMINIERT", "DICHERLEDIGT"
     };
-    // … and these only where a word ends right after them ("Max killed you" is a death, "You killed Young_Bob" is not)
+    // … these too, but a misread letter in their closing "YOU" never counts ("Max killed you" is a death, "You killed Young_Bob" is not)
     private static readonly string[] DeathAtEnd = { "KILLEDYOU", "ELIMINATEDYOU" };
     // words that look like a kill word to the recognition but are none
     private static readonly string[] NotKill = { "KILLER", "SKILL", "FILLED", "BILLED", "MILLED", "PILLED", "TILLED", "WILLED" };
+    // the usual long kill words: a death phrase behind one of them is part of the name ("KILLED Wasted Max", "KILLED Max_Wasted")
+    private static readonly string[] NameAfter = DefaultWords.Split(',').Select(x => Fold(x)).Where(x => x.Length >= 6).ToArray();
 
     /// <summary>Upper case, umlauts folded (the English recognizer has none), everything but letters and digits removed.</summary>
     public static string Fold(string s, bool keepSpaces = false)
@@ -278,7 +341,8 @@ internal static partial class KillText
                 case 'ẞ': case 'ß': sb.Append("SS"); break;
                 default:
                     if (char.IsLetterOrDigit(ch)) sb.Append(ch);
-                    else if (keepSpaces && sb.Length > 0 && sb[^1] != ' ') sb.Append(' ');
+                    // "_" joins the parts of a name into one word ("Wasted_Max")
+                    else if (keepSpaces && ch != '_' && sb.Length > 0 && sb[^1] != ' ') sb.Append(' ');
                     break;
             }
         }
@@ -322,26 +386,38 @@ internal static partial class KillText
         var l = Words(line);
         for (int i = 0; i < l.t.Length; i++)
         {
-            foreach (var p in DeathPhrases) if (Phrase(l, i, p, false)) return true;
-            foreach (var p in DeathAtEnd) if (Phrase(l, i, p, true)) return true;
+            bool hit = false;
+            foreach (var p in DeathPhrases) if (Phrase(l, i, p, false)) { hit = true; break; }
+            if (!hit) foreach (var p in DeathAtEnd) if (Phrase(l, i, p, true)) { hit = true; break; }
+            if (hit && !AfterKillWord(l, i)) return true;
         }
         return false;
     }
 
     /// <summary>
-    /// A death phrase at position i: read exactly (anywhere), or with one wrong letter only where a word starts
+    /// A death phrase at position i, followed by the end of a word ("ELIMINATED Byron", "GETÖTET Vonda", "KILLED Youssef"
+    /// are no "… BY / VON / YOU"). Read exactly (anywhere), or with one wrong letter only where a word starts
     /// ("HEADSHOT KILLED" is no "GOT KILLED") and not in its closing "BY", "VON" or "YOU" unless that stands as a word
-    /// of its own ("KILLED Bob", "KILLED Kyle" are kills, "KILLED 8Y Max" is a death). atEnd: a word has to end after it.
+    /// of its own ("KILLED Bob", "KILLED Kyle" are kills, "KILLED 8Y Max" is a death). atEnd: never a misread "YOU".
     /// </summary>
     private static bool Phrase((string t, bool[] start, bool[] end) l, int i, string p, bool atEnd)
     {
         var (t, start, end) = l;
-        if (i + p.Length > t.Length || (atEnd && !end[i + p.Length])) return false;
+        if (i + p.Length > t.Length || !end[i + p.Length]) return false;
         if (string.CompareOrdinal(t, i, p, 0, p.Length) == 0) return true;
         if (!start[i] || !At(t, i, p)) return false;
         int tail = p.EndsWith("BY", StringComparison.Ordinal) ? 2 : p.EndsWith("VON", StringComparison.Ordinal) || p.EndsWith("YOU", StringComparison.Ordinal) ? 3 : 0;
         if (string.CompareOrdinal(t, i + p.Length - tail, p, p.Length - tail, tail) == 0) return true;
-        return !atEnd && end[i + p.Length];
+        return !atEnd && start[i + p.Length - tail];
+    }
+
+    /// <summary>A long kill word stands before position i: what follows is the name of the one who was killed.</summary>
+    private static bool AfterKillWord((string t, bool[] start, bool[] end) l, int i)
+    {
+        for (int j = 0; j < i; j++)
+            foreach (var w in NameAfter)
+                if (j + w.Length <= i && KillAt(l, j, w)) return true;
+        return false;
     }
 
     /// <summary>The kill word w (folded) is in the line, at the start of a word and not as part of a look-alike word.</summary>
@@ -349,17 +425,19 @@ internal static partial class KillText
 
     private static bool HasKillWord((string t, bool[] start, bool[] end) l, string w)
     {
-        var (t, start, end) = l;
         if (w.Length == 0) return false;
-        for (int i = 0; i + w.Length <= t.Length; i++)
-        {
-            if (!start[i] || !At(t, i, w)) continue;
-            // short words have to stand alone; long ones may be glued to the name
-            if (w.Length < 6 && !end[i + w.Length]) continue;
-            if (NotKill.Any(n => !w.StartsWith(n, StringComparison.Ordinal) && string.CompareOrdinal(t, i, n, 0, n.Length) == 0)) continue;
-            return true;
-        }
+        for (int i = 0; i + w.Length <= l.t.Length; i++) if (KillAt(l, i, w)) return true;
         return false;
+    }
+
+    /// <summary>The kill word w stands at position i: where a word starts, short words alone, no look-alike word.</summary>
+    private static bool KillAt((string t, bool[] start, bool[] end) l, int i, string w)
+    {
+        var (t, start, end) = l;
+        if (!start[i] || !At(t, i, w)) return false;
+        // short words have to stand alone; long ones may be glued to the name
+        if (w.Length < 6 && !end[i + w.Length]) return false;
+        return !NotKill.Any(n => !w.StartsWith(n, StringComparison.Ordinal) && string.CompareOrdinal(t, i, n, 0, n.Length) == 0);
     }
 
     /// <summary>
@@ -380,5 +458,63 @@ internal static partial class KillText
                 if (HasKillWord(l, w)) { kill = (Kind.Kill, line.Trim(), w); break; }
         }
         return kill;
+    }
+
+    /// <summary>
+    /// Keeps only the (nearly) white parts of a picture, as dark letters on white. Kill messages are mostly white text
+    /// laid over the game picture; without the busy picture behind it the text recognition finds the letters far more often.
+    /// </summary>
+    public static byte[] WhiteOnly(byte[] src, int min = 205)
+    {
+        var dst = new byte[src.Length];
+        for (int i = 0; i < src.Length; i += 4)
+        {
+            int lo = Math.Min(src[i], Math.Min(src[i + 1], src[i + 2]));
+            // soft edge: fully dark from "min" upwards, fading out over the 30 steps below it
+            byte v = (byte)(255 - Math.Clamp((lo - (min - 30)) * 255 / 30, 0, 255));
+            dst[i] = dst[i + 1] = dst[i + 2] = v; dst[i + 3] = 255;
+        }
+        return dst;
+    }
+
+    /// <summary>Brightest channel from which text counts as bright, and how far the channels must lie apart for a colour.</summary>
+    private const int BrightMin = 180, ColourMin = 100;
+
+    /// <summary>How much a pixel looks like bright text, 0 to 255: white, or bright and clearly coloured (red, yellow, green, cyan …).</summary>
+    private static int Vivid(int b, int g, int r)
+    {
+        int hi = Math.Max(r, Math.Max(g, b)), lo = Math.Min(r, Math.Min(g, b));
+        int bright = Math.Clamp((hi - (BrightMin - 30)) * 255 / 30, 0, 255);
+        int kind = Math.Clamp(Math.Max(hi - lo - (ColourMin - 30), lo - 175) * 255 / 30, 0, 255);
+        return bright * kind / 255;
+    }
+
+    /// <summary>
+    /// Keeps the bright text of a picture whatever its colour (white, red, yellow, green …), as dark letters on white.
+    /// For servers whose kill message is coloured: <see cref="WhiteOnly"/> drops it. Pale sky, grey walls and the dark
+    /// scenery drop out here as well.
+    /// </summary>
+    public static byte[] BrightOnly(byte[] src)
+    {
+        var dst = new byte[src.Length];
+        for (int i = 0; i < src.Length; i += 4)
+        {
+            byte v = (byte)(255 - Vivid(src[i], src[i + 1], src[i + 2]));
+            dst[i] = dst[i + 1] = dst[i + 2] = v; dst[i + 3] = 255;
+        }
+        return dst;
+    }
+
+    /// <summary>Share of a BGRA picture (every step-th pixel each way) that looks like bright text, 0 to 1.</summary>
+    public static double TextShare(byte[] bgra, int w, int h, int step = 2)
+    {
+        int all = 0, hit = 0;
+        for (int y = 0; y < h; y += step)
+            for (int x = 0, i = y * w * 4; x < w; x += step, i += step * 4)
+            {
+                all++;
+                if (Vivid(bgra[i], bgra[i + 1], bgra[i + 2]) >= 128) hit++;
+            }
+        return all == 0 ? 0 : (double)hit / all;
     }
 }
