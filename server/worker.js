@@ -34,14 +34,21 @@ function newCode() {
 const validHwid = h => typeof h === 'string' && /^[a-f0-9]{64}$/.test(h);
 /** hw2 or null. The app leaves it empty when the PC only has placeholder serials. */
 const hw2Of = h => validHwid(h) ? h : null;
-/** Remembers the hardware hash of the bound PC. hw2 comes with migrate-hw2.sql; an older database just skips this. */
-async function setHw2(env, code, hw2) {
-  try { await env.DB.prepare('UPDATE codes SET hw2 = ? WHERE code = ?').bind(hw2, code).run(); } catch { }
+/** Remembers the hardware hash of the PC the key is bound to (null clears it). Only while the key is still bound to
+ *  that hwid, so a request that lost a race can not plant its own hash. hw2 comes with migrate-hw2.sql; an older database just skips this. */
+async function setHw2(env, code, hw2, hwid) {
+  try { await env.DB.prepare('UPDATE codes SET hw2 = ? WHERE code = ? AND hwid = ?').bind(hw2, code, hwid).run(); } catch { }
 }
-/** Moves a key to the new HWID of the same PC (Windows reinstalled). */
+/** Moves a key to the new HWID of the same PC (Windows reinstalled). Only if nothing changed since the row was read
+ *  (no unbind or other move in between); false when the key is not bound to this hwid afterwards. */
 async function rebind(env, row, hwid) {
-  await env.DB.prepare('UPDATE codes SET hwid = ?, bound_at = ?, rebinds = COALESCE(rebinds, 0) + 1 WHERE code = ?').bind(hwid, now(), row.code).run();
-  row.hwid = hwid; row.rebinds = (row.rebinds || 0) + 1;
+  const r = await env.DB.prepare('UPDATE codes SET hwid = ?, bound_at = ?, rebinds = COALESCE(rebinds, 0) + 1 WHERE code = ? AND hwid = ? AND hw2 = ?')
+    .bind(hwid, now(), row.code, row.hwid, row.hw2).run();
+  if (r && r.meta && r.meta.changes) { row.hwid = hwid; row.rebinds = (row.rebinds || 0) + 1; return true; }
+  // lost a race: fine if the same PC moved it a moment ago, otherwise the key is no longer ours
+  const cur = await env.DB.prepare('SELECT hwid FROM codes WHERE code = ?').bind(row.code).first();
+  if (!cur || cur.hwid !== hwid) return false;
+  row.hwid = hwid; return true;
 }
 const clean = (s, max) => (typeof s === 'string' ? s : '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, max);
 
@@ -64,9 +71,9 @@ async function auth(req, env) {
   if (!samePc && !reinstall) return null;
   if (row.expires_at && row.expires_at < now()) return 'expired';
   if (reinstall) {
-    if (row.hwid !== hwid) await rebind(env, row, hwid);
+    if (row.hwid !== hwid && !await rebind(env, row, hwid)) return null;
     row.token = await makeToken(env, row.code, hwid, row.role, row.expires_at);
-  } else if (hw2 && row.hw2 !== hw2) await setHw2(env, row.code, hw2);   // keys bound before hw2 existed get it here
+  } else if (hw2 && row.hw2 !== hw2) await setHw2(env, row.code, hw2, hwid);   // keys bound before hw2 existed get it here
   await env.DB.prepare('UPDATE codes SET last_seen = ? WHERE code = ?').bind(now(), row.code).run();
   return row;
 }
@@ -125,9 +132,11 @@ export default {
         const reinstall = row.hwid && row.hwid !== hwid && hw2 && row.hw2 === hw2;
         if (row.hwid && row.hwid !== hwid && !reinstall) return err('Dieser Code ist schon an einen anderen PC gebunden', 403);
         if (row.expires_at && row.expires_at < now()) return err(EXPIRED, 403);
-        if (!row.hwid) await env.DB.prepare('UPDATE codes SET hwid = ?, bound_at = ? WHERE code = ? AND hwid IS NULL').bind(hwid, now(), code).run();
-        else if (reinstall) await rebind(env, row, hwid);
-        if (hw2 && row.hw2 !== hw2) await setHw2(env, code, hw2);
+        if (!row.hwid) {
+          await env.DB.prepare('UPDATE codes SET hwid = ?, bound_at = ? WHERE code = ? AND hwid IS NULL').bind(hwid, now(), code).run();
+          await setHw2(env, code, hw2, hwid);   // always, also without hw2: a hash left over from an earlier PC must not stay on the key
+        } else if (reinstall && !await rebind(env, row, hwid)) return err('Dieser Code ist schon an einen anderen PC gebunden', 403);
+        else if (hw2 && row.hw2 !== hw2) await setHw2(env, code, hw2, hwid);   // same PC: keys bound before hw2 existed get it here
         // the runtime starts with the first redeem; moving the key to another PC later does not restart it
         if (row.days && !row.expires_at) {
           row.expires_at = now() + row.days * 86400;
@@ -214,7 +223,7 @@ export default {
       }
       if (path === '/api/codes/unbind' && req.method === 'POST') {
         await env.DB.prepare('UPDATE codes SET hwid = NULL, bound_at = NULL WHERE code = ?').bind(clean(body.code, 32)).run();
-        await setHw2(env, clean(body.code, 32), null);   // the next PC brings its own
+        try { await env.DB.prepare('UPDATE codes SET hw2 = NULL WHERE code = ?').bind(clean(body.code, 32)).run(); } catch { }   // the next PC brings its own
         return json({ ok: true });
       }
       return err('Unbekannter Endpunkt', 404);

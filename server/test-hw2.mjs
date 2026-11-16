@@ -9,15 +9,20 @@ const dir = new URL('.', import.meta.url);
 function fakeD1(schema) {
   const db = new DatabaseSync(':memory:');
   db.exec(schema);
+  const hooks = [];   // { sql, fn }: runs fn once right before the next write that starts with sql (simulates a request in between)
   return {
-    raw: db,
+    raw: db, hooks,
     prepare(sql) {
       let args = [];
       const st = {
         bind(...a) { args = a.map(v => v === undefined ? null : v); return st; },
         async first() { return db.prepare(sql).get(...args) ?? null; },
         async all() { return { results: db.prepare(sql).all(...args) }; },
-        async run() { const r = db.prepare(sql).run(...args); return { meta: { changes: r.changes } }; }
+        async run() {
+          const h = hooks.findIndex(x => sql.startsWith(x.sql));
+          if (h >= 0) hooks.splice(h, 1)[0].fn();
+          const r = db.prepare(sql).run(...args); return { meta: { changes: r.changes } };
+        }
       };
       return st;
     }
@@ -124,6 +129,39 @@ const add = (env, code, extra = '') => env.DB.raw.exec(`INSERT INTO codes (code,
   check(listed && listed.rebinds === 1 && listed.hw2 === undefined, 'admin list has rebinds, not hw2');
   r = await call(env, 'POST', '/api/codes/unbind', { token: tAdm, hwid: B, hw2: HWB, body: { code: D } });
   check(r.ok && row(env, D).hwid === null && row(env, D).hw2 === null, 'admin unbind clears hwid and hw2');
+
+  // a hash left on an unbound key (e.g. unbound by hand in SQL) is replaced on the next bind, also when that PC sends none
+  const S = 'ORB-SSSS-TTTT-UUUU';
+  add(env, S);
+  const tokS = (await redeem(env, S, A, HWA)).token;
+  env.DB.raw.exec(`UPDATE codes SET hwid = NULL, bound_at = NULL WHERE code = '${S}'`);
+  r = await redeem(env, S, B, null);
+  check(r.status === 200 && row(env, S).hwid === B && row(env, S).hw2 === null, 'stale hw2 dropped when a PC without hw2 binds');
+  check((await me(env, tokS, A2, HWA)).status === 401 && (await redeem(env, S, A2, HWA)).status === 403 && row(env, S).hwid === B, 'old PC can not pull the key back');
+
+  // race: two PCs redeem a fresh key at once; the one that lost the bind must not plant its hw2
+  const R = 'ORB-RRRR-SSSS-TTTT';
+  add(env, R);
+  env.DB.hooks.push({ sql: 'UPDATE codes SET hwid = ?, bound_at = ? WHERE code = ? AND hwid IS NULL', fn: () => env.DB.raw.exec(`UPDATE codes SET hwid = '${A}', hw2 = '${HWA}' WHERE code = '${R}'`) });
+  const tokLoser = (await redeem(env, R, B, HWB)).token;
+  check(row(env, R).hwid === A && row(env, R).hw2 === HWA, 'race: loser does not overwrite hw2');
+  check((await me(env, tokLoser, B, HWB)).status === 401 && (await redeem(env, R, B, HWB)).status === 403, 'race: loser can not take the key');
+
+  // race: key unbound and taken by another PC while a reinstall request is under way -> no move
+  const Q = 'ORB-QQQQ-RRRR-SSSS';
+  add(env, Q);
+  await redeem(env, Q, A, HWA);
+  env.DB.hooks.push({ sql: 'UPDATE codes SET hwid = ?, bound_at = ?, rebinds', fn: () => env.DB.raw.exec(`UPDATE codes SET hwid = '${B}', hw2 = '${HWB}' WHERE code = '${Q}'`) });
+  r = await redeem(env, Q, A2, HWA);
+  check(r.status === 403 && row(env, Q).hwid === B && row(env, Q).hw2 === HWB && row(env, Q).rebinds === 0, 'race: reinstall does not take a key that moved meanwhile');
+
+  // race: the same reinstalled PC sends two requests at once -> one move, both fine
+  const P = 'ORB-PPPP-QQQQ-RRRR';
+  add(env, P);
+  await redeem(env, P, A, HWA);
+  env.DB.hooks.push({ sql: 'UPDATE codes SET hwid = ?, bound_at = ?, rebinds', fn: () => env.DB.raw.exec(`UPDATE codes SET hwid = '${A2}', rebinds = rebinds + 1 WHERE code = '${P}'`) });
+  r = await redeem(env, P, A2, HWA);
+  check(r.status === 200 && r.token && row(env, P).hwid === A2 && row(env, P).rebinds === 1, 'race: same PC twice counts one move');
 }
 
 // ---------- old database (before migrate-hw2.sql): works like before, just no move ----------
