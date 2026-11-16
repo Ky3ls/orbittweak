@@ -204,9 +204,11 @@ internal static class Catalog
             {
                 Id = "hags", Cat = "system", Icon = "monitor", Badge = "NEUSTART", Recommended = false, Name = "Hardware-GPU-Planung",
                 Desc = "Schaltet die Windows-Einstellung „Hardwarebeschleunigte GPU-Planung“ ein, wenn Grafikkarte und Treiber sie unterstützen – laut Microsoft merkt man meist keinen Unterschied, in Tests waren es 0–4 % mehr FPS, und bei Abstürzen oder Rucklern schaltest du sie besser wieder aus.",
-                Usable = () => Hw.Hags() is var h && (!h.known || h.supported),
+                // the setting exists since Windows 10 2004 (build 19041); on older builds the value is read by nothing
+                Usable = () => SysInfo.Build >= 19041 && Hw.Hags() is var h && (!h.known || h.supported),
                 Hint = () =>
                 {
+                    if (SysInfo.Build < 19041) return "Gibt es erst ab Windows 10 Version 2004";
                     var h = Hw.Hags();
                     if (h.known && !h.supported) return "Grafikkarte oder Treiber unterstützt das nicht";
                     if (Reg.Is(GD, "HwSchMode", 2) && h.known && !h.enabled) return "Aktiv nach dem nächsten Neustart";
@@ -215,6 +217,7 @@ internal static class Catalog
                 },
                 Check = () =>
                 {
+                    if (SysInfo.Build < 19041) return false;
                     var h = Hw.Hags();
                     if (h.known && !h.supported) return false;
                     return Reg.Get(GD, "HwSchMode") is int m ? m == 2 : h.enabled;
@@ -222,9 +225,11 @@ internal static class Catalog
                 Owned = () => Reg.Get(OWN, "HagsPrev") != null,
                 Apply = () =>
                 {
+                    if (SysInfo.Build < 19041) throw new InvalidOperationException("Gibt es erst ab Windows 10 Version 2004");
                     var h = Hw.Hags();
                     if (h.known && !h.supported) throw new InvalidOperationException("Grafikkarte oder Treiber unterstützt das nicht");
-                    if (Reg.Get(OWN, "HagsPrev") == null) Reg.Set(OWN, "HagsPrev", Reg.Get(GD, "HwSchMode") is int p ? p : -1);
+                    // Apply only runs while HwSchMode is not 2 (see Check): that is the real "before", also over an older backup
+                    Reg.Set(OWN, "HagsPrev", Reg.Get(GD, "HwSchMode") is int p ? p : -1);
                     Reg.Set(GD, "HwSchMode", 2);
                 },
                 Revert = () =>
@@ -248,19 +253,20 @@ internal static class Catalog
             {
                 Id = "pagefile", Cat = "system", Icon = "ram", Badge = "NEUSTART", Name = "Auslagerungsdatei absichern",
                 Desc = "Stellt die Auslagerungsdatei wieder auf „von Windows verwaltet“, falls sie abgeschaltet oder zu klein ist, damit FiveM bei vollem Arbeitsspeicher nicht abstürzt – mehr FPS bringt das nicht.",
-                Hint = () => PagefileOk() && Reg.Get(OWN, "PagefileBackup") == null ? "Bei dir schon in Ordnung (Windows-Standard)" : null,
+                // "in Ordnung" is also a big enough page file of your own, not only the Windows default
+                Hint = () => PagefileOk() && Reg.Get(OWN, "PagefileBackup") == null ? "Bei dir schon in Ordnung" : null,
                 Check = PagefileOk,
                 Owned = () => Reg.Get(OWN, "PagefileBackup") != null,
                 Apply = () =>
                 {
                     if (PagefileOk()) return;
-                    if (Reg.Get(OWN, "PagefileBackup") == null)
-                        Reg.Set(OWN, "PagefileBackup", Reg.Get(MEM, "PagingFiles") as string[] ?? Array.Empty<string>(), RegistryValueKind.MultiString);
+                    // only reached while the page file is off or too small: that is the real "before", also over an older backup
+                    Reg.Set(OWN, "PagefileBackup", Reg.Get(MEM, "PagingFiles") as string[] ?? Array.Empty<string>(), RegistryValueKind.MultiString);
                     Reg.Set(MEM, "PagingFiles", new[] { @"?:\pagefile.sys" }, RegistryValueKind.MultiString);
                 },
                 Revert = () =>
                 {
-                    if (Reg.Get(OWN, "PagefileBackup") is not string[] b) throw new InvalidOperationException("Ist bereits Windows-Standard – nichts zurückzusetzen");
+                    if (Reg.Get(OWN, "PagefileBackup") is not string[] b) throw new InvalidOperationException("OrbitTweak hat die Auslagerungsdatei nicht geändert – nichts zurückzusetzen");
                     Reg.Set(MEM, "PagingFiles", b, RegistryValueKind.MultiString);
                     Reg.Del(OWN, "PagefileBackup");
                 }
@@ -318,9 +324,12 @@ internal static class Catalog
                 Id = "delopt", Cat = "network", Icon = "download", Recommended = false, Name = "Update-Verteilung im Heimnetz aus",
                 Desc = "Dein PC gibt Windows-Updates nicht mehr an andere Geräte weiter; standardmäßig teilt Windows ohnehin nur im eigenen Heimnetz, das lohnt sich also vor allem, wenn mehrere Windows-PCs bei dir im WLAN hängen oder du „Geräte im Internet“ erlaubt hattest.",
                 Check = () => Reg.Is(DO, "DODownloadMode", 0),
+                // a policy 0 without a backup can be an admin's or another tool's: "Alle zurücksetzen" leaves it
+                Owned = () => Reg.Get(OWN, "DoModeBak") != null,
                 Apply = () =>
                 {
-                    if (Reg.Get(OWN, "DoModeBak") == null) Reg.Set(OWN, "DoModeBak", Reg.Get(DO, "DODownloadMode") is int v ? v : -1);
+                    // Apply only runs while the value is not 0 (see Check): that is the real "before", also over an older backup
+                    Reg.Set(OWN, "DoModeBak", Reg.Get(DO, "DODownloadMode") is int v ? v : -1);
                     Reg.Set(DO, "DODownloadMode", 0);
                 },
                 Revert = () =>
@@ -509,15 +518,16 @@ internal static class Catalog
             g = OldUltScheme();
             if (g == null)
             {
-                var m = Power.Guid_.Match(Proc.Run("powercfg", $"/duplicatescheme {Power.ULTIMATE}"));
-                if (!m.Success) m = Power.Guid_.Match(Proc.Run("powercfg", $"/duplicatescheme {Power.HIGHPERF}"));
-                if (!m.Success) throw new InvalidOperationException("Windows lässt keinen Höchstleistungsplan zu");
-                g = m.Value.ToLowerInvariant();
+                // the copy gets a new GUID; an error text that only repeats the template's GUID is no copy
+                string? Copy(string from) => Power.Guid_.Match(Proc.Run("powercfg", $"/duplicatescheme {from}")) is { Success: true } m && !BuiltIn(m.Value) ? m.Value.ToLowerInvariant() : null;
+                g = Copy(Power.ULTIMATE) ?? Copy(Power.HIGHPERF) ?? throw new InvalidOperationException("Windows lässt keinen Höchstleistungsplan zu");
             }
             Proc.Run("powercfg", $"/changename {g} \"OrbitTweak Höchstleistung\"");
             Reg.SetStr(OWN, "UltScheme", g);
         }
-        if (cur != null && cur != g && Reg.Get(OWN, "UltPrev") == null) Reg.SetStr(OWN, "UltPrev", cur);
+        // Apply only runs while another plan is active (see Check): that plan is the real "before", also over an older backup
+        // (the user may have picked another plan since the last time)
+        if (cur != null && cur != g) Reg.SetStr(OWN, "UltPrev", cur);
         Proc.Run("powercfg", $"/setactive {g}");
         if (Power.Active() != g) throw new InvalidOperationException("Energieplan ließ sich nicht aktivieren");
         if (UsbOwned()) try { UsbApplyTo(g); } catch { }   // USB power saving stays off in the new plan
@@ -531,12 +541,15 @@ internal static class Catalog
         var g = Reg.Get(OWN, "UltScheme") as string;
         if (Power.Active() == prev)
         {
-            if (g != null && Power.Exists(g)) Proc.Run("powercfg", $"/delete {g}");
+            if (g != null && !BuiltIn(g) && Power.Exists(g)) Proc.Run("powercfg", $"/delete {g}");
             if (g != null) Reg.Del(Bk.Machine, "usb." + g);
             Reg.Del(OWN, "UltScheme"); Reg.Del(OWN, "UltPrev");
         }
         if (!TweakRun.All && UsbOwned()) try { UsbApplyTo(prev); } catch { }
     }
+
+    /// <summary>Plans of Windows itself (Balanced, High performance, Ultimate, Power saver): never deleted.</summary>
+    private static bool BuiltIn(string g) => g.ToLowerInvariant() is Power.BALANCED or Power.HIGHPERF or Power.ULTIMATE or "a1841308-3541-4fab-bc81-f71556f20b4a";
 
     /// <summary>The plan versions before 2.26 created ("OrbitTweak Ultimate", the name was not translated).</summary>
     private static string? OldUltScheme()

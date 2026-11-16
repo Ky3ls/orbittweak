@@ -355,7 +355,7 @@ internal static class Health
         var gb = Math.Round(Native.Memory().total / 1073741824.0);
         items.Add(new("Arbeitsspeicher", $"{gb} GB" + (gb >= 16 ? " – perfekt für FiveM" : gb >= 8 ? " – knapp, Browser und Launcher im Spiel möglichst schließen" : " – zu wenig für FiveM"),
             gb >= 16 ? "ok" : gb >= 8 ? "warn" : "bad", gb >= 16 || T("bgbrake") ? null : "tweak:bgbrake"));
-        items.Add(Catalog.PagefileOk() ? new("Auslagerungsdatei", "Von Windows verwaltet", "ok") : new("Auslagerungsdatei", "Aus oder zu klein – Absturzgefahr bei vollem RAM", "bad", "tweak:pagefile"));
+        items.Add(Catalog.PagefileOk() ? new("Auslagerungsdatei", "In Ordnung", "ok") : new("Auslagerungsdatei", "Aus oder zu klein – Absturzgefahr bei vollem RAM", "bad", "tweak:pagefile"));
 
         try
         {
