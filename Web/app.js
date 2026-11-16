@@ -3336,6 +3336,12 @@ document.addEventListener('click', async e => {
 
 /* ======================= WHAT'S NEW: shown once after an update ======================= */
 const CHANGES = {
+  '2.25.0': [
+    ['sparkle', 'Überall aufgeräumt', 'Jede Seite überarbeitet: ruhigere Buttons, saubere Abstände, klare Leerzustände, Dialoge mit eindeutigen Knöpfen und durchgehend deutsche Texte.'],
+    ['film', 'Montage im Takt', 'Mit Musik landet jeder Kill auf einem Beat. Titel, Intro und Kill-Zähler stellst du direkt beim Video ein.'],
+    ['crosshair', 'Kill-Erkennung testen', '„Erkennung testen“ gibt es jetzt auch fürs Fadenkreuz. Farbige Kill-Texte werden erkannt, ein Tod nach dem Kill landet als „Kill + Tod“ im Clip-Namen.'],
+    ['shield', 'Key nach Neuinstallation', 'Installierst du Windows neu, zieht dein Key automatisch mit, ohne dass ein Admin ihn lösen muss. Auf einem anderen PC bleibt er gesperrt.'],
+  ],
   '2.24.1': [
     ['film', 'Montage neu geschnitten', 'Etwa 5 Sekunden pro Kill statt 9: flüssige Zeitlupe, Zoom und Aufblitzen genau beim Kill, weiche Übergänge, Kill-Zähler im Killfeed-Stil, Intro und Outro. Ultrawide wird zugeschnitten statt mit Balken.'],
     ['zap', 'Montage startet wieder', 'Mit dem aktuellen ffmpeg 9 brach die Montage bei neuen Nutzern sofort ab. OrbitTweak lädt jetzt eine feste, geprüfte ffmpeg-Version.'],

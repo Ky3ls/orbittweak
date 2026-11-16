@@ -127,7 +127,7 @@ internal static class Catalog
         },
         new Tweak
         {
-            Id = "timer", Cat = "fivem", Icon = "timer", Badge = "LIVE", Name = "Timer-Auflösung 0.5 ms",
+            Id = "timer", Cat = "fivem", Icon = "timer", Badge = "LIVE", Name = "Timer-Auflösung 0,5 ms",
             Desc = "Präziserer System-Timer für stabilere Frametimes & weniger Mikroruckler, solange OrbitTweak läuft.",
             Check = () => s.TimerRes,
             Apply = () =>
@@ -145,7 +145,7 @@ internal static class Catalog
         // ============================== SYSTEM ==============================
         new Tweak
         {
-            Id = "ult", Cat = "system", Icon = "zap", Name = "Ultimate Performance Plan",
+            Id = "ult", Cat = "system", Icon = "zap", Name = "Höchstleistungs-Energieplan",
             Desc = "Versteckter Höchstleistungs-Energieplan: kein CPU-Parking, kein Heruntertakten.",
             Check = () =>
             {
@@ -245,7 +245,7 @@ internal static class Catalog
         },
         new Tweak
         {
-            Id = "throttle", Cat = "system", Icon = "power", Badge = "NEUSTART", Name = "Power Throttling aus",
+            Id = "throttle", Cat = "system", Icon = "power", Badge = "NEUSTART", Name = "Energiedrosselung aus",
             Desc = "Verhindert, dass Windows Prozesse künstlich drosselt (wichtig bei Laptops).",
             Check = () => Reg.Is(@"HKLM\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling", "PowerThrottlingOff", 1),
             Apply = () => Reg.Set(@"HKLM\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling", "PowerThrottlingOff", 1),
@@ -278,7 +278,7 @@ internal static class Catalog
 
         new Tweak
         {
-            Id = "cpark", Cat = "system", Icon = "cpu", Name = "Core Parking aus",
+            Id = "cpark", Cat = "system", Icon = "cpu", Name = "Kern-Parken aus",
             Desc = "Alle CPU-Kerne bleiben wach, keine Mikroruckler, wenn FiveM plötzlich mehr Kerne braucht.",
             Check = () => Reg.Is(OWN, "CoreParkOff", 1),
             Apply = () =>
