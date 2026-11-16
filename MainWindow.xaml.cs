@@ -1483,7 +1483,9 @@ public partial class MainWindow : Window
         _kfPending = true; _kfFirst = DateTime.Now;
         while (DateTime.Now < _kfSaveAt && DateTime.Now - _kfFirst < TimeSpan.FromSeconds(50)) await Task.Delay(250);
         var what = _kfKills > 1 ? $"{_kfKills} Kills" : _kfKills == 1 ? "Kill" : "Tod";
-        var since = (DateTime.Now - _kfFirst).TotalSeconds;
+        // the first kill itself, not when it was noticed (a red X counts only once it is gone again, a second or more later)
+        var firstAt = _kfTimes.Count > 0 && _kfTimes.Min() < _kfFirst ? _kfTimes.Min() : _kfFirst;
+        var since = (DateTime.Now - firstAt).TotalSeconds;
         _kfKills = 0; _kfDeaths = 0; _kfPending = false;
         // built-in recorder: from "Before" seconds ahead of the first kill up to now (the seconds after are already over)
         var killTimes = _kfTimes.ToList(); _kfTimes.Clear();
