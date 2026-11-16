@@ -74,4 +74,6 @@ Unter Mods → „Eigene Minimap“ gibt es zwei Wege:
 
 ## Bildnachweise
 - Hintergründe: offizielle Screenshots aus Grand Theft Auto V (Steam-Store, Full HD). GTA V © Rockstar Games.
+- Schrift der Überschriften im Anime-Theme: M PLUS Rounded 1c (nur lateinische Zeichen), Copyright 2016 The Rounded M+ Project Authors, SIL Open Font License 1.1. Lizenztext liegt unter `Web/fonts/OFL-MPLUSRounded1c.txt`.
+- Banner-Bild im Anime-Theme: eigene Zeichnung, wird in `Web/app.js` (`animeScene()`) erzeugt.
 - Controller-Grafiken: Gamepad Viewer Skin „Dracula“ (https://github.com/dracula/gamepad-viewer), MIT-Lizenz, Copyright (c) 2021 Dracula Theme. Lizenztext liegt unter `Web/pad/LICENSE.txt`.

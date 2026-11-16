@@ -746,42 +746,55 @@
     <!-- ================= INPUT LAB ================= -->
     <section class="page" id="p-input">
       <div class="ph">
-        <div><div class="kicker">Input-Lab</div><h1>WASD & <span class="grad">Input-Delay</span></h1><p class="pd">Tweaks für Tastatur und Maus, dazu Tester, die direkt zeigen, was sich ändert.</p></div>
-        <div class="ph-r"><button class="btn p" onclick="applyCat('input')"><svg class="i"><use href="#zap"/></svg>Alle Input-Tweaks an</button></div>
+        <div><div class="kicker">Input-Lab</div><h1>Tastatur & <span class="grad">Maus</span></h1><p class="pd">Was im Spiel wirklich etwas ändert, was nur beim Tippen hilft, und Tester zum Selbst-Prüfen.</p></div>
+        <div class="ph-r"><button class="btn p" onclick="applyCat('input')"><svg class="i"><use href="#zap"/></svg>Empfohlene Input-Tweaks an</button></div>
       </div>
       <div class="lab">
         <div class="col">
-          <div class="card snap"><div class="row"><div class="lbl"><svg class="i"><use href="#zap"/></svg>Snap Tap (A/D, W/S)</div><span class="sp"></span><div class="tg" id="snapTg"></div></div>
-            <p class="sub" style="font-size:12.5px;margin-top:8px;line-height:1.5">Drückst du A und D gleichzeitig, gewinnt immer die zuletzt gedrückte Taste. Schnellere Strafe-Wechsel wie bei Snap-Tap-Tastaturen, nur aktiv solange FiveM vorne ist.</p>
-            <p class="warnline"><svg class="i"><use href="#alert"/></svg>Auf manchen Servern als unfair verboten. Regeln beachten.</p></div>
-          <div class="card wasd"><div class="row"><div class="lbl"><svg class="i"><use href="#keyboard"/></svg>WASD-Tweak: Laggen</div><span class="sp"></span><div class="tg" id="chopTg"></div></div>
-            <p class="sub" style="font-size:12.5px;margin-top:8px;line-height:1.5">Solange du eine Lauftaste hältst, tippt OrbitTweak im Spiel abwechselnd ganz kurz die Tasten daneben an (bei W also A, dann D). Die Figur läuft ohne Pause weiter und zuckt dabei schnell hin und her. Läufst du schräg, wechselt sie im Zickzack zwischen beiden Richtungen. Nur aktiv, solange FiveM vorne ist. Kurzes Antippen, etwa beim Schreiben im Chat, bleibt unberührt.</p>
-            <div class="seg mt8" id="chopPre"><button data-v="1">Leicht</button><button data-v="2">Mittel</button><button data-v="3">Stark</button><button data-v="4">Extrem</button></div>
-            <div class="xs"><span>Zucker</span><input type="range" min="10" max="250" step="5" id="chopGap"><b id="chopGapV"></b></div>
-            <div class="xs"><span>Abstand</span><input type="range" min="40" max="500" step="5" id="chopEvery"><b id="chopEveryV"></b></div>
-            <p class="sub wasd-note" id="chopNote"></p>
-            <div class="co-row"><span>Taste im Spiel</span><div class="seg keyseg" id="chopKey"></div></div>
-            <p class="sub wasd-note" id="chopKeyNote" style="margin-top:6px"></p>
-            <div class="wasd-sep"></div>
-            <div class="row"><b style="font-size:13px">Schnelle Tastenwiederholung</b><span class="sp"></span><div class="tg sm" id="lagTg"></div></div>
-            <p class="sub" style="font-size:12.5px;margin-top:6px;line-height:1.5">Windows-Anschlagverzögerung mit Wiederholung alle 15 ms, wie in manchen WASD-Packs. Wirkt sofort und gilt auch beim Tippen. Für das Laggen oben ist sie nicht nötig.</p>
-            <p class="sub wasd-note" id="lagNote"></p>
-            <div class="wasd-sep"></div>
-            <div class="row"><b style="font-size:13px">Tastatur-Puffer</b><span class="chip w" style="margin-left:8px;height:18px;font-size:9px">NEUSTART</span></div>
-            <p class="sub" style="font-size:12.5px;margin-top:6px;line-height:1.5">Verkleinert den Puffer des Tastaturtreibers (<code>KeyboardDataQueueSize</code>, Windows-Standard 100). Werden Tasten verschluckt, nimm eine größere Zahl.</p>
-            <div class="seg mt8" id="wasdSeg"></div>
-            <p class="sub wasd-note" id="wasdNote"></p>
-            <p class="warnline"><svg class="i"><use href="#alert"/></svg>Auf manchen Servern sind WASD-Tweaks verboten. Regeln beachten.</p></div>
-          <div class="card"><div class="lbl"><svg class="i"><use href="#keyboard"/></svg>Input-Tweaks</div><div class="mt8" id="inputTweaks"></div></div>
+          <div class="card snap">
+            <div class="row"><div class="lbl"><svg class="i"><use href="#zap"/></svg>Snap Tap</div><span class="eff g">wirkt im Spiel</span><span class="sp"></span><div class="tg" id="snapTg"></div></div>
+            <p class="il-txt">Hältst du A und drückst D dazu, bleibt die Figur normalerweise kurz stehen, weil das Spiel beide Tasten sieht. Mit Snap Tap gewinnt immer die zuletzt gedrückte Taste, der Richtungswechsel kommt ohne Stillstand. Gilt für A/D und W/S, nur solange FiveM vorne ist. Rechts im Tester siehst du den Unterschied.</p>
+            <p class="warnline"><svg class="i"><use href="#alert"/></svg>Auf manchen Servern als unfair verboten. Regeln beachten.</p>
+          </div>
+          <div class="card kb">
+            <div class="lbl"><svg class="i"><use href="#keyboard"/></svg>Tastatur</div>
+            <div class="kb-row">
+              <div class="kb-t"><div class="row"><b>Schnelle Tastenwiederholung</b><span class="eff">nur beim Tippen</span></div>
+                <p class="il-txt">Eine gehaltene Taste wiederholt sich alle 15 ms statt etwa alle 33 ms. GTA fragt den Zustand der Tasten direkt ab, auf das Laufen hat das keinen Einfluss.</p>
+                <p class="wasd-note" id="lagNote"></p></div>
+              <div class="tg sm" id="lagTg"></div>
+            </div>
+            <div class="kb-row v">
+              <div class="kb-t"><div class="row"><b>Tastatur-Puffer</b><span class="eff">kaum messbar</span><span class="eff w">Neustart</span></div>
+                <p class="il-txt">Größe des Puffers im Tastaturtreiber (<code>KeyboardDataQueueSize</code>, Windows-Standard 100). Ein kleinerer Puffer macht Tasten nicht schneller, er wird nur bei sehr vielen Anschlägen auf einmal überhaupt gefüllt. Merkst du nichts, lass ihn auf Standard. Werden Tasten verschluckt, nimm eine größere Zahl.</p></div>
+              <div class="seg" id="wasdSeg"></div>
+              <p class="wasd-note" id="wasdNote"></p>
+            </div>
+          </div>
+          <div class="card wasd" id="chopCard">
+            <div class="row"><div class="lbl"><svg class="i"><use href="#keyboard"/></svg>Laggen</div><span class="sp"></span><button class="btn sm ghost" id="chopMore">Einstellungen<svg class="i"><use href="#chev"/></svg></button><div class="tg" id="chopTg"></div></div>
+            <p class="il-txt">Tippt beim Laufen abwechselnd kurz die Tasten daneben an, die Figur zuckt zur Seite. Nur aktiv, solange FiveM vorne ist.</p>
+            <div class="chop-more">
+              <div class="seg mt8" id="chopPre"><button data-v="1">Leicht</button><button data-v="2">Mittel</button><button data-v="3">Stark</button><button data-v="4">Extrem</button></div>
+              <div class="xs"><span>Zucker</span><input type="range" min="10" max="250" step="5" id="chopGap"><b id="chopGapV"></b></div>
+              <div class="xs"><span>Abstand</span><input type="range" min="40" max="500" step="5" id="chopEvery"><b id="chopEveryV"></b></div>
+              <p class="wasd-note" id="chopNote"></p>
+              <div class="il-key"><span>Taste im Spiel</span><div class="seg keyseg" id="chopKey"></div></div>
+              <p class="wasd-note" id="chopKeyNote"></p>
+            </div>
+            <p class="warnline"><svg class="i"><use href="#alert"/></svg>Auf vielen Servern als Makro verboten. Regeln beachten.</p>
+          </div>
+          <div class="card"><div class="row"><div class="lbl"><svg class="i"><use href="#settings"/></svg>Windows-Eingabe</div><span class="sp"></span><span class="chip" id="inputTwCount"></span></div><div class="mt8" id="inputTweaks"></div></div>
         </div>
         <div class="col">
           <div class="card">
-            <div class="row"><div class="lbl"><svg class="i"><use href="#keyboard"/></svg>WASD-Tester</div><span class="sp"></span><button class="btn sm" onclick="resetWasd()">Reset</button></div>
+            <div class="row"><div class="lbl"><svg class="i"><use href="#keyboard"/></svg>WASD-Tester</div><span class="eff" id="wsMode">Snap Tap aus</span><span class="sp"></span><button class="btn sm" onclick="resetWasd()">Reset</button></div>
             <div class="keys"><div class="key w" data-k="KeyW">W</div><div class="key" data-k="KeyA">A</div><div class="key" data-k="KeyS">S</div><div class="key" data-k="KeyD">D</div></div>
+            <div class="ws-game" id="wsGame">Halte A, drück D dazu und lass A los: so testest du einen Richtungswechsel.</div>
             <div class="labstats">
-              <div><b id="wsSwitch">--</b><span>Strafe-Wechsel</span></div>
-              <div><b id="wsRepeat">--</b><span>Repeat-Rate</span></div>
-              <div><b id="wsMax">0</b><span>Gleichzeitig</span></div>
+              <div><b id="wsSwitch">--</b><span>Richtungswechsel</span></div>
+              <div><b id="wsStill">--</b><span>Stillstand ohne Snap Tap</span></div>
+              <div><b id="wsRepeat">--</b><span>Wiederholung</span></div>
             </div>
           </div>
           <div class="card">

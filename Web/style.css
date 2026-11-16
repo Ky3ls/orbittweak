@@ -1177,8 +1177,8 @@ select.sel{width:auto;height:30px;padding:0 8px;font-size:12px;border-radius:9px
 .card{box-shadow:0 1px 0 rgba(255,255,255,.045) inset,0 22px 44px -34px rgba(0,0,0,.9);transition:border-color .35s,box-shadow .45s,transform .45s var(--ease)}
 .card:hover{border-color:rgba(var(--a-rgb),.2);box-shadow:0 1px 0 rgba(255,255,255,.07) inset,0 26px 54px -30px rgba(0,0,0,.95),0 0 0 1px rgba(var(--a-rgb),.05),0 0 44px -22px rgba(var(--a-rgb),.55)}
 /* cards further down the page come in when they are scrolled to */
-.page .card.rv:not(.in){animation:none!important;opacity:0;transform:translateY(26px) scale(.985)}
-.page .card.rv.in{animation:none!important;transition:opacity .7s var(--ease),transform .8s var(--ease),border-color .35s,box-shadow .45s}
+.page .card.rv:not(.rv-in){animation:none!important;opacity:0;transform:translateY(26px) scale(.985)}
+.page .card.rv.rv-in{animation:none!important;transition:opacity .7s var(--ease),transform .8s var(--ease),border-color .35s,box-shadow .45s}
 
 /* a ring of light spreads from where a button is pressed */
 .rp{position:absolute;border-radius:50%;pointer-events:none;background:rgba(255,255,255,.34);transform:scale(0);animation:rp .6s var(--ease) forwards;mix-blend-mode:soft-light}
@@ -1235,7 +1235,7 @@ select.sel{width:auto;height:30px;padding:0 8px;font-size:12px;border-radius:9px
 
 @media (prefers-reduced-motion:reduce){
   .launch,.btn.p,.seg button.on,.tg.on,.nav .badge,.tg.on::after,.nav.active svg.i,.tab.on,.toast::after{animation:none}
-  .page .card.rv:not(.in){opacity:1;transform:none}
+  .page .card.rv:not(.rv-in){opacity:1;transform:none}
   .rp{display:none}
 }
 
@@ -1385,7 +1385,7 @@ input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.18);box-shadow:0
 .side-nav .nav{max-height:34px;transition:color .25s,max-height .35s var(--ease),opacity .25s,margin .35s var(--ease),transform .35s var(--ease)}
 .side-nav .nav.gone{max-height:0;opacity:0;margin:0;transform:translateX(-10px);pointer-events:none}
 /* on start the entries glide in one after the other; hovering nudges an entry to the right */
-.side-nav .nav.in{animation:navIn .55s var(--ease) both;animation-delay:calc(var(--n,0) * 28ms + 120ms)}
+.side-nav .nav.nav-in{animation:navIn .55s var(--ease) both;animation-delay:calc(var(--n,0) * 28ms + 120ms)}
 @keyframes navIn{from{opacity:0;transform:translateX(-16px)}}
 .side-nav .nav:not(.active):hover{transform:translateX(3px)}
 .side-nav .nav:active{transform:scale(.97)}
@@ -1393,7 +1393,7 @@ input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.18);box-shadow:0
 /* pages glide in from the side they are on in the menu */
 .page.enter>.ph,.page.enter>.banner{animation:phIn .55s var(--ease) both}
 @keyframes phIn{from{opacity:0;transform:translateX(calc(var(--dir,1) * 26px))}}
-@media (prefers-reduced-motion:reduce){.side-nav .nav.in,.page.enter>.ph,.page.enter>.banner{animation:none}}
+@media (prefers-reduced-motion:reduce){.side-nav .nav.nav-in,.page.enter>.ph,.page.enter>.banner{animation:none}}
 
 /* ============ CLIP EDITOR ============ */
 .cut{margin-top:14px}
@@ -1552,3 +1552,38 @@ html.th-anime .banner:hover::after{opacity:0}
 html.th-anime .bn-chip{background:rgba(26,10,32,.6)}
 html.th-anime .launch .pi::after{border-color:rgba(43,10,31,.45)}
 html.th-winter .launch::after{display:none}   /* its shine would show beside the button once it no longer clips */
+
+/* =====================================================================
+   INPUT-LAB: what really changes movement, what only helps typing, testers
+   ===================================================================== */
+.il-txt{font-size:12.5px;line-height:1.55;color:var(--sub);margin-top:8px}
+.il-txt code{font-size:11.5px}
+.eff{display:inline-flex;align-items:center;height:20px;padding:0 8px;margin-left:8px;border-radius:99px;font-size:10.5px;font-weight:600;color:var(--sub);background:rgba(255,255,255,.05);border:1px solid var(--line);white-space:nowrap}
+.eff.g{color:var(--good);background:rgba(74,222,154,.1);border-color:rgba(74,222,154,.25)}
+.eff.w{color:var(--warn);background:rgba(247,195,92,.1);border-color:rgba(247,195,92,.25)}
+.kb-row{display:flex;gap:18px;align-items:flex-start;padding:14px 0 2px;margin-top:12px;border-top:1px solid var(--line)}
+.kb .lbl+.kb-row{border-top:0;margin-top:2px}
+.kb-row .kb-t{flex:1;min-width:0}
+.kb-row .kb-t b{font-size:13px}
+.kb-row>.tg{margin-top:2px}
+.kb-row.v{flex-direction:column;align-items:stretch;gap:10px}
+.kb-row .seg{display:flex}
+.kb-row .seg button{flex:1}
+.kb-row .wasd-note{margin-top:0}
+.kb-row .kb-t .wasd-note{margin-top:8px}
+#chopCard .chop-more{display:none}
+#chopCard.open .chop-more{display:block}
+#chopCard .row .tg{margin-left:6px}
+#chopMore{background:transparent;color:var(--sub);gap:4px}
+#chopMore:hover{color:var(--text);background:rgba(255,255,255,.05)}
+#chopMore svg.i{width:14px;height:14px;transform:rotate(90deg);transition:transform .3s var(--ease)}
+#chopCard.open #chopMore svg.i{transform:rotate(-90deg)}
+.il-key{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.il-key>span{font-size:13px;font-weight:550}
+.il-key .seg{display:flex;flex-wrap:wrap}
+.il-key .seg button{flex:1 0 auto;padding:0 10px}
+.ws-game{margin:0 0 14px;padding:11px 14px;border-radius:12px;font-size:12.5px;line-height:1.5;color:var(--sub);background:rgba(255,255,255,.03);border:1px solid var(--line);min-height:60px;transition:background .25s,border-color .25s,color .25s}
+.ws-game.hot{color:var(--text);background:rgba(var(--a-rgb),.08);border-color:rgba(var(--a-rgb),.3)}
+.key{position:relative}
+.key.muted{opacity:.35}
+.key.muted::after{content:'';position:absolute;left:14%;right:14%;top:50%;height:2px;border-radius:2px;background:var(--bad);transform:rotate(-20deg)}

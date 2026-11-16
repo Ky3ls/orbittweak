@@ -431,7 +431,9 @@ function renderTweaks() {
   $('#tlTitle').textContent = CATS[curTab][0]; $('#tlDesc').textContent = CATS[curTab][2];
   $('#tlCount').textContent = `${cur.filter(t => t.applied).length} von ${cur.length} aktiv`;
   $('#tgrid').innerHTML = cur.map(t => tweakHtml(t)).join('');
-  $('#inputTweaks').innerHTML = S.tweaks.filter(t => t.cat === 'input').map(t => tweakHtml(t, true)).join('');
+  const inp = S.tweaks.filter(t => t.cat === 'input');
+  $('#inputTweaks').innerHTML = inp.map(t => tweakHtml(t, true)).join('');
+  $('#inputTwCount').textContent = `${inp.filter(t => t.applied).length} / ${inp.length} an`;
 }
 document.addEventListener('click', async e => {
   const tab = e.target.closest('#tabs .tab'); if (tab) { curTab = tab.dataset.c; renderTweaks(); return; }
@@ -620,23 +622,51 @@ async function gfxSave() { const r = await api('gfx.save', { values: S.gfxEdit }
 async function gfxRestore() { const r = await api('gfx.restore'); if (r.error) return toast('Kein Backup', r.error, false); await loadGfx(); toast('Backup wiederhergestellt', 'Original-Grafikeinstellungen aktiv'); }
 
 /* ======================= INPUT LAB ======================= */
-const W = { up: {}, held: new Set(), max: 0, reps: [], last: 0 };
-function resetWasd() { Object.assign(W, { up: {}, held: new Set(), max: 0, reps: [], last: 0 }); $('#wsSwitch').textContent = '--'; $('#wsRepeat').textContent = '--'; $('#wsMax').textContent = '0'; }
+// The tester shows what the game would see: with both keys of a pair held the game cancels them out and the figure
+// stands still until one is let go; with Snap Tap the later key wins. "Stillstand" is exactly that time.
+const W = { up: {}, down: {}, held: new Set(), reps: [], last: 0, ov: 0 };
 const OPP = { KeyA: 'KeyD', KeyD: 'KeyA', KeyW: 'KeyS', KeyS: 'KeyW' };
+const snapOn = () => !!$('#snapTg')?.classList.contains('on');
+function resetWasd() {
+  Object.assign(W, { up: {}, down: {}, held: new Set(), reps: [], last: 0, ov: 0 });
+  ['#wsSwitch', '#wsStill', '#wsRepeat'].forEach(i => $(i).textContent = '--');
+  $$('.key').forEach(k => k.classList.remove('dn', 'muted')); wsGame();
+}
+function wsGame() {
+  const g = $('#wsGame'); if (!g) return;
+  const snap = snapOn(); $('#wsMode').textContent = snap ? 'Snap Tap an' : 'Snap Tap aus'; $('#wsMode').classList.toggle('g', snap);
+  $$('.key').forEach(k => k.classList.remove('muted'));
+  let txt = '';
+  for (const [a, b] of [['KeyA', 'KeyD'], ['KeyW', 'KeyS']]) {
+    if (!W.held.has(a) || !W.held.has(b)) continue;
+    const later = (W.down[a] || 0) > (W.down[b] || 0) ? a : b, older = later === a ? b : a, L = later.slice(3), O = older.slice(3);
+    if (snap) { $(`.key[data-k="${older}"]`)?.classList.add('muted'); txt = `Snap Tap: ${L} gewinnt, ${O} wird für das Spiel losgelassen. Die Figur läuft ohne Pause in die neue Richtung.`; }
+    else txt = `${O} und ${L} gleichzeitig: Das Spiel hebt beide auf, die Figur steht still, bis du ${O} loslässt.`;
+  }
+  g.textContent = txt || 'Halte A, drück D dazu und lass A los: so testest du einen Richtungswechsel.';
+  g.classList.toggle('hot', !!txt);
+}
 addEventListener('keydown', e => {
   if (curPage !== 'input' || e.target.tagName === 'INPUT') return;
   const k = e.code, el = $(`.key[data-k="${k}"]`);
+  if (el) e.preventDefault();
   if (e.repeat) {
     if (W.last) { W.reps.push(e.timeStamp - W.last); if (W.reps.length > 20) W.reps.shift(); $('#wsRepeat').textContent = Math.round(1000 / (W.reps.reduce((a, b) => a + b, 0) / W.reps.length)) + '/s'; }
     W.last = e.timeStamp; return;
   }
-  W.last = e.timeStamp; W.held.add(k); W.max = Math.max(W.max, W.held.size); $('#wsMax').textContent = W.max;
-  if (el) { el.classList.add('dn'); e.preventDefault(); }
+  W.last = e.timeStamp; W.held.add(k); W.down[k] = e.timeStamp;
+  if (el) el.classList.add('dn');
   const o = OPP[k];
-  if (o && W.held.has(o)) $('#wsSwitch').textContent = '0 ms';
-  else if (o && W.up[o] && e.timeStamp - W.up[o] < 300) $('#wsSwitch').textContent = (e.timeStamp - W.up[o]).toFixed(1) + ' ms';
+  if (o && W.held.has(o)) { W.ov = e.timeStamp; $('#wsSwitch').textContent = 'überlappt'; }
+  else if (o && W.up[o] && e.timeStamp - W.up[o] < 300) { $('#wsSwitch').textContent = Math.round(e.timeStamp - W.up[o]) + ' ms'; $('#wsStill').textContent = '0 ms'; }
+  wsGame();
 });
-addEventListener('keyup', e => { W.held.delete(e.code); W.up[e.code] = e.timeStamp; W.reps = []; W.last = 0; $(`.key[data-k="${e.code}"]`)?.classList.remove('dn'); });
+addEventListener('keyup', e => {
+  const k = e.code, o = OPP[k];
+  if (o && W.held.has(o) && W.ov) { $('#wsStill').textContent = Math.round(e.timeStamp - W.ov) + ' ms'; W.ov = 0; }
+  W.held.delete(k); W.up[k] = e.timeStamp; W.reps = []; W.last = 0; $(`.key[data-k="${k}"]`)?.classList.remove('dn'); wsGame();
+});
+document.addEventListener('click', e => { if (e.target.closest('#chopMore')) $('#chopCard').classList.toggle('open'); });
 function initLab() {
   const P = { n: 0, max: 0, last: 0 }, pad = $('#pollPad');
   pad.addEventListener('onpointerrawupdate' in window ? 'pointerrawupdate' : 'pointermove', () => { P.n++; P.last = performance.now(); });
@@ -1658,7 +1688,7 @@ document.addEventListener('click', async e => {
 /* ======================= SNAP TAP / CONTROLLER / NET ======================= */
 document.addEventListener('click', e => {
   if (!e.target.closest('#snapTg')) return;
-  S.settings.snapTap = !S.settings.snapTap; $('#snapTg').classList.toggle('on', S.settings.snapTap);
+  S.settings.snapTap = !S.settings.snapTap; $('#snapTg').classList.toggle('on', S.settings.snapTap); wsGame();
   api('settings.set', { key: 'snapTap', value: S.settings.snapTap });
   toast(S.settings.snapTap ? 'Snap Tap an' : 'Snap Tap aus', S.settings.snapTap ? 'Nur aktiv, solange FiveM vorne ist · Server-Regeln beachten' : '');
 });
@@ -2387,7 +2417,7 @@ async function boot() {
   $('#lkGo').onclick = lkSubmit;
   feed(d.fivem.found ? 'FiveM erkannt: ' + d.fivem.path : 'FiveM nicht gefunden: Pfad im Launcher wählen');
   renderSettings(); renderLauncher(); initFx(d.settings); initMinimap(d.settings); initClip(d.settings); libLoad().then(accLoad); if (d.settings.bgVersion) { api('bg.clear').catch(() => { }); S.settings.bgVersion = 0; } applyBg(); initPad(d.settings);
-  $('#snapTg').classList.toggle('on', !!d.settings.snapTap);
+  $('#snapTg').classList.toggle('on', !!d.settings.snapTap); wsGame();
   wasdLoad();
   await loadTweaks();
   refreshCache(); ping(); setInterval(ping, 8000); curServer();
@@ -2740,7 +2770,8 @@ document.addEventListener('pointerdown', e => {
   b.appendChild(s); setTimeout(() => s.remove(), 650);
 });
 // cards below the visible part of a page come in when they are scrolled to
-const rvIO = new IntersectionObserver(es => es.forEach(en => { if (en.isIntersecting) { en.target.classList.add('in'); rvIO.unobserve(en.target); } }), { threshold: .08 });
+// (own class name: plain 'in' is the style of text fields and squeezed every such card to the height of an input box)
+const rvIO = new IntersectionObserver(es => es.forEach(en => { if (en.isIntersecting) { en.target.classList.add('rv-in'); rvIO.unobserve(en.target); } }), { threshold: .08 });
 function rvScan() {
   const pg = document.querySelector('.page.show'); if (!pg) return;
   pg.querySelectorAll('.card:not(.rv)').forEach(c => { if (c.getBoundingClientRect().top > innerHeight - 40) { c.classList.add('rv'); rvIO.observe(c); } });
@@ -2874,7 +2905,7 @@ setInterval(() => {
   };
   side.querySelectorAll('.nav-h').forEach(h => { if (folded.includes(h.textContent.trim())) fold(h, true, false); });
   side.addEventListener('click', e => { const h = e.target.closest('.nav-h'); if (h) fold(h, !h.classList.contains('cl')); });
-  side.querySelectorAll('.nav').forEach((n, i) => { n.style.setProperty('--n', i); n.classList.add('in'); setTimeout(() => n.classList.remove('in'), 1400); });
+  side.querySelectorAll('.nav').forEach((n, i) => { n.style.setProperty('--n', i); n.classList.add('nav-in'); setTimeout(() => n.classList.remove('nav-in'), 1400); });
   // a page comes in from below when it is further down in the menu, from above otherwise; folded groups show their open page
   const order = [...document.querySelectorAll('.nav[data-p]')].map(n => n.dataset.p);
   const go2 = go; go = function (p) {
