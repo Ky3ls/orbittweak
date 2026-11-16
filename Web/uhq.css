@@ -406,6 +406,11 @@ input[type=range][disabled]{cursor:default}
 .tw .tx b{font-size:14px;font-weight:550;letter-spacing:-.008em}
 .tw .tx p{font-size:12.5px;color:var(--sub);margin-top:3px;line-height:1.45}
 .tlist .tw:not(.on) .tx b{color:#D3D8E2}
+.tw .tx p.tw-d{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.tw.open .tx p.tw-d{display:block;-webkit-line-clamp:unset}
+.tw .tw-more{display:none;margin-top:4px;padding:0;border:0;background:none;font:inherit;font-size:12px;font-weight:550;color:var(--mute);cursor:pointer}
+.tw.more .tw-more{display:inline-block}
+.tw .tw-more:hover{color:#E8EBF1}
 
 /* =====================================================================
    CLIPPER

@@ -326,6 +326,7 @@ function go(p) {
   $$('.nav').forEach(n => n.classList.toggle('active', n.dataset.p === (NAV_OF[p] || p)));
   $$('.page').forEach(s => s.classList.toggle('show', s.id === 'p-' + p));
   moveInd(); enterPage($('#p-' + p));
+  if (p === 'tweaks' || p === 'input') requestAnimationFrame(twClip);
   ({ servers: () => S.servers.length || loadServers(), gfx: () => { S.gfx || loadGfx(); gwRefresh(); }, f8: () => loadF8().then(renderF8), admin: () => admShow(admTab), minimap: modsRefresh, clip: () => { clipList(); hlLoad(); }, mods: modsRefresh, settings: () => { setTab($('#setTabs .tab.on')?.dataset.st || 'account'); spProfile(); }, xhair: () => setTimeout(xhPlace, 30), cleaner: () => S.clean.length || scan(),
      diag: () => { S.health ? renderHealth(S.health) : runHealth(); loadLogs(); }, launcher: renderCmd, home: refreshCache })[p]?.();
 }
@@ -520,6 +521,12 @@ async function loadTweaks() {
     if (n && n.active) setTimeout(() => toast(n.active === 1 ? '1 alter Tweak ist noch aktiv' : `${n.active} alte Tweaks sind noch aktiv`, 'Unter Tweaks › System › Entfernte Tweaks prüfen'), n.undone && n.undone.length ? 4200 : 0);
   } catch { }
 }
+// descriptions stay at two lines; rows whose text is longer get a quiet "Mehr" (measured, so it follows the window width)
+const TW_OPEN = new Set();
+function twClip() {
+  $$('.tlist .tw .tx p.tw-d').forEach(p => { const w = p.closest('.tw'); if (!w.classList.contains('open') && p.offsetParent) w.classList.toggle('more', p.scrollHeight > p.clientHeight + 2); });
+}
+addEventListener('resize', () => { clearTimeout(twClip.t); twClip.t = setTimeout(twClip, 150); });
 function tweakHtml(t, compact) {
   const badge = !t.badge ? '' : t.badge === 'NEUSTART' ? '<span class="eff w">Neustart</span>' : t.badge === 'LIVE' ? '<span class="eff a" title="Wirkt sofort, solange OrbitTweak und FiveM laufen">Live</span>' : `<span class="eff">${esc(t.badge)}</span>`;
   // most tweaks are recommended, so only the exceptions are marked
@@ -527,8 +534,9 @@ function tweakHtml(t, compact) {
   // not usable on this PC: the switch only works to turn it off, the note says why
   const off = t.usable === false && !t.applied;
   const hint = t.hint ? `<small class="tw-hint">${esc(t.hint)}</small>` : '';
-  const body = `<div class="ti">${ico(t.icon)}</div><div class="tx"><b>${esc(t.name)}</b>${badge}${rec}<p>${esc(t.desc)}</p>${hint}</div><div class="tg ${t.applied ? 'on' : ''}" data-id="${t.id}"></div>`;
-  return `<div class="tw ${t.applied ? 'on' : ''}${off ? ' dis' : ''}">${body}</div>`;
+  const open = TW_OPEN.has(t.id);
+  const body = `<div class="ti">${ico(t.icon)}</div><div class="tx"><b>${esc(t.name)}</b>${badge}${rec}<p class="tw-d">${esc(t.desc)}</p><button class="tw-more" data-more="${t.id}">${open ? 'Weniger' : 'Mehr'}</button>${hint}</div><div class="tg ${t.applied ? 'on' : ''}" data-id="${t.id}"></div>`;
+  return `<div class="tw ${t.applied ? 'on' : ''}${off ? ' dis' : ''}${open ? ' open more' : ''}">${body}</div>`;
 }
 function legacyHtml() {
   const l = S.legacy || [];
@@ -548,6 +556,7 @@ function renderTweaks() {
   const inp = S.tweaks.filter(t => t.cat === 'input');
   $('#inputTweaks').innerHTML = inp.map(t => tweakHtml(t, true)).join('');
   $('#inputTwCount').textContent = `${inp.filter(t => t.applied).length}/${inp.length} aktiv`;
+  requestAnimationFrame(twClip);
 }
 document.addEventListener('click', async e => {
   const tab = e.target.closest('#tabs .tab'); if (tab) { curTab = tab.dataset.c; renderTweaks(); return; }
@@ -560,6 +569,13 @@ document.addEventListener('click', async e => {
     if (r.ok) { S.legacy = S.legacy.filter(x => x !== it); toast('Zurückgesetzt', (it ? it.name.replace(/ \(.*\)$/, '') : '') + (it && it.hint ? ' · ' + it.hint : '')); }
     else { lg.disabled = false; toast('Nicht zurückgesetzt', r.error || '', false); }
     renderTweaks(); return;
+  }
+  const mo = e.target.closest('[data-more]');
+  if (mo) {
+    const w = mo.closest('.tw'), open = !w.classList.contains('open');
+    open ? TW_OPEN.add(mo.dataset.more) : TW_OPEN.delete(mo.dataset.more);
+    $$(`[data-more="${mo.dataset.more}"]`).forEach(b => { b.textContent = open ? 'Weniger' : 'Mehr'; b.closest('.tw').classList.toggle('open', open); });
+    return;
   }
   const tg = e.target.closest('.tg[data-id]') || e.target.closest('.tw')?.querySelector('.tg[data-id]'); if (!tg) return;
   const t = S.tweaks.find(x => x.id === tg.dataset.id); if (!t) return;
@@ -3547,6 +3563,9 @@ document.addEventListener('click', async e => {
 /* ======================= WHAT'S NEW: shown once after an update ======================= */
 const CHANGES = {
   '2.26.0': [
+    ['sparkle', 'Neues Design', 'Jede Seite neu gestaltet: ruhige Flächen mit feiner Lichtkante, große leichte Zahlen, Akzentfarbe nur noch für die eine Hauptaktion. Dialoge, Startbildschirm und Lizenz-Seite passen dazu.'],
+    ['sun', 'Winter und Anime neu', 'Winter mit Nordlicht, Eiszapfen und Schneekanten, Anime mit neu gemalter Abendbucht. Beide behalten das ruhige neue Design.'],
+    ['activity', 'Halb so viel Last', 'Im Leerlauf braucht die Oberfläche etwa halb so viel Rechenzeit wie vorher, in allen Themes.'],
     ['zap', 'Jeder Tweak überarbeitet', 'Jeder Schalter ist eine dokumentierte Windows-Einstellung, sagt ehrlich, was er bringt, und gibt beim Ausschalten genau den Wert von vorher zurück. „Alle zurücksetzen“ nimmt nur noch zurück, was OrbitTweak geändert hat.'],
     ['gauge', 'Priorität bleibt „Normal“', 'Die automatische Priorität „Hoch“ ist weg: Laut Cfx.re löst sie Ladehänger und Voice-Lag aus. Neu ist „Kein Energiesparen fürs Spiel“, das FiveM auf Laptops am Akku vor dem Sparmodus schützt.'],
     ['ram', 'Auto-RAM-Clean entfernt', 'Das ständige Leeren von Arbeitsspeicher und Standby-Liste warf auch die Daten des laufenden Spiels aus dem RAM und erzeugte eher Ruckler. Gegen Texture-Loss hilft in FiveM der Regler „Extended Texture Budget“.'],
