@@ -95,13 +95,25 @@ internal static class PadInput
     }
 
     private static readonly string[] Keys = { "a", "b", "x", "y", "lb", "rb", "back", "start", "ls", "rs", "up", "down", "left", "right", "guide", "pad" };
-    private static string _last = "";
+    private static PadState? _prev;
+
+    private static bool Same(PadState a, PadState b)
+    {
+        if (a.C != b.C || a.T != b.T || a.Name != b.Name || a.Lx != b.Lx || a.Ly != b.Ly || a.Rx != b.Rx || a.Ry != b.Ry
+            || a.Lt != b.Lt || a.Rt != b.Rt || a.B.Count != b.B.Count) return false;
+        foreach (var (k, v) in a.B) if (!b.B.TryGetValue(k, out var w) || w != v) return false;
+        return true;
+    }
 
     private static void Publish(PadState s)
     {
-        var sig = JsonSerializer.Serialize(s);
-        if (sig == _last) return;
-        _last = sig;
+        // sticks and triggers rounded to 1 %: their tiny resting noise is not a change. Comparing the fields directly
+        // instead of serializing to JSON saves an allocation per report (PlayStation pads send several hundred a second).
+        s.Lx = Math.Round(s.Lx, 2); s.Ly = Math.Round(s.Ly, 2); s.Rx = Math.Round(s.Rx, 2); s.Ry = Math.Round(s.Ry, 2);
+        s.Lt = Math.Round(s.Lt, 2); s.Rt = Math.Round(s.Rt, 2);
+        var prev = _prev;
+        if (prev != null && Same(s, prev)) return;
+        _prev = s;
         if (s.C && (s.B.Values.Any(v => v) || Math.Abs(s.Lx) > .3 || Math.Abs(s.Ly) > .3 || Math.Abs(s.Rx) > .3 || Math.Abs(s.Ry) > .3 || s.Lt > .15 || s.Rt > .15))
             LastUse = DateTime.Now;
         lock (Lock)
@@ -120,7 +132,8 @@ internal static class PadInput
         Task? sony = null;
         while (_run)
         {
-            if (DateTime.Now - scan > TimeSpan.FromSeconds(3))
+            // looking for a newly plugged-in PlayStation pad walks all HID devices: every few seconds is plenty
+            if (DateTime.Now - scan > TimeSpan.FromSeconds(4))
             {
                 scan = DateTime.Now;
                 if (sony == null || sony.IsCompleted)
@@ -130,39 +143,64 @@ internal static class PadInput
                 }
             }
             // XInput is used whenever no PlayStation pad sent data in the last second
-            if (DateTime.Now - _sonySeen > TimeSpan.FromSeconds(1)) PollXInput();
-            Thread.Sleep(6);
+            bool sonyLive = DateTime.Now - _sonySeen <= TimeSpan.FromSeconds(1);
+            if (!sonyLive) PollXInput();
+            // read fast only while an Xbox pad is really there; without one this thread just looks for a pad now and then
+            Thread.Sleep(_xSlot >= 0 && !sonyLive ? 6 : 120);
         }
     }
 
     private static bool _xNone;
+    private static int _xSlot = -1;                 // slot the Xbox pad sits in, -1 = none
+    private static uint _xPacket;                   // XInput counts up on every change, same number = nothing new
+    private static DateTime _xProbe = DateTime.MinValue;
     private static void PollXInput()
     {
         try
         {
-            for (int i = 0; i < 4; i++)
+            // Microsoft's advice: asking an empty slot is expensive, so only the slot in use is read every time and the
+            // empty ones are checked every two seconds (before, all four were asked 160 times a second without any pad)
+            if (_xSlot >= 0)
             {
-                if (XInputGetState(i, out var st) != 0) continue;
-                var p = st.Pad; ushort b = p.Buttons;
-                double ax(short v) => Math.Clamp(v / 32767.0, -1, 1);
-                Publish(new PadState
+                if (XInputGetState(_xSlot, out var st) == 0)
                 {
-                    C = true, T = "xbox", Name = "Xbox Controller",
-                    B = new()
-                    {
-                        ["up"] = (b & 0x1) != 0, ["down"] = (b & 0x2) != 0, ["left"] = (b & 0x4) != 0, ["right"] = (b & 0x8) != 0,
-                        ["start"] = (b & 0x10) != 0, ["back"] = (b & 0x20) != 0, ["ls"] = (b & 0x40) != 0, ["rs"] = (b & 0x80) != 0,
-                        ["lb"] = (b & 0x100) != 0, ["rb"] = (b & 0x200) != 0, ["a"] = (b & 0x1000) != 0, ["b"] = (b & 0x2000) != 0,
-                        ["x"] = (b & 0x4000) != 0, ["y"] = (b & 0x8000) != 0,
-                    },
-                    Lx = ax(p.LX), Ly = -ax(p.LY), Rx = ax(p.RX), Ry = -ax(p.RY), Lt = p.LT / 255.0, Rt = p.RT / 255.0
-                });
-                _xNone = false;
-                return;
+                    if (st.Packet != _xPacket || _xNone) { _xPacket = st.Packet; PublishX(st.Pad); }
+                    return;
+                }
+                _xSlot = -1; _xProbe = DateTime.MinValue;   // unplugged: look for it in the other slots right away
+            }
+            if (DateTime.Now - _xProbe >= TimeSpan.FromSeconds(2))
+            {
+                _xProbe = DateTime.Now;
+                for (int i = 0; i < 4; i++)
+                {
+                    if (XInputGetState(i, out var st) != 0) continue;
+                    _xSlot = i; _xPacket = st.Packet; PublishX(st.Pad);
+                    return;
+                }
             }
         }
         catch (DllNotFoundException) { }
-        if (!_xNone) { _xNone = true; Publish(new PadState { C = false }); }
+        if (!_xNone || State.C) { _xNone = true; Publish(new PadState { C = false }); }
+    }
+
+    private static void PublishX(XGAMEPAD p)
+    {
+        ushort b = p.Buttons;
+        static double ax(short v) => Math.Clamp(v / 32767.0, -1, 1);
+        Publish(new PadState
+        {
+            C = true, T = "xbox", Name = "Xbox Controller",
+            B = new()
+            {
+                ["up"] = (b & 0x1) != 0, ["down"] = (b & 0x2) != 0, ["left"] = (b & 0x4) != 0, ["right"] = (b & 0x8) != 0,
+                ["start"] = (b & 0x10) != 0, ["back"] = (b & 0x20) != 0, ["ls"] = (b & 0x40) != 0, ["rs"] = (b & 0x80) != 0,
+                ["lb"] = (b & 0x100) != 0, ["rb"] = (b & 0x200) != 0, ["a"] = (b & 0x1000) != 0, ["b"] = (b & 0x2000) != 0,
+                ["x"] = (b & 0x4000) != 0, ["y"] = (b & 0x8000) != 0,
+            },
+            Lx = ax(p.LX), Ly = -ax(p.LY), Rx = ax(p.RX), Ry = -ax(p.RY), Lt = p.LT / 255.0, Rt = p.RT / 255.0
+        });
+        _xNone = false;
     }
 
     private static readonly HashSet<ushort> SonyPids = new() { 0x05C4, 0x09CC, 0x0BA0, 0x0CE6, 0x0DF2 };

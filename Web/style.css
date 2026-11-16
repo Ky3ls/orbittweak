@@ -40,7 +40,9 @@ svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stro
 
 /* ============ APP SHELL ============ */
 .app{position:relative;z-index:1;height:100vh;display:grid;grid-template-columns:240px 1fr;grid-template-rows:50px 1fr}
-.titlebar{grid-column:1/3;display:flex;align-items:center;border-bottom:1px solid var(--line);background:rgba(10,10,11,.55);backdrop-filter:blur(18px)}
+/* no backdrop blur on the big areas: behind them are only soft gradients, so the blur was invisible but had to be
+   recomputed on the GPU in every frame while anything moved */
+.titlebar{grid-column:1/3;display:flex;align-items:center;border-bottom:1px solid var(--line);background:rgba(10,10,11,.72)}
 .brand{width:240px;display:flex;align-items:center;gap:11px;padding-left:20px;height:100%}
 .brand .logo{width:26px;height:26px;transition:transform .8s var(--ease)}
 .brand:hover .logo{transform:rotate(-40deg)}
@@ -56,7 +58,7 @@ svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stro
 .dot.on::after{content:'';position:absolute;inset:-4px;border-radius:50%;border:1.5px solid var(--good);animation:ping 2s var(--ease) infinite}
 @keyframes ping{from{transform:scale(.5);opacity:.9}to{transform:scale(1.8);opacity:0}}
 .upd{display:none;align-items:center;gap:7px;height:30px;padding:0 14px;margin-right:10px;border-radius:99px;background:var(--grad);color:var(--on);
-  font-size:12px;font-weight:600;box-shadow:0 6px 20px -6px rgba(var(--a-rgb),.7);animation:breathe 2.6s ease-in-out infinite}
+  font-size:12px;font-weight:600;box-shadow:0 6px 20px -6px rgba(var(--a-rgb),.7)}
 .upd.show{display:flex}
 .upd svg.i{width:14px;height:14px;stroke-width:2.2}
 @keyframes breathe{50%{box-shadow:0 6px 26px -4px rgba(var(--a-rgb),.95)}}
@@ -67,7 +69,7 @@ svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stro
 .wc svg.i{width:15px;height:15px}
 
 /* ============ SIDEBAR ============ */
-.side{position:relative;border-right:1px solid var(--line);background:rgba(12,12,13,.45);backdrop-filter:blur(18px);display:flex;flex-direction:column;padding:12px 12px 12px;overflow:hidden}
+.side{position:relative;border-right:1px solid var(--line);background:rgba(12,12,13,.6);display:flex;flex-direction:column;padding:12px 12px 12px;overflow:hidden}
 .nav-h{font-size:10.5px;font-weight:600;color:var(--mute);padding:6px 14px 2px;letter-spacing:.06em;text-transform:uppercase}
 .nav-ind+.nav-h{padding-top:2px}
 .nav-ind{position:absolute;left:4px;right:4px;height:32px;top:0;border-radius:11px;pointer-events:none;
@@ -1183,8 +1185,10 @@ select.sel{width:auto;height:30px;padding:0 8px;font-size:12px;border-radius:9px
 @keyframes rp{to{transform:scale(1);opacity:0}}
 .seg button,.tab,.nav{position:relative;overflow:hidden}
 
-/* the accent slowly flows through the main buttons */
-.launch,.btn.p,.seg button.on,.tg.on{background-image:linear-gradient(115deg,var(--a),var(--b),var(--a));background-size:220% 100%;animation:flow 7s ease-in-out infinite}
+/* the accent flows through the main buttons while the pointer is on them (a gradient that moves has to be repainted
+   in every frame, so it no longer runs on every button and switch all the time) */
+.launch,.btn.p,.seg button.on,.tg.on{background-image:linear-gradient(115deg,var(--a),var(--b),var(--a));background-size:220% 100%}
+.launch:hover,.btn.p:hover{animation:flow 3s ease-in-out infinite}
 @keyframes flow{50%{background-position:100% 0}}
 .launch .pi{transition:transform .5s var(--spring)}
 .launch:hover .pi{transform:scale(1.12) rotate(-6deg)}
@@ -1199,7 +1203,6 @@ select.sel{width:auto;height:30px;padding:0 8px;font-size:12px;border-radius:9px
 .nav-ind{box-shadow:0 0 26px -10px rgba(var(--a-rgb),.9)}
 .nav.active svg.i{filter:drop-shadow(0 0 7px rgba(var(--a-rgb),.75));animation:navPop .5s var(--spring)}
 @keyframes navPop{0%{transform:scale(.6)}100%{transform:scale(1)}}
-.nav .badge{animation:breathe 2.6s ease-in-out infinite}
 
 /* tabs, chips, tiles */
 .tab{transition:color .25s,background .3s,transform .35s var(--spring)}
@@ -1243,14 +1246,16 @@ select.sel{width:auto;height:30px;padding:0 8px;font-size:12px;border-radius:9px
 .amb::before{content:'';position:absolute;width:980px;height:980px;right:-330px;top:-610px;border-radius:50%;
   border:1px solid rgba(var(--a-rgb),.2);outline:1px dashed rgba(255,255,255,.055);outline-offset:110px;
   box-shadow:0 0 60px -34px rgba(var(--a-rgb),.28) inset}
-.amb::after{content:'';position:absolute;right:160px;top:-120px;width:8px;height:8px;margin:-4px;border-radius:50%;background:#fff;
-  box-shadow:0 0 0 3px rgba(var(--a-rgb),.35),0 0 18px 4px rgba(var(--a-rgb),.9);
-  offset-path:circle(490px at 4px 4px);offset-rotate:0deg;animation:sat 70s linear infinite}
-@keyframes sat{from{offset-distance:30%}to{offset-distance:130%}}
-/* the ambient lights are a little stronger and the cards let them through */
+/* the satellite sits on the edge of a large square that turns as a whole: a turning layer is moved by the GPU alone,
+   while a dot on an offset-path had to be laid out and painted again in every frame */
+.amb::after{content:'';position:absolute;right:-340px;top:-620px;width:1000px;height:1000px;will-change:transform;
+  background:radial-gradient(circle at 50% 10px,#fff 0 3px,rgba(var(--a-rgb),.9) 4px,rgba(var(--a-rgb),.32) 7px,transparent 15px);
+  transform:rotate(108deg);animation:sat 70s linear infinite}
+@keyframes sat{from{transform:rotate(108deg)}to{transform:rotate(468deg)}}
+/* the ambient lights are a little stronger */
 .amb i{opacity:.85}
 .card{background:linear-gradient(180deg,rgba(255,255,255,.04),transparent 55%),rgba(19,19,21,.76)}
-.side{background:rgba(12,12,13,.38)}
+.side{background:rgba(12,12,13,.58)}
 
 /* page head: a soft light behind the title and an accent line that draws itself */
 .ph{position:relative}
@@ -1292,7 +1297,9 @@ input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.18);box-shadow:0
    v1 polish, round three: start page, side bar and head, glow and glass, splash and login
    ===================================================================== */
 /* ---- glass: cards blur what lies behind them, and the light follows the pointer more clearly ---- */
-.card{background:linear-gradient(180deg,rgba(255,255,255,.05),transparent 55%),rgba(19,19,21,.6);backdrop-filter:blur(18px) saturate(150%);-webkit-backdrop-filter:blur(18px) saturate(150%)}
+/* (no backdrop blur: with a dozen cards per page it was the most expensive thing in the app, and behind them lie only
+   soft gradients, so a slightly denser card looks the same) */
+.card{background:linear-gradient(180deg,rgba(255,255,255,.05),transparent 55%),rgba(19,19,21,.74)}
 .card::before{background:radial-gradient(420px circle at var(--mx,50%) var(--my,50%),rgba(var(--a-rgb),.16),transparent 62%)}
 .card::after{content:'';position:absolute;inset:-1px;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .35s;padding:1px;
   background:radial-gradient(260px circle at var(--mx,50%) var(--my,50%),rgba(var(--a-rgb),.9),transparent 70%);
@@ -1314,11 +1321,11 @@ input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.18);box-shadow:0
 .nav.active svg.i{background:var(--grad);color:var(--on);border-color:transparent;box-shadow:0 6px 18px -6px rgba(var(--a-rgb),.95);filter:none}
 .nav.active{font-weight:600}
 .pill.mv{position:relative;overflow:hidden}
-.pill.mv::after{content:'';position:absolute;left:0;bottom:0;height:2px;width:calc(var(--v,0) * 1%);background:var(--grad);box-shadow:0 0 8px rgba(var(--a-rgb),.9);transition:width .9s var(--ease)}
+.pill.mv::after{content:'';position:absolute;left:0;bottom:0;height:2px;width:100%;transform:scaleX(calc(var(--v,0) / 100));transform-origin:left;background:var(--grad);box-shadow:0 0 8px rgba(var(--a-rgb),.9);transition:transform .9s var(--ease)}
 .pill.mv.hot b{color:var(--bad)}
 .launch .pi{position:relative}
 .launch .pi::after{content:'';position:absolute;inset:-3px;border-radius:13px;border:2px solid rgba(26,13,5,.55);animation:ping 2.2s var(--ease) infinite}
-.titlebar{background:rgba(10,10,11,.4)}
+.titlebar{background:rgba(10,10,11,.66)}
 
 /* ---- start page ---- */
 .quick{margin:0 0 16px}
@@ -1357,34 +1364,6 @@ input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.18);box-shadow:0
 .launch .pi::after{inset:-2px;border-radius:12px;border:2px solid rgba(26,13,5,.45);animation:piRing 2.4s var(--ease) infinite}
 @keyframes piRing{from{transform:scale(.9);opacity:.9}to{transform:scale(1.32);opacity:0}}
 .metric .bar,.metric .big,.metric .msub,.metric .lbl{position:relative;z-index:1}
-
-/* =====================================================================
-   WINTER THEME: cold night, frost and snow (html.th-winter)
-   ===================================================================== */
-html.th-winter{--bg:#060A12;--card:#0E1420;--card2:#121A28;--raise:#17202F;--on:#06121F;--line:rgba(190,225,255,.085);--line2:rgba(190,225,255,.16);--sub:#A3B4C8;--mute:#66768C}
-html.th-winter .card{background:linear-gradient(180deg,rgba(210,236,255,.075),transparent 50%),rgba(13,19,31,.62);box-shadow:0 1px 0 rgba(235,247,255,.22) inset,0 22px 44px -34px rgba(0,0,0,.9)}
-html.th-winter .titlebar{background:rgba(6,10,18,.5)}
-html.th-winter .side{background:rgba(7,11,19,.45)}
-html.th-winter .amb i:nth-child(2){background:radial-gradient(closest-side,rgba(160,120,255,.1),transparent)}
-html.th-winter .bn-shade{background:linear-gradient(90deg,rgba(6,10,18,.9) 0%,rgba(6,10,18,.6) 30%,rgba(40,80,130,.12) 62%,transparent 100%),linear-gradient(0deg,rgba(6,10,18,.5),transparent 55%)}
-html.th-winter .bn-scene{filter:saturate(.55) hue-rotate(165deg) brightness(1.05)}
-html.th-winter .launch .pi::after{border-color:rgba(6,18,31,.45)}
-/* snow: three layers of flakes at different sizes and speeds, drawn as repeating dots */
-html.th-winter body::after{content:'';position:fixed;inset:-200px 0 0 0;pointer-events:none;z-index:60;opacity:.75;
-  background-image:
-    radial-gradient(2.6px 2.6px at 40px 60px,#fff 55%,transparent 60%),radial-gradient(2.2px 2.2px at 190px 140px,#fff 55%,transparent 60%),radial-gradient(2.8px 2.8px at 300px 30px,#fff 55%,transparent 60%),
-    radial-gradient(1.7px 1.7px at 90px 20px,rgba(255,255,255,.85) 55%,transparent 60%),radial-gradient(1.5px 1.5px at 230px 110px,rgba(255,255,255,.85) 55%,transparent 60%),radial-gradient(1.8px 1.8px at 20px 150px,rgba(255,255,255,.85) 55%,transparent 60%),
-    radial-gradient(1.1px 1.1px at 60px 90px,rgba(255,255,255,.6) 55%,transparent 60%),radial-gradient(1px 1px at 150px 40px,rgba(255,255,255,.6) 55%,transparent 60%),radial-gradient(1.2px 1.2px at 250px 170px,rgba(255,255,255,.6) 55%,transparent 60%);
-  background-size:360px 200px,360px 200px,360px 200px,280px 180px,280px 180px,280px 180px,200px 200px,200px 200px,200px 200px;
-  animation:snow 14s linear infinite}
-@keyframes snow{
-  from{background-position:0 0,0 0,0 0,0 0,0 0,0 0,0 0,0 0,0 0}
-  to{background-position:60px 200px,60px 200px,60px 200px,-40px 360px,-40px 360px,-40px 360px,30px 600px,30px 600px,30px 600px}}
-/* a little snow lies on the page title and the big button */
-html.th-winter .launch::before{content:'';position:absolute;left:10px;right:10px;top:-3px;height:7px;border-radius:7px;background:linear-gradient(180deg,#fff,rgba(255,255,255,.75));filter:blur(.6px);opacity:.9}
-html.th-winter .launch{overflow:visible}
-html.th-winter h1{text-shadow:0 0 42px rgba(150,210,255,.35)}
-@media (prefers-reduced-motion:reduce){html.th-winter body::after{animation:none}}
 
 /* =====================================================================
    side bar tidy-up: settings and admin as small buttons at the bottom, groups fold, items glide in
@@ -1433,10 +1412,6 @@ html.th-winter h1{text-shadow:0 0 42px rgba(150,210,255,.35)}
 .mo-row{gap:10px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
 .mo-row .hl-t{flex:1;min-width:260px}
 
-/* while FiveM is in front the page rests: no blur behind the cards, nothing animates */
-html.rest .card,html.rest .lk-card,html.rest .mg-over{backdrop-filter:none;-webkit-backdrop-filter:none}
-html.rest *,html.rest *::before,html.rest *::after{animation-play-state:paused!important}
-html.rest body::after{display:none}
 
 /* =====================================================================
    login: more life behind the card, quicker to get in
@@ -1466,3 +1441,114 @@ html.rest body::after{display:none}
 .lk-id svg.i{width:12px;height:12px;opacity:.7}
 .lk-id.ok{color:var(--good)}
 @media (prefers-reduced-motion:reduce){.lk-orbits i,.lock.show .lk-card>*{animation:none}}
+
+/* =====================================================================
+   REST: while FiveM is in front or another program is being used, the page draws nothing new.
+   html.rest = paused (window in the background), html.game = FiveM is in front (effect layers removed too)
+   ===================================================================== */
+html.rest *,html.rest *::before,html.rest *::after{animation-play-state:paused!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+html.game .fx,html.game .amb{display:none}
+
+/* =====================================================================
+   THEME EFFECTS: one fixed layer above the page (below dialogs) with snow or petals.
+   Everything in it moves by transform only, each part on its own GPU layer: painted once, then just moved.
+   ===================================================================== */
+.fx{position:fixed;inset:0;pointer-events:none;z-index:60;overflow:hidden;contain:strict}
+.fx-sw{position:absolute;top:0;bottom:0;left:-60px;right:-60px;animation:fx-sway 8s ease-in-out infinite alternate}
+.fx-sw>i{position:absolute;left:0;right:0;top:0;display:block;will-change:transform;background-repeat:repeat}
+.fx-sw.t260>i{height:calc(100% + 260px);animation:fx-fall260 22s linear infinite}
+.fx-sw.t360>i{height:calc(100% + 360px);animation:fx-fall360 15s linear infinite}
+.fx-sw.t520>i{height:calc(100% + 520px);animation:fx-fall520 10s linear infinite}
+@keyframes fx-fall260{from{transform:translate3d(0,-260px,0)}to{transform:translate3d(0,0,0)}}
+@keyframes fx-fall360{from{transform:translate3d(0,-360px,0)}to{transform:translate3d(0,0,0)}}
+@keyframes fx-fall520{from{transform:translate3d(0,-520px,0)}to{transform:translate3d(0,0,0)}}
+@keyframes fx-sway{from{transform:translate3d(-18px,0,0)}to{transform:translate3d(18px,0,0)}}
+/* single pieces (big flakes, petals): an outer part falls, the inner one turns and flips */
+.fx-p{position:absolute;top:0;display:block;will-change:transform;animation:fx-drop 14s linear infinite}
+.fx-p.r{animation-name:fx-drop-r}
+.fx-p>b{display:block;width:100%;height:100%;background:var(--piece) center/contain no-repeat;will-change:transform;animation:fx-flip 3.2s ease-in-out infinite alternate}
+@keyframes fx-drop{from{transform:translate3d(0,-60px,0)}to{transform:translate3d(140px,calc(100vh + 60px),0)}}
+@keyframes fx-drop-r{from{transform:translate3d(0,-60px,0)}to{transform:translate3d(-110px,calc(100vh + 60px),0)}}
+@keyframes fx-flip{from{transform:rotate(-30deg) rotateX(0deg)}to{transform:rotate(80deg) rotateX(65deg)}}
+@media (prefers-reduced-motion:reduce){.fx{display:none}}
+
+/* theme swatches show what is special about them */
+.sw[data-th=winter] i::after,.sw[data-th=anime] i::after{position:absolute;inset:0;display:grid;place-items:center;font-size:21px;line-height:1}
+.sw[data-th=winter] i::after{content:'❄';color:#0B2A4A}
+.sw[data-th=anime] i::after{content:'✿';color:#fff;text-shadow:0 1px 6px rgba(120,20,80,.45)}
+
+/* =====================================================================
+   WINTER: cold night, northern lights, frost on the cards, icicles on the banner, three layers of snow
+   ===================================================================== */
+html.th-winter{--bg:#050912;--card:#0E1420;--card2:#121A28;--raise:#17202F;--on:#06121F;--line:rgba(190,225,255,.09);--line2:rgba(190,225,255,.17);--sub:#A3B4C8;--mute:#66768C}
+html.th-winter body{background:radial-gradient(1300px 640px at 72% -12%,#0E1D33,transparent 70%),radial-gradient(900px 520px at 0% 105%,#0A1428,transparent 70%),var(--bg)}
+html.th-winter .card{background:
+    radial-gradient(180px 80px at 0 0,rgba(214,238,255,.10),transparent 70%),
+    radial-gradient(140px 60px at 100% 100%,rgba(140,200,255,.05),transparent 70%),
+    linear-gradient(180deg,rgba(210,236,255,.06),transparent 50%),rgba(11,17,29,.8);
+  box-shadow:0 1px 0 rgba(235,247,255,.22) inset,0 0 0 1px rgba(180,220,255,.03) inset,0 22px 44px -34px rgba(0,0,0,.9)}
+html.th-winter .titlebar{background:rgba(5,9,17,.72)}
+html.th-winter .side{background:rgba(6,10,18,.62)}
+html.th-winter .amb i:nth-child(1){background:radial-gradient(closest-side,rgba(110,195,255,.16),transparent)}
+html.th-winter .amb i:nth-child(2){background:radial-gradient(closest-side,rgba(150,120,255,.11),transparent)}
+html.th-winter h1{text-shadow:0 0 42px rgba(150,210,255,.35)}
+/* northern lights: a soft band with fine rays, swaying slowly (behind the page) */
+.amb .aur{display:none}
+html.th-winter .amb .aur{display:block;position:absolute;left:18%;top:-150px;width:95%;height:420px;border-radius:0;opacity:.9;
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 2px,transparent 2px 11px),
+    linear-gradient(90deg,transparent,rgba(70,255,190,.13) 18%,rgba(80,210,255,.15) 42%,rgba(150,120,255,.12) 68%,transparent 92%);
+  -webkit-mask:radial-gradient(55% 42% at 50% 52%,#000 30%,transparent 100%);mask:radial-gradient(55% 42% at 50% 52%,#000 30%,transparent 100%);
+  transform-origin:50% 0;animation:aurora 26s ease-in-out infinite alternate}
+@keyframes aurora{from{transform:translate3d(-6%,0,0) skewX(-12deg) scaleY(.85)}to{transform:translate3d(5%,10px,0) skewX(10deg) scaleY(1.12)}}
+/* banner: cold grade instead of a colour shift, frost from the right, icicles on the top edge */
+html.th-winter .own-bg{filter:saturate(.5) brightness(.9) contrast(1.05)}
+html.th-winter .bn-shade{background:
+    linear-gradient(90deg,rgba(5,9,18,.92) 0%,rgba(5,9,18,.6) 32%,rgba(40,90,150,.16) 64%,rgba(150,205,255,.16) 100%),
+    linear-gradient(0deg,rgba(5,9,18,.55),transparent 55%),
+    linear-gradient(180deg,rgba(140,200,255,.18),transparent 40%)}
+html.th-winter .banner::after{content:'';position:absolute;left:0;right:0;top:0;height:26px;z-index:1;pointer-events:none;background:var(--icicles) top left/420px 26px repeat-x;filter:drop-shadow(0 2px 3px rgba(0,20,50,.35))}
+html.th-winter .banner{border-color:rgba(190,225,255,.18)}
+/* snow with small icicles lies on the start button */
+html.th-winter .launch{overflow:visible}
+html.th-winter .launch::before{content:'';position:absolute;left:10px;right:10px;top:-7px;height:16px;pointer-events:none;
+  background:var(--snowcap) left top/200px 16px repeat-x;filter:drop-shadow(0 1px 1.5px rgba(0,30,60,.3))}
+html.th-winter .launch .pi::after{border-color:rgba(6,18,31,.45)}
+html.th-winter .kicker::before{content:'❄';font-size:12px;margin-right:-2px}
+
+/* =====================================================================
+   ANIME: dusk sky over the city, sakura petals, rounded headings, screentone and manga focus lines
+   ===================================================================== */
+@font-face{font-family:'MPRounded';font-weight:800;font-display:swap;src:url(fonts/mplus-rounded.woff2) format('woff2')}
+html.th-anime{--bg:#0B0713;--card:#171022;--card2:#1C1429;--raise:#241A33;--on:#2B0A1F;--line:rgba(255,190,230,.085);--line2:rgba(255,190,230,.16);--sub:#C4B3D0;--mute:#80708F;
+  --disp:'MPRounded','Geist','Inter','Segoe UI',sans-serif}
+html.th-anime body{background:radial-gradient(1200px 640px at 82% -14%,#2B1139,transparent 70%),radial-gradient(900px 600px at -8% 110%,#121A3D,transparent 70%),var(--bg)}
+html.th-anime body::before{background-image:radial-gradient(rgba(255,200,235,.06) 1px,transparent 1.5px);background-size:22px 22px;opacity:.8}
+html.th-anime .card{background:
+    radial-gradient(240px 120px at 100% 0,rgba(255,120,190,.08),transparent 70%),
+    linear-gradient(180deg,rgba(255,225,242,.05),transparent 55%),rgba(21,13,31,.8);
+  box-shadow:0 1px 0 rgba(255,214,236,.17) inset,0 22px 44px -34px rgba(0,0,0,.9)}
+html.th-anime .titlebar{background:rgba(11,7,19,.74)}
+html.th-anime .side{background:rgba(13,8,21,.64)}
+html.th-anime .amb i:nth-child(1){background:radial-gradient(closest-side,rgba(255,110,180,.2),transparent)}
+html.th-anime .amb i:nth-child(2){background:radial-gradient(closest-side,rgba(110,150,255,.15),transparent)}
+html.th-anime .amb::before{border-color:rgba(255,150,205,.22);outline-color:rgba(255,220,240,.06)}
+html.th-anime h1{letter-spacing:-.01em;font-weight:800;text-shadow:0 0 38px rgba(255,120,190,.3)}
+html.th-anime .big,html.th-anime .gauge .mid b{font-weight:800;letter-spacing:-.02em}
+html.th-anime .kicker::before{content:'✿';font-size:13px;margin-right:-2px}
+/* manga focus lines bursting out around the boost gauge (instead of the pulsing glow) */
+html.th-anime .gauge::after{inset:-40px;border-radius:50%;animation:none;opacity:1;
+  background:repeating-conic-gradient(from 3deg,rgba(255,215,240,.16) 0 .8deg,transparent .8deg 6deg);
+  -webkit-mask:radial-gradient(closest-side,transparent 85%,#000 89%,#000 95%,transparent 100%);mask:radial-gradient(closest-side,transparent 85%,#000 89%,#000 95%,transparent 100%)}
+/* screentone dots fading in from the right of the quick tiles */
+html.th-anime .qt::after{display:block;content:'';position:absolute;top:0;bottom:0;right:0;left:auto;width:46%;padding:0;opacity:.6;border-radius:inherit;pointer-events:none;
+  background:radial-gradient(rgba(255,182,220,.24) 1px,transparent 1.6px) 0 0/7px 7px;
+  -webkit-mask:linear-gradient(270deg,#000 5%,transparent);mask:linear-gradient(270deg,#000 5%,transparent);-webkit-mask-composite:source-over;mask-composite:add}
+/* banner: the painted scene, a soft shade and a title-card label */
+html.th-anime .bn-shade{background:linear-gradient(90deg,rgba(11,7,19,.86) 0%,rgba(11,7,19,.5) 34%,rgba(11,7,19,.05) 66%,transparent 100%),linear-gradient(0deg,rgba(11,7,19,.45),transparent 50%)}
+html.th-anime .banner{border-color:rgba(255,190,230,.16)}
+html.th-anime .banner::after{content:'オービット';position:absolute;right:22px;bottom:14px;transition:opacity .3s;z-index:1;writing-mode:vertical-rl;font-family:'Yu Gothic UI','Yu Gothic','Meiryo',sans-serif;font-weight:700;font-size:11.5px;letter-spacing:.32em;
+  color:rgba(255,240,248,.85);padding:10px 5px;border-radius:99px;background:rgba(20,8,26,.45);border:1px solid rgba(255,200,230,.22);text-shadow:0 0 10px rgba(255,120,190,.6)}
+html.th-anime .banner:hover::after{opacity:0}
+html.th-anime .bn-chip{background:rgba(26,10,32,.6)}
+html.th-anime .launch .pi::after{border-color:rgba(43,10,31,.45)}
+html.th-winter .launch::after{display:none}   /* its shine would show beside the button once it no longer clips */

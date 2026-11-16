@@ -90,7 +90,16 @@ public partial class MainWindow : Window
             HwndSource.FromHwnd(h)?.AddHook(WndProc);
             RegisterKeys();
         };
-        StateChanged += (_, _) => Root.Margin = WindowState == WindowState.Maximized ? SystemParameters.WindowResizeBorderThickness : new Thickness(0);
+        StateChanged += (_, _) =>
+        {
+            Root.Margin = WindowState == WindowState.Maximized ? SystemParameters.WindowResizeBorderThickness : new Thickness(0);
+            // minimized: the page is not drawn at all (WebView2 stops rendering, timers slow down) and gives memory back
+            Web.Visibility = WindowState == WindowState.Minimized ? Visibility.Hidden : Visibility.Visible;
+            WebRest();
+        };
+        // the page rests (no blur, no running effects) whenever the window is not the one being used
+        Activated += (_, _) => Emit("winfocus", new { on = true });
+        Deactivated += (_, _) => Emit("winfocus", new { on = false });
         Loaded += async (_, _) => await InitWeb();
         Closing += (_, _) => { S.Save(); Catalog.SetTimerResolution(false); StopLive(); };
         AppDomain.CurrentDomain.ProcessExit += (_, _) => { ScreenColor.Restore(); NvVibrance.Restore(); };
@@ -219,6 +228,22 @@ public partial class MainWindow : Window
     }
 
     private void Log(string text) => Emit("log", new { text });
+
+    /// <summary>While the game is played or the window is minimized, WebView2 is asked to keep as little memory as it
+    /// can (it trims caches); back to normal as soon as the window is shown again. A plain switch to another program
+    /// only pauses the page's effects (event "winfocus"), so coming back stays instant.</summary>
+    private void WebRest()
+    {
+        var c = Web.CoreWebView2;
+        if (c == null) return;
+        bool low = _lastGame || WindowState == WindowState.Minimized;
+        try
+        {
+            var want = low ? CoreWebView2MemoryUsageTargetLevel.Low : CoreWebView2MemoryUsageTargetLevel.Normal;
+            if (c.MemoryUsageTargetLevel != want) c.MemoryUsageTargetLevel = want;
+        }
+        catch { }   // older WebView2 runtimes do not have it
+    }
 
     private async void OnMessage(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
     {
@@ -401,6 +426,7 @@ public partial class MainWindow : Window
                     case "xhairShrink": S.XhairShrink = val.GetBoolean(); break;
                     case "modsAck": S.ModsAck = val.GetBoolean(); break;
                     case "bgPreset": S.BgPreset = val.GetString(); break;
+                    case "fx": S.Fx = val.GetBoolean(); break;
                     case "snapTap": S.SnapTap = val.GetBoolean(); SnapApply(); Log(S.SnapTap ? "⌨ Snap Tap aktiv (nur im Spiel)" : "⌨ Snap Tap aus"); break;
                     case "launch": S.Launch = val.Deserialize<LaunchCfg>(JIn) ?? new LaunchCfg(); break;
                 }
@@ -1241,7 +1267,9 @@ public partial class MainWindow : Window
         // re-apply when the game gets focus (fullscreen games may reset the gamma ramp)
         if (game != _lastGame) Emit("gamefront", new { on = game });   // the page stops its effects while the game is being played
         bool focusGained = game && !_lastGame;
+        bool changed = game != _lastGame;
         _lastGame = game;
+        if (changed) WebRest();
         SyncDisplay(game, focusGained);
     }
 

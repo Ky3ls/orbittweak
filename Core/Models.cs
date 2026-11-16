@@ -62,6 +62,7 @@ public class Settings
 {
     public string Accent { get; set; } = "ember";
     public string Mode { get; set; } = "dark";
+    public bool Fx { get; set; } = true;            // snow / petals of the winter and anime themes
     public bool AutoUpdate { get; set; } = true;
     public bool AutoInstall { get; set; }
     public bool AutoPriority { get; set; } = true;

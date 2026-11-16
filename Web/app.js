@@ -40,24 +40,179 @@ const THEMES = {
   copper: ['Copper', '#D97745', '#F2B07E'],
   ice: ['Ice', '#93C5FD', '#E0F2FE'],
   winter: ['Winter', '#6FC3FF', '#EAF8FF'],
+  anime: ['Anime', '#FF6FB5', '#B79CFF'],
 };
 const THEME_ALIAS = { inferno: 'ember', blood: 'rose', toxic: 'mint', nebula: 'violet' };
 const themeKey = k => THEMES[k] ? k : THEMES[THEME_ALIAS[k]] ? THEME_ALIAS[k] : 'ember';
 const hexRgb = h => [1, 3, 5].map(i => parseInt(h.substr(i, 2), 16)).join(',');
+/** Themes that are more than a colour: their own background, cards, banner and moving effects. */
+const SCENE_THEMES = ['winter', 'anime'];
+let CUR_THEME = 'ember';
 function applyTheme(k) {
-  const t = THEMES[themeKey(k)], r = document.documentElement.style;
+  const key = CUR_THEME = themeKey(k), t = THEMES[key], root = document.documentElement, r = root.style;
   r.setProperty('--a', t[1]); r.setProperty('--b', t[2]);
   r.setProperty('--a-rgb', hexRgb(t[1])); r.setProperty('--b-rgb', hexRgb(t[2]));
-  // the winter theme is more than a colour: cold background, frost on the cards and falling snow
-  document.documentElement.classList.toggle('th-winter', themeKey(k) === 'winter');
+  SCENE_THEMES.forEach(s => root.classList.toggle('th-' + s, key === s));
+  if (key === 'winter') { r.setProperty('--icicles', ICICLES ||= icicles()); r.setProperty('--snowcap', SNOWCAP ||= snowCap()); }
+  if (!$('.amb .aur')) $('.amb')?.insertAdjacentHTML('beforeend', '<i class="aur"></i>');
+  fxStart(key);
+  if (S.settings && S.settings.accent !== undefined && typeof applyBg === 'function') applyBg();   // the anime theme paints its own banner
+}
+
+/* ======================= THEME EFFECTS (winter snow, anime petals and dusk scene) ======================= */
+// Everything that moves here only changes `transform` on its own layer: the GPU moves the finished picture without
+// painting anything again, so a whole screen of snow costs about as much as one moving icon. The layer exists only
+// while such a theme is on, pauses with the rest of the page and can be switched off (Settings → Design).
+const svgUrl = s => `url('data:image/svg+xml,${encodeURIComponent(s)}')`;   // (the pictures contain no ' themselves)
+/** Small repeatable random numbers, so the painted pictures look the same on every start. */
+function seeded(seed) {
+  return () => { seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+}
+const f1 = v => v.toFixed(1);
+/** One square of snow that repeats seamlessly: soft dots and, in the near layer, a few six-armed crystals. */
+function flakeTile(size, n, r0, r1, crystals, seed) {
+  const R = seeded(seed), m = r1 * 3; let s = '';
+  for (let i = 0; i < n; i++) s += `<circle cx="${f1(m + R() * (size - 2 * m))}" cy="${f1(m + R() * (size - 2 * m))}" r="${(r0 + R() * (r1 - r0)).toFixed(2)}" fill="url(#g)" opacity="${(.55 + R() * .45).toFixed(2)}"/>`;
+  for (let i = 0; i < crystals; i++) {
+    const r = 5 + R() * 3.5; let arms = '';
+    for (let k = 0; k < 6; k++) arms += `<path transform="rotate(${k * 60})" d="M0 0V${f1(-r)}M0 ${f1(-r * .55)}l${f1(-r * .3)} ${f1(-r * .26)}M0 ${f1(-r * .55)}l${f1(r * .3)} ${f1(-r * .26)}"/>`;
+    s += `<g transform="translate(${f1(14 + R() * (size - 28))} ${f1(14 + R() * (size - 28))}) rotate(${(R() * 60).toFixed(0)})" stroke="#fff" stroke-width="1.1" stroke-linecap="round" fill="none" opacity=".8">${arms}</g>`;
+  }
+  return svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}"><defs><radialGradient id="g"><stop offset="0" stop-color="#fff"/><stop offset=".5" stop-color="#fff" stop-opacity=".85"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient></defs>${s}</svg>`);
+}
+const PIECE = {
+  flake: svgUrl('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><defs><radialGradient id="g"><stop offset="0" stop-color="#fff"/><stop offset=".35" stop-color="#fff" stop-opacity=".8"/><stop offset="1" stop-color="#d6ecff" stop-opacity="0"/></radialGradient></defs><circle cx="10" cy="10" r="10" fill="url(#g)"/></svg>'),
+  petal: svgUrl('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 24"><defs><linearGradient id="p" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFE6F1"/><stop offset=".55" stop-color="#FFB6D4"/><stop offset="1" stop-color="#FF84B8"/></linearGradient></defs><path d="M10 23C3.5 18.5.5 12 2.6 6 4.2 1.8 7.6 1 10 4.2 12.4 1 15.8 1.8 17.4 6 19.5 12 16.5 18.5 10 23Z" fill="url(#p)"/><path d="M10 21V9" stroke="#FF8DBE" stroke-width=".8" opacity=".55"/></svg>'),
+};
+// layers: [tile size, dots, smallest radius, largest radius, crystals, opacity, sway seconds]
+const FXCFG = {
+  winter: { piece: 'flake', n: 9, size: [7, 15], dur: [11, 19], layers: [[260, 34, .5, 1.1, 0, .55, 9], [360, 16, 1.1, 2, 0, .75, 7], [520, 7, 2, 3.2, 2, .7, 5.5]] },
+  anime: { piece: 'petal', n: 16, size: [11, 18], dur: [10, 17], layers: [[360, 9, .8, 1.5, 0, .3, 8]] },
+};
+const FX = { key: null };
+function fxStart(k) {
+  const cfg = S.settings.fx !== false && FXCFG[k];
+  let fx = $('#fx');
+  if (!cfg) { fx?.remove(); FX.key = null; return; }
+  if (fx && FX.key === k) return;
+  fx?.remove(); FX.key = k;
+  fx = document.createElement('div'); fx.className = 'fx'; fx.id = 'fx';
+  fx.style.setProperty('--piece', PIECE[cfg.piece]);
+  cfg.layers.forEach(([size, n, r0, r1, cr, op, sway], i) => {
+    const sw = document.createElement('div'); sw.className = 'fx-sw t' + size;
+    sw.style.cssText = `opacity:${op};animation-duration:${sway}s;animation-delay:${-i * 2.3}s`;
+    const tile = document.createElement('i'); tile.style.backgroundImage = flakeTile(size, n, r0, r1, cr, 11 + i * 7);
+    sw.appendChild(tile); fx.appendChild(sw);
+  });
+  const R = Math.random;
+  for (let i = 0; i < cfg.n; i++) {
+    const s = Math.round(cfg.size[0] + R() * (cfg.size[1] - cfg.size[0])), t = cfg.dur[0] + R() * (cfg.dur[1] - cfg.dur[0]);
+    const p = document.createElement('i'); p.className = 'fx-p' + (R() < .5 ? ' r' : '');
+    p.style.cssText = `left:${f1(R() * 104 - 2)}%;width:${s}px;height:${s}px;animation-duration:${f1(t)}s;animation-delay:${f1(-R() * t)}s`;
+    const b = document.createElement('b'); b.style.cssText = `animation-duration:${f1(2.4 + R() * 2.4)}s;animation-delay:${f1(-R() * 3)}s`;
+    p.appendChild(b); fx.appendChild(p);
+  }
+  document.body.appendChild(fx);
+}
+/** The snow edge with icicles along the top of the start banner (one 420 px piece that repeats). */
+let ICICLES = null;
+function icicles() {
+  const R = seeded(5); let d = 'M420 0V5', x = 420;
+  while (x > 0) {
+    const nx = Math.max(0, x - (10 + R() * 18)), cx = (x + nx) / 2;
+    if (R() < .5 && x - nx > 8) d += `L${f1(cx + 2.4)} 6L${f1(cx)} ${f1(10 + R() * 12)}L${f1(cx - 2.4)} 6`;
+    d += `Q${f1(cx)} ${f1(6 + R() * 4)} ${f1(nx)} 5`; x = nx;
+  }
+  return svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="420" height="26" viewBox="0 0 420 26"><defs><linearGradient id="i" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".28" stop-color="#F3FAFF"/><stop offset="1" stop-color="#BFE3FF" stop-opacity=".8"/></linearGradient></defs><path d="${d}H0V0Z" fill="url(#i)"/></svg>`);
+}
+/** A snow cap for the start button: a bumpy top and a few short icicles (one 200 px piece that repeats). */
+let SNOWCAP = null;
+function snowCap() {
+  const R = seeded(9); let d = 'M0 6', x = 0;
+  while (x < 200) { const nx = Math.min(200, x + 14 + R() * 16); d += `Q${f1((x + nx) / 2)} ${f1(R() * 2.2)} ${f1(nx)} ${nx >= 200 ? 6 : f1(3.5 + R() * 2)}`; x = nx; }
+  d += 'V8';
+  while (x > 0) {
+    const nx = Math.max(0, x - (9 + R() * 14)), cx = (x + nx) / 2;
+    if (R() < .45 && x - nx > 7) d += `L${f1(cx + 1.8)} 9L${f1(cx)} ${f1(11 + R() * 4)}L${f1(cx - 1.8)} 9`;
+    d += `Q${f1(cx)} ${f1(9 + R() * 2)} ${f1(nx)} 8`; x = nx;
+  }
+  return svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="16" viewBox="0 0 200 16"><defs><linearGradient id="i" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".5" stop-color="#F3FAFF"/><stop offset="1" stop-color="#C6E6FF"/></linearGradient></defs><path d="${d}Z" fill="url(#i)"/></svg>`);
+}
+/** The anime start banner: an original painted dusk over a city, with clouds lit from below, power lines and a
+ *  sakura branch. Drawn once as a picture, so it costs no more than a photo. */
+let ANIME_BG = null;
+function animeScene() {
+  const R = seeded(7), W = 1600, H = 900; let s = '';
+  s += `<defs>
+<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#120A30"/><stop offset=".28" stop-color="#34195A"/><stop offset=".5" stop-color="#8E3B84"/><stop offset=".64" stop-color="#E2679A"/><stop offset=".76" stop-color="#FF9F8E"/><stop offset=".86" stop-color="#FFD3A4"/></linearGradient>
+<radialGradient id="sun"><stop offset="0" stop-color="#FFF8E2"/><stop offset=".6" stop-color="#FFE4B6"/><stop offset="1" stop-color="#FFBFA6"/></radialGradient>
+<radialGradient id="glow"><stop offset="0" stop-color="#FFE7BE" stop-opacity=".8"/><stop offset=".35" stop-color="#FFA2B6" stop-opacity=".32"/><stop offset="1" stop-color="#FF7AA8" stop-opacity="0"/></radialGradient>
+<linearGradient id="cl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5E3684"/><stop offset=".55" stop-color="#B95A98"/><stop offset=".85" stop-color="#FF9FA6"/><stop offset="1" stop-color="#FFC9A8"/></linearGradient>
+<linearGradient id="far" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8C4A86"/><stop offset="1" stop-color="#5A2C66"/></linearGradient>
+<linearGradient id="near" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2E163F"/><stop offset="1" stop-color="#140A1F"/></linearGradient>
+<linearGradient id="trail" x1="0" x2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff" stop-opacity=".85"/></linearGradient>
+<g id="fl"><g fill="#FFC6DD"><ellipse cx="0" cy="-5" rx="3.6" ry="5"/><ellipse cx="0" cy="-5" rx="3.6" ry="5" transform="rotate(72)"/><ellipse cx="0" cy="-5" rx="3.6" ry="5" transform="rotate(144)"/><ellipse cx="0" cy="-5" rx="3.6" ry="5" transform="rotate(216)"/><ellipse cx="0" cy="-5" rx="3.6" ry="5" transform="rotate(288)"/></g><circle r="2.2" fill="#FF6FA8"/></g>
+</defs>`;
+  s += `<rect width="${W}" height="${H}" fill="url(#sky)"/>`;
+  for (let i = 0; i < 110; i++) { const y = R() * 360; s += `<circle cx="${(R() * W).toFixed(0)}" cy="${y.toFixed(0)}" r="${f1(.6 + R() * 1.3)}" fill="#fff" opacity="${(.2 + R() * .65 * (1 - y / 420)).toFixed(2)}"/>`; }
+  s += `<path d="M160 300L820 170" stroke="url(#trail)" stroke-width="2.6" stroke-linecap="round" opacity=".55"/>`;
+  s += `<circle cx="1130" cy="650" r="460" fill="url(#glow)"/><circle cx="1130" cy="650" r="118" fill="url(#sun)"/>`;
+  const cloud = (cx, cy, w, k, o = .93) => {
+    let c = '';
+    for (let i = 0; i < k; i++) { const rx = 38 + R() * 70; c += `<ellipse cx="${(cx + (R() - .5) * w).toFixed(0)}" cy="${(cy + (R() - .5) * 28).toFixed(0)}" rx="${rx.toFixed(0)}" ry="${(rx * (.42 + R() * .2)).toFixed(0)}"/>`; }
+    return `<g fill="url(#cl)" opacity="${o}">${c}</g>`;
+  };
+  s += cloud(380, 420, 460, 10) + cloud(1390, 360, 400, 9) + cloud(860, 505, 320, 7, .85) + cloud(120, 560, 260, 6, .8);
+  const city = (base, h0, h1, fill, w0, w1, lights) => {
+    let c = '', l = '', x = -20;
+    while (x < W + 20) {
+      const w = w0 + R() * (w1 - w0), h = h0 + R() * (h1 - h0), top = base - h;
+      c += `<rect x="${x.toFixed(0)}" y="${top.toFixed(0)}" width="${(w + 1).toFixed(0)}" height="${(H - top).toFixed(0)}"/>`;
+      if (R() < .18) c += `<rect x="${(x + w / 2 - 1).toFixed(0)}" y="${(top - 18 - R() * 22).toFixed(0)}" width="2" height="40"/>`;
+      if (lights) for (let yy = top + 10; yy < base - 8; yy += 14) for (let xx = x + 6; xx < x + w - 8; xx += 11) if (R() < .16) l += `<rect x="${xx.toFixed(0)}" y="${yy.toFixed(0)}" width="4" height="6"/>`;
+      x += w;
+    }
+    return `<g fill="${fill}">${c}</g>` + (l ? `<g fill="#FFD48C" opacity=".75">${l}</g>` : '');
+  };
+  s += city(720, 70, 210, 'url(#far)', 40, 90, false);
+  s += city(775, 50, 175, 'url(#near)', 50, 110, true);
+  s += `<rect y="772" width="${W}" height="${H - 772}" fill="#120819"/>`;
+  // a utility pole with its wires across the sky
+  s += `<g fill="#170A23"><rect x="322" y="236" width="14" height="${H - 236}"/><rect x="250" y="262" width="158" height="9" rx="2"/><rect x="268" y="304" width="122" height="8" rx="2"/>
+<rect x="258" y="250" width="6" height="14"/><rect x="394" y="250" width="6" height="14"/><rect x="276" y="293" width="6" height="12"/><rect x="376" y="293" width="6" height="12"/></g>
+<g fill="none" stroke="#1C0D2A" stroke-width="2.2"><path d="M397 252Q1000 420 1610 262"/><path d="M261 252Q100 330 -10 300"/><path d="M379 294Q1000 470 1610 330"/><path d="M279 294Q120 360 -10 350"/><path d="M329 238Q950 330 1610 168"/></g>`;
+  // the sakura branch reaching in from the right
+  s += `<g fill="none" stroke="#2A1322" stroke-linecap="round"><path d="M1640 330Q1500 360 1400 430T1215 470" stroke-width="11"/><path d="M1470 382Q1440 330 1385 318" stroke-width="6"/><path d="M1335 446Q1310 500 1270 520" stroke-width="5"/><path d="M1560 345Q1560 290 1590 255" stroke-width="5"/></g>`;
+  const along = [[1600, 338], [1560, 348], [1520, 360], [1480, 378], [1450, 395], [1420, 415], [1390, 432], [1360, 444], [1330, 452], [1300, 459], [1265, 465], [1230, 470], [1455, 360], [1420, 330], [1390, 320], [1320, 480], [1290, 505], [1275, 518], [1565, 300], [1585, 265]];
+  let fl = '', soft = '';
+  for (const [x, y] of along) for (let j = 0; j < 3; j++) {
+    const fx = x + (R() - .5) * 46, fy = y + (R() - .5) * 34, sc = .8 + R() * .9;
+    fl += `<use href="#fl" transform="translate(${f1(fx)} ${f1(fy)}) rotate(${(R() * 72).toFixed(0)}) scale(${sc.toFixed(2)})"/>`;
+    soft += `<circle cx="${f1(fx + (R() - .5) * 20)}" cy="${f1(fy + (R() - .5) * 16)}" r="${f1(5 + R() * 7)}"/>`;
+  }
+  s += `<g fill="#FF9CC6" opacity=".55">${soft}</g>${fl}`;
+  // a few petals on their way down
+  for (let i = 0; i < 22; i++) { const x = (900 + R() * 700).toFixed(0), y = (380 + R() * 380).toFixed(0); s += `<ellipse cx="${x}" cy="${y}" rx="3.2" ry="2" fill="#FFC2DA" opacity="${(.5 + R() * .4).toFixed(2)}" transform="rotate(${(R() * 180).toFixed(0)} ${x} ${y})"/>`; }
+  return svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${s}</svg>`);
 }
 
 /* ======================= MOTION ======================= */
+/** The page rests while FiveM is in front (html.game, effect layers removed) or another window is in use: no
+ *  animation runs, no blur is drawn and numbers jump instead of counting, so WebView2 produces no frames at all. */
+const REST = { game: false, away: false };
+const resting = () => REST.game || REST.away || document.hidden;
+function restSync() {
+  const root = document.documentElement;
+  root.classList.toggle('rest', REST.game || REST.away);
+  root.classList.toggle('game', REST.game);
+}
 function countTo(el, to, suffix = '', dur = 700) {
   if (!el) return;
   const from = el._v ?? 0; el._v = to;
   cancelAnimationFrame(el._raf);
-  if (from === to) { el.innerHTML = Math.round(to) + suffix; return; }
+  // small steps (the live CPU/RAM values every second) and a resting page: set at once, counting would mean
+  // drawing 40 frames a second just for a number
+  if (from === to || Math.abs(to - from) <= 3 || resting()) { el.innerHTML = Math.round(to) + suffix; return; }
   const t0 = performance.now();
   const step = now => {
     const k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3);
@@ -146,7 +301,8 @@ function onEvent(ev, d) {
     toast('Neues Pack in deinen Downloads', `${d.name} · unter Mods → Dateien mit einem Klick installieren`);
     if (curPage === 'mods') dlList('#modDl');
   }
-  else if (ev === 'gamefront') document.documentElement.classList.toggle('rest', !!d.on);   // FiveM is in front: no blur, no running animations
+  else if (ev === 'gamefront') { REST.game = !!d.on; restSync(); }   // FiveM is in front: nothing moves, effect layers gone
+  else if (ev === 'winfocus') { REST.away = !d.on; restSync(); }     // another program is being used: everything pauses
   else if (ev === 'clipwords') { CL.words = d.words; if ($('#clWords') && document.activeElement !== $('#clWords')) $('#clWords').value = CL.words; }
   else if (ev === 'kill') { feed(d.kill ? '🎯 Kill erkannt, Clip folgt' : '💀 Tod erkannt, Clip folgt'); }
   else if (ev === 'clip') {
@@ -164,15 +320,18 @@ function onEvent(ev, d) {
   }
   else if (ev === 'lag') { if (wasdSt && wasdSt.chop) { wasdSt.chop.on = d.on; wasdUI(); } }   // switched with the key in the game
 }
+/** A live value that changes every second: set at once (counting up to it would redraw the page for most of every second). */
+function setNum(el, v, suffix) { if (!el || el._v === v) return; el._v = v; el.innerHTML = Math.round(v) + suffix; }
 function stats(d) {
+  S.cpuHist.push(d.cpu); if (S.cpuHist.length > 40) S.cpuHist.shift();
+  if (REST.game) return;   // FiveM covers the window: keep the history, draw nothing; the next tick after the game catches up
   $('#tbCpu').textContent = d.cpu + '%'; $('#tbRam').textContent = d.ram + '%';
-  countTo($('#mCpu'), d.cpu, '<small>%</small>');
-  countTo($('#mRam'), d.ram, '<small>%</small>');
+  setNum($('#mCpu'), d.cpu, '<small>%</small>');
+  setNum($('#mRam'), d.ram, '<small>%</small>');
   $('#mRamTxt').textContent = `${d.ramUsed.toFixed(1)} / ${d.ramTotal.toFixed(0)} GB`;
   $('#mRamBar').style.width = d.ram + '%';
-  countTo($('#cRam'), d.ram, '<small>%</small>'); $('#cRamBar').style.width = d.ram + '%';
+  setNum($('#cRam'), d.ram, '<small>%</small>'); $('#cRamBar').style.width = d.ram + '%';
   $('#cRamTxt').textContent = `${d.ramUsed.toFixed(1)} / ${d.ramTotal.toFixed(0)} GB`;
-  S.cpuHist.push(d.cpu); if (S.cpuHist.length > 40) S.cpuHist.shift();
   const n = S.cpuHist.length, pts = S.cpuHist.map((v, i) => [(i + 40 - n) * 200 / 39, 58 - v / 100 * 52]);
   const line = pts.length > 1 ? smoothPath(pts) : `M0,${pts[0][1]} L200,${pts[0][1]}`;
   $('#sparkL').setAttribute('d', line);
@@ -615,11 +774,16 @@ const SETS = [
 function renderSettings() {
   const cur = themeKey(S.settings.accent);
   $('#themes').innerHTML = Object.entries(THEMES).map(([k, [n, a, b]]) => `<div class="sw ${k === cur ? 'on' : ''}" data-th="${k}"><i style="background:linear-gradient(135deg,${a},${b})"></i>${n}</div>`).join('');
+  $('#fxTg')?.classList.toggle('on', S.settings.fx !== false);
+  $('#fxRow')?.classList.toggle('hidden', !FXCFG[cur]);
   const row = ([k, n, d]) => `<div class="srow sclick"><div><b>${n}</b><p>${d}</p></div><div class="tg ${S.settings[k] ? 'on' : ''}" data-set="${k}"></div></div>`;
   $('#setList').innerHTML = SETS.filter(s => !['autoUpdate', 'autoInstall'].includes(s[0])).map(row).join('');
   $('#updSets').innerHTML = SETS.filter(s => ['autoUpdate', 'autoInstall'].includes(s[0])).map(row).join('');
 }
 document.addEventListener('click', e => {
+  if (e.target.closest('#fxRow')) {   // snow / petals on or off
+    S.settings.fx = S.settings.fx === false; renderSettings(); fxStart(themeKey(S.settings.accent)); api('settings.set', { key: 'fx', value: S.settings.fx }); return;
+  }
   const th = e.target.closest('[data-th]');
   if (th) { S.settings.accent = th.dataset.th; applyTheme(th.dataset.th); renderSettings(); api('settings.set', { key: 'accent', value: th.dataset.th }); padDraw(); padPush(); return; }
   const st = e.target.closest('[data-set]') || e.target.closest('.sclick')?.querySelector('[data-set]');
@@ -1649,7 +1813,10 @@ const bgUrl = () => (LA_ALL.find(x => x[0] === S.settings.bgPreset)?.[2]) || LA[
 const picFor = id => { let h = 0; for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return LA_PICS[h % LA_PICS.length]; };
 function applyBg() {
   const u = bgUrl();
-  const own = `<div class="own-bg" style="background-image:url('${u}');background-position:center ${LA_FOCUS[u] ?? 50}%"></div>`;
+  // the anime theme brings its own painted scene, unless a particular photo was picked in the settings
+  const painted = CUR_THEME === 'anime' && !LA_ALL.find(x => x[0] === S.settings.bgPreset)?.[2];
+  const own = painted ? `<div class="own-bg" style="background-image:${ANIME_BG ||= animeScene()};background-position:center 66%"></div>`
+    : `<div class="own-bg" style="background-image:url('${u}');background-position:center ${LA_FOCUS[u] ?? 50}%"></div>`;
   $('#bnScene').innerHTML = own;
   $('#spScene').innerHTML = own;
   xhScene('day');
@@ -2186,7 +2353,8 @@ $('#lkGo') && ($('#lkGo').onclick = lkSubmit);
 async function boot() {
   const t0 = performance.now();
   initLook();
-  const hideSplash = () => $('#splash').classList.add('out');
+  // once faded out the splash leaves the page, otherwise its spinning rings would keep being animated unseen
+  const hideSplash = () => { const sp = $('#splash'); if (!sp || sp.classList.contains('out')) return; sp.classList.add('out'); setTimeout(() => sp.style.display = 'none', 900); };
   setTimeout(hideSplash, 5000);
   $('#side').onclick = e => { const n = e.target.closest('.nav'); if (n) go(n.dataset.p); };
   document.addEventListener('mousedown', e => {
@@ -2684,6 +2852,7 @@ function liveCurve(hist, line, fill, max) {
   $(line).setAttribute('d', d); $(fill).setAttribute('d', d + ` L200,60 L${pts[0][0].toFixed(1)},60 Z`);
 }
 setInterval(() => {
+  if (REST.game) return;
   const cpu = parseFloat($('#tbCpu').textContent), ram = parseFloat($('#tbRam').textContent), ping = parseFloat($('#tbPing').textContent);
   if (!isNaN(cpu)) { $('#tbCpuP').style.setProperty('--v', cpu); $('#tbCpuP').classList.toggle('hot', cpu >= 90); }
   if (!isNaN(ram)) { $('#tbRamP').style.setProperty('--v', ram); $('#tbRamP').classList.toggle('hot', ram >= 90); LIVE.ram.push(ram); if (LIVE.ram.length > 40) LIVE.ram.shift(); }
@@ -2781,6 +2950,12 @@ document.addEventListener('click', async e => {
 
 /* ======================= WHAT'S NEW: shown once after an update ======================= */
 const CHANGES = {
+  '2.23.0': [
+    ['gauge', 'Viel sparsamer', 'Die App zeichnet nur noch, was sich bewegt: kein Weichzeichner hinter jeder Karte, keine Dauer-Animationen. Im Spiel, im Hintergrund und minimiert ruht sie fast ganz.'],
+    ['gamepad', 'Controller-Erkennung entlastet', 'Ohne Controller wird nur noch alle zwei Sekunden nachgesehen statt 160-mal pro Sekunde.'],
+    ['sparkle', 'Anime-Theme', 'Abendhimmel über der Stadt mit Kirschblüten, runde Überschriften, Rasterpunkte und Fokuslinien.'],
+    ['sun', 'Winter-Theme überarbeitet', 'Nordlichter, Raureif auf den Karten, Eiszapfen am Banner, Schnee in drei Ebenen. Effekte unter Einstellungen → Design abschaltbar.'],
+  ],
   '2.22.0': [
     ['zap', 'Montage mit Effekten', 'Deine neuesten Kills automatisch zu einem Video geschnitten: Titelkarte, Kill-Zähler, Blitz bei jedem Schnitt, auf Wunsch mit Musik.'],
     ['film', 'Clip-Editor', 'Clip öffnen, „Schneiden“, Anfang und Ende setzen, als neuen Clip speichern oder klein für Discord kopieren.'],
