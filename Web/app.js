@@ -1419,7 +1419,9 @@ const CL_RECS = {
 };
 const CL_WORDS = 'KILLED, KILL, GETÖTET, ELIMINATED, ELIMINIERT, ERLEDIGT';
 const CL = { key: 0x78, recorder: 'orbit', flash: true, auto: false, sens: 2, kills: false, detect: 'mark', words: CL_WORDS, net: true, banner: true, autoHighlight: false, highlightTail: 8, shareMb: 10, deaths: false, name: '', area: 'auto', before: 20, after: 5, quality: 'std', sound: true };
-const CL_DETECT = [['mark', 'Am Fadenkreuz (ohne Kill-Feed)'], ['feed', 'Kill-Feed lesen']];
+// how kills are noticed: [value, name, plain explanation, icon, tag]
+const CL_DETECT = [['mark', 'Am Fadenkreuz', 'Liest die Kill-Meldung in der Bildmitte und das rote X. Kein Name, kein Kill-Feed nötig.', 'crosshair', 'Empfohlen'],
+  ['feed', 'Im Kill-Feed', 'Sucht deinen Ingame-Namen im Kill-Feed am Bildrand. Für Server, die Namen als Text zeigen.', 'eye', '']];
 const KF_AREAS = [['auto', 'Automatisch'], ['tr', 'Oben rechts'], ['tl', 'Oben links'], ['r', 'Rechts Mitte'], ['tc', 'Oben Mitte']];
 const CL_QUAL = [['low', 'Leicht', '720p · 30 FPS'], ['std', 'Standard', '1080p · 60 FPS'], ['high', 'Hoch', 'bis 1440p · 60 FPS']];
 let clSt = null; // live state of the built-in recorder
@@ -1446,7 +1448,7 @@ function clipUI() {
   const own = CL.recorder === 'orbit';
   $('#clRecs').innerHTML = Object.entries(CL_RECS).map(([k, [n, combo]]) => `<button class="cl-rec ${CL.recorder === k ? 'on' : ''}" data-rec="${k}"><b>${n}</b><span>${combo}</span></button>`).join('');
   $('#clRecTxt').innerHTML = esc(CL_RECS[CL.recorder][2]) + (CL.recorder === 'gamebar' ? `<br><button class="btn sm mt8" onclick="clipGameBar()">${ico('zap')}Hintergrundaufnahme einschalten</button>` : '');
-  $('#clOrbit').classList.toggle('hidden', !own); $('#clExtNote').classList.toggle('hidden', own);
+  $('#clOrbit').classList.toggle('hidden', !own); $('#clOrbitNote').classList.toggle('hidden', !own); $('#clExtNote').classList.toggle('hidden', own);
   $('#clQual').innerHTML = CL_QUAL.map(([v, n, d]) => `<button class="${CL.quality === v ? 'on' : ''}" data-clq="${v}" title="${d}">${n} · ${d}</button>`).join('');
   $('#clBefore').innerHTML = [10, 15, 20, 30, 45].map(v => `<button class="${CL.before === v ? 'on' : ''}" data-clb="${v}">${v} s</button>`).join('');
   $('#clAfter').innerHTML = [0, 3, 5, 8, 10].map(v => `<button class="${CL.after === v ? 'on' : ''}" data-cla="${v}">${v} s</button>`).join('');
@@ -1455,7 +1457,7 @@ function clipUI() {
   $('#clFlash').classList.toggle('on', CL.flash);
   $('#clNet').classList.toggle('on', CL.net !== false);
   $('#clBanner').classList.toggle('on', CL.banner !== false);
-  $('#clAi').classList.toggle('on', CL.ai !== false);
+  $('#clAi').classList.toggle('on', CL.ai !== false); $('#clAiKeyRow').classList.toggle('hidden', CL.ai === false);
   $('#clHud').classList.toggle('on', CL.hud !== false);
   $$('#clHudX button').forEach(b => b.classList.toggle('on', b.dataset.hx === 'hudTime' ? CL.hudTime !== false : !!CL.hudClock));
   $('#hlAuto').classList.toggle('on', !!CL.autoHighlight);
@@ -1473,49 +1475,68 @@ function clipUI() {
   // how kills are noticed: red X on the crosshair (default, nothing to set up) or the kill feed (needs the name)
   if (CL.detect !== 'feed') CL.detect = 'mark';
   const feed = CL.detect === 'feed';
-  $('#clDetect').innerHTML = CL_DETECT.map(([v, n]) => `<button class="${CL.detect === v ? 'on' : ''}" data-cld="${v}">${n}</button>`).join('');
+  $('#clDetect').innerHTML = CL_DETECT.map(([v, n, d, ic, tag]) => `<button class="ke-m ${CL.detect === v ? 'on' : ''}" data-cld="${v}"><span class="ke-mi">${ico(ic)}</span><span class="ke-mt"><b>${n}${tag ? `<em>${tag}</em>` : ''}</b><span>${d}</span></span><i class="ke-r"></i></button>`).join('');
   $('#clMarkBox').classList.toggle('hidden', feed); $('#clFeedBox').classList.toggle('hidden', !feed);
   // the Kill-Clipper card on top
   const kn = (KEYS.find(k => k[1] === CL.key) || ['Aus'])[0], off = !CL.key || kn === 'Aus', nameOk = !feed || (CL.name || '').trim().length >= 3;
   $('#kcOn').classList.toggle('on', CL.kills); $('#kcIc').classList.toggle('on', CL.kills && nameOk);
   $('#clStat').classList.toggle('on', CL.kills && nameOk);
-  $('#kcTxt').textContent = !CL.kills ? 'Speichert jeden Kill automatisch als Clip, ohne Tastendruck und ohne Kill-Feed'
-    : !nameOk ? 'Trag deinen Ingame-Namen ein, so wie er im Kill-Feed steht. Daran erkennt OrbitTweak deine Kills.'
-    : feed ? `Aktiv: Kills von „${CL.name.trim()}“ im Kill-Feed werden automatisch gespeichert${CL.deaths ? ', Tode auch' : ''}`
-    : CL.net !== false ? 'Aktiv: Kills werden an der Kill-Meldung am Fadenkreuz erkannt. Bis der erste Kill erkannt ist, wird zur Sicherheit auch jedes Gefecht gespeichert. Kein Kill-Feed nötig.'
-    : 'Aktiv: Jeder Kill wird automatisch gespeichert. Erkannt wird die Kill-Meldung am Fadenkreuz, kein Kill-Feed nötig.';
+  $('#kcTxt').textContent = !CL.kills ? 'Aus. Schalt ihn an, dann wird jeder Kill von selbst gespeichert.'
+    : !nameOk ? 'Trag deinen Ingame-Namen ein, so wie er im Kill-Feed steht.'
+    : feed ? `An · speichert Kills von „${CL.name.trim()}“ aus dem Kill-Feed${CL.deaths ? ', Tode auch' : ''}`
+    : CL.net !== false ? 'An · erkennt Kills am Fadenkreuz. Bis zum ersten erkannten Kill wird jedes Gefecht mitgespeichert.'
+    : 'An · erkennt jeden Kill am Fadenkreuz, kein Kill-Feed nötig.';
   $('#kcName').classList.toggle('hidden', !feed);
   $('#kcName').classList.toggle('need', CL.kills && !nameOk);
-  $('#kcLen').innerHTML = ico('film') + (own ? `${CL.before} s davor · ${CL.after} s danach` : `${esc(CL_RECS[CL.recorder][0])} · ${esc(CL_RECS[CL.recorder][1])}`);
-  $('#kcKey').innerHTML = ico('keyboard') + (off ? 'Clip-Taste aus' : 'Clip-Taste ' + esc(kn));
-  $('#kcKey').classList.toggle('warn', off);
-  $('#kcDir').innerHTML = ico('folder') + (own ? 'Videos\\OrbitTweak' : 'Videos');
+  $('#clKillsSub').textContent = !CL.kills ? 'Aus' : feed ? 'An · Kill-Feed' : 'An · Fadenkreuz';
+  $('#clRecSub').textContent = CL_RECS[CL.recorder][0] + (off ? '' : ' · ' + kn);
   clipStatusUI();
 }
 const KF_NAMES = { tr: 'oben rechts', tl: 'oben links', r: 'rechts Mitte', tc: 'oben Mitte' };
+/** One of the four tiles on top: small label, big value, one short line. Only redrawn when something changed. */
+function kcTile(el, k, v, sub, cls = '') {
+  if (!el) return;
+  const h = `<span class="kc-k">${k}</span><b class="kc-v">${v}</b><em class="kc-s">${sub}</em>`;
+  if (el._h !== h) { el._h = h; el.innerHTML = h; }
+  el.className = 'kc-st' + (cls ? ' ' + cls : '');
+}
+const clAgo = d => { const m = (Date.now() - new Date(d)) / 6e4; return m < 2 ? 'gerade eben' : m < 60 ? `vor ${Math.round(m)} Min.` : m < 1440 ? `vor ${Math.round(m / 60)} Std.` : m < 2880 ? 'gestern' : `vor ${Math.round(m / 1440)} Tagen`; };
+/** Recording, last clip, kills today, clip key. */
+function kcTiles() {
+  const s = clSt, own = CL.recorder === 'orbit', rec = CL_RECS[CL.recorder] || CL_RECS.orbit;
+  const kn = (KEYS.find(k => k[1] === CL.key) || ['Aus'])[0], off = !CL.key || kn === 'Aus';
+  if (!own) kcTile($('#kcRec'), 'Aufnahme', esc(rec[0]), `über ${esc(rec[1])}`);
+  else if (!s) kcTile($('#kcRec'), 'Aufnahme', 'Eingebaut', '…');
+  else if (s.supported === false) kcTile($('#kcRec'), 'Aufnahme', 'Nicht möglich', 'Dieses Windows kann nicht aufnehmen', 'err');
+  else if (s.armed === false) kcTile($('#kcRec'), 'Aufnahme', 'Aus', 'Kill-Clipper und Clip-Taste sind aus', 'off');
+  else if (s.running) kcTile($('#kcRec'), 'Aufnahme', '<i class="kc-dot"></i>Läuft', `${Math.min(s.buffered, CL.before + CL.after + 30)} s bereit · ${s.h}p`, 'live');
+  else if (s.error) kcTile($('#kcRec'), 'Aufnahme', 'Fehler', esc(s.error), 'err');
+  else kcTile($('#kcRec'), 'Aufnahme', s.game ? 'Startet…' : 'Bereit', s.game ? 'Einen Moment' : 'Läuft, sobald FiveM offen ist', 'off');
+  const last = clips[0], lt = $('#kcLast');
+  if (lt) {
+    if (last) { lt.dataset.clip = 0; kcTile(lt, 'Letzter Clip', clAgo(last.date), esc(clLabel(last))); }
+    else { delete lt.dataset.clip; kcTile(lt, 'Letzter Clip', clLoaded ? 'Noch keiner' : '…', off ? 'Clips speichert der Kill-Clipper' : `Im Spiel ${esc(kn)} drücken`, 'off'); }
+  }
+  const today = own ? (HL.n && HL.n.today) || 0 : (s && s.kills) || 0;
+  kcTile($('#kcToday'), own ? 'Kills heute' : 'Kills erkannt', today,
+    !CL.kills ? 'Kill-Clipper ist aus' : own ? (s && s.kills ? `${s.kills} seit dem Start erkannt` : 'als Clip gespeichert') : 'seit dem Start', CL.kills ? '' : 'off');
+  kcTile($('#kcKey'), 'Clip-Taste', off ? 'Aus' : esc(kn), off ? 'Speichern nur per Kill-Clipper' : own ? `${CL.before} s davor · ${CL.after} s danach` : `löst ${esc(rec[1])} aus`, off ? 'warn' : '');
+}
 function clipStatusUI() {
-  const el = $('#kcRec'); if (!el) return;
-  const s = clSt, own = CL.recorder === 'orbit';
-  let cls = '', txt;
-  if (!own) txt = `Aufnahme über ${esc(CL_RECS[CL.recorder][0])}`;
-  else if (!s) txt = 'Aufnahme: eingebaut';
-  else if (s.supported === false) { cls = 'err'; txt = 'Aufnahme wird von diesem Windows nicht unterstützt'; }
-  else if (s.armed === false) txt = 'Aufnahme aus (Kill-Clipper und Clip-Taste sind aus)';
-  else if (s.running) { cls = 'live'; txt = `Aufnahme läuft · ${Math.min(s.buffered, CL.before + CL.after + 30)} s bereit · ${s.w}×${s.h}`; }
-  else if (s.error) { cls = 'err'; txt = 'Aufnahme: ' + esc(s.error); }
-  else txt = s.game ? 'Aufnahme startet…' : 'Wartet auf FiveM';
-  el.className = 'kc-chip ' + cls; el.innerHTML = (cls === 'live' ? '<i></i>' : ico('rec')) + txt;
+  if (!$('#kcRec')) return;
+  const s = clSt;
+  kcTiles();
   const f = $('#clFound'); if (f) f.textContent = CL.area === 'auto' && s && s.found ? `gefunden: ${KF_NAMES[s.found] || s.found}` : '';
   const m = $('#clMarkLast');
   if (m) m.innerHTML = s && s.markAt ? `${s.markImg ? `<img src="${s.markImg}" alt="">` : ''}<span>Zuletzt erkannter Kill: <b>${new Date(s.markAt).toLocaleTimeString('de-DE')}</b> · ${s.markWord ? `Kill-Meldung „${esc(s.markWord)}“` : 'rotes X'}${s.netQuiet ? '<br>Die Erkennung funktioniert hier, das Sicherheitsnetz pausiert.' : ''}</span>`
-    : `<span>Seit dem Start wurde noch kein Kill erkannt. Nach deinem ersten Kill siehst du hier, woran OrbitTweak ihn erkannt hat.</span>`;
+    : `<span>Seit dem Start noch kein Kill erkannt. Danach siehst du hier, woran OrbitTweak ihn erkannt hat.</span>`;
   // AI check: is a key there, what did it say last
   const ai = s && s.ai, ks = $('#clAiKeyState'), al = $('#clAiLast');
   if (ks) ks.textContent = !ai ? '' : ai.key ? 'gespeichert · zum Ändern neuen Key eintragen' : 'fehlt noch · kostenlos auf openrouter.ai';
   if (al) al.innerHTML = !ai || CL.ai === false ? '' : !ai.key ? '<span>Ohne Key bleibt die KI-Prüfung aus.</span>'
     : `<span>KI-Prüfung ${ai.paused ? 'pausiert (Limit erreicht)' : ai.active ? 'bereit' : 'wartet'} · ${ai.asked || 0} ${ai.asked === 1 ? 'Gefecht' : 'Gefechte'} geprüft, ${ai.kills || 0} ${ai.kills === 1 ? 'Kill' : 'Kills'} gefunden${ai.last ? `<br>Zuletzt: ${esc(ai.last)}` : ''}${ai.error ? `<br>Letzter Fehler: ${esc(ai.error)}` : ''}</span>`;
   const st = $('#clStats');
-  if (st) st.textContent = s ? `Seit dem Start: ${s.kills || 0} ${s.kills === 1 ? 'Kill' : 'Kills'} erkannt · ${s.fights || 0} ${s.fights === 1 ? 'Gefecht' : 'Gefechte'} über das Sicherheitsnetz gespeichert` : '';
+  if (st) st.textContent = s ? `Seit dem Start: ${s.kills || 0} ${s.kills === 1 ? 'Kill' : 'Kills'} erkannt · ${s.fights || 0} ${s.fights === 1 ? 'Gefecht' : 'Gefechte'} übers Sicherheitsnetz` : '';
 }
 async function clipStatus() {
   try { clSt = await api('clip.status'); } catch { clSt = null; }
@@ -1534,29 +1555,65 @@ async function clipTest() {
 window.clipTest = clipTest;
 async function clipOpen(rel) { api('clip.open', { rel }); }
 window.clipOpen = clipOpen;
-let clips = [], clFilter = 'all';
-// what kind of clip a file of the built-in recorder is, by its name: "Kill …" / "2 Kills …", "Gefecht …", "Highlights …"
-const clKind = c => c.folder !== 'OrbitTweak' ? 'other' : /^(Kill|\d+ Kills) /.test(c.name) ? 'kill' : /^Gefecht /.test(c.name) ? 'fight' : /^Highlights /.test(c.name) ? 'hl' : 'other';
+let clips = [], clFilter = 'all', clLoaded = false;
+// what kind of clip a file of the built-in recorder is, by its name: "Kill …" / "2 Kills …", "Gefecht …", "Highlights …" / "Montage …"
+const clKind = c => c.folder !== 'OrbitTweak' ? 'other' : /^(Kill|\d+ Kills) /.test(c.name) ? 'kill' : /^Gefecht /.test(c.name) ? 'fight' : /^(Highlights|Montage) /.test(c.name) ? 'hl' : 'other';
 const CL_FILTERS = [['all', 'Alle'], ['kill', 'Kills'], ['fight', 'Gefechte'], ['hl', 'Highlights']];
+const CL_NONE = { kill: 'Noch keine Kill-Clips. Sobald der Kill-Clipper einen Kill erkennt, landet er hier.', fight: 'Keine Gefecht-Clips. Die entstehen über das Sicherheitsnetz oder „Nach Gefechten clippen“.', hl: 'Noch keine Highlights. Mach oben aus deinen Kills ein Video.' };
+/** Own clips are named "Kill 2026-11-16 21-14-08 (Schnitt)": the word in front is what the clip is. */
+const clParse = c => { const m = c.folder === 'OrbitTweak' && /^(.*?) \d{4}-\d\d-\d\d \d\d-\d\d-\d\d(?: \(\d+\))?(.*)$/.exec(c.name); return m ? { kind: m[1], rest: m[2].trim() } : null; };
+const clLabel = c => { const p = clParse(c); return p ? p.kind + (p.rest ? ' ' + p.rest : '') : c.name; };
+const clWhen = d => {
+  const t = new Date(d), n = new Date(), days = Math.round((new Date(n.getFullYear(), n.getMonth(), n.getDate()) - new Date(t.getFullYear(), t.getMonth(), t.getDate())) / 864e5);
+  const hm = t.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  return (days === 0 ? 'Heute' : days === 1 ? 'Gestern' : t.toLocaleDateString('de-DE', { day: 'numeric', month: 'short' })) + ', ' + hm;
+};
+const clFmt = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+// clip length: read from the file itself (only its header), one clip after the other, remembered for the session
+const clDur = new Map(); let clDurBusy = false;
+const clDurKey = c => c.rel + '|' + c.size;
+function clDurNext() {
+  if (clDurBusy || !HOST || curPage !== 'clip') return;
+  const c = clips.find(x => x.ext !== '.mkv' && !clDur.has(clDurKey(x))); if (!c) return;
+  clDurBusy = true;
+  const k = clDurKey(c), v = document.createElement('video');
+  const done = d => {
+    if (!clDurBusy) return; clDurBusy = false; clearTimeout(t);
+    clDur.set(k, isFinite(d) ? d : 0); v.removeAttribute('src'); v.load();
+    $$('#clGrid .clipc').forEach(cd => { const x = clips[+cd.dataset.clip]; if (x && clDurKey(x) === k && d > 0) { const b = cd.querySelector('.cl-dur'); b.textContent = clFmt(d); b.classList.remove('hidden'); } });
+    setTimeout(clDurNext, 40);
+  };
+  const t = setTimeout(() => done(0), 5000);
+  v.preload = 'metadata'; v.muted = true;
+  v.onloadedmetadata = () => done(v.duration); v.onerror = () => done(0);
+  v.src = 'https://clips.orbit/' + c.rel.split('/').map(encodeURIComponent).join('/');
+}
 function clipRender() {
   const n = k => clips.filter(c => k === 'all' || clKind(c) === k).length;
-  $('#clFilter').innerHTML = CL_FILTERS.map(([k, t]) => `<button class="${clFilter === k ? 'on' : ''}" data-clf="${k}">${t} · ${n(k)}</button>`).join('');
+  $('#clFilter').innerHTML = CL_FILTERS.map(([k, t]) => `<button class="${clFilter === k ? 'on' : ''}" data-clf="${k}">${t}<i class="cl-cnt">${n(k)}</i></button>`).join('');
   const shown = clips.map((c, i) => [c, i]).filter(([c]) => clFilter === 'all' || clKind(c) === clFilter);
   // one button clears away all firefight clips at once (they go to the recycle bin)
   const tb = $('#clTrash'), fights = n('fight');
   tb.classList.toggle('hidden', clFilter !== 'fight' || !fights); tb.querySelector('span').textContent = `Alle ${fights} in den Papierkorb`;
+  const kn = (KEYS.find(k => k[1] === CL.key) || ['Aus'])[0];
   $('#clGrid').innerHTML = shown.length ? shown.map(([c, i]) => {
-    const vid = `<img alt="" data-cth="${i}"><div class="noprev">${ico('film')}</div><div class="playi">${ico('play')}</div>`;
-    const del = (c.ext === '.mp4' ? `<button class="cl-del cl-share" data-clshare="${i}" title="Für Discord in die Zwischenablage (über ${CL.shareMb || 10} MB wird der Clip vorher verkleinert)">${ico('copy')}</button>` : '')
-      + (c.folder === 'OrbitTweak' ? `<button class="cl-del" data-cldel="${i}" title="In den Papierkorb">${ico('trash')}</button>` : '');
-    return `<div class="clipc" data-clip="${i}"><div class="v">${vid}${del}</div><div class="m"><b>${esc(c.name)}</b><span>${esc(c.folder || '')} · ${bytes(c.size)} · ${new Date(c.date).toLocaleDateString('de-DE')}</span></div></div>`;
-  }).join('') : `<div class="empty">${clips.length ? 'Hier gibt es noch keine Clips.' : 'Noch keine Clips gefunden. Drück im Spiel deine Clip-Taste.'}</div>`;
+    const p = clParse(c), k = clKind(c), d = c.dur || clDur.get(clDurKey(c)) || 0;
+    const bd = p ? `<span class="cl-bd ${k}">${ico(k === 'kill' ? 'crosshair' : k === 'fight' ? 'target' : k === 'hl' ? 'sparkle' : 'rec')}${esc(p.kind)}</span>` : `<span class="cl-bd">${esc(c.folder || 'Videos')}</span>`;
+    const acts = (c.ext === '.mp4' ? `<button class="cl-act" data-clshare="${i}" title="Für Discord in die Zwischenablage (über ${CL.shareMb || 10} MB wird der Clip vorher verkleinert)">${ico('copy')}</button>` : '')
+      + (c.folder === 'OrbitTweak' ? `<button class="cl-act d" data-cldel="${i}" title="In den Papierkorb">${ico('trash')}</button>` : '');
+    return `<div class="clipc" data-clip="${i}"><div class="v"><img alt="" data-cth="${i}"><div class="noprev">${ico('film')}</div><div class="playi">${ico('play')}</div>${bd}<span class="cl-dur${d ? '' : ' hidden'}">${d ? clFmt(d) : ''}</span></div>`
+      + `<div class="m"><div class="m-t"><b>${p ? clWhen(c.date) : esc(c.name)}</b><span>${p ? (p.rest ? esc(p.rest.replace(/[()]/g, '')) + ' · ' : '') + bytes(c.size) : clWhen(c.date) + ' · ' + bytes(c.size)}</span></div>${acts}</div></div>`;
+  }).join('') : clips.length ? `<div class="cl-empty sm"><p>${CL_NONE[clFilter] || 'Hier gibt es noch keine Clips.'}</p></div>`
+    : `<div class="cl-empty"><div class="cl-ei">${ico('film')}</div><b>${clLoaded ? 'Noch keine Clips' : 'Clips werden geladen…'}</b>`
+      + (clLoaded ? `<p>${CL.kills ? 'Der Kill-Clipper ist an, dein nächster Kill landet hier.' : 'Schalt den Kill-Clipper an, dann wird jeder Kill von selbst gespeichert.'}${!CL.key || kn === 'Aus' ? '' : ` Oder drück im Spiel <b>${esc(kn)}</b>.`}</p>${CL.kills ? '' : `<button class="btn p" data-clkon>${ico('crosshair')}Kill-Clipper anschalten</button>`}` : '') + '</div>';
   $$('#clGrid img[data-cth]').forEach(img => thumb('clip.thumb', { rel: clips[+img.dataset.cth].rel }, img));
+  clDurNext();
 }
 async function clipList() {
   try { clips = await api('clip.list'); } catch { clips = []; }
+  clLoaded = true;
   $('#clCount').textContent = clips.length;
-  clipRender();
+  clipRender(); kcTiles();
 }
 window.clipList = clipList;
 async function clipTrash(list, what) {
@@ -1588,15 +1645,23 @@ document.addEventListener('click', e => {
 }, true);
 
 /* ======================= HIGHLIGHT VIDEO (kill clips joined into one) ======================= */
-const HL = { scope: 'today', tail: 0, busy: false, n: { today: 0, all: 0 } };
+const HL = { scope: 'today', tail: 0, busy: false, n: { today: 0, all: 0 }, mode: 'mo' };
+try { HL.mode = localStorage.getItem('orbitHlMode') === 'hl' ? 'hl' : 'mo'; } catch { }
 function hlUI() {
   if (!$('#hlGo')) return;
+  // "Montage mit Effekten" or "Einfach aneinander": one card, one big button
+  const mo = HL.mode !== 'hl';
+  $$('#hlMode button').forEach(b => b.classList.toggle('on', b.dataset.v === (mo ? 'mo' : 'hl')));
+  ['#moOpts', '#moInfo', '#moGo'].forEach(id => $(id).classList.toggle('hidden', !mo));
+  ['#hlOpts', '#hlInfo', '#hlGo'].forEach(id => $(id).classList.toggle('hidden', mo));
   $$('#hlScope button').forEach(b => b.classList.toggle('on', b.dataset.v === HL.scope));
   $$('#hlTail button').forEach(b => b.classList.toggle('on', +b.dataset.v === HL.tail));
   const n = HL.n[HL.scope] || 0;
-  $('#hlInfo').textContent = n >= 2 ? `Fügt ${HL.scope === 'today' ? 'deine ' + n + ' Kill-Clips von heute' : 'deine ' + n + ' Kill-Clips'} zu einem einzigen Video zusammen${HL.tail ? ', von jedem nur die letzten ' + HL.tail + ' Sekunden' : ''}.`
-    : `Fügt deine Kill-Clips zu einem einzigen Video zusammen. Dafür braucht es mindestens zwei${HL.scope === 'today' ? ' von heute' : ''}, bisher ${n === 1 ? 'ist es einer' : 'gibt es keinen'}.`;
-  const b = $('#hlGo'); b.disabled = HL.busy || n < 2; b.querySelector('span').textContent = HL.busy ? 'Wird erstellt…' : 'Erstellen';
+  $('#hlInfo').innerHTML = n >= 2 ? `<b>${n} Kill-Clips${HL.scope === 'today' ? ' von heute' : ''}</b> werden aneinandergehängt${HL.tail ? ', von jedem die letzten ' + HL.tail + ' Sekunden' : ''}. Ohne Effekte, geht schnell.`
+    : `Dafür braucht es mindestens zwei Kill-Clips${HL.scope === 'today' ? ' von heute' : ''}, bisher ${n === 1 ? 'ist es einer' : 'gibt es keinen'}.`;
+  const b = $('#hlGo'); b.disabled = HL.busy || n < 2; b.innerHTML = HL.busy ? `${ico('refresh', 'i spin')}<span>Wird erstellt…</span>` : `${ico('film')}<span>Video erstellen</span>`;
+  $('#hlCard').classList.toggle('busy', HL.busy);
+  kcTiles();
 }
 async function hlLoad() { try { const r = await api('clip.kills'); HL.n = { today: r.today, all: r.all }; HL.busy = !!r.busy; } catch { } hlUI(); }
 function hlProgress(d) { const p = $('#hlProg'); if (!p) return; p.classList.remove('hidden'); $('#hlBar').style.width = d.pct + '%'; $('#hlTxt').textContent = d.text; }
@@ -1610,6 +1675,7 @@ async function hlMake() {
   clipList(); hlLoad();
 }
 document.addEventListener('click', e => {
+  const md = e.target.closest('#hlMode button'); if (md) { HL.mode = md.dataset.v; try { localStorage.setItem('orbitHlMode', HL.mode); } catch { } hlUI(); return; }
   const s = e.target.closest('#hlScope button'); if (s) { HL.scope = s.dataset.v; hlUI(); return; }
   const t = e.target.closest('#hlTail button'); if (t) { HL.tail = +t.dataset.v; CL.highlightTail = HL.tail; hlUI(); clipPush(); return; }   // also counts for the automatic video
   if (e.target.closest('#hlGo')) hlMake();
@@ -1631,9 +1697,9 @@ document.addEventListener('click', e => {
   if (e.target.closest('#clHud')) { CL.hud = CL.hud === false; clipUI(); clipPush(); toast(CL.hud ? 'Zähler im Spiel an' : 'Zähler im Spiel aus', CL.hud ? 'Oben links: Aufnahme-Punkt und Kills der Runde' : ''); return; }
   if (e.target.closest('#clAi')) { CL.ai = CL.ai === false; clipUI(); clipPush(); toast(CL.ai ? 'KI-Prüfung an' : 'KI-Prüfung aus', CL.ai ? 'Gefechte ohne erkannten Kill prüft ein KI-Modell' : 'Es entscheidet nur noch die Erkennung am Fadenkreuz'); return; }
   if (e.target.closest('#clNet')) { CL.net = CL.net === false; clipUI(); clipPush(); toast(CL.net ? 'Sicherheitsnetz an' : 'Sicherheitsnetz aus', CL.net ? 'Bis der erste Kill erkannt ist, werden Gefechte trotzdem gespeichert' : 'Es werden nur noch erkannte Kills gespeichert'); return; }
-  const top = e.target.closest('#kcOn');
+  const top = e.target.closest('#kcOn, [data-clkon]');
   if (top || e.target.closest('#clKills')) {
-    CL.kills = !CL.kills; clipUI(); clipPush();
+    CL.kills = !CL.kills; clipUI(); clipPush(); clipRender();
     if (CL.kills && CL.detect === 'feed' && (CL.name || '').trim().length < 3) { toast('Ingame-Namen eintragen', 'Ohne Namen weiß OrbitTweak nicht, welche Kills deine sind', false); $(top ? '#kcName' : '#clName').focus(); }
     else toast(CL.kills ? 'Kill-Clipper an' : 'Kill-Clipper aus', CL.kills ? 'Ab jetzt wird jeder Kill automatisch gespeichert' : '');
     return;
@@ -2487,7 +2553,13 @@ const Mock = {
       case 'clip.kftest': return { ok: true, game: true, img: null, lines: [{ text: ((a && a.name) || 'Max_Power') + ' [Pistol] Tony_Ricci', hit: 'kill' }, { text: 'Lena_V [AP] Jimmy', hit: null }, { text: 'Ricci [Rifle] ' + ((a && a.name) || 'Max_Power'), hit: 'death' }] };
       case 'clip.open': case 'clip.gamebar': return { ok: true };
       case 'clip.delete': return { ok: true };
-      case 'clip.list': return ['Grand Theft Auto V 2026.11.13 - 21.14.08.02', 'FiveM 2026.11.13 - 20.51.44.01', 'Gangwar Clutch', 'Grand Theft Auto V 2026.11.12 - 23.02.10.05'].map((n, i) => ({ name: n, rel: 'Grand Theft Auto V/' + n + '.mp4', folder: i === 2 ? 'Captures' : 'Grand Theft Auto V', size: 48e6 + i * 9e6, date: new Date(Date.now() - i * 864e5).toISOString(), ext: '.mp4' }));
+      case 'clip.list': {
+        const at = h => new Date(Date.now() - h * 36e5), nm = (k, d) => `${k} ${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}-${String(d.getMinutes()).padStart(2, '0')}-${String(d.getSeconds()).padStart(2, '0')}`;
+        const own = [['Kill', .1, 25], ['2 Kills', .6, 31], ['Montage', 1.2, 89], ['Gefecht', 2, 25], ['Kill', 26, 25], ['Clip', 27, 25]].map(([k, h, dur]) => { const d = at(h), n = nm(k, d); return { name: n, rel: 'OrbitTweak/' + n + '.mp4', folder: 'OrbitTweak', size: dur * 7.2e5, date: d.toISOString(), ext: '.mp4', dur }; });
+        return own.concat(['Grand Theft Auto V 2026.11.13 - 21.14.08.02', 'Gangwar Clutch'].map((n, i) => ({ name: n, rel: 'Grand Theft Auto V/' + n + '.mp4', folder: i ? 'Captures' : 'Grand Theft Auto V', size: 48e6 + i * 9e6, date: at(50 + i * 24).toISOString(), ext: '.mp4' })));
+      }
+      case 'clip.montage': for (let i = 1; i <= 8; i++) { onEvent('highlight', { pct: i * 12, text: `Kill ${Math.min(i, 10)} von 10 wird geschnitten…` }); await sleep(250); } return { file: 'Montage 2026-11-14 21-40-00.mp4', clips: 10 };
+      case 'clip.montageMusic': return a.clear ? { music: null } : { music: 'Phonk Drift.mp3' };
       case 'mods.list': return { found: true, items: [{ name: 'round_minimap_dark.rpf', on: true, size: 3.4e6, cat: 'minimap' }, { name: 'killfx_red_flash.rpf', on: true, size: 1.2e6, cat: 'kill' }, { name: 'nve_lite.rpf', on: false, size: 84e6, cat: 'gfx' }] };
       case 'pad.set': return { keyOk: true };
       case 'pad.watch': return { active: true, state: { c: true, t: 'ps', name: 'PlayStation 4 DualShock', b: { a: true, rb: true, up: true }, lx: .5, ly: -.3, rx: 0, ry: .6, lt: .4, rt: 1 } };
@@ -3022,12 +3094,15 @@ function moUI() {
   if (!$('#moGo')) return;
   $$('#moCount button').forEach(b => b.classList.toggle('on', +b.dataset.v === MO.count));
   const n = (HL.n && HL.n.all) || 0, use = Math.min(n, MO.count);
-  $('#moSlow').classList.toggle('p', MO.slow); $('#moSlow span').textContent = MO.slow ? 'Zeitlupe an' : 'Zeitlupe aus';
+  $('#moSlow').classList.toggle('on', MO.slow);
   $('#moMusic span').textContent = MO.music ? MO.music.length > 22 ? MO.music.slice(0, 20) + '…' : MO.music : 'Musik wählen';
+  $('#moMusic').classList.toggle('on', !!MO.music);
   $('#moMusic').title = MO.music ? 'Klick: andere Musik · Rechtsklick: ohne Musik' : 'Eine Musikdatei unter die Montage legen';
-  $('#moInfo').textContent = n >= 2 ? `Schneidet deine ${use} neuesten Kills zu einem Video von etwa ${Math.round(use * (MO.slow ? 8.5 : 6.5) + 4)} Sekunden: ${MO.slow ? 'Zeitlupe beim Kill, ' : ''}Titelkarte, „KILL 3 / ${use}“ auf jedem Clip, Blitz bei jedem Schnitt, Kino-Rahmen und Endkarte${MO.music ? ', mit deiner Musik' : ''}.`
-    : 'Schneidet deine neuesten Kills automatisch zu einem Video mit Effekten. Dafür braucht es mindestens zwei Kill-Clips.';
-  const b = $('#moGo'); b.disabled = MO.busy || HL.busy || n < 2; b.querySelector('span').textContent = MO.busy ? 'Wird geschnitten…' : 'Montage erstellen';
+  $('#moInfo').innerHTML = n >= 2 ? `<b>${use} Kills, etwa ${Math.round(use * (MO.slow ? 8.5 : 6.5) + 4)} Sekunden.</b> ${MO.slow ? 'Zeitlupe beim Kill, ' : ''}Titelkarte, Kill-Zähler auf jedem Clip, Blitz bei jedem Schnitt${MO.music ? ', deine Musik' : ''}.`
+    : `Dafür braucht es mindestens zwei Kill-Clips, bisher ${n === 1 ? 'ist es einer' : 'gibt es keinen'}.`;
+  const b = $('#moGo'); b.disabled = MO.busy || HL.busy || n < 2; b.innerHTML = MO.busy ? `${ico('refresh', 'i spin')}<span>Wird geschnitten…</span>` : `${ico('zap')}<span>Montage erstellen</span>`;
+  if (MO.busy) $('#hlGo').disabled = true;
+  $('#hlCard').classList.toggle('busy', MO.busy || HL.busy);
 }
 async function moMake() {
   if (MO.busy || HL.busy) return;

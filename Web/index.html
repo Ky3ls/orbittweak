@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>OrbitTweak</title>
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="clip-ui.css">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute">
@@ -429,116 +430,139 @@
     <!-- ================= CLIPPER ================= -->
     <section class="page" id="p-clip">
       <div class="ph">
-        <div><div class="kicker">Clipper</div><h1>Kill-Clips <span class="grad">automatisch</span></h1><p class="pd">OrbitTweak nimmt dein Spiel im Hintergrund auf und speichert jeden Kill von selbst als Clip. Per Taste geht es auch.</p></div>
+        <div><div class="kicker">Clipper</div><h1>Kill-Clips <span class="grad">automatisch</span></h1><p class="pd">Jeder Kill landet von selbst als Clip in deinem Videos-Ordner. Hier schaust du sie an, teilst sie und machst ein Video daraus.</p></div>
         <div class="ph-r"><button class="btn" onclick="clipOpen('')"><svg class="i"><use href="#folder"/></svg>Videos-Ordner</button><button class="btn p" onclick="clipTest()"><svg class="i"><use href="#rec"/></svg>Clip jetzt speichern</button></div>
       </div>
+      <!-- status on top: the master switch and the numbers that matter (filled by clipUI / kcTiles) -->
       <div class="card kc" id="clStat">
         <div class="kc-row">
           <div class="kc-ic" id="kcIc"><svg class="i"><use href="#crosshair"/></svg></div>
-          <div class="kc-tx"><b>Kill-Clipper</b><p id="kcTxt">Speichert jeden Kill automatisch als Clip, ohne Tastendruck</p></div>
+          <div class="kc-tx"><b>Kill-Clipper</b><p id="kcTxt"></p></div>
           <input class="in kc-name" id="kcName" maxlength="40" placeholder="Dein Ingame-Name" spellcheck="false" autocomplete="off">
+          <button class="btn sm kc-set" data-gotab="clip:kills"><svg class="i"><use href="#settings"/></svg>Erkennung</button>
           <div class="tg" id="kcOn" title="Kill-Clipper an/aus"></div>
         </div>
-        <div class="kc-chips">
-          <span class="kc-chip" id="kcRec"></span>
-          <span class="kc-chip" id="kcLen"></span>
-          <span class="kc-chip" id="kcKey"></span>
-          <span class="kc-chip" id="kcDir"></span>
-          <span class="sp"></span>
-          <button class="btn sm" data-gotab="clip:setup"><svg class="i"><use href="#settings"/></svg>Einstellungen</button>
+        <div class="kc-stats">
+          <button class="kc-st" id="kcRec" data-gotab="clip:setup" title="Aufnahme einstellen"></button>
+          <button class="kc-st" id="kcLast" title="Letzten Clip abspielen"></button>
+          <div class="kc-st" id="kcToday"></div>
+          <button class="kc-st" id="kcKey" data-gotab="clip:setup" title="Clip-Taste ändern"></button>
         </div>
       </div>
       <div class="tabs vtabs" data-tabs="clip">
         <button class="tab on" data-tab="gal"><svg class="i"><use href="#play"/></svg>Deine Clips<span class="vt-s" id="clCount">0</span></button>
-        <button class="tab" data-tab="setup"><svg class="i"><use href="#settings"/></svg>Einrichtung<span class="vt-s">Aufnahme, Taste, Auto-Clip</span></button>
+        <button class="tab" data-tab="kills"><svg class="i"><use href="#crosshair"/></svg>Kill-Erkennung<span class="vt-s" id="clKillsSub">Aus</span></button>
+        <button class="tab" data-tab="setup"><svg class="i"><use href="#settings"/></svg>Aufnahme<span class="vt-s" id="clRecSub"></span></button>
       </div>
+
+      <!-- ===== tab: your clips ===== -->
       <div data-pane="clip:gal">
-        <div class="card hl">
-          <div class="hl-row">
-            <div class="hl-t"><b>Highlight-Video</b><p id="hlInfo">Fügt deine Kill-Clips zu einem einzigen Video zusammen.</p></div>
-            <div class="seg" id="hlScope"><button data-v="today">Heute</button><button data-v="all">Alle</button></div>
-            <div class="seg" id="hlTail"><button data-v="0">Ganze Clips</button><button data-v="8">Nur das Ende (8 s)</button></div>
-            <button class="btn p" id="hlGo"><svg class="i"><use href="#film"/></svg><span>Erstellen</span></button>
+        <div class="card hl" id="hlCard">
+          <div class="hl-head">
+            <div class="ac-ic"><svg class="i"><use href="#film"/></svg></div>
+            <div class="hl-t"><b>Video aus deinen Kills</b><p>Mehrere Kill-Clips werden zu einem Video, fertig zum Teilen.</p></div>
+            <div class="seg" id="hlMode"><button data-v="mo">Montage mit Effekten</button><button data-v="hl">Einfach aneinander</button></div>
           </div>
-          <div class="row mo-row">
-            <div class="hl-t"><b>Montage mit Effekten</b><p id="moInfo">Schneidet deine neuesten Kills automatisch zu einem Video: Zeitlupe beim Kill, eigener Song, Titelkarte, „KILL 3 / 8“ auf jedem Clip und ein Blitz bei jedem Schnitt.</p></div>
-            <div class="seg" id="moCount"><button data-v="5">5</button><button data-v="10">10</button><button data-v="15">15</button><button data-v="20">20</button></div>
-            <button class="btn" id="moSlow" title="Der Kill läuft in Zeitlupe mit leichtem Zoom"><svg class="i"><use href="#gauge"/></svg><span>Zeitlupe an</span></button>
-            <button class="btn" id="moMusic"><svg class="i"><use href="#activity"/></svg><span>Musik wählen</span></button>
-            <button class="btn p" id="moGo"><svg class="i"><use href="#zap"/></svg><span>Montage erstellen</span></button>
-          </div>          <div class="row hl-auto"><div class="tg sm" id="hlAuto"></div><span class="sub">Nach jeder Runde automatisch erstellen: Sobald du FiveM schließt, werden die Kill-Clips dieser Runde zusammengefügt (ab zwei Kills).</span></div>
+          <div class="hl-opts" id="moOpts">
+            <div class="hl-o"><span>Wie viele Kills</span><div class="seg" id="moCount"><button data-v="5">5</button><button data-v="10">10</button><button data-v="15">15</button><button data-v="20">20</button></div></div>
+            <div class="hl-o" title="Der Kill läuft in Zeitlupe mit leichtem Zoom"><span>Zeitlupe beim Kill</span><div class="tg" id="moSlow"></div></div>
+            <div class="hl-o"><span>Musik</span><button class="btn sm" id="moMusic"><svg class="i"><use href="#activity"/></svg><span>Musik wählen</span></button></div>
+          </div>
+          <div class="hl-opts hidden" id="hlOpts">
+            <div class="hl-o"><span>Welche Kills</span><div class="seg" id="hlScope"><button data-v="today">Von heute</button><button data-v="all">Alle</button></div></div>
+            <div class="hl-o"><span>Von jedem Clip</span><div class="seg" id="hlTail"><button data-v="0">Alles</button><button data-v="8">Nur das Ende (8 s)</button></div></div>
+          </div>
+          <div class="hl-go">
+            <p class="hl-info" id="moInfo"></p>
+            <p class="hl-info hidden" id="hlInfo"></p>
+            <button class="btn p lg" id="moGo"><svg class="i"><use href="#zap"/></svg><span>Montage erstellen</span></button>
+            <button class="btn p lg hidden" id="hlGo"><svg class="i"><use href="#film"/></svg><span>Video erstellen</span></button>
+          </div>
           <div class="mmb-prog hidden" id="hlProg"><div><i id="hlBar"></i></div><span id="hlTxt"></span></div>
+          <div class="row hl-auto"><div class="tg sm" id="hlAuto"></div><span>Nach jeder Runde von selbst ein Video machen<em>sobald du FiveM schließt, ab zwei Kills</em></span></div>
         </div>
-        <div class="card">
-          <div class="row" style="gap:10px;flex-wrap:wrap"><div class="lbl"><svg class="i"><use href="#film"/></svg>Neueste zuerst</div>
+        <div class="card cl-lib">
+          <div class="cl-bar">
+            <div class="cl-h"><svg class="i"><use href="#film"/></svg>Deine Clips</div>
             <div class="seg" id="clFilter"></div><span class="sp"></span>
-            <span class="sub cl-shl" title="Clips über dieser Größe werden beim Teilen automatisch verkleinert">Teilen bis</span><div class="seg" id="clShareMb"></div>
             <button class="btn sm d hidden" id="clTrash"><svg class="i"><use href="#trash"/></svg><span></span></button>
-            <button class="ib" onclick="clipList()" title="Neu laden"><svg class="i"><use href="#refresh"/></svg></button></div>
-          <div class="cl-grid mt8" id="clGrid"></div>
+            <button class="ib" onclick="clipList()" title="Neu laden"><svg class="i"><use href="#refresh"/></svg></button>
+          </div>
+          <div class="cl-grid" id="clGrid"></div>
         </div>
       </div>
+
+      <!-- ===== tab: kill detection ===== -->
+      <div class="hidden" data-pane="clip:kills">
+        <div class="card ke">
+          <div class="ke-head">
+            <div class="ac-ic"><svg class="i"><use href="#crosshair"/></svg></div>
+            <div class="hl-t"><b>Kills automatisch clippen</b><p>OrbitTweak schaut auf deinen Bildschirm wie eine Aufnahme-Software und speichert jeden Kill. Das Spiel selbst wird nicht ausgelesen.</p></div>
+            <div class="tg" id="clKills"></div>
+          </div>
+          <div id="clKillOpts" class="cl-auto">
+            <div class="ke-lbl">Woran erkennt OrbitTweak einen Kill?</div>
+            <div class="ke-methods" id="clDetect"></div>
+            <div id="clMarkBox" class="ke-box">
+              <label class="km-words"><span>Kill-Wörter deines Servers <em>mit Komma getrennt</em></span><input class="in" id="clWords" maxlength="200" spellcheck="false" placeholder="KILLED, KILL, GETÖTET, ELIMINATED"></label>
+              <p class="ke-hint">Steht bei einem Kill zum Beispiel „<b>KILLED</b> Name“ in der Bildmitte, gehört KILLED hierher. Das rote X von GTA Online klappt immer.</p>
+              <div class="km-last" id="clMarkLast"></div>
+              <details class="ke-more">
+                <summary><svg class="i"><use href="#chev"/></svg>Wenn Kills nicht erkannt werden</summary>
+                <div class="ke-opt"><div><b>Sicherheitsnetz</b><p>Bis auf einem Server der erste Kill erkannt ist, wird jedes Gefecht gespeichert („Gefecht …“). Danach 30 Minuten lang nur echte Kills.</p></div><div class="tg" id="clNet"></div></div>
+                <div class="ke-opt"><div><b>KI-Prüfung</b><p>Gefecht ohne erkannten Kill: Ein KI-Modell schaut auf ein paar Bilder und entscheidet. Die Bilder gehen an OpenRouter, kostenlos sind 50 Prüfungen am Tag.</p></div><div class="tg" id="clAi"></div></div>
+                <label class="km-words" id="clAiKeyRow"><span>OpenRouter-Key <em id="clAiKeyState"></em></span><input class="in" id="clAiKey" type="password" maxlength="200" spellcheck="false" autocomplete="off" placeholder="sk-or-v1-…"></label>
+                <div class="km-last" id="clAiLast"></div>
+              </details>
+              <div class="ke-foot"><span class="sub" id="clStats"></span><span class="sp"></span><button class="btn sm" onclick="api('clip.log')"><svg class="i"><use href="#file"/></svg>Protokoll</button></div>
+            </div>
+            <div id="clFeedBox" class="ke-box">
+              <div class="ac-grid">
+                <label><span>Dein Ingame-Name, wie im Kill-Feed</span><input class="in" id="clName" maxlength="40" placeholder="z. B. Max_Power"></label>
+                <label><span>Wo steht der Kill-Feed? <em id="clFound"></em></span><div class="seg" id="clArea"></div></label>
+              </div>
+              <div class="ke-opt"><div><b>Auch clippen, wenn ich sterbe</b></div><div class="tg" id="clDeaths"></div></div>
+              <div class="ke-foot"><span class="sub">Klappt auf Servern, deren Kill-Feed Namen als Text zeigt.</span><span class="sp"></span><button class="btn sm" id="clKfTest"><svg class="i"><use href="#eye"/></svg>Erkennung testen</button></div>
+              <div id="clKfOut" class="kf-out hidden"></div>
+            </div>
+          </div>
+        </div>
+        <div class="card ke">
+          <div class="ke-h"><b>Im Spiel anzeigen</b><p>Kleine Einblendungen über FiveM. Manche Server verbieten Overlays, schau in die Regeln.</p></div>
+          <div class="ke-opt"><div><b>Kill-Einblendung</b><p>Kurz „KILL 3“ oben im Bild, zählt die Kills der Runde</p></div><div class="tg" id="clBanner"></div></div>
+          <div class="ke-opt"><div><b>Zähler oben links</b><p>Aufnahme-Punkt und Kills der Runde. „LAG“ erscheint, solange das WASD-Laggen an ist.</p></div><div class="seg" id="clHudX"><button data-hx="hudTime">Spielzeit</button><button data-hx="hudClock">Uhrzeit</button></div><div class="tg" id="clHud"></div></div>
+          <div class="ke-opt"><div><b>„Clip gespeichert“</b><p>Kurze Meldung oben im Bild, sobald ein Clip gespeichert ist</p></div><div class="tg" id="clFlash"></div></div>
+        </div>
+        <div class="card ke">
+          <div class="ke-head">
+            <div class="ac-ic"><svg class="i"><use href="#target"/></svg></div>
+            <div class="hl-t"><b>Nach Gefechten clippen</b><p>Ohne Kill-Erkennung: speichert nach einer Schuss-Serie (linke Maustaste) und 3 Sekunden Ruhe.</p></div>
+            <div class="tg" id="clAuto"></div>
+          </div>
+          <div id="clAutoOpts" class="cl-auto">
+            <div class="ke-opt"><div><b>Ab wann ist es ein Gefecht?</b><p>Gilt auch fürs Sicherheitsnetz der Kill-Erkennung</p></div><div class="seg" id="clSens"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== tab: recording ===== -->
       <div class="hidden" data-pane="clip:setup">
-        <div class="card">
-          <div class="cl-step"><span class="cl-n">1</span><div class="cl-sb"><b>Aufnahme</b><p>Womit wird aufgenommen?</p><div class="cl-recs" id="clRecs"></div><p class="sub" id="clRecTxt" style="font-size:12.5px;margin-top:10px;line-height:1.5"></p>
-            <div class="cl-orbit" id="clOrbit">
-              <div class="co-row"><span>Qualität</span><div class="seg" id="clQual"></div></div>
-              <div class="co-row"><span>Sekunden vor dem Kill</span><div class="seg" id="clBefore"></div></div>
-              <div class="co-row"><span>Sekunden danach</span><div class="seg" id="clAfter"></div></div>
-              <div class="co-row"><span>Spielsound aufnehmen</span><div class="tg sm" id="clSound"></div></div>
-              <p class="muted" style="font-size:11.5px;margin-top:10px;line-height:1.5">Aufgenommen wird nur, solange FiveM läuft (Modus <b>Randlos</b> oder <b>Fenster</b>). OrbitTweak behält immer nur die letzten Sekunden im Arbeitsspeicher, erst bei einem Kill oder per Taste wird daraus eine Datei.</p>
-            </div>
-          </div></div>
-          <div class="cl-step"><span class="cl-n">2</span><div class="cl-sb"><b>Clip-Taste</b><p>Diese Taste speichert im Spiel den Clip</p><div class="seg keyseg mt8" id="clKey"></div></div></div>
-          <div class="cl-step"><span class="cl-n">3</span><div class="cl-sb row"><div style="flex:1"><b>Einblendung im Spiel</b><p>Kurzes „Clip gespeichert“ oben im Bild</p></div><div class="tg" id="clFlash"></div></div></div>
-          <div class="cl-step"><span class="cl-n">4</span><div class="cl-sb">
-            <b>Auto-Clip</b><p>OrbitTweak speichert Clips von selbst, du musst keine Taste drücken</p>
-            <div class="ac-box">
-              <div class="row"><div class="ac-ic"><svg class="i"><use href="#crosshair"/></svg></div><div style="flex:1"><b>Bei Kills</b><p>Erkennt deine Kills von selbst und speichert sie als Clip</p></div><div class="tg" id="clKills"></div></div>
-              <div id="clKillOpts" class="cl-auto">
-                <div class="co-row" style="border:0;padding-top:0"><span>Erkennung</span><div class="seg" id="clDetect"></div></div>
-                <div class="co-row"><span>Kill-Einblendung im Spiel <em class="co-hint">kurzes „KILL 3“ oben im Bild, zählt die Kills der Runde</em></span><div class="tg" id="clBanner"></div></div>
-                <div class="co-row"><span>Zähler im Spiel <em class="co-hint">kleine Anzeige oben links: Aufnahme-Punkt und Kills der Runde</em></span><div class="tg" id="clHud"></div></div>
-                <div class="co-row"><span>Im Zähler anzeigen <em class="co-hint">„LAG“ erscheint von selbst, solange das WASD-Laggen an ist</em></span><div class="seg" id="clHudX"><button data-hx="hudTime">Spielzeit</button><button data-hx="hudClock">Uhrzeit</button></div></div>
-                <div id="clMarkBox">
-                  <p class="sub" style="font-size:12.5px;line-height:1.55">Die meisten PvP-Server blenden bei einem Kill eine Meldung direkt am Fadenkreuz ein, zum Beispiel <b>„KILLED Name“</b>. OrbitTweak liest nur diesen kleinen Streifen in der Bildmitte und achtet zusätzlich auf das rote X von GTA Online: kein Kill-Feed, kein Name nötig. So wird auch ein Kill mit einem einzigen Schuss gespeichert.</p>
-                  <label class="km-words"><span>Kill-Wörter deines Servers <em>mit Komma getrennt</em></span><input class="in" id="clWords" maxlength="200" spellcheck="false" placeholder="KILLED, KILL, GETÖTET, ELIMINATED"></label>
-                  <div class="km-net">
-                    <div><b>Sicherheitsnetz</b><p>Solange auf einem Server noch kein Kill erkannt wurde, speichert OrbitTweak jedes Gefecht („Gefecht …“), damit dir nichts entgeht. Sobald die Erkennung dort einmal angeschlagen hat, werden für 30 Minuten nur noch echte Kills gespeichert („Kill …“), also keine Gefechte mehr, in denen du stirbst. Wie viele Schüsse ein Gefecht braucht, stellst du unten bei „Nach Gefechten“ ein.</p></div>
-                    <div class="tg" id="clNet"></div>
-                  </div>
-                  <div class="km-net">
-                    <div><b>KI-Prüfung</b><p>Für Server ohne lesbare Kill-Meldung: Wurde in einem Gefecht am Fadenkreuz kein Kill erkannt, schaut ein KI-Modell auf ein paar Bilder davon und entscheidet. Bei einem Kill wird der Clip gespeichert, bei deinem Tod nicht. Liest die KI dabei die Kill-Meldung des Servers, merkt sich OrbitTweak das Wort und erkennt es danach selbst. Die Bilder gehen dafür an OpenRouter. Mit kostenlosem Konto sind 50 Prüfungen am Tag möglich.</p></div>
-                    <div class="tg" id="clAi"></div>
-                  </div>
-                  <label class="km-words"><span>OpenRouter-Key <em id="clAiKeyState"></em></span><input class="in" id="clAiKey" type="password" maxlength="200" spellcheck="false" autocomplete="off" placeholder="sk-or-v1-…"></label>
-                  <div class="km-last" id="clAiLast"></div>
-                  <div class="km-last" id="clMarkLast"></div>
-                  <div class="row mt8"><span class="sub" id="clStats" style="font-size:12px"></span><span class="sp"></span><button class="btn sm" onclick="api('clip.log')"><svg class="i"><use href="#file"/></svg>Protokoll</button></div>
-                </div>
-                <div id="clFeedBox">
-                <div class="ac-grid">
-                  <label><span>Dein Ingame-Name (wie im Kill-Feed)</span><input class="in" id="clName" maxlength="40" placeholder="z. B. Max_Power"></label>
-                  <label><span>Wo steht der Kill-Feed? <em id="clFound"></em></span><div class="seg" id="clArea"></div></label>
-                </div>
-                <div class="row mt8" style="gap:12px;flex-wrap:wrap">
-                  <div class="row" style="gap:10px"><div class="tg sm" id="clDeaths"></div><span class="sub" style="font-size:12.5px">Auch clippen, wenn ich sterbe</span></div>
-                  <span class="sp"></span>
-                  <button class="btn sm" id="clKfTest"><svg class="i"><use href="#eye"/></svg>Erkennung testen</button>
-                </div>
-                <div id="clKfOut" class="kf-out hidden"></div>
-                <p class="muted" style="font-size:11.5px;margin-top:10px;line-height:1.5">Funktioniert mit FiveM im Modus <b>Randlos</b> oder <b>Fenster</b> und auf Servern, deren Kill-Feed Spielernamen als Text zeigt. Das Spiel wird nicht ausgelesen: OrbitTweak schaut nur auf den Bildschirm, wie eine Aufnahme-Software.</p>
-                </div>
-              </div>
-            </div>
-            <div class="ac-box">
-              <div class="row"><div class="ac-ic"><svg class="i"><use href="#target"/></svg></div><div style="flex:1"><b>Nach Gefechten</b><p>Für Server ohne Kill-Feed: clippt nach einer Schuss-Serie (linke Maustaste) und 3 Sekunden Ruhe</p></div><div class="tg" id="clAuto"></div></div>
-              <div id="clAutoOpts" class="cl-auto">
-                <div class="row" style="gap:14px;flex-wrap:wrap"><span class="sub" style="font-size:12.5px">Empfindlichkeit</span><div class="seg" id="clSens"></div></div>
-              </div>
-            </div>
-            <p class="muted" id="clExtNote" style="font-size:11.5px;margin-top:10px">Stell die Instant-Replay-Länge in deinem Aufnahme-Programm auf mindestens 30 Sekunden.</p>
-          </div></div>
+        <div class="card ke">
+          <div class="ke-h"><b>Womit wird aufgenommen?</b><p id="clRecTxt"></p></div>
+          <div class="cl-recs" id="clRecs"></div>
+          <p class="ke-hint" id="clExtNote">Stell die Instant-Replay-Länge in deinem Aufnahme-Programm auf mindestens 30 Sekunden.</p>
+        </div>
+        <div class="card ke">
+          <div class="ke-h"><b>Clips</b></div>
+          <div id="clOrbit">
+            <div class="ke-opt"><div><b>Qualität</b></div><div class="seg" id="clQual"></div></div>
+            <div class="ke-opt"><div><b>Sekunden vor dem Kill</b></div><div class="seg" id="clBefore"></div></div>
+            <div class="ke-opt"><div><b>Sekunden danach</b></div><div class="seg" id="clAfter"></div></div>
+            <div class="ke-opt"><div><b>Spielsound aufnehmen</b></div><div class="tg" id="clSound"></div></div>
+          </div>
+          <div class="ke-opt"><div><b>Clip-Taste</b><p>Speichert im Spiel die letzten Sekunden als Clip</p></div><div class="seg keyseg" id="clKey"></div></div>
+          <div class="ke-opt"><div><b>Für Discord teilen bis</b><p>Größere Clips werden beim Kopieren verkleinert. Ohne Nitro erlaubt Discord 10 MB.</p></div><div class="seg" id="clShareMb"></div></div>
+          <p class="ke-hint" id="clOrbitNote">Aufgenommen wird nur, solange FiveM läuft (Modus <b>Randlos</b> oder <b>Fenster</b>). OrbitTweak hält nur die letzten Sekunden im Arbeitsspeicher, eine Datei entsteht erst bei einem Kill oder per Taste.</p>
         </div>
       </div>
     </section>
