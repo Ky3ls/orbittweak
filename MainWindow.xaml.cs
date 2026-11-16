@@ -71,6 +71,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         FiveM.Settings = S;
+        if (Mods.ImportLegacy(S.ModCats, S.CatalogMods)) S.Save();   // mod categories of versions before 2.24 move into the mod list
         _tweaks = Catalog.All(S);
         InitializeComponent();
 
@@ -144,7 +145,7 @@ public partial class MainWindow : Window
             var dlw = new FileSystemWatcher(ModDownloads.Dir) { NotifyFilter = NotifyFilters.FileName, EnableRaisingEvents = true };
             void Seen(string path)
             {
-                if (Path.GetExtension(path).ToLowerInvariant() is ".rpf" or ".zip" or ".rar" or ".7z") Emit("dlNew", new { name = Path.GetFileName(path), cat = ModDownloads.Guess(Path.GetFileName(path)) });
+                if (ModDownloads.Ext.Contains(Path.GetExtension(path).ToLowerInvariant())) Emit("dlNew", new { name = Path.GetFileName(path), cat = ModDownloads.Guess(Path.GetFileName(path)) });
             }
             dlw.Created += (_, e) => Seen(e.FullPath);
             dlw.Renamed += (_, e) => Seen(e.FullPath);   // browsers write a temporary name first
@@ -265,6 +266,7 @@ public partial class MainWindow : Window
     }
 
     private static string Str(JsonElement a, string k) => a.ValueKind == JsonValueKind.Object && a.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
+    private static string? StrOrNull(JsonElement a, string k) => a.ValueKind == JsonValueKind.Object && a.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
     private static bool Bool(JsonElement a, string k) => a.ValueKind == JsonValueKind.Object && a.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.True;
     private static int Int(JsonElement a, string k) => a.ValueKind == JsonValueKind.Object && a.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.Number ? (int)Math.Round(v.GetDouble()) : 0;
 
@@ -425,6 +427,7 @@ public partial class MainWindow : Window
                     case "f8Auto": S.F8Auto = val.GetBoolean(); break;
                     case "xhairShrink": S.XhairShrink = val.GetBoolean(); break;
                     case "modsAck": S.ModsAck = val.GetBoolean(); break;
+                    case "modSoundGta": S.ModSoundGta = val.GetBoolean(); break;
                     case "bgPreset": S.BgPreset = val.GetString(); break;
                     case "fx": S.Fx = val.GetBoolean(); break;
                     case "snapTap": S.SnapTap = val.GetBoolean(); SnapApply(); Log(S.SnapTap ? "⌨ Snap Tap aktiv (nur im Spiel)" : "⌨ Snap Tap aus"); break;
@@ -681,7 +684,7 @@ public partial class MainWindow : Window
             {
                 var cfg = a.GetProperty("cfg").Deserialize<MinimapModCfg>(JIn) ?? new MinimapModCfg();
                 cfg.Repeat = Math.Clamp(cfg.Repeat, 1, 120); cfg.Dim = Math.Clamp(cfg.Dim, 0, 80);
-                var (size, err) = await Task.Run(() => MinimapBuilder.Install(cfg, S.ModCats, (pct, text) => Emit("mmbuild", new { pct, text })));
+                var (size, err) = await Task.Run(() => MinimapBuilder.Install(cfg, (pct, text) => Emit("mmbuild", new { pct, text })));
                 if (err != null) return new { error = err };
                 S.MinimapMod = cfg; S.Save();
                 Log($"🗺 Eigene Minimap installiert ({SysInfo.Bytes(size)})");
@@ -690,7 +693,7 @@ public partial class MainWindow : Window
             case "minimap.remove":
             {
                 var err = Mods.Delete(MinimapBuilder.FileName);
-                if (err == null) { S.ModCats.Remove(MinimapBuilder.FileName); S.Save(); Log("🗺 Eigene Minimap entfernt"); }
+                if (err == null) Log("🗺 Eigene Minimap entfernt");
                 return new { error = err };
             }
             case "clip.list": return await Task.Run(Clipper.List);
@@ -843,39 +846,51 @@ public partial class MainWindow : Window
                 return new { ok = true };
 
             // ---------- mods ----------
-            case "mods.list": return await Task.Run(() => Mods.List(S.ModCats));
+            case "mods.list": return await Task.Run(Mods.List);
             case "mods.install":
             {
-                var dlg = new Microsoft.Win32.OpenFileDialog { Title = "Mod auswählen (.rpf oder .zip)", Filter = "FiveM-Mods (*.rpf;*.zip)|*.rpf;*.zip", Multiselect = true };
-                if (dlg.ShowDialog(this) != true) return new { count = 0, cancelled = true };
-                var cat = Str(a, "cat");
-                var (count, error) = await Task.Run(() => Mods.Install(dlg.FileNames, cat, S.ModCats));
-                S.Save();
-                if (count > 0) Log($"🧩 {count} Mod(s) installiert");
-                return new { count, error };
+                // "files": the same files again, after the user chose one of several versions in an archive
+                var files = a.ValueKind == JsonValueKind.Object && a.TryGetProperty("files", out var fv) && fv.ValueKind == JsonValueKind.Array
+                    ? fv.EnumerateArray().Select(x => x.GetString() ?? "").Where(File.Exists).ToArray() : Array.Empty<string>();
+                if (files.Length == 0)
+                {
+                    var dlg = new Microsoft.Win32.OpenFileDialog { Title = "Mod auswählen", Filter = "FiveM-Mods (*.rpf;*.zip;*.rar;*.7z;*.oiv)|*.rpf;*.zip;*.rar;*.7z;*.oiv", Multiselect = true };
+                    if (dlg.ShowDialog(this) != true) return new { count = 0, cancelled = true };
+                    files = dlg.FileNames;
+                }
+                var o = new InstallOpts { Cat = Str(a, "cat"), Variant = StrOrNull(a, "variant"), SoundToGta = S.ModSoundGta };
+                var r = await Task.Run(() => Mods.Install(files, o));
+                if (r.Mods.Count > 0) Log($"🧩 {r.Mods.Count} Mod(s) installiert");
+                return r.Ui(files);
             }
             case "mods.toggle":
             {
-                var err = Mods.Toggle(Str(a, "name"), Bool(a, "on"));
-                if (err == null) Log($"🧩 {Str(a, "name")} {(Bool(a, "on") ? "aktiviert" : "deaktiviert")}");
-                return new { error = err };
+                var mk = Str(a, "id") is { Length: > 0 } id ? id : Str(a, "name");
+                var (err, off) = await Task.Run(() => Mods.Toggle(mk, Bool(a, "on")));
+                if (err == null) Log($"🧩 {(Str(a, "title") is { Length: > 0 } t ? t : mk)} {(Bool(a, "on") ? "aktiviert" : "deaktiviert")}");
+                return new { error = err, off };
             }
             case "mods.delete":
             {
-                var err = Mods.Delete(Str(a, "name"));
-                if (err == null) { S.ModCats.Remove(Str(a, "name")); S.Save(); Log($"🗑 Mod entfernt: {Str(a, "name")}"); }
+                var mk = Str(a, "id") is { Length: > 0 } id ? id : Str(a, "name");
+                var err = await Task.Run(() => Mods.Delete(mk));
+                if (err == null) Log($"🗑 Mod entfernt: {(Str(a, "title") is { Length: > 0 } t ? t : mk)}");
                 return new { error = err };
+            }
+            case "mods.repair":
+            {
+                var r = await Task.Run(() => Mods.Repair(Str(a, "id"), S.ModSoundGta));
+                if (r.Error == null) Log($"🧩 Mod repariert: {r.Mods.FirstOrDefault()?.Title}");
+                return r.Ui();
             }
             case "mods.downloads": return await Task.Run(ModDownloads.List);
             case "mods.installDl":
             {
-                var (files, temp, err) = await Task.Run(() => ModDownloads.Prepare(Str(a, "name")));
-                int count = 0;
-                if (err == null) (count, err) = await Task.Run(() => Mods.Install(files, Str(a, "cat"), S.ModCats));
-                if (temp != null) try { Directory.Delete(temp, true); } catch { }
-                S.Save();
-                if (count > 0) Log($"🧩 {count} Mod(s) aus Downloads installiert");
-                return new { count, error = err };
+                var file = Path.Combine(ModDownloads.Dir, Path.GetFileName(Str(a, "name")));
+                var o = new InstallOpts { Cat = Str(a, "cat"), Variant = StrOrNull(a, "variant"), SoundToGta = S.ModSoundGta };
+                var r = await Task.Run(() => Mods.Install(new[] { file }, o));
+                if (r.Mods.Count > 0) Log($"🧩 Mod aus Downloads installiert: {r.Mods[0].Title}");
+                return r.Ui();
             }
             case "downloads.open": Proc.Open(ModDownloads.Dir); return null;
 
@@ -946,7 +961,7 @@ public partial class MainWindow : Window
             case "reshade.shots": { var d = ReShade.ScreenshotDir; Directory.CreateDirectory(d); Proc.Open(d); return null; }
 
             // ---------- mod library ----------
-            case "mods.lib": return new { installed = S.CatalogMods.Keys };
+            case "mods.lib": return new { installed = await Task.Run(Mods.CatalogIds) };
             case "mods.get":
             {
                 var id = Str(a, "id"); var url = Str(a, "url"); var sha = Str(a, "sha256").ToLowerInvariant(); var cat = Str(a, "cat");
@@ -979,14 +994,11 @@ public partial class MainWindow : Window
                         var h = Convert.ToHexString(await System.Security.Cryptography.SHA256.HashDataAsync(fs)).ToLowerInvariant();
                         if (h != sha) return new { error = "Prüfsumme stimmt nicht, Download verworfen" };
                     }
-                    var names = new List<string>();
-                    var (files, temp, err) = await Task.Run(() => ModDownloads.PrepareFile(file));
-                    try { if (err == null) (_, err) = await Task.Run(() => Mods.InstallNamed(files, cat, S.ModCats, names)); }
-                    finally { if (temp != null) try { Directory.Delete(temp, true); } catch { } }
-                    if (err != null) return new { error = err };
-                    S.CatalogMods[id] = names; S.Save();
+                    var o = new InstallOpts { Cat = cat, Title = Str(a, "name"), CatalogId = id, AutoVariant = true, SoundToGta = S.ModSoundGta };
+                    var r = await Task.Run(() => Mods.Install(new[] { file }, o));
+                    if (r.Error != null) return new { error = r.Error };
                     Log($"🧩 Mod installiert: {Str(a, "name")}");
-                    return new { count = names.Count };
+                    return r.Ui();
                 }
                 catch (Exception ex) { return new { error = "Download fehlgeschlagen: " + ex.Message }; }
                 finally { try { File.Delete(file); } catch { } }
@@ -994,10 +1006,8 @@ public partial class MainWindow : Window
             case "mods.remove":
             {
                 var id = Str(a, "id");
-                if (!S.CatalogMods.TryGetValue(id, out var names)) return new { error = "Nicht installiert" };
-                foreach (var n in names) { var e2 = Mods.Delete(n); if (e2 != null) return new { error = e2 }; S.ModCats.Remove(n); }
-                S.CatalogMods.Remove(id); S.Save();
-                return new { ok = true };
+                var err = await Task.Run(() => Mods.RemoveCatalog(id));
+                return err == null ? new { ok = true } : (object)new { error = err };
             }
 
             case "reshade.preset":

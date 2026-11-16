@@ -294,7 +294,7 @@ function onEvent(ev, d) {
   else if (ev === 'locked') gate('Dein Key wurde gesperrt oder ist auf einem anderen PC aktiv.');
   else if (ev === 'pad') padState(d);
   else if (ev === 'padon') { PAD.cfg.mode = d.mode; padUI(); toast(d.mode === 'off' ? 'Controller-Anzeige aus' : 'Controller-Anzeige automatisch', 'per Taste'); }
-  else if (ev === 'modInstalled') { passed('Mod installiert', `${MOD_CATS[d.cat]?.[0] || 'Mod'} · ${d.name}`); modList(); }
+  else if (ev === 'modInstalled') { modReport({ notes: d.notes, off: d.off, mods: [{ name: d.name, cat: d.cat }] }); modList(); }
   else if (ev === 'reshade') { for (const k in LIB.busy) LIB.busy[k] = d.pct; libRender(); }
   else if (ev === 'modget') { if (d.id in LIB.busy) { LIB.busy[d.id] = d.pct; libRender(); } }
   else if (ev === 'dlNew') {   // a pack landed in the Downloads folder (saved from Discord, for example)
@@ -1662,27 +1662,78 @@ async function modInstall(cat, ok, reshade) {
   if (!S.settings.modsAck && !ok) return modal(`<div class="kicker">Hinweis</div><h1 style="margin-top:10px">Mods auf eigene <span class="grad">Verantwortung</span></h1>
     <p>Viele FiveM-Server verbieten Mods (Pure-Mode). Mit Mods kannst du dort nicht joinen oder wirst gekickt, manche Server bannen dafür. Installiere nur Mods aus vertrauenswürdigen Quellen.</p>
     <div class="act"><button class="btn" onclick="closeModal()">Abbrechen</button><button class="btn p lg" onclick="modAck('${cat}',${reshade ? 'true' : 'false'})">${ico('check')}Verstanden</button></div>`);
-  const r = await api('mods.install', { cat }).catch(e => ({ error: e.message }));
+  const r = await modRun('mods.install', { cat });
   if (r.cancelled) return;
-  if (r.error) toast('Nicht installiert', r.error, false); else { toast(`${r.count} Mod(s) installiert`, 'Wirkt beim nächsten FiveM-Start'); passed('Mod installiert', `${MOD_CATS[cat]?.[0] || 'Mod'} · ${r.count} Datei(en)`); }
+  if (r.error) toast('Nicht installiert', r.error, false); else modReport(r);
   modList();
+}
+// an archive with several versions (FiveM / Singleplayer …): ask which one, then the same call again with the choice
+async function modRun(cmd, args) {
+  const r = await api(cmd, args).catch(e => ({ error: e.message }));
+  if (!r || !r.choose || !r.choose.length) return r || {};
+  const v = await modPick(r.choose);
+  return v == null ? { cancelled: true } : modRun(cmd, { ...args, files: r.files || args.files, variant: v });
+}
+function modPick(list) {
+  return new Promise(res => {
+    modal(`<div class="kicker">Mod installieren</div><h1 style="margin-top:10px">Mehrere <span class="grad">Versionen</span></h1><p>Mehrere Versionen im Archiv – welche installieren?</p>
+      <div class="mvar">${list.map((v, i) => `<button class="btn" data-mvar="${i}">${ico('folder')}<span>${esc(v || 'Hauptordner')}</span>${/fivem/i.test(v) ? '<em class="chip a">FiveM</em>' : ''}</button>`).join('')}</div>
+      <div class="act"><button class="btn" id="mvNo">Abbrechen</button></div>`);
+    $$('#mbox [data-mvar]').forEach(b => b.onclick = () => { closeModal(); res(list[+b.dataset.mvar]); });
+    $('#mvNo').onclick = () => { closeModal(); res(null); };
+  });
+}
+// after an install: what was detected and where it went (sound pack → citizen folder, raw archive wrapped …)
+const MOD_FOOT = 'Aktiv beim nächsten FiveM-Start. Ab zwei Paketen steht unten links „N mod packs loaded“. Server mit Pure-Mode ignorieren Mods aus dem FiveM-Ordner.';
+function modReport(r) {
+  const notes = [...new Set(r.notes || [])].concat((r.off || []).map(t => `„${t}“ wurde ausgeschaltet, weil es dieselben Dateien ersetzt.`));
+  const names = (r.mods || []).map(m => m.name).filter(Boolean);
+  if (!notes.length) return passed('Mod installiert', `${names.join(', ') || MOD_CATS[(r.mods || [])[0]?.cat]?.[0] || 'Mod'} · aktiv beim nächsten FiveM-Start`);
+  modal(`<div class="kicker">Mod installiert</div><h1 style="margin-top:10px">${esc(names.join(', ') || 'Fertig')}</h1>
+    <ul class="mnotes">${notes.map(n => `<li>${ico(/^(Sound-Pack erkannt|Rohes Archiv)/.test(n) ? 'check' : 'alert')}<span>${esc(n)}</span></li>`).join('')}</ul>
+    <p class="mfoot">${MOD_FOOT}</p><div class="act"><button class="btn p" onclick="closeModal()">${ico('check')}Alles klar</button></div>`);
 }
 function modAck(cat, reshade) { closeModal(); S.settings.modsAck = true; api('settings.set', { key: 'modsAck', value: true }); if (reshade) { const m = LIB.items.find(x => x.type === 'reshade' && x.preset === (RS.preset || 'vivid')) || LIB.items.find(x => x.type === 'reshade'); if (m) libInstall(m.id); } else if (cat !== '__dl' && cat !== '__browse') modInstall(cat, true); }
 window.modInstall = modInstall; window.modAck = modAck;
+const MOD_WHERE = { mods: 'mods-Ordner', citizen: 'citizen-Ordner', gta: 'GTA-V-Ordner' };
 async function modList() {
   let r; try { r = await api('mods.list'); } catch { r = { found: false, items: [] }; }
-  const items = r.items || [];
+  const items = r.items || [], lp = +(S.settings.launch?.pure || 0);
   $('#modCount').textContent = items.length; if ($('#mtFiles')) $('#mtFiles').textContent = items.length + ' installiert';
-  const row = m => `<div class="mod"><div class="ti" style="width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:rgba(var(--a-rgb),.1);color:var(--a)">${ico(MOD_CATS[m.cat]?.[1] || 'puzzle')}</div><div class="tx"><b>${esc(m.name)}</b><p>${MOD_CATS[m.cat]?.[0] || 'Sonstiges'} · ${bytes(m.size)}</p></div><span class="chip ${m.on ? 'g' : ''}">${m.on ? 'Aktiv' : 'Aus'}</span><div class="tg ${m.on ? 'on' : ''}" data-mod="${esc(m.name)}"></div><button class="ib" title="Löschen" data-moddel="${esc(m.name)}">${ico('trash')}</button></div>`;
-  $('#modList').innerHTML = !r.found ? '<div class="empty">FiveM nicht gefunden. Pfad im Launcher wählen.</div>' : items.length ? items.map(row).join('') : '<div class="empty">Noch keine Mods installiert. Wähl oben eine Kategorie.</div>';
+  if ($('#modGta')) { $('#modGta').classList.toggle('on', !!S.settings.modSoundGta); $('#modGtaHint').textContent = r.found && r.gta === false ? 'GTA-V-Ordner nicht gefunden (Pfad in CitizenFX.ini). Sounds landen dann im citizen-Ordner.' : ''; }
+  const row = m => {
+    const where = (m.places || ['mods']).map(p => MOD_WHERE[p] || p).join(' + ');
+    // a mod in FiveM's own folders only loads without pure mode; sounds in the GTA folder also on pure 1
+    const warn = m.broken ? `<div class="mwarn">${ico('alert')}<span>${esc(m.broken)}</span>${m.fix ? `<button class="btn sm" data-modfix="${esc(m.id)}">${ico('refresh')}Reparieren</button>` : ''}</div>`
+      : m.on && lp > (m.pure || 0) ? `<div class="mwarn">${ico('alert')}<span>Dein Launcher startet FiveM mit Pure ${lp} – dieser Mod wird dann nicht geladen.</span></div>` : '';
+    return `<div class="mod ${m.broken ? 'bad' : ''}"><div class="ti mico">${ico(m.broken ? 'alert' : MOD_CATS[m.cat]?.[1] || 'puzzle')}</div><div class="tx"><b>${esc(m.name)}</b><p>${MOD_CATS[m.cat]?.[0] || 'Sonstiges'} · ${bytes(m.size)} · <span class="mwhere" title="${esc((m.paths || []).join('\n'))}">${where}</span> · ${m.pure ? 'auch auf Pure 1' : 'nur ohne Pure-Mode'}</p>${warn}</div><span class="chip ${m.on ? 'g' : ''}">${m.on ? 'Aktiv' : 'Aus'}</span><div class="tg ${m.on ? 'on' : ''}" data-mod="${esc(m.id)}" data-title="${esc(m.name)}"></div><button class="ib" title="Löschen" data-moddel="${esc(m.id)}" data-title="${esc(m.name)}" data-orig="${(m.places || []).some(p => p !== 'mods') ? 1 : ''}">${ico('trash')}</button></div>`;
+  };
+  $('#modList').innerHTML = !r.found ? '<div class="empty">FiveM nicht gefunden. Pfad im Launcher wählen.</div>' : items.length ? items.map(row).join('') : '<div class="empty">Noch keine Mods installiert. Lade ein Pack herunter oder nimm „Datei installieren“.</div>';
   const mm = items.filter(m => m.cat === 'minimap');
   if ($('#mmMods')) $('#mmMods').innerHTML = mm.map(row).join('');
 }
 document.addEventListener('click', async e => {
   const t = e.target.closest('[data-mod]');
-  if (t) { const on = !t.classList.contains('on'); const r = await api('mods.toggle', { name: t.dataset.mod, on }); if (r.error) toast('Geht gerade nicht', r.error, false); else toast(on ? 'Mod aktiviert' : 'Mod deaktiviert', t.dataset.mod); modList(); return; }
+  if (t) {
+    const on = !t.classList.contains('on'), r = await api('mods.toggle', { id: t.dataset.mod, title: t.dataset.title, on });
+    if (r.error) toast('Geht gerade nicht', r.error, false);
+    else toast(on ? 'Mod aktiviert' : 'Mod deaktiviert', (r.off || []).length ? `„${r.off.join('“, „')}“ ausgeschaltet – ersetzt dieselben Dateien` : t.dataset.title);
+    modList(); return;
+  }
   const d = e.target.closest('[data-moddel]');
-  if (d && await confirmBox('Mod löschen?', d.dataset.moddel + ' wird entfernt.')) { const r = await api('mods.delete', { name: d.dataset.moddel }); if (r.error) toast('Nicht gelöscht', r.error, false); modList(); }
+  if (d && await confirmBox('Mod löschen?', d.dataset.title + ' wird entfernt.' + (d.dataset.orig ? ' Ersetzte Originaldateien kommen zurück.' : ''))) { const r = await api('mods.delete', { id: d.dataset.moddel, title: d.dataset.title }); if (r.error) toast('Nicht gelöscht', r.error, false); modList(); return; }
+  const f = e.target.closest('[data-modfix]');
+  if (f) {
+    f.disabled = true; f.innerHTML = `${ico('refresh', 'i spin')}Repariere…`;
+    const r = await api('mods.repair', { id: f.dataset.modfix }).catch(er => ({ error: er.message }));
+    if (r.error) toast('Nicht repariert', r.error, false); else modReport(r);
+    modList(); return;
+  }
+  if (e.target.closest('#modGta')) {
+    S.settings.modSoundGta = !S.settings.modSoundGta; $('#modGta').classList.toggle('on', S.settings.modSoundGta);
+    api('settings.set', { key: 'modSoundGta', value: S.settings.modSoundGta });
+    toast(S.settings.modSoundGta ? 'Sounds in den GTA-V-Ordner' : 'Sounds in den citizen-Ordner', 'Gilt für neu installierte Sound-Packs');
+  }
 });
 
 /* ======================= SNAP TAP / CONTROLLER / NET ======================= */
@@ -1921,7 +1972,7 @@ async function dlList(target, filter) {
   let l = []; try { l = await api('mods.downloads'); } catch { }
   if (filter) l = l.filter(x => x.cat === filter || x.cat === 'other');
   const el = $(target); if (!el) return;
-  el.innerHTML = l.length ? l.map(f => `<div class="mod"><div class="ti" style="width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:rgba(var(--a-rgb),.1);color:var(--a)">${ico(MOD_CATS[f.cat]?.[1] || 'puzzle')}</div><div class="tx"><b>${esc(f.name)}</b><p>${bytes(f.size)} · ${new Date(f.date).toLocaleDateString('de-DE')} · ${f.rpfs > 0 ? f.rpfs + ' Mod-Datei(en)' : 'Archiv'}</p></div><select class="in sel" data-dlcat="${esc(f.name)}">${Object.entries(MOD_CATS).map(([k, [n]]) => `<option value="${k}" ${k === (filter || f.cat) ? 'selected' : ''}>${n}</option>`).join('')}</select><button class="btn p sm" data-dl="${esc(f.name)}">${ico('download')}Installieren</button></div>`).join('')
+  el.innerHTML = l.length ? l.map(f => `<div class="mod"><div class="ti" style="width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:rgba(var(--a-rgb),.1);color:var(--a)">${ico(MOD_CATS[f.cat]?.[1] || 'puzzle')}</div><div class="tx"><b>${esc(f.name)}</b><p>${bytes(f.size)} · ${new Date(f.date).toLocaleDateString('de-DE')} · ${esc(f.what || (f.rpfs > 0 ? f.rpfs + ' Mod-Datei(en)' : 'Archiv'))}</p></div><select class="in sel" data-dlcat="${esc(f.name)}">${Object.entries(MOD_CATS).map(([k, [n]]) => `<option value="${k}" ${k === (filter || f.cat) ? 'selected' : ''}>${n}</option>`).join('')}</select><button class="btn p sm" data-dl="${esc(f.name)}">${ico('download')}Installieren</button></div>`).join('')
     : '<div class="empty">Noch nichts gefunden. Lade eine Mod herunter, sie erscheint hier automatisch.</div>';
 }
 document.addEventListener('click', async e => {
@@ -1929,9 +1980,9 @@ document.addEventListener('click', async e => {
   if (!S.settings.modsAck) return modInstall('__dl');
   const name = b.dataset.dl, cat = b.parentElement.querySelector('[data-dlcat]').value;
   b.disabled = true; b.innerHTML = `${ico('refresh', 'i spin')}Installiere…`;
-  const r = await api('mods.installDl', { name, cat }).catch(er => ({ error: er.message }));
-  if (r.error) { toast('Nicht installiert', r.error, false); b.disabled = false; b.innerHTML = `${ico('download')}Installieren`; }
-  else { passed('Mod installiert', `${MOD_CATS[cat][0]} · ${r.count} Datei(en)`); modList(); }
+  const r = await modRun('mods.installDl', { name, cat });
+  if (r.error || r.cancelled) { if (r.error) toast('Nicht installiert', r.error, false); b.disabled = false; b.innerHTML = `${ico('download')}Installieren`; }
+  else { modReport(r); modList(); }
 });
 function modBrowse(url, cat) {
   if (!S.settings.modsAck) return modInstall('__browse');
@@ -1946,22 +1997,24 @@ document.addEventListener('click', e => { const b = e.target.closest('#dcCat but
 window.dcAll = async () => {
   if (!S.settings.modsAck) return modInstall('__dl');
   const rows = $$('#modDl [data-dl]'); if (!rows.length) return toast('Nichts zu installieren', 'Lade erst ein Pack in Discord herunter', false);
-  const btn = $('#dcAllBtn'); btn.disabled = true; let ok = 0, fail = '';
+  const btn = $('#dcAllBtn'); btn.disabled = true; const all = { notes: [], off: [], mods: [] }; let fail = '';
   for (const b of rows) {
+    // the category of the row only counts when the content does not tell; "Sonstiges" falls back to the choice above
     const sel = b.parentElement.querySelector('[data-dlcat]'), cat = sel && sel.value !== 'other' ? sel.value : dcCat;
-    const r = await api('mods.installDl', { name: b.dataset.dl, cat }).catch(er => ({ error: er.message }));
-    if (r.error) fail = r.error; else ok += r.count || 1;
+    const r = await modRun('mods.installDl', { name: b.dataset.dl, cat });
+    if (r.error) fail = `${b.dataset.dl}: ${r.error}`;
+    else if (!r.cancelled) { all.notes.push(...(r.notes || [])); all.off.push(...(r.off || [])); all.mods.push(...(r.mods || [])); }
   }
   btn.disabled = false;
-  if (ok) passed(`${ok} Mod-Datei${ok === 1 ? '' : 'en'} installiert`, 'Wirkt beim nächsten FiveM-Start');
-  if (fail) toast(ok ? 'Nicht alles installiert' : 'Nicht installiert', fail, false);
+  if (all.mods.length) modReport(all);
+  if (fail) toast(all.mods.length ? 'Nicht alles installiert' : 'Nicht installiert', fail, false);
   modList(); dlList('#modDl');
 };
 window.dcOpen = () => modBrowse('https://discord.com/channels/@me', dcCat);
 window.dcLink = () => {
   const el = $('#dcLink'), u = el.value.trim();
   if (!/^https:\/\/(cdn\.discordapp\.com|media\.discordapp\.net|[\w.-]+)\/\S+/i.test(u)) return toast('Kein Link', 'Kopier in Discord den Link der Datei (Rechtsklick → Link kopieren)', false);
-  if (!/\.(rpf|zip|rar|7z)(\?|$)/i.test(u)) return toast('Keine Mod-Datei', 'Der Link muss auf eine .rpf, .zip, .rar oder .7z zeigen', false);
+  if (!/\.(rpf|zip|rar|7z|oiv)(\?|$)/i.test(u)) return toast('Keine Mod-Datei', 'Der Link muss auf eine .rpf, .zip, .rar, .7z oder .oiv zeigen', false);
   modBrowse(u, dcCat); el.value = '';
 };
 async function modsRefresh() {
@@ -2139,7 +2192,7 @@ async function libInstall(id) {
     } else {
       const r = await api('mods.get', { id: m.id, url: m.url, sha256: m.sha256 || '', cat: m.cat, name: m.name });
       if (r.error) throw new Error(r.error);
-      LIB.installed.add(m.id); passed('Mod installiert', `${m.name} · aktiv beim nächsten FiveM-Start`); modList();
+      LIB.installed.add(m.id); modReport({ ...r, mods: [{ name: m.name, cat: m.cat }] }); modList();
     }
   } catch (e) { toast('Nicht installiert', e.message, false); }
   delete LIB.busy[id]; libRender();
@@ -2488,7 +2541,13 @@ const Mock = {
       case 'clip.open': case 'clip.gamebar': return { ok: true };
       case 'clip.delete': return { ok: true };
       case 'clip.list': return ['Grand Theft Auto V 2026.11.13 - 21.14.08.02', 'FiveM 2026.11.13 - 20.51.44.01', 'Gangwar Clutch', 'Grand Theft Auto V 2026.11.12 - 23.02.10.05'].map((n, i) => ({ name: n, rel: 'Grand Theft Auto V/' + n + '.mp4', folder: i === 2 ? 'Captures' : 'Grand Theft Auto V', size: 48e6 + i * 9e6, date: new Date(Date.now() - i * 864e5).toISOString(), ext: '.mp4' }));
-      case 'mods.list': return { found: true, items: [{ name: 'round_minimap_dark.rpf', on: true, size: 3.4e6, cat: 'minimap' }, { name: 'killfx_red_flash.rpf', on: true, size: 1.2e6, cat: 'kill' }, { name: 'nve_lite.rpf', on: false, size: 84e6, cat: 'gfx' }] };
+      case 'mods.list': return { found: true, gta: true, items: [
+        { id: 'a1', name: 'Gun Sounds V2', on: true, size: 212e6, cat: 'sound', places: ['citizen'], paths: ['FiveM.app\\citizen\\platform\\audio\\sfx\\WEAPONS_PLAYER.rpf', 'FiveM.app\\citizen\\platform\\audio\\sfx\\RESIDENT.rpf'], pure: 0 },
+        { id: 'b2', name: 'round_minimap_dark', on: true, size: 3.4e6, cat: 'minimap', places: ['mods'], paths: ['FiveM.app\\mods\\round_minimap_dark.rpf'], pure: 0 },
+        { id: 'c3', name: 'WEAPONS_PLAYER', on: true, size: 96e6, cat: 'sound', places: ['mods'], paths: ['FiveM.app\\mods\\WEAPONS_PLAYER.rpf'], pure: 0, broken: 'Wirkt nicht: FiveM ignoriert diese Datei im mods-Ordner. Sound-Packs gehören in den citizen-Ordner.', fix: true },
+        { id: 'd4', name: 'Glock Camo', on: false, size: 8.1e6, cat: 'skin', places: ['mods'], paths: ['FiveM.app\\mods\\ot-glock-camo-3f2a.rpf'], pure: 0 },
+        { id: 'e5', name: 'Siren Pack', on: true, size: 54e6, cat: 'sound', places: ['gta'], paths: ['GTA V\\x64\\audio\\sfx\\RESIDENT.rpf'], pure: 1 }] };
+      case 'mods.repair': await sleep(500); return { count: 2, notes: ['Sound-Pack erkannt (WEAPONS_PLAYER). FiveM lädt Sounds nicht aus dem mods-Ordner – OrbitTweak legt sie in den citizen-Ordner. Wirkt auf Servern ohne Pure-Mode.'], mods: [{ id: 'c3', name: 'WEAPONS_PLAYER', cat: 'sound', places: ['citizen'] }], off: [] };
       case 'pad.set': return { keyOk: true };
       case 'pad.watch': return { active: true, state: { c: true, t: 'ps', name: 'PlayStation 4 DualShock', b: { a: true, rb: true, up: true }, lx: .5, ly: -.3, rx: 0, ry: .6, lt: .4, rt: 1 } };
       case 'mods.browse': return null;
@@ -2502,8 +2561,10 @@ const Mock = {
       case 'reshade.cfg.get': return { found: true, keyOverlay: 36, keyEffects: 145, keyScreenshot: 44, keyNext: 0, showFps: false, perf: true };
       case 'reshade.cfg.set': case 'reshade.shots': return {};
       case 'server.current': return { found: true, connected: true, key: 'cfx:abc123', url: 'cfx.re/join/abc123', fav: false, server: { name: '^1Nova^7City ^3| Roleplay [GER]', desc: 'Die lebendigste Stadt Deutschlands · Whitelist · Eigene Wirtschaft', allTags: ['roleplay', 'deutsch', 'economy', 'whitelist', 'jobs', 'gangs', 'custom cars'], locale: 'DE', players: 187, max: 256, ping: 22, build: '3095', onesync: true, resources: 412, owner: 'NovaTeam', discord: 'https://discord.gg/novacity', website: 'https://novacity.de', connect: 'cfx.re/join/abc123', online: true } };
-      case 'mods.downloads': return [{ name: 'satellite_minimap_v2.zip', size: 18e6, date: new Date().toISOString(), rpfs: 1, cat: 'minimap' }, { name: 'KillFX_RedPulse.rar', size: 2.4e6, date: new Date(Date.now() - 864e5).toISOString(), rpfs: -1, cat: 'kill' }];
-      case 'mods.installDl': await sleep(600); return { count: 1 };
+      case 'mods.downloads': return [{ name: 'Killsound pack v2.zip', size: 212e6, date: new Date().toISOString(), rpfs: 4, cat: 'sound', what: 'Sound-Pack: WEAPONS_PLAYER, RESIDENT' }, { name: 'satellite_minimap_v2.zip', size: 18e6, date: new Date().toISOString(), rpfs: 1, cat: 'minimap', what: 'FiveM-Paket' }, { name: 'KillFX_RedPulse.rar', size: 2.4e6, date: new Date(Date.now() - 864e5).toISOString(), rpfs: -1, cat: 'kill' }];
+      case 'mods.installDl': await sleep(600);
+        if (/Killsound/.test(a.name) && a.variant == null) return { choose: ['FiveM Version', 'Singleplayer (OpenIV)'] };
+        return /Killsound/.test(a.name) ? { count: 2, notes: ['Sound-Pack erkannt (WEAPONS_PLAYER, RESIDENT). FiveM lädt Sounds nicht aus dem mods-Ordner – OrbitTweak legt sie in den citizen-Ordner. Wirkt auf Servern ohne Pure-Mode.'], off: ['Gun Sounds V2'], mods: [{ id: 'f6', name: 'Killsound pack v2', cat: 'sound', places: ['citizen'] }] } : { count: 1, notes: [], off: [], mods: [{ id: 'g7', name: a.name.replace(/\.\w+$/, ''), cat: a.cat, places: ['mods'] }] };
       case 'reshade.status': return { found: true, installed: true, version: '6.8.0', preset: 'vivid', presets: [{ id: 'vivid', name: 'Lebendig', desc: 'Kräftige Farben, knackig scharf' }, { id: 'pvp', name: 'Klar (PvP)', desc: 'Maximale Sichtbarkeit, scharfe Kanten' }, { id: 'cine', name: 'Cinematic', desc: 'Filmlook mit Vignette' }, { id: 'night', name: 'Nachtsicht', desc: 'Dunkle Ecken sichtbar' }, { id: 'techni', name: 'Technicolor', desc: 'Satte Retro-Farben' }] };
       case 'reshade.install': for (let i = 1; i <= 5; i++) { onEvent('reshade', { pct: i * 20, text: 'Schritt ' + i }); await sleep(250); } return {};
       case 'reshade.preset': case 'reshade.uninstall': return {};

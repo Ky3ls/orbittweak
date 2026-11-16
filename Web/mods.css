@@ -1,0 +1,25 @@
+/* ===== Meine Mods: where each mod lies, pure-mode note, files FiveM ignores, version choice, install summary ===== */
+.mod .mico{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;flex:none;background:rgba(var(--a-rgb),.1);color:var(--a)}
+.mod.bad .mico{background:rgba(247,195,92,.12);color:var(--warn)}
+.mod .tx b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mod .mwhere{border-bottom:1px dotted currentColor;cursor:help}
+.mod .mwarn{display:flex;align-items:center;gap:8px;margin-top:7px;padding:7px 10px;border-radius:10px;background:rgba(247,195,92,.08);border:1px solid rgba(247,195,92,.25);font-size:12px;line-height:1.45;color:var(--warn)}
+.mod .mwarn svg.i{flex:none;width:14px;height:14px}
+.mod .mwarn span{flex:1;min-width:0}
+.mod .mwarn .btn{flex:none}
+
+.mods-opt{margin-top:6px;border-top:1px solid var(--line);border-bottom:0}
+.mods-hint:empty{display:none}
+.mods-hint{color:var(--warn) !important}
+.mfoot{font-size:11.5px;color:var(--sub);line-height:1.5;margin-top:6px}
+.mbox .mfoot{max-width:none;text-align:left;margin-top:14px}
+
+.mvar{display:flex;flex-direction:column;gap:8px;margin-top:18px}
+.mvar .btn{justify-content:flex-start;height:auto;min-height:42px;padding:10px 14px;text-align:left}
+.mvar .btn span{flex:1}
+.mvar .btn .chip{font-style:normal}
+
+.mnotes{list-style:none;margin:16px 0 0;padding:0;display:flex;flex-direction:column;gap:8px;text-align:left}
+.mnotes li{display:flex;gap:10px;align-items:flex-start;padding:11px 13px;border-radius:12px;background:rgba(255,255,255,.035);border:1px solid var(--line);font-size:13px;line-height:1.5;color:var(--txt,inherit)}
+.mnotes li svg.i{flex:none;width:16px;height:16px;margin-top:2px;color:var(--a)}
+.mnotes li:has(svg use[href="#alert"]) svg.i{color:var(--warn)}

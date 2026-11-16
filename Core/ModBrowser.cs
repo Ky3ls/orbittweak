@@ -78,7 +78,7 @@ internal sealed class ModBrowser : Window
         // ---- status line ----
         var foot = new Border { Background = Bg, BorderBrush = Line, BorderThickness = new Thickness(0, 1, 0, 0), Padding = new Thickness(14, 9, 14, 9) };
         _status.Foreground = Sub; _status.FontSize = 12.5; _status.TextWrapping = TextWrapping.Wrap;
-        _status.Text = "Mod suchen und auf „Download“ klicken – OrbitTweak installiert .rpf / .zip / .rar / .7z automatisch in FiveM. Achtung: Viele Server verbieten Mods (Pure-Mode).";
+        _status.Text = "Mod suchen und auf „Download“ klicken – OrbitTweak erkennt den Inhalt (.rpf / .zip / .rar / .7z / .oiv) und legt alles an die richtige Stelle. Achtung: Viele Server verbieten Mods (Pure-Mode).";
         foot.Child = _status;
 
         var root = new DockPanel();
@@ -128,7 +128,7 @@ internal sealed class ModBrowser : Window
     {
         var name = Path.GetFileName(e.ResultFilePath);
         var ext = Path.GetExtension(name).ToLowerInvariant();
-        if (ext is not (".rpf" or ".zip" or ".rar" or ".7z")) return; // anything else: normal download
+        if (!ModDownloads.Ext.Contains(ext)) return; // anything else: normal download
         var dir = Path.Combine(Path.GetTempPath(), "OrbitTweak-dl");
         Directory.CreateDirectory(dir);
         e.ResultFilePath = Path.Combine(dir, name);
@@ -146,24 +146,20 @@ internal sealed class ModBrowser : Window
             if (op.State != CoreWebView2DownloadState.Completed) return;
             Status($"Installiere {name} …");
             var path = op.ResultFilePath;
-            var (count, error) = await Task.Run(() =>
+            var r = await Task.Run(() => Mods.Install(new[] { path }, new InstallOpts { Cat = cat, SoundToGta = _s.ModSoundGta }));
+            if (r.Choose != null)
             {
-                var (files, temp, err) = ModDownloads.PrepareFile(path);
-                try
-                {
-                    if (err != null) return (0, err);
-                    lock (_s) return Mods.Install(files, cat, _s.ModCats);
-                }
-                finally { if (temp != null) try { Directory.Delete(temp, true); } catch { } }
-            });
-            if (error != null) Status($"✖ {name}: {error}");
-            else
-            {
-                _s.Save();
-                Status($"✔ {name} installiert ({count} Datei(en)) – aktiv beim nächsten FiveM-Start. Im Mod-Manager an-/ausschaltbar.", true);
-                _log($"🧩 Mod installiert: {name}");
-                _emit(new { name, count, cat });
+                // several versions in the archive: it goes to the Downloads folder, the user picks the version under "Meine Mods"
+                try { File.Copy(path, Path.Combine(ModDownloads.Dir, name), true); } catch { }
+                Status($"{name} enthält mehrere Versionen – in OrbitTweak unter Mods → Meine Mods auf „Installieren“ klicken und eine auswählen.");
+                return;
             }
+            if (r.Error != null) { Status($"✖ {name}: {r.Error}"); return; }
+            var where = r.Mods.SelectMany(m => m.Files).Any(f => f.Root == "gta") ? "im GTA-V-Ordner"
+                : r.Mods.SelectMany(m => m.Files).Any(f => f.Root == "citizen") ? "im citizen-Ordner (Sounds)" : "im mods-Ordner";
+            Status($"✔ {name} installiert, liegt {where} – aktiv beim nächsten FiveM-Start. Im Mod-Manager an-/ausschaltbar.", true);
+            _log($"🧩 Mod installiert: {name}");
+            _emit(new { name, count = r.Count, cat = r.Mods[0].Cat, notes = r.Notes.Distinct().ToList(), off = r.TurnedOff });
         };
     }
 }

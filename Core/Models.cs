@@ -90,11 +90,15 @@ public class Settings
     public WasdLagCfg Lag { get; set; } = new();
     public MinimapCfg Minimap { get; set; } = new();
     public ClipCfg Clip { get; set; } = new();
+    /// <summary>Before 2.24: category by file name. Read once into the mod list (Mods.ImportLegacy), then empty.</summary>
     public Dictionary<string, string> ModCats { get; set; } = new();
     public bool ModsAck { get; set; }
+    /// <summary>Sound packs replace the files in the GTA V folder (works on pure-mode 1 servers too) instead of going into FiveM's citizen folder.</summary>
+    public bool ModSoundGta { get; set; }
     public long BgVersion { get; set; }
     public PadCfg Pad { get; set; } = new();
     public string? BgPreset { get; set; }
+    /// <summary>Before 2.24: library id → file names. Read once into the mod list (Mods.ImportLegacy), then empty.</summary>
     public Dictionary<string, List<string>> CatalogMods { get; set; } = new();
     public string? AuthToken { get; set; }
     public string? AuthRole { get; set; }

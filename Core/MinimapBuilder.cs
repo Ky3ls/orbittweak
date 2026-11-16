@@ -544,7 +544,7 @@ internal static class MinimapBuilder
     private static byte[] Utf8(string s) => new UTF8Encoding(false).GetBytes(s.Replace("\r\n", "\n").Replace("\n", "\r\n"));
 
     /// <summary>Builds the mod and puts it into FiveM's mods folder.</summary>
-    public static (long size, string? error) Install(MinimapModCfg c, Dictionary<string, string> cats, Action<int, string>? progress = null)
+    public static (long size, string? error) Install(MinimapModCfg c, Action<int, string>? progress = null)
     {
         if (Mods.Dir is not { } dir) return (0, "FiveM nicht gefunden");
         if (FiveM.IsRunning) return (0, "Bitte FiveM zuerst schließen");
@@ -556,17 +556,15 @@ internal static class MinimapBuilder
         var tmp = target + ".tmp";
         File.WriteAllBytes(tmp, rpf);
         File.Move(tmp, target, true);
-        // an older, switched-off copy would only confuse the mod list
-        if (FiveM.AppDir is { } app) { var off = System.IO.Path.Combine(app, "mods_orbit_off", FileName); try { if (File.Exists(off)) File.Delete(off); } catch { } }
-        cats[FileName] = "minimap";
+        // listed under "Meine Mods"; an older, switched-off copy is dropped there
+        Mods.Adopt(FileName, "Eigene Minimap", "minimap");
         return (rpf.LongLength, null);
     }
 
     public static object Status()
     {
-        if (Mods.Dir is not { } dir || FiveM.AppDir is not { } app) return new { found = false, installed = false };
-        var on = System.IO.Path.Combine(dir, FileName); var off = System.IO.Path.Combine(app, "mods_orbit_off", FileName);
-        var f = File.Exists(on) ? new FileInfo(on) : File.Exists(off) ? new FileInfo(off) : null;
-        return new { found = true, installed = f != null, on = f != null && f.FullName == on, size = f?.Length ?? 0, date = f?.LastWriteTime };
+        if (Mods.Dir == null) return new { found = false, installed = false };
+        var (installed, on, size, date) = Mods.State(FileName);
+        return new { found = true, installed, on, size, date };
     }
 }
