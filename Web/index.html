@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="clip-ui.css">
 <link rel="stylesheet" href="design.css">
 <link rel="stylesheet" href="uhq.css">
+<link rel="stylesheet" href="luxe-fivem.css">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute">
@@ -236,24 +237,29 @@
         <div class="ph-r"><button class="btn" onclick="loadServers(true)"><svg class="i"><use href="#refresh"/></svg>Aktualisieren</button></div>
       </div>
       <div class="srv-wrap">
-        <div>
-          <div class="card cur-srv hidden" id="curSrv2" style="margin-bottom:16px"></div>
-          <div class="addbar">
-            <input class="in" id="srvIn" placeholder="cfx.re/join/abc123  ·  Join-Code  ·  IP:Port" onkeydown="if(event.key==='Enter')addServer()">
-            <button class="btn p" onclick="addServer()"><svg class="i"><use href="#plus"/></svg>Hinzufügen</button>
+        <div class="srv-main">
+          <div class="card cur-srv cs-hero hidden" id="curSrv2"></div>
+          <div class="card fav-card">
+            <div class="fav-h"><h2>Favoriten</h2><span class="fav-n" id="srvCount"></span></div>
+            <div class="fav-add">
+              <svg class="i"><use href="#link"/></svg>
+              <input class="in" id="srvIn" placeholder="cfx.re/join/abc123, Join-Code oder IP:Port" onkeydown="if(event.key==='Enter')addServer()">
+              <button class="btn" onclick="addServer()"><svg class="i"><use href="#plus"/></svg>Hinzufügen</button>
+            </div>
+            <div class="srv-list" id="srvList"></div>
           </div>
-          <div class="srv-list" id="srvList"></div>
         </div>
-        <div class="col">
-          <div class="card">
-            <div class="lbl"><svg class="i"><use href="#link"/></svg>Direkt verbinden</div>
-            <input class="in mt" id="dcIn" placeholder="IP:Port oder cfx.re/join/…" onkeydown="if(event.key==='Enter')directConnect()">
-            <button class="btn p mt8" style="width:100%;justify-content:center" onclick="directConnect()"><svg class="i"><use href="#play"/></svg>Verbinden</button>
-            <p class="muted" style="font-size:11px;margin-top:10px;line-height:1.5">Startet FiveM mit Pre-Launch-Boost und verbindet sofort.</p>
+        <div class="col srv-rail">
+          <div class="card dc-card">
+            <h2 class="rail-t">Direkt verbinden</h2>
+            <p class="rail-s">Startet FiveM mit Pre-Launch-Boost und verbindet sofort.</p>
+            <div class="well-in"><svg class="i"><use href="#link"/></svg><input class="in" id="dcIn" placeholder="IP:Port oder cfx.re/join/…" onkeydown="if(event.key==='Enter')directConnect()"></div>
+            <button class="btn p dc-go" onclick="directConnect()"><svg class="i"><use href="#play"/></svg>Verbinden</button>
           </div>
-          <div class="card">
-            <div class="row"><div class="lbl"><svg class="i"><use href="#globe"/></svg>Cfx.re Dienste</div><span class="sp"></span><button class="ib" onclick="loadCfx()"><svg class="i"><use href="#refresh"/></svg></button></div>
-            <div class="mt8" id="cfxList"></div>
+          <div class="card cfx-card">
+            <div class="cfx-h"><h2 class="rail-t">Cfx.re-Dienste</h2><span class="sp"></span><button class="ib" title="Neu prüfen" onclick="loadCfx()"><svg class="i"><use href="#refresh"/></svg></button></div>
+            <div class="cfx-sum" id="cfxSum"></div>
+            <div id="cfxList"></div>
           </div>
         </div>
       </div>
@@ -267,7 +273,7 @@
       </div>
       <div class="card lhero">
         <div class="lh-l">
-          <div class="lbl"><svg class="i"><use href="#rocket"/></svg>Startklar</div>
+          <div class="lh-h"><div class="lbl"><svg class="i"><use href="#rocket"/></svg>Startklar</div><span class="chip" id="lhChip"></span></div>
           <div class="lh-sum" id="lSum"></div>
           <div class="lh-con"><svg class="i"><use href="#link"/></svg><input class="in" id="lConnect" placeholder="Direkt verbinden (optional): IP:Port oder cfx.re/join/…" oninput="renderCmd()"></div>
         </div>
@@ -275,15 +281,15 @@
       </div>
       <div class="lgrid2">
         <div class="card" id="preCard">
-          <div class="row"><div class="lbl"><svg class="i"><use href="#sparkle"/></svg>Boost vor dem Start</div><span class="sp"></span><span class="chip a" id="preCount">0 aktiv</span></div>
-          <div class="prelist mt8" id="preList"></div>
+          <div class="row l-h"><div class="lbl"><svg class="i"><use href="#sparkle"/></svg>Boost vor dem Start</div><span class="sp"></span><span class="chip" id="preCount">0 aktiv</span></div>
+          <div class="prelist" id="preList"></div>
         </div>
-        <div class="card">
-          <div class="lbl"><svg class="i"><use href="#settings"/></svg>Spiel-Optionen</div>
+        <div class="card lopts">
+          <div class="row l-h"><div class="lbl"><svg class="i"><use href="#settings"/></svg>Spiel-Optionen</div></div>
           <div class="lopt" id="loBuild"><div><b>Spiel-Build</b><p>Nur ändern, wenn ein Server einen bestimmten Build verlangt</p></div><select class="in lsel" id="optBuild"></select></div>
           <div class="lopt" id="loPure"><div><b>Pure Mode</b><p>Startet FiveM ohne Mods, für Server mit Pure-Pflicht</p></div><div class="seg" id="optPure"></div></div>
           <div class="lopt" id="loChan"><div><b>Update-Kanal</b><p>Release ist am stabilsten</p></div><div class="seg" id="optChan"></div></div>
-          <details class="lcmd"><summary><svg class="i"><use href="#file"/></svg>Startbefehl anzeigen</summary><div class="cmd mt8" id="cmdLine"></div></details>
+          <details class="lcmd"><summary><svg class="i"><use href="#terminal"/></svg>Startbefehl anzeigen<svg class="i lc-ch"><use href="#chev"/></svg></summary><div class="cmd" id="cmdLine"></div></details>
         </div>
       </div>
     </section>
@@ -753,7 +759,7 @@
       <div class="ph">
         <div><div class="kicker">F8-Konsole</div><h1>FiveM <span class="grad">Befehle</span></h1><p class="pd">Offizielle FiveM-Einstellungen, die in keinem Menü stehen.</p></div>
       </div>
-      <div class="card f8info"><div class="f8i"><svg class="i"><use href="#zap"/></svg></div><div style="flex:1"><b>Klick = live im Spiel.</b><p>Läuft FiveM, wird der Befehl in unter 1&nbsp;s gesetzt (kurz nichts drücken). Sonst beim nächsten Start.</p></div><div class="row" style="gap:12px;flex:none"><span class="sub" style="font-size:12.5px">Beim Spielstart anwenden</span><div class="tg" id="f8Auto"></div></div></div>
+      <div class="card f8info"><div class="f8i"><svg class="i"><use href="#terminal"/></svg></div><div class="f8t"><b>Ein Klick wirkt sofort im Spiel.</b><p>Läuft FiveM, ist er in unter 1&nbsp;s gesetzt (kurz nichts drücken). Sonst beim nächsten Start.</p></div><div class="f8auto"><span>Beim Spielstart anwenden</span><div class="tg" id="f8Auto"></div></div></div>
       <div class="f8grid" id="f8list"></div>
     </section>
 
@@ -1067,13 +1073,14 @@
 </div>
 
 <div id="toasts"></div>
-<div class="splash" id="splash"><div class="sp-scene" id="spScene"></div><div class="sp-shade"></div><div class="sp-box"><div class="sp-orbits"><i></i><i></i><i></i></div><svg class="sp-logo" viewBox="0 0 64 64"><circle cx="32" cy="32" r="17" fill="none" stroke="url(#rg)" stroke-width="6"/><ellipse cx="32" cy="32" rx="29" ry="10" fill="none" stroke="url(#rg)" stroke-width="3.2" transform="rotate(-28 32 32)"/><circle cx="52" cy="13" r="4" fill="#fff"/></svg><div class="sp-name">Orbit<span>Tweak</span></div><div class="sp-sub" id="spSub">Lade Los Santos…</div><div class="sp-bar"><i></i></div></div></div>
+<div class="splash" id="splash"><div class="sp-scene" id="spScene"></div><div class="sp-shade"></div><div class="sp-box"><div class="sp-orbits"><i></i><i></i><i></i></div><div class="sp-mark"><svg class="sp-dial" viewBox="0 0 120 120"><circle class="tk" cx="60" cy="60" r="57" stroke-dasharray="0.7 5.269"/><circle class="tk big" cx="60" cy="60" r="57" stroke-dasharray="1.4 28.445"/><circle class="trk" cx="60" cy="60" r="51"/></svg><svg class="sp-arc" viewBox="0 0 120 120"><circle cx="60" cy="60" r="51" stroke-dasharray="44 276.4"/></svg><svg class="sp-logo" viewBox="0 0 64 64"><circle cx="32" cy="32" r="17" fill="none" stroke="url(#rg)" stroke-width="6"/><ellipse cx="32" cy="32" rx="29" ry="10" fill="none" stroke="url(#rg)" stroke-width="3.2" transform="rotate(-28 32 32)"/><circle cx="52" cy="13" r="4" fill="#fff"/></svg></div><div class="sp-name">Orbit<span>Tweak</span></div><div class="sp-sub" id="spSub">Lade Los Santos…</div><div class="sp-bar"><i></i></div></div></div>
 <div class="lock" id="lock">
   <div class="lk-bg"></div><div class="lk-shade"></div><div class="lk-glow"></div>
-  <div class="lk-bar" data-drag><span class="lk-brand" data-drag>Orbit<b>Tweak</b></span><span class="sp" data-drag></span><button onclick="api('win.min')"><svg class="i"><use href="#minus"/></svg></button><button class="x" onclick="api('win.close')"><svg class="i"><use href="#x"/></svg></button></div>
+  <div class="lk-bar" data-drag><span class="lk-brand" data-drag><svg class="lk-bl" viewBox="0 0 64 64" data-drag><circle cx="32" cy="32" r="17" fill="none" stroke="url(#rg)" stroke-width="6"/><ellipse cx="32" cy="32" rx="29" ry="10" fill="none" stroke="url(#rg)" stroke-width="3.2" transform="rotate(-28 32 32)"/><circle cx="52" cy="13" r="4" fill="#fff"/></svg>Orbit<b>Tweak</b></span><span class="sp" data-drag></span><button onclick="api('win.min')"><svg class="i"><use href="#minus"/></svg></button><button class="x" onclick="api('win.close')"><svg class="i"><use href="#x"/></svg></button></div>
   <div class="lk-orbits"><i></i><i></i><i></i></div>
 <div class="lk-card" id="lkCard">
     <div class="lk-ring" id="lkRing">
+      <svg class="lk-dial" viewBox="0 0 120 120"><circle class="tk" cx="60" cy="60" r="57" stroke-dasharray="0.7 5.269"/><circle class="tk big" cx="60" cy="60" r="57" stroke-dasharray="1.4 28.445"/></svg>
       <svg class="lk-svg" viewBox="0 0 120 120"><circle class="lk-track" cx="60" cy="60" r="54"/><circle class="lk-prog" id="lkProg" cx="60" cy="60" r="54"/></svg>
       <svg class="lk-logo" viewBox="0 0 64 64"><circle cx="32" cy="32" r="17" fill="none" stroke="url(#rg)" stroke-width="6"/><ellipse cx="32" cy="32" rx="29" ry="10" fill="none" stroke="url(#rg)" stroke-width="3.2" transform="rotate(-28 32 32)"/><circle cx="52" cy="13" r="4" fill="#fff"/></svg>
       <svg class="lk-check" viewBox="0 0 52 52"><path d="M14 27l8 8 16-17"/></svg>
@@ -1082,6 +1089,7 @@
     <h1 id="lkTitle">Willkommen bei <span class="grad">OrbitTweak</span></h1>
     <p id="lkSub">Gib deinen Lizenz-Key ein, um OrbitTweak freizuschalten.</p>
     <div class="lk-form" id="lkForm">
+      <div class="lk-cap">Lizenz-Key</div>
       <div class="lk-key" id="lkKey"><span class="lk-pre">ORB</span><i>–</i><input id="lkIn0" maxlength="4" spellcheck="false" autocomplete="off" placeholder="XXXX"><i>–</i><input id="lkIn1" maxlength="4" spellcheck="false" autocomplete="off" placeholder="XXXX"><i>–</i><input id="lkIn2" maxlength="4" spellcheck="false" autocomplete="off" placeholder="XXXX"></div>
       <button class="btn lk-paste" id="lkPaste" type="button"><svg class="i"><use href="#copy"/></svg>Key aus der Zwischenablage einfügen</button>
 <button class="btn p lg lk-go" id="lkGo"><span>Freischalten</span><svg class="i"><use href="#zap"/></svg></button>

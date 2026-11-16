@@ -380,6 +380,11 @@ function lhState() {
   b.classList.toggle('calm', !!S.fmOn && !con);
   $('#lhTxt').textContent = S.fmOn ? (con ? 'Verbinden' : 'FiveM läuft') : 'FiveM starten';
   $('#lhSub').textContent = S.fmOn ? (con ? 'mit ' + con : 'Adresse eintragen, um zu verbinden') : con ? 'Boost anwenden und verbinden' : 'Boost anwenden und Spiel starten';
+  const chip = $('#lhChip');
+  if (chip) {
+    const st = S.fmOn ? ['g live', 'FiveM läuft'] : S.fivem && S.fivem.found === false ? ['r', 'FiveM nicht gefunden'] : ['', 'Bereit zum Start'];
+    chip.className = 'chip ' + st[0]; chip.textContent = st[1];
+  }
 }
 function lhLaunch() {
   if (S.fmOn && !($('#lConnect')?.value || '').trim()) return toast('FiveM läuft schon', 'Trag eine Adresse ein, um direkt zu verbinden');
@@ -507,7 +512,7 @@ async function pickFiveM() { const r = await api('fivem.pick'); if (r.found) { S
 
 /* ======================= LAUNCHER ======================= */
 const BUILDS = ['Auto', '2189', '2372', '2545', '2612', '2699', '2802', '2944', '3095', '3258', '3323', '3407'];
-const PRE = [['ram', 'RAM freigeben', 'Working-Sets + Standby-Liste leeren'], ['dns', 'DNS-Cache leeren', 'Frische Server-Auflösung'], ['kill', 'Hintergrund-Apps beenden', 'OneDrive, Teams, Launcher & Co.'], ['cache', 'FiveM-Cache leeren', 'Nur bei Problemen (längeres Laden)'], ['prio', 'Priorität „Hoch“ setzen', 'Automatisch, sobald das Spiel läuft']];
+const PRE = [['ram', 'RAM freigeben', 'Working-Sets + Standby-Liste leeren', 'ram'], ['dns', 'DNS-Cache leeren', 'Frische Server-Auflösung', 'globe'], ['kill', 'Hintergrund-Apps beenden', 'OneDrive, Teams, Launcher & Co.', 'power'], ['cache', 'FiveM-Cache leeren', 'Nur bei Problemen (längeres Laden)', 'trash'], ['prio', 'Priorität „Hoch“ setzen', 'Automatisch, sobald das Spiel läuft', 'gauge']];
 const cfg = () => S.settings.launch ||= { build: 'Auto', pure: 0, pre: { ram: true, dns: true, kill: false, cache: false, prio: true } };
 function seg(el, opts, cur, onPick) {
   el.innerHTML = opts.map(([n, v]) => `<button class="${String(v) === String(cur) ? 'on' : ''}" data-v="${v}">${n}</button>`).join('');
@@ -519,7 +524,7 @@ async function renderLauncher() {
   sb.onchange = () => { c.build = sb.value; saveLaunch(); };
   seg($('#optPure'), [['Aus', 0], ['Pure 1', 1], ['Pure 2', 2]], c.pure, v => { c.pure = +v; saveLaunch(); });
   try { const ini = await api('ini.get'); S.chan = ini.channel; seg($('#optChan'), [['Release', 'production'], ['Beta', 'beta'], ['Latest', 'canary']], ini.channel, async v => { S.chan = v; renderCmd(); await api('ini.set', { channel: v }); toast('Update-Kanal gesetzt', v); }); } catch { }
-  $('#preList').innerHTML = PRE.map(([k, n, d]) => `<div class="pr ${c.pre[k] ? 'on' : ''}"><div><b>${n}</b><span>${d}</span></div><div class="tg ${c.pre[k] ? 'on' : ''}" data-pre="${k}"></div></div>`).join('');
+  $('#preList').innerHTML = PRE.map(([k, n, d, i]) => `<div class="pr ${c.pre[k] ? 'on' : ''}"><span class="pi2">${ico(i)}</span><div><b>${n}</b><span>${d}</span></div><div class="tg ${c.pre[k] ? 'on' : ''}" data-pre="${k}"></div></div>`).join('');
   $('#preList').onclick = e => { const t = e.target.closest('[data-pre]'); if (!t) return; c.pre[t.dataset.pre] = !c.pre[t.dataset.pre]; t.classList.toggle('on'); t.closest('.pr').classList.toggle('on'); saveLaunch(); };
   renderCmd();
 }
@@ -532,7 +537,7 @@ function renderCmd() {
   if (con) s += ` <em>+connect ${esc(con)}</em>`;
   $('#cmdLine').innerHTML = s;
   const on = PRE.filter(([k]) => c.pre[k]);
-  if ($('#preCount')) $('#preCount').textContent = on.length + ' aktiv';
+  if ($('#preCount')) $('#preCount').textContent = on.length + ' von ' + PRE.length + ' aktiv';
   const chan = { production: 'Release', beta: 'Beta', canary: 'Latest' }[S.chan] || 'Release';
   // each tile leads to the option it sums up
   if ($('#lSum')) $('#lSum').innerHTML = [
@@ -541,7 +546,7 @@ function renderCmd() {
     ['download', 'Kanal', chan, 'loChan'],
     ['sparkle', 'Boost', on.length ? on.length + ' Schritte' : 'Aus', 'preCard'],
     ['link', 'Server', con ? con : 'Keiner', 'lConnect']
-  ].map(([i, k, v, to]) => `<button class="lh-i" data-lgo="${to}" title="${to === 'lConnect' ? (con ? esc(con) : 'Ohne Adresse öffnet FiveM die Serverliste') : 'Zur Einstellung'}">${ico(i)}<span>${k}</span><b>${esc(v)}</b></button>`).join('');
+  ].map(([i, k, v, to]) => `<button class="lh-i${to === 'lConnect' && !con ? ' dim' : ''}" data-lgo="${to}" title="${to === 'lConnect' ? (con ? esc(con) : 'Ohne Adresse öffnet FiveM die Serverliste') : 'Zur Einstellung'}">${ico(i)}<span>${k}</span><b>${esc(v)}</b></button>`).join('');
   lhState();
 }
 document.addEventListener('click', e => {
@@ -570,30 +575,31 @@ function fivemName(s) {
   return out || 'Unbekannter Server';
 }
 function srvCard(s) {
-  const pct = s.max ? Math.round(s.players * 100 / s.max) : 0;
+  const pct = s.max ? Math.min(100, Math.round(s.players * 100 / s.max)) : 0;
   const initial = (s.name || '?').replace(/\^\d/g, '').trim()[0] || '?';
-  return `<div class="card hov srv ${s.online ? '' : 'off'} ${s.banner ? '' : 'nobn'}">
-    <div class="bn" ${s.banner ? `style="background-image:url('${esc(s.banner)}')"` : ''}></div>
-    <button class="ib fav" title="Entfernen" onclick="removeServer('${esc(s.code)}')">${ico('x')}</button>
-    <div class="bd">
-      <div class="top"><div class="icon" ${s.icon ? `style="background-image:url('${esc(s.icon)}')"` : ''}>${s.icon ? '' : esc(initial)}</div><div style="min-width:0"><div class="nm">${fivemName(s.name)}</div></div></div>
-      <div class="ds">${esc(s.desc || s.addr || '')}</div>
-      <div class="tags">${s.online ? '<span class="chip g">Online</span>' : '<span class="chip r">Offline</span>'}${s.locale ? `<span class="chip">${esc(s.locale)}</span>` : ''}${(s.tags || []).slice(0, 3).map(t => `<span class="chip">${esc(t)}</span>`).join('')}</div>
-      <div class="row">
-        <div class="pl"><div><span>Spieler</span><b>${s.players ?? 0}/${s.max ?? 0}</b></div><div class="bar"><i style="width:${pct}%"></i></div></div>
-        <span class="chip ${s.ping == null ? '' : s.ping < 50 ? 'g' : s.ping < 100 ? 'w' : 'r'}">${s.ping == null ? '-- ms' : s.ping + ' ms'}</span>
-        <button class="btn o sm" onclick="joinServer('${esc(s.code)}')" ${s.online ? '' : 'disabled'}>${ico('play')}Verbinden</button>
-      </div>
-    </div></div>`;
+  const pc = s.ping == null ? '' : s.ping < 50 ? 'g' : s.ping < 100 ? 'w' : 'r';
+  return `<div class="srv ${s.online ? '' : 'off'}">
+    <div class="icon" ${s.icon ? `style="background-image:url('${esc(s.icon)}')"` : ''}>${s.icon ? '' : esc(initial)}</div>
+    <div class="sx"><div class="nm">${fivemName(s.name)}</div>
+      <div class="ds">${s.online ? '' : '<span class="chip r">Offline</span>'}${s.locale ? `<span class="loc">${esc(s.locale)}</span>` : ''}<span class="dt">${esc(s.desc || s.addr || '')}</span></div></div>
+    <div class="pl" title="Spieler"><b>${s.players ?? 0}<small> / ${s.max ?? 0}</small></b><i class="pb"><i style="transform:scaleX(${pct / 100})"></i></i></div>
+    <div class="pg ${pc}" title="Ping"><i></i><b>${s.ping == null ? '–' : s.ping}</b><small>ms</small></div>
+    <button class="btn sm go" onclick="joinServer('${esc(s.code)}')" ${s.online ? '' : 'disabled'}>${ico('play')}Verbinden</button>
+    <button class="ib rm" title="Aus Favoriten entfernen" onclick="removeServer('${esc(s.code)}')">${ico('x')}</button>
+  </div>`;
 }
 async function loadServers(force) {
-  $('#srvList').innerHTML = `<div class="empty">Lade Server-Daten…</div>`;
+  // quiet placeholder rows in the shape of the real ones, so nothing jumps when the data arrives
+  $('#srvList').innerHTML = Array.from({ length: Math.max(2, Math.min(S.servers.length || 3, 5)) }, () => '<div class="srv skel"><div class="icon"></div><div class="sx"><i></i><i></i></div></div>').join('');
+  $('#srvCount').textContent = '';
   try { S.servers = await api('servers.list', { force: !!force }); } catch { S.servers = []; }
   renderServers(); loadCfx();
 }
 function renderServers() {
+  const on = S.servers.filter(x => x.online).length;
+  $('#srvCount').textContent = S.servers.length ? `${on} von ${S.servers.length} online` : '';
   $('#srvList').innerHTML = S.servers.length ? S.servers.map(srvCard).join('')
-    : `<div class="empty"><div style="font-weight:600;color:var(--text)">Noch keine Favoriten</div><div style="margin-top:4px">Füge oben einen Join-Code (cfx.re/join/…) oder IP:Port hinzu.</div></div>`;
+    : `<div class="srv-empty"><div class="se-ic">${ico('server')}</div><b>Noch keine Favoriten</b><p>Füg oben einen Join-Code (cfx.re/join/…) oder IP:Port ein. Danach siehst du hier Spieler und Ping und verbindest mit einem Klick.</p></div>`;
 }
 async function addServer() {
   const q = $('#srvIn').value.trim(); if (!q) return;
@@ -604,11 +610,13 @@ async function removeServer(code) { await api('servers.remove', { code }); S.ser
 function joinServer(code) { const s = S.servers.find(x => x.code === code); launch(s.connect || code); }
 function directConnect() { const v = $('#dcIn').value.trim(); if (v) launch(v); }
 async function loadCfx() {
-  $('#cfxList').innerHTML = '<div class="sub" style="padding:8px 0">Prüfe…</div>';
+  const sum = $('#cfxSum');
+  if (sum) { sum.className = 'cfx-sum'; sum.innerHTML = '<i></i><span>Prüfe die Dienste…</span>'; }
   try {
-    const l = await api('cfx.status');
-    $('#cfxList').innerHTML = l.map(s => `<div class="svc"><i class="dot ${s.ok ? 'on' : ''}" style="${s.ok ? '' : 'background:var(--bad)'}"></i><span class="nm">${esc(s.name)}</span><b style="font-family:var(--disp)" class="${s.ok ? '' : 'muted'}">${s.ok ? s.ms + ' ms' : 'DOWN'}</b></div>`).join('');
-  } catch { $('#cfxList').innerHTML = '<div class="sub">Nicht erreichbar</div>'; }
+    const l = await api('cfx.status'), down = l.filter(s => !s.ok).length;
+    if (sum) { sum.className = 'cfx-sum ' + (down ? 'bad' : 'ok'); sum.innerHTML = `<i></i><span>${down ? (down === 1 ? 'Ein Dienst gestört' : down + ' Dienste gestört') : 'Alle Dienste erreichbar'}</span>`; }
+    $('#cfxList').innerHTML = l.map(s => `<div class="svc ${s.ok ? '' : 'down'}"><i class="sd"></i><span class="nm">${esc(s.name)}</span><b>${s.ok ? `${s.ms}<small>ms</small>` : 'Gestört'}</b></div>`).join('');
+  } catch { if (sum) { sum.className = 'cfx-sum bad'; sum.innerHTML = '<i></i><span>Nicht erreichbar</span>'; } $('#cfxList').innerHTML = ''; }
 }
 
 /* ======================= GRAPHICS ======================= */
@@ -815,10 +823,10 @@ async function checkUpdate(manual) {
   $('#updCheck').disabled = false;
 }
 function updatePrompt(u) {
-  modal(`<div class="kicker" style="justify-content:center">Update verfügbar</div><h1 style="margin-top:10px">Version <span class="grad">${esc(u.latest)}</span> ist da</h1>
+  modal(`<div class="m-ic">${ico('download')}</div><div class="kicker">Update verfügbar</div><h1>Version <span class="grad">${esc(u.latest)}</span> ist da</h1>
     <p>Du nutzt Version ${esc(u.current)}. Soll OrbitTweak jetzt aktualisieren? Die App startet danach automatisch neu.</p>
     ${(u.notes || []).length ? `<ul class="changes m-list">${u.notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
-    <div class="bar hidden" id="mUpdMeter" style="margin-top:18px"><i id="mUpdBar" style="width:0"></i></div><div class="sub" id="mUpdProg" style="font-size:11px;margin-top:6px"></div>
+    <div class="bar m-bar hidden" id="mUpdMeter"><i id="mUpdBar" style="width:0"></i></div><div class="m-prog" id="mUpdProg"></div>
     <div class="act" id="mUpdAct"><button class="btn lg" onclick="closeModal()">Später</button><button class="btn p lg" onclick="promptInstall()">${ico('download')}Jetzt aktualisieren</button></div>`);
 }
 function promptInstall() { $('#mUpdAct').classList.add('hidden'); $('#mUpdMeter').classList.remove('hidden'); $('#mUpdProg').textContent = 'Lade herunter…'; doUpdate(); }
@@ -947,25 +955,31 @@ function closeModal() {
 }
 function confirmBox(title, text, o = {}) {
   return new Promise(res => {
-    modal(`<div class="kicker">${o.danger ? 'Achtung' : 'Bitte bestätigen'}</div><h1 style="margin-top:8px">${esc(title)}</h1><p>${esc(text)}</p><div class="act"><button class="btn lg" id="mNo">Abbrechen</button><button class="btn lg ${o.danger ? 'dp' : 'p'}" id="mYes">${esc(o.ok || 'Bestätigen')}</button></div>`);
+    modal(`<div class="m-cf ${o.danger ? 'danger' : ''}"><div class="m-ic">${ico(o.danger ? 'alert' : 'shield')}</div><div><h1>${esc(title)}</h1><p>${esc(text)}</p></div></div><div class="act"><button class="btn lg" id="mNo">Abbrechen</button><button class="btn lg ${o.danger ? 'dp' : 'p'}" id="mYes">${esc(o.ok || 'Bestätigen')}</button></div>`);
     $('#mNo').onclick = () => { closeModal(); res(false); }; $('#mYes').onclick = () => { closeModal(); res(true); };
   });
 }
-const steps = n => `<div class="steps">${[0, 1, 2, 3].map(i => `<i class="${i <= n ? 'on' : ''}"></i>`).join('')}</div>`;
+const steps = n => `<div class="steps"><span>Schritt ${n + 1} von 4</span>${[0, 1, 2, 3].map(i => `<i class="${i <= n ? 'on' : ''}"></i>`).join('')}</div>`;
+const LOGO_MARK = '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="17" fill="none" stroke="url(#rg)" stroke-width="6"/><ellipse cx="32" cy="32" rx="29" ry="10" fill="none" stroke="url(#rg)" stroke-width="3.2" transform="rotate(-28 32 32)"/><circle cx="52" cy="13" r="4" fill="#fff"/></svg>';
 async function wizard(step) {
-  if (step === 0) modal(`${steps(0)}<div class="kicker" style="justify-content:center">Setup-Assistent</div><h1 style="margin-top:10px">Willkommen bei <span class="grad">OrbitTweak</span></h1><p>In einer Minute ist dein PC bereit für FiveM: Wir prüfen dein System, zeigen dir die Optimierungen und wenden sie mit Wiederherstellungspunkt an. Alles bleibt umkehrbar.</p><div class="act"><button class="btn lg" onclick="finishWizard()">Überspringen</button><button class="btn p lg" onclick="wizard(1)">${ico('zap')}Los geht's</button></div>`);
+  if (step === 0) modal(`${steps(0)}<div class="m-mark">${LOGO_MARK}</div><div class="kicker">Setup-Assistent</div><h1>Willkommen bei <span class="grad">OrbitTweak</span></h1><p>In einer Minute ist dein PC bereit für FiveM: Wir prüfen dein System, zeigen dir die Optimierungen und wenden sie mit Wiederherstellungspunkt an. Alles bleibt umkehrbar.</p><div class="act"><button class="btn lg" onclick="finishWizard()">Überspringen</button><button class="btn p lg" onclick="wizard(1)">${ico('zap')}Los geht's</button></div>`);
   if (step === 1) {
-    modal(`${steps(1)}<h1>System-<span class="grad">Scan</span></h1><p>Analysiere Hardware, Windows und FiveM…</p><div class="bar mt" style="height:8px"><i style="width:30%" id="scanBar"></i></div>`);
+    modal(`${steps(1)}<h1>System-<span class="grad">Scan</span></h1><p>Analysiere Hardware, Windows und FiveM…</p><div class="bar m-bar"><i style="width:30%" id="scanBar"></i></div>`);
     const [h] = await Promise.all([runHealth(), sleep(1000)]);
     $('#scanBar').style.width = '100%'; await sleep(300);
     const todo = S.tweaks.filter(t => t.rec && !t.applied);
-    modal(`${steps(2)}<h1>Zustand: <span class="grad">${h.score} %</span></h1><p>${todo.length} empfohlene Optimierungen gefunden.</p><div class="wl">${Object.entries(CATS).map(([k, [n, i]]) => { const c = todo.filter(t => t.cat === k); return c.length ? `<div class="hc"><div class="st" style="background:rgba(var(--a-rgb),.12);color:var(--a)">${ico(i)}</div><div class="tx"><b>${n}</b><p>${c.map(t => esc(t.name)).join(' · ')}</p></div><span class="chip a">${c.length}</span></div>` : ''; }).join('')}</div><div class="act"><button class="btn lg" onclick="finishWizard()">Später</button><button class="btn p lg" onclick="wizard(3)">${ico('zap')}Optimieren</button></div>`);
+    const cats = Object.entries(CATS).filter(([k]) => todo.some(t => t.cat === k));
+    modal(`${steps(2)}<h1>Dein System-<span class="grad">Check</span></h1><p>${todo.length ? 'Das kann OrbitTweak für FiveM verbessern. Jede Änderung lässt sich einzeln zurücknehmen.' : 'Alles Empfohlene ist schon aktiv.'}</p>
+      <div class="m-nums"><div><b>${h.score}<small>%</small></b><span>Zustand</span></div><div><b>${todo.length}</b><span>Empfohlen</span></div><div><b>${cats.length}</b><span>${cats.length === 1 ? 'Bereich' : 'Bereiche'}</span></div></div>
+      <div class="wl">${cats.map(([k, [n, i]]) => { const c = todo.filter(t => t.cat === k); return `<div class="hc"><div class="st">${ico(i)}</div><div class="tx"><b>${n}</b><p>${c.map(t => esc(t.name)).join(' · ')}</p></div><span class="m-n">${c.length}</span></div>`; }).join('')}</div><div class="act"><button class="btn lg" onclick="finishWizard()">Später</button><button class="btn p lg" onclick="wizard(3)">${ico('zap')}Optimieren</button></div>`);
     const wl = $('#mbox .wl'); if (wl && wl.scrollHeight > wl.clientHeight + 4) wl.classList.add('more');
   }
   if (step === 3) {
-    modal(`${steps(3)}<h1>Boost <span class="grad">läuft</span></h1><p id="wizTxt">Starte…</p><div class="bar mt" style="height:8px"><i id="wizProg" style="width:0"></i></div>`);
+    modal(`${steps(3)}<h1>Boost <span class="grad">läuft</span></h1><p id="wizTxt">Starte…</p><div class="bar m-bar"><i id="wizProg" style="width:0"></i></div>`);
     const r = await boost(true);
-    modal(`${steps(3)}<h1>Dein PC ist <span class="grad">FiveM-ready</span></h1><p>${r ? `${r.applied} Optimierungen angewendet, ${bytes(r.freed)} freigegeben.${r.restart ? ' Starte deinen PC neu, damit alle Tweaks greifen.' : ''}` : ''}</p><div class="act"><button class="btn p lg" onclick="finishWizard()">Fertig</button></div>`);
+    modal(`${steps(3)}<div class="m-ic ok">${ico('check')}</div><h1>Dein PC ist <span class="grad">FiveM-ready</span></h1><p>${r ? 'Alles ist angewendet und bleibt umkehrbar.' : 'Der Boost ist durch.'}</p>
+      ${r ? `<div class="m-nums"><div><b>${r.applied}</b><span>Optimierungen</span></div><div><b>${bytes(r.freed).replace(/\s?([A-Z]+)$/, '<small>$1</small>')}</b><span>Freigegeben</span></div></div>` : ''}
+      ${r && r.restart ? `<div class="m-note">${ico('alert')}<span>Starte deinen PC neu, damit alle Tweaks greifen.</span></div>` : ''}<div class="act"><button class="btn p lg" onclick="finishWizard()">Fertig</button></div>`);
   }
 }
 function finishWizard() { closeModal(); api('settings.set', { key: 'firstRun', value: false }); S.settings.firstRun = false; }
@@ -1229,12 +1243,12 @@ function f8Status(k) {
 }
 function renderF8() {
   $('#f8Auto').classList.toggle('on', S.settings.f8Auto !== false);
-  $('#f8list').innerHTML = F8.map(([cat, icon, items]) => `<div class="card"><div class="lbl">${ico(icon)}${cat}</div>${items.map(c => {
+  $('#f8list').innerHTML = F8.map(([cat, icon, items]) => `<div class="card f8c"><div class="f8h">${ico(icon)}<h2>${cat}</h2><span class="f8n">${items.length} ${items.length === 1 ? 'Befehl' : 'Befehle'}</span></div>${items.map(c => {
     const v = f8Get(c);
     const ctl = c.t === 'bool' ? `<div class="tg ${v ? 'on' : ''}" data-f8b="${c.k}"></div>`
       : c.t === 'seg' ? `<div class="seg" data-f8="${c.k}">${c.o.map(o => `<button class="${v === o ? 'on' : ''}" data-v="${o}">${o}</button>`).join('')}</div>`
       : `<div class="rng"><input type="range" min="${c.min}" max="${c.max}" value="${v}" style="--p:${(v - c.min) / (c.max - c.min) * 100}%" data-f8r="${c.k}"><b>${v}</b></div>`;
-    return `<div class="f8row"><div class="top"><div><b>${c.n}</b><p>${c.d}</p></div>${ctl}</div><div class="f8meta"><code id="f8c-${c.k}">${esc(f8Cmd(c))}</code><span id="f8s-${c.k}">${f8Status(c.k)}</span><button class="ib" title="Kopieren" onclick="copyCmd($('#f8c-${c.k}').textContent)">${ico('copy')}</button></div></div>`;
+    return `<div class="f8row t-${c.t}"><div class="top"><div><b>${c.n}</b><p>${c.d}</p></div>${ctl}</div><div class="f8meta"><span class="f8p">${ico('terminal')}</span><code id="f8c-${c.k}">${esc(f8Cmd(c))}</code><span class="f8s" id="f8s-${c.k}">${f8Status(c.k)}</span><button class="ib" title="Befehl kopieren" onclick="copyCmd($('#f8c-${c.k}').textContent)">${ico('copy')}</button></div></div>`;
   }).join('')}</div>`).join('');
 }
 async function f8Send(c, v) {
@@ -2233,7 +2247,8 @@ setInterval(() => { if (curPage === 'mods') dlList('#modDl'); if (curPage === 'm
 let CUR = null;
 function curHtml(c) {
   const s = c.server || {}, initial = (s.name || '?').replace(/\^\d/g, '').trim()[0] || '?';
-  const stat = (k, v) => v == null || v === '' ? '' : `<div><span>${k}</span><b>${esc(v)}</b></div>`;
+  const stat = (k, v, unit = '', extra = '', cls = '') => v == null || v === '' ? '' : `<div${cls ? ` class="${cls}"` : ''}><span>${k}</span><b>${esc(v)}${unit ? `<small>${unit}</small>` : ''}</b>${extra}</div>`;
+  const pct = s.max ? Math.min(100, Math.round(s.players * 100 / s.max)) : 0;
   const tags = (s.allTags && s.allTags.length ? s.allTags : s.tags || []).slice(0, 10);
   return `<div class="cs-bn ${s.banner ? '' : 'nobn'}" ${s.banner ? `style="background-image:url('${esc(s.banner)}')"` : ''}></div>
     <div class="cs-body">
@@ -2246,13 +2261,13 @@ function curHtml(c) {
         </div>
       </div>
       <div class="cs-tags">${tags.map(t => `<span class="chip">${esc(t)}</span>`).join('')}</div>
-      <div class="cs-stats">${stat('Spieler', s.max ? `${s.players}/${s.max}` : null)}${stat('Ping', s.ping != null ? s.ping + ' ms' : null)}${stat('Build', s.build ? 'b' + s.build : null)}${stat('OneSync', s.onesync ? 'An' : null)}${stat('Ressourcen', s.resources || null)}${stat('Betreiber', s.owner)}</div>
+      <div class="cs-stats">${stat('Spieler', s.max ? s.players : null, s.max ? ' / ' + s.max : '', `<i class="cs-pb"><i style="transform:scaleX(${pct / 100})"></i></i>`)}${stat('Ping', s.ping != null ? s.ping : null, ' ms')}${stat('Build', s.build ? 'b' + s.build : null)}${stat('OneSync', s.onesync ? 'An' : null)}${stat('Ressourcen', s.resources || null)}${stat('Betreiber', s.owner, '', '', 'tx')}</div>
       <div class="cs-act">
         ${c.fav ? `<button class="btn sm" disabled>${ico('check')}In Favoriten</button>` : `<button class="btn sm" onclick="curFav()">${ico('plus')}Zu Favoriten</button>`}
         ${s.discord ? `<button class="btn sm dc" onclick="api('open',{target:'${esc(s.discord)}'})"><svg class="i" viewBox="0 0 24 24"><path d="M8 12h.01M16 12h.01M7.5 7.5c3-1.3 6-1.3 9 0M7.5 16.5c3 1.3 6 1.3 9 0M15.5 17l1.5 3c2-.7 3.5-1.7 5-3-.4-4.2-1.4-8-3.5-11-1.4-.7-2.9-1.2-4.5-1.5L13.5 6M8.5 17 7 20c-2-.7-3.5-1.7-5-3 .4-4.2 1.4-8 3.5-11C6.9 5.3 8.4 4.8 10 4.5L10.5 6"/></svg>Discord</button>` : ''}
         ${s.website ? `<button class="btn sm" onclick="api('open',{target:'${esc(s.website)}'})">${ico('globe')}Website</button>` : ''}
         <button class="btn sm" onclick="copyCmd('${esc(s.connect || c.url)}')">${ico('link')}Link kopieren</button>
-        ${c.connected ? '' : `<button class="btn sm" onclick="launch('${esc(s.connect || c.url)}')">${ico('play')}Verbinden</button>`}
+        ${c.connected ? '' : `<button class="btn sm p" onclick="launch('${esc(s.connect || c.url)}')">${ico('play')}Verbinden</button>`}
       </div>
     </div>`;
 }
@@ -3389,8 +3404,8 @@ function whatsNew(version) {
     try { const n = JSON.parse(localStorage.getItem('orbitNotes') || 'null'); if (n && n.v === version && n.notes.length) list = n.notes.map(t => ['zap', t, '']); } catch { }
   }
   if (!list) return;
-  modal(`<div class="kicker">Update</div><h1 style="margin-top:8px">Das ist neu in <span class="grad">v${esc(version)}</span></h1>
-    <div class="wn">${list.map(([ic, t, d], i) => `<div class="wn-row" style="--i:${i}"><div class="qi">${ico(ic)}</div><div><b>${t}</b><span>${d}</span></div></div>`).join('')}</div>
+  modal(`<div class="m-ic">${ico('sparkle')}</div><div class="kicker">Update installiert</div><h1>Das ist neu in <span class="grad">v${esc(version)}</span></h1>
+    <div class="wn">${list.map(([ic, t, d], i) => `<div class="wn-row" style="--i:${i}"><div class="qi">${ico(ic)}</div><div><b>${t}</b>${d ? `<span>${d}</span>` : ''}</div></div>`).join('')}</div>
     <div class="act"><button class="btn p lg" onclick="closeModal()">${ico('check')}Alles klar</button></div>`);
   $('#mbox').style.width = '620px';
 }
