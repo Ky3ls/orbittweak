@@ -2426,7 +2426,12 @@ async function rsSettings() {
   if (!RSC) try { RSC = await api('reshade.cfg.get'); } catch { RSC = null; }
   if (!RSC || !RSC.found) return;
   $('#rsVer').textContent = RS.version ? 'v' + RS.version : 'installiert';
-  $$('[data-rk]').forEach(el => { const k = el.dataset.rk; el.innerHTML = RS_KEYS.filter(([, v]) => k === 'keyNext' || v !== 0).map(([n, v]) => `<option value="${v}" ${RSC[k] === v ? 'selected' : ''}>${n}</option>`).join(''); });
+  $$('[data-rk]').forEach(el => {
+    const k = el.dataset.rk, cur = +RSC[k] || 0, list = RS_KEYS.filter(([, v]) => k === 'keyNext' || v !== 0);
+    // a key set elsewhere (e.g. in the ReShade overlay) is shown as it is, not as the first entry of the list
+    if (!list.some(([, v]) => v === cur)) list.unshift([!cur ? 'Aus' : cur >= 112 && cur <= 135 ? 'F' + (cur - 111) : 'Taste ' + cur, cur]);
+    el.innerHTML = list.map(([n, v]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${n}</option>`).join('');
+  });
   $('#rsFps').classList.toggle('on', !!RSC.showFps); $('#rsPerf').classList.toggle('on', !!RSC.perf);
 }
 async function rsSave(patch) {

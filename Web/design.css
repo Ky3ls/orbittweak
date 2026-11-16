@@ -81,9 +81,10 @@ select.sel{height:32px;padding:0 28px 0 10px;border-radius:9px;font-size:12px}
 
 /* ---------- key pickers: an even grid, rows fill the width ---------- */
 :is(#p-xhair,#p-display,#p-pad,#p-input) .keyseg{display:grid;grid-template-columns:repeat(auto-fit,minmax(48px,1fr))}
-#dpKey,#padKey{grid-template-columns:repeat(5,1fr)}
-#chopKey{grid-template-columns:repeat(9,minmax(0,1fr))}
-#chopKey button{padding:0 2px}
+/* (with the page id in front, or the :is() rule above wins and the Laggen keys break onto a second row) */
+#p-display #dpKey,#p-pad #padKey{grid-template-columns:repeat(5,1fr)}
+#p-input #chopKey{grid-template-columns:repeat(9,minmax(0,1fr))}
+#p-input #chopKey button{padding:0 2px}
 :is(#p-xhair,#p-display,#p-pad,#p-input) .keyseg button{padding:0 6px}
 
 /* ---------- mods ---------- */

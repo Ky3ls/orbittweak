@@ -850,7 +850,7 @@ select.sel{width:auto;height:30px;padding:0 8px;font-size:12px;border-radius:9px
 .adm-new .in{flex:1}
 .adm-code{display:flex;align-items:center;gap:16px;justify-content:space-between;margin-top:14px;padding:14px 16px;border-radius:14px;background:rgba(var(--a-rgb),.08);border:1px solid rgba(var(--a-rgb),.35)}
 .adm-code code{display:block;font-family:var(--mono);font-size:22px;font-weight:700;letter-spacing:.08em;margin-top:4px;user-select:text}
-.crow2{display:grid;grid-template-columns:158px 34px 66px 122px minmax(70px,1fr) 190px 170px;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.crow2{display:grid;grid-template-columns:158px 34px 66px 142px minmax(70px,1fr) 190px 170px;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
 .crow2:last-child{border:0}
 .crow2.off{opacity:.55}
 .cc{font-family:var(--mono);font-size:12.5px;user-select:text}
