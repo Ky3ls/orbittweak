@@ -1568,26 +1568,32 @@ const clWhen = d => {
   const hm = t.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
   return (days === 0 ? 'Heute' : days === 1 ? 'Gestern' : t.toLocaleDateString('de-DE', { day: 'numeric', month: 'short' })) + ', ' + hm;
 };
-const clFmt = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+const clFmt = s => { s = Math.round(s); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 // clip length: read from the file itself (only its header), one clip after the other, remembered for the session
-const clDur = new Map(); let clDurBusy = false;
+const clDur = new Map(); let clDurBusy = false, clDurHold = false, clDurStop = null;
 const clDurKey = c => c.rel + '|' + c.size;
 function clDurNext() {
-  if (clDurBusy || !HOST || curPage !== 'clip') return;
+  if (clDurBusy || clDurHold || !HOST || curPage !== 'clip') return;
   const c = clips.find(x => x.ext !== '.mkv' && !clDur.has(clDurKey(x))); if (!c) return;
   clDurBusy = true;
   const k = clDurKey(c), v = document.createElement('video');
+  // lets go of the file (a file being read can not go to the recycle bin)
+  const end = () => { clDurBusy = false; clDurStop = null; clearTimeout(t); v.onloadedmetadata = v.onerror = null; v.removeAttribute('src'); v.load(); };
   const done = d => {
-    if (!clDurBusy) return; clDurBusy = false; clearTimeout(t);
-    clDur.set(k, isFinite(d) ? d : 0); v.removeAttribute('src'); v.load();
+    if (!clDurBusy) return; end();
+    if (!isFinite(d)) d = 0;   // a file that is still being written reports no length
+    clDur.set(k, d);
     $$('#clGrid .clipc').forEach(cd => { const x = clips[+cd.dataset.clip]; if (x && clDurKey(x) === k && d > 0) { const b = cd.querySelector('.cl-dur'); b.textContent = clFmt(d); b.classList.remove('hidden'); } });
     setTimeout(clDurNext, 40);
   };
   const t = setTimeout(() => done(0), 5000);
   v.preload = 'metadata'; v.muted = true;
   v.onloadedmetadata = () => done(v.duration); v.onerror = () => done(0);
+  clDurStop = end;
   v.src = 'https://clips.orbit/' + c.rel.split('/').map(encodeURIComponent).join('/');
 }
+/** No reading of clip files while clips are moved to the recycle bin or deleted. */
+function clDurPause(on) { clDurHold = on; if (on) clDurStop?.(); else clDurNext(); }
 function clipRender() {
   const n = k => clips.filter(c => k === 'all' || clKind(c) === k).length;
   $('#clFilter').innerHTML = CL_FILTERS.map(([k, t]) => `<button class="${clFilter === k ? 'on' : ''}" data-clf="${k}">${t}<i class="cl-cnt">${n(k)}</i></button>`).join('');
@@ -1618,7 +1624,9 @@ async function clipList() {
 window.clipList = clipList;
 async function clipTrash(list, what) {
   if (!list.length || !await confirmBox(`${what} in den Papierkorb?`, 'Von dort kannst du sie wiederherstellen, solange der Papierkorb nicht geleert wird.')) return;
+  clDurPause(true);
   const r = await api('clip.recycle', { rels: list.map(c => c.rel) }).catch(e => ({ deleted: 0, failed: list.length, error: e.message }));
+  clDurPause(false);
   if (r.deleted) toast(r.deleted === 1 ? 'Clip im Papierkorb' : `${r.deleted} Clips im Papierkorb`, r.failed ? `${r.failed} ließen sich nicht verschieben` : '');
   else toast('Nichts verschoben', r.error || 'Die Dateien ließen sich nicht in den Papierkorb legen', false);
   clipList(); hlLoad();
@@ -1699,7 +1707,7 @@ document.addEventListener('click', e => {
   if (e.target.closest('#clNet')) { CL.net = CL.net === false; clipUI(); clipPush(); toast(CL.net ? 'Sicherheitsnetz an' : 'Sicherheitsnetz aus', CL.net ? 'Bis der erste Kill erkannt ist, werden Gefechte trotzdem gespeichert' : 'Es werden nur noch erkannte Kills gespeichert'); return; }
   const top = e.target.closest('#kcOn, [data-clkon]');
   if (top || e.target.closest('#clKills')) {
-    CL.kills = !CL.kills; clipUI(); clipPush(); clipRender();
+    CL.kills = !CL.kills; clipUI(); clipPush(); if (!clips.length) clipRender();   // only the empty grid talks about the Kill-Clipper
     if (CL.kills && CL.detect === 'feed' && (CL.name || '').trim().length < 3) { toast('Ingame-Namen eintragen', 'Ohne Namen weiß OrbitTweak nicht, welche Kills deine sind', false); $(top ? '#kcName' : '#clName').focus(); }
     else toast(CL.kills ? 'Kill-Clipper an' : 'Kill-Clipper aus', CL.kills ? 'Ab jetzt wird jeder Kill automatisch gespeichert' : '');
     return;
@@ -1717,7 +1725,7 @@ document.addEventListener('click', e => {
     $('#mbox').style.width = '760px';
   }
 });
-async function clipDel(rel) { const r = await api('clip.delete', { rel }); closeModal(); $('#mbox').style.width = ''; toast(r.ok ? 'Clip gelöscht' : 'Löschen fehlgeschlagen', r.error || '', r.ok); clipList(); }
+async function clipDel(rel) { clDurPause(true); const r = await api('clip.delete', { rel }).catch(e => ({ ok: false, error: e.message })); clDurPause(false); closeModal(); $('#mbox').style.width = ''; toast(r.ok ? 'Clip gelöscht' : 'Löschen fehlgeschlagen', r.error || '', r.ok); clipList(); }
 window.clipDel = clipDel;
 function initClip(s) { Object.assign(CL, s.clip || {}); clipUI(); clipPush(); }
 
