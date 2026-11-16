@@ -885,6 +885,8 @@ function dcRender() {
   // only when something changed: swapping the rows every 3 s would swallow a click that lands in between
   // without an App-ID the setup comes first and the switches wait for it
   $('#dcCard').classList.toggle('noid', !!noId);
+  // no OrbitTweak Discord app is set up: the card stays hidden instead of asking users to create one themselves
+  $('#dcCard').classList.toggle('hidden', !!DC && !DC.builtIn && !S.settings.discordAppId);
   const rows = (noId ? '<p class="dc-need">Erst App-ID eintragen, dann lässt sich der Status einschalten.</p>' : '')
     + DC_SETS.map(([k, n, d]) => `<div class="srow sclick ${noId || (k !== 'discordOn' && !dcOn('discordOn')) ? 'dis' : ''}" data-dcset="${k}"><div><b>${n}</b><p>${d}</p></div><div class="tg ${dcOn(k) ? 'on' : ''}"></div></div>`).join('');
   if ($('#dcSets').dataset.html !== rows) { $('#dcSets').innerHTML = rows; $('#dcSets').dataset.html = rows; }
@@ -2587,6 +2589,8 @@ async function admCreate() {
   const count = Math.max(1, Math.min(50, parseInt($('#admNum').value) || 1));
   const r = await srv('POST', '/api/codes', { role, note: $('#admNote').value, days, count });
   if (r.error) return toast('Fehler', r.error, false);
+  // a key server without runtimes (worker not updated yet) answers without 'days': the key would never expire
+  if (days && !('days' in r)) toast('Achtung: Key läuft nicht ab', 'Dein Key-Server kennt noch keine Laufzeiten (Worker nicht aktualisiert). Dieser Key gilt unbegrenzt.', false);
   const codes = r.codes || [r.code];
   $('#admNote').value = ''; $('#admNum').value = 1;
   const kind = `${role === 'admin' ? 'Admin' : role === 'editor' ? 'Editor' : 'Nutzer'}-Key${codes.length > 1 ? 's' : ''} · ${days ? (days === 1 ? '1 Tag' : days + ' Tage') : 'unbegrenzt'}`;
