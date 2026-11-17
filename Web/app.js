@@ -382,6 +382,7 @@ function onEvent(ev, d) {
     if (d.file) passed('Highlight-Video der Runde fertig', `${d.clips} Clips · ${d.file}`); else toast('Kein Highlight-Video', d.error || '', false);
     if (curPage === 'clip') { clipList(); hlLoad(); }
   }
+  else if (EVENT_EXT[ev]) EVENT_EXT[ev](d);
   else if (ev === 'lag') { if (wasdSt && wasdSt.chop) { wasdSt.chop.on = d.on; wasdUI(); } }   // switched with the key in the game
 }
 /** A live value that changes every second: set at once (counting up to it would redraw the page for most of every second). */
@@ -2955,6 +2956,8 @@ async function boot() {
 /** 2.27: feature files (stats.js, autostart.js, palette.js) add their own mock commands and page hooks here. */
 const MOCK_EXT = {};
 const PAGE_SHOW = {};
+/** Host events a feature file handles itself: EVENT_EXT[name] = data => {}. */
+const EVENT_EXT = {};
 const Mock = {
   settings: { accent: 'inferno', autoInstall: false, restoreBeforeBoost: true, purgeStandby: true, autoUpdate: true, firstRun: false, lastBoost: null, xhairAck: false, xhair: { on: false, onlyGame: false, key: 0x79, offsetX: 0, offsetY: 0, json: null }, display: { on: false, onlyGame: true, vibrance: 0, brightness: 0, contrast: 0, gamma: 100, key: 0 } },
   // the same tweaks as Core/Catalog.cs (names and texts), with made-up states
