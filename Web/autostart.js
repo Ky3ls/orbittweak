@@ -63,7 +63,7 @@ function asDetail(it) {
     since ? `<span>${ico('clock')}Aus seit ${esc(since)}</span>` : '',
     `<span>${ico(it.folder ? 'file' : 'layers')}${it.folder ? 'Datei' : 'Registrierungswert'} „${esc(it.entry)}“</span>`,
   ].filter(Boolean).join('');
-  const canShow = it.exists && (it.folder || it.path);
+  const canShow = it.folder || (it.exists && it.path);   // a dead link in the startup folder is still there to show
   return `<div class="as-det">
     <code class="as-cmd">${esc(it.command)}</code>
     <div class="as-df"><div class="as-facts">${facts}</div>${canShow ? `<button class="btn sm gh" type="button" data-asrev="${esc(it.id)}">${ico('folder')}Im Explorer zeigen</button>` : ''}</div>
@@ -110,7 +110,7 @@ function asRender(focusId) {
       <button class="btn p" id="asOff" type="button">${ico('power')}Empfohlene ausschalten</button>${undoBtn}`;
   } else if (items) {
     go = `<div class="as-gh"><span class="as-ok">${ico('check')}</span></div>
-      <p><b>Aufgeräumt</b> Nichts, was wir als „Kann aus“ kennen, startet mit Windows.</p>${undoBtn}`;
+      <p><b>Aufgeräumt</b> Hier startet nichts, was wir als „Kann aus“ kennen. Store-Apps wie Teams oder WhatsApp findest du unter Einstellungen › Apps › Autostart.</p>${undoBtn}`;
   }
   const g = $('#asGo'); if (g) { g.innerHTML = go; g.classList.toggle('done', !!items && !can.length); }
 
@@ -132,7 +132,7 @@ function asRender(focusId) {
   }
   const shown = all.filter(i => AS.filter === 'all' || AS.keep.has(i.id) || (AS.filter === 'on') === i.on);
   rows.innerHTML = shown.length ? shown.map(asRow).join('')
-    : !all.length ? asEmpty('check', 'Nichts im Autostart', 'Windows startet ohne zusätzliche Programme.', 'ok')
+    : !all.length ? asEmpty('check', 'Nichts im Autostart', 'In der Registrierung und im Autostart-Ordner steht kein Programm.', 'ok')
     : AS.filter === 'off' ? asEmpty('power', 'Nichts ausgeschaltet', 'Alles in der Liste startet mit Windows.')
     : asEmpty('power', 'Nichts startet mit Windows', 'Alle Einträge sind ausgeschaltet.');
   if (focusId && hadFocus === focusId) rows.querySelector(`.tg[data-astg="${CSS.escape(focusId)}"]`)?.focus({ preventScroll: true });
@@ -284,7 +284,7 @@ PAGE_SHOW.autostart = () => { if (!AS.items || Date.now() - AS.at > 30000) asLoa
   const WHY = {
     launcher: 'Launcher, öffnet sich beim Spielstart von selbst', steam: 'Launcher, öffne ihn vor FiveM selbst, wenn dein Server Steam verlangt', app: 'App, die du bei Bedarf selbst öffnest',
     updater: 'Updater, das Programm prüft beim Öffnen selbst', missing: 'Datei fehlt, startet ohnehin nicht',
-    security: 'Schutz deines PCs, bitte an lassen', audio: 'Ton und Audio-Einstellungen hängen daran',
+    security: 'Gehört zu deinem Virenschutz, bitte anlassen', audio: 'Ton und Audio-Einstellungen hängen daran',
     driver: 'Treiber-Software, Einstellungen und Profile hängen daran', input: 'Maus, Tastatur und Headset brauchen es für Profile und Tasten',
     discord: 'Für Sprachchat oft gewollt, deine Entscheidung', sync: 'Synchronisiert deine Dateien nur, solange es läuft',
   };
@@ -319,6 +319,6 @@ PAGE_SHOW.autostart = () => { if (!AS.items || Date.now() - AS.at > 30000) asLoa
   };
   MOCK_EXT['autostart.reveal'] = async a => {
     const i = MOCK.find(x => x.id === a.id);
-    return i && i.exists ? { ok: true } : { ok: false, error: 'Die Datei ist nicht mehr da.' };
+    return i && (i.exists || i.folder) ? { ok: true } : { ok: false, error: 'Die Datei ist nicht mehr da.' };
   };
 }

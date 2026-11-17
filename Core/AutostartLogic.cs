@@ -216,7 +216,7 @@ public static class AutostartLogic
     private const string WhyHelper = "Hilfsprogramm, für den Start nicht nötig";
     private const string WhyBrowser = "Lädt den Browser vor und kostet nur Startzeit";
     private const string WhyMissing = "Datei fehlt, startet ohnehin nicht";
-    private const string WhySecurity = "Schutz deines PCs, bitte an lassen";
+    private const string WhySecurity = "Gehört zu deinem Virenschutz, bitte anlassen";
     private const string WhyAudio = "Ton und Audio-Einstellungen hängen daran";
     private const string WhyDriver = "Treiber-Software, Einstellungen und Profile hängen daran";
     private const string WhyInput = "Maus, Tastatur und Headset brauchen es für Profile und Tasten";

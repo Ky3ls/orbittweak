@@ -64,7 +64,8 @@
     };
     tryOn(it.ft, 1, loose, true); tryOn(it.fk, .72, false, false); tryOn(it.fs, .45, false, false);
     // another ending ("abstürze", "ruckelt") still finds the word it comes from, as the start of a word
-    if (!best && tok.length >= 5) for (const cut of [1, 2]) { tryOn(it.ft, 1, false, true, cut); tryOn(it.fk, .72, false, false, cut); if (best) break; }
+    // (never shorter than four letters: "platz" must not find "Planung" or "PlayStation")
+    if (!best && tok.length >= 5) for (const cut of [1, 2]) { if (tok.length - cut < 4) continue; tryOn(it.ft, 1, false, true, cut); tryOn(it.fk, .72, false, false, cut); if (best) break; }
     return best;
   }
   /** The title with the matched letters marked (ranges are in the folded text; st/en lead back to the original). */
@@ -194,7 +195,10 @@
         kw: ['verbinden join server', ...(s.tags || []), s.locale, s.addr, s.code].filter(Boolean).join(' '), srv: s, verb: 'Verbinden',
         run: () => s.online ? joinServer(s.code) : toast('Server gerade offline', name, false) });
     }
-    for (const it of L) { it.ft = fold(it.title); it.fk = fold(it.kw); it.fs = fold((it.sub || '') + ' ' + (it.desc || '')); }
+    // a tweak's description often names FPS, crashes or stutter only to say it does not help (or to warn): those words
+    // do not find it, its short line and keywords still do
+    const descOf = it => it.g === 'tweak' ? (it.desc || '').replace(/\bFPS\b|abstürz\w*|ruck(e)?l\w*/gi, ' ') : (it.desc || '');
+    for (const it of L) { it.ft = fold(it.title); it.fk = fold(it.kw); it.fs = fold((it.sub || '') + ' ' + descOf(it)); }
     return L;
   }
 

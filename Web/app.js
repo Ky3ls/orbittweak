@@ -3625,7 +3625,7 @@ const CHANGES = {
   '2.27.0': [
     ['chart', 'Spielzeit', 'Neue Seite: wie lange du heute, diese Woche und insgesamt spielst, mit Verlauf über 14 oder 30 Tage, deinen Servern, Rekorden und den letzten Runden. OrbitTweak zählt von selbst mit, solange es offen ist (minimiert reicht).'],
     ['clock', 'Runde vorbei', 'Nach einer Runde ab fünf Minuten zeigt OrbitTweak kurz Länge, Server und Kills. Auf der Übersicht steht klein, wie lange du heute gespielt hast.'],
-    ['power', 'Autostart', 'Neue Seite: Alles, was mit Windows startet, schaltest du hier an und aus wie im Task-Manager, ohne etwas zu löschen. Mit Hinweisen, was aus kann, und „Empfohlene ausschalten“ in einem Schritt.'],
+    ['power', 'Autostart', 'Neue Seite: Programme, die über die Registrierung oder den Autostart-Ordner mit Windows starten, schaltest du hier an und aus wie im Task-Manager, ohne etwas zu löschen. Mit Hinweisen, was aus kann, und „Empfohlene ausschalten“ in einem Schritt. Store-Apps wie Teams oder WhatsApp stehen hier nicht.'],
     ['search', 'Schnellsuche', 'Mit Strg+K oder „Suchen“ oben findest du Seiten, Tweaks, Aktionen, Designs und deine Server, auch nach dem Problem wie „ruckler“ oder „absturz“. Tweaks schaltest du dort direkt um, eine Adresse wie cfx.re/join/… verbindet sofort.'],
     ['zap', 'Ruhigere Tweak-Liste', 'Jeder Tweak zeigt eine kurze Zeile, die ganze Erklärung öffnest du mit „Details“. Passt ein Tweak nicht zu deinem PC, steht der Grund darunter, auch wenn er noch an ist.'],
     ['sparkle', 'Feinschliff am Design', 'Ruhigere Schalter, eine Hauptaktion pro Seite, besser lesbare Nebentexte, ein sichtbarer Fokus beim Tabben und sauberere Ansichten in kleinen Fenstern.'],

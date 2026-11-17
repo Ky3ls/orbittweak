@@ -133,8 +133,8 @@ public partial class MainWindow
         finally
         {
             _playSrvBusy = false;
-            // the server known: a look every three minutes (did it change?); not yet: again soon
-            _playSrvNext = DateTime.Now.AddSeconds(_play?.Open?.Key != null ? 180 : 20);
+            // the server known: a look every 30 s (did it change?); not yet: again soon
+            _playSrvNext = DateTime.Now.AddSeconds(_play?.Open?.Key != null ? 30 : 20);
         }
     }
 

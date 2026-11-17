@@ -6,7 +6,7 @@
    "Runde vorbei" note when a round of five minutes or more ends.
    ===================================================================== */
 
-const ST = { d: null, at: 0, err: null, n: 14, all: false, busy: null, again: false, anim: false };
+const ST = { d: null, at: 0, err: null, game: false, n: 14, all: false, busy: null, again: false, anim: false };
 try { if (localStorage.getItem('st.range') === '30') ST.n = 30; } catch { }
 const ST_WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 const ST_WDL = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
@@ -36,6 +36,10 @@ const stCount = (n, one, many) => `${n.toLocaleString('de-DE')} ${n === 1 ? one 
 const stPct = s => s > 0 && s < .005 ? '< 1 %' : Math.round(s * 100) + ' %';
 /** Seconds the open round has run since the numbers were fetched (the page counts on by itself in between). */
 const stExtra = () => ST.d && ST.d.current ? Math.max(0, (performance.now() - ST.at) / 1000) : 0;
+/** When counting began (the first round, or the one being played when it is the very first). Before that day nothing
+    was counted: "noch nicht gezählt", never "nicht gespielt". */
+const stFrom = () => ST.d ? (ST.d.since ?? (ST.d.current ? ST.d.current.start : null)) : null;
+const stPre = t => { const f = stFrom(); return f != null && t < stMidnight(f); };
 
 /* ---------- loading ---------- */
 async function stLoad(animate) {
@@ -43,8 +47,10 @@ async function stLoad(animate) {
   // one on its way may have asked before a round was removed or the history cleared: one more right after it
   if (ST.busy) { ST.again = true; return ST.busy; }
   ST.busy = (async () => {
+    const game = !!S.fmGame;   // what this answer knows about the game (see the 2 s look below)
     try { ST.d = await api('stats.get'); ST.at = performance.now(); ST.err = null; }
     catch (e) { ST.err = (e && e.message) || 'Unbekannter Fehler'; }
+    ST.game = game;
     stHome();
     if (curPage === 'stats') { const a = ST.anim; ST.anim = false; stRender(a); }
   })().finally(() => { ST.busy = null; if (ST.again) { ST.again = false; stLoad(false); } });
@@ -129,7 +135,8 @@ function stLiveFill() {
 function stSumFill() {
   const d = ST.d, x = stExtra();
   const today = d.todayRounds ? stCount(d.todayRounds, 'Runde', 'Runden') + (d.current ? ', eine läuft gerade' : '') : 'Heute noch nicht gespielt';
-  const week = d.lastWeek >= 60 ? `Letzte Woche: ${stDur(d.lastWeek)}` : 'Letzte Woche nicht gespielt';
+  const lastMon = stAddDays(stMidnight(Date.now()), -((new Date().getDay() + 6) % 7) - 7);   // Monday of last week
+  const week = d.lastWeek >= 60 ? `Letzte Woche: ${stDur(d.lastWeek)}` : stPre(lastMon) ? 'Letzte Woche noch nicht gezählt' : 'Letzte Woche nicht gespielt';
   const total = d.since ? `${stCount(d.rounds, 'Runde', 'Runden')} seit ${stDate(d.since, true)}` : stCount(d.rounds, 'Runde', 'Runden');
   $('#stSum').innerHTML = [['Heute', 'clock', d.today, today], ['Diese Woche', 'chart', d.week, week], ['Gesamt', 'timer', d.total, total]]
     .map(([k, icon, v, s], i) => `<div class="st-m"><div class="lbl">${ico(icon)}${k}</div><b class="st-v" id="stV${i}">${stBig(v + x)}</b><span class="st-s">${esc(s)}</span></div>`).join('');
@@ -149,7 +156,7 @@ function stChartFill(animate) {
   const bars = $('#stBars'), sig = ST.n + '|' + days[0].day + '|' + days.length;
   const h = v => v < 30 ? '' : Math.max(1.2, v / (top * 3600) * 100).toFixed(2) + '%';
   // the value of each day for screen readers (the tooltip is for the mouse)
-  const lab = i => `${stDayName(stParse(days[i].day), true)}: ${vals[i] >= 60 ? stDur(vals[i]) : 'nicht gespielt'}`;
+  const lab = i => `${stDayName(stParse(days[i].day), true)}: ${vals[i] >= 60 ? stDur(vals[i]) : stPre(stParse(days[i].day)) ? 'noch nicht gezählt' : 'nicht gespielt'}`;
   bars.closest('.st-chart').style.setProperty('--gap', ST.n > 14 ? '4px' : '8px');
   if (bars.dataset.sig === sig && !animate) {   // same days: only the heights change (the open round grows)
     [...bars.children].forEach((c, i) => { c.classList.toggle('zero', vals[i] < 30); c.firstChild.style.height = h(vals[i]); c.setAttribute('aria-label', lab(i)); });
@@ -182,7 +189,7 @@ function stSrvFill(animate) {
   $('#stSrvSub').textContent = ST.d.since ? `Nach Spielzeit, seit ${stDate(ST.d.since, true)}` : 'Nach Spielzeit';
   $('#stSrv').innerHTML = list.map((s, i) => {
     const name = s.name || s.addr, ini = name ? (name.match(/[A-Za-z0-9ÄÖÜäöü]/) || ['?'])[0].toUpperCase() : '';
-    return `<div class="st-sr${name ? '' : ' unk'}${i === 0 ? ' first' : ''}" title="${esc(stCount(s.rounds, 'Runde', 'Runden'))}${s.addr ? ' · ' + esc(s.addr) : ''}">
+    return `<div class="st-sr${name ? '' : ' unk'}${i === 0 ? ' first' : ''}" title="${s.name ? esc(s.name) + ' · ' : ''}${esc(stCount(s.rounds, 'Runde', 'Runden'))}${s.addr ? ' · ' + esc(s.addr) : ''}">
       <span class="st-si">${name ? esc(ini) : ico('server')}</span>
       <span class="st-sn">${esc(name || 'Server nicht erkannt')}</span><span class="st-st">${stDur(s.secs)}</span>
       <span class="st-sb"><i style="--s:${Math.max(.004, s.share).toFixed(4)}"></i></span><span class="st-sp">${stPct(s.share)}</span>
@@ -224,7 +231,7 @@ function stRoundsFill() {
     if (k !== day) { html += `${day ? '</div>' : ''}<div class="st-dg"><div class="st-dh">${esc(stDayName(r.start, true))}</div>`; day = k; }
     const srv = r.server || r.addr;
     const chips = (r.kills ? `<span class="chip">${stCount(r.kills, 'Kill', 'Kills')}</span>` : '') + (r.clips ? `<span class="chip">${stCount(r.clips, 'Clip', 'Clips')}</span>` : '');
-    html += `<div class="st-rr"><span class="st-rt">${stClock(r.start)}–${stClock(r.end)}</span><span class="st-rs${srv ? '' : ' unk'}">${esc(srv || 'Server nicht erkannt')}</span>
+    html += `<div class="st-rr"><span class="st-rt">${stClock(r.start)}–${stClock(r.end)}</span><span class="st-rs${srv ? '' : ' unk'}"${srv ? ` title="${esc(srv)}"` : ''}>${esc(srv || 'Server nicht erkannt')}</span>
       <span class="st-rc">${chips}</span><span class="st-rl">${stDur(r.secs)}</span><button class="st-rx" type="button" data-rm="${r.id}" title="Runde entfernen" aria-label="Runde entfernen">${ico('x')}</button></div>`;
   }
   if (day) html += '</div>';
@@ -249,7 +256,7 @@ function stTip(el) {
   if (el.dataset.k != null) {
     const days = ST.d.days.slice(-ST.n), d = days[+el.dataset.k]; if (!d) return;
     const v = d.secs + (+el.dataset.k === days.length - 1 ? stExtra() : 0);
-    html = `<b>${v >= 60 ? stDur(v) : 'Nicht gespielt'}</b><span>${esc(stDayName(stParse(d.day)))}${d.rounds ? ' · ' + stCount(d.rounds, 'Runde', 'Runden') : ''}</span>`;
+    html = `<b>${v >= 60 ? stDur(v) : stPre(stParse(d.day)) ? 'Noch nicht gezählt' : 'Nicht gespielt'}</b><span>${esc(stDayName(stParse(d.day)))}${d.rounds ? ' · ' + stCount(d.rounds, 'Runde', 'Runden') : ''}</span>`;
   } else {
     const i = +el.dataset.h, v = ST.d.hours[i];
     html = `<b>${v >= 60 ? stDur(v) : 'Kaum gespielt'}</b><span>${i}–${(i + 1) % 24 || 24} Uhr · letzte 30 Tage</span>`;
@@ -362,6 +369,8 @@ setInterval(() => {
   if (curPage === 'stats') stTick(); else if (curPage === 'home') stHome();
 }, 30000);
 setInterval(() => { if (!document.hidden && (curPage === 'stats' || curPage === 'home')) stLoad(false); }, 5 * 60000);
+// the game was started or closed: fresh numbers right away (the host sends "round" only for rounds of five minutes or more)
+setInterval(() => { if (ST.d && !ST.busy && !!S.fmGame !== ST.game && !document.hidden && (curPage === 'stats' || curPage === 'home')) stLoad(false); }, 2000);
 // the start page figure: once the app is ready (without a key the host says no; it is tried again on the next visit)
 [1500, 6000, 15000].forEach(ms => setTimeout(() => { if (!ST.d) stLoad(false); }, ms));
 
