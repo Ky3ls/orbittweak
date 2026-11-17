@@ -11,8 +11,20 @@
 .tb-search svg.i{width:14px;height:14px;stroke-width:1.8}
 .tbs-k{display:flex;gap:3px;margin-left:4px}
 .tb-search+.upd{margin-left:10px}
+@media (min-width:900px){.tb-search+.upd{flex:none;white-space:nowrap}}   /* "Update 2.27.0" on one line (narrower: as before) */
 .titlebar .tb-search~.wc{margin-left:8px}
 .titlebar .tb-search~.upd.show+.wc{margin-left:0}
+.titlebar .tb-mid{margin-right:12px}   /* never flush against the status, however narrow the window */
+/* a narrow window (snapped to half a screen, or an update waiting below 1100 px): only the magnifier, so the status
+   and the update pill keep their room and nothing wraps */
+@media (max-width:1099px){
+  .titlebar:has(.upd.show) .tb-search{width:30px;padding:0;justify-content:center}
+  .titlebar:has(.upd.show) .tb-search>span{display:none}
+}
+@media (max-width:900px){
+  .tb-search{width:30px;padding:0;justify-content:center}
+  .tb-search>span{display:none}
+}
 
 /* keycaps (title bar, search field and the line at the foot) */
 .tb-search kbd,.pal kbd{display:inline-grid;place-items:center;height:18px;min-width:18px;padding:0 5px;border-radius:5px;

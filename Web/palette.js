@@ -51,8 +51,10 @@
     }
     return best;
   }
-  /** The best fit of one typed word in an entry: the title counts most, then its keywords, then the description. */
-  function tokScore(tok, it) {
+  /** The best fit of one typed word in an entry: the title counts most, then its keywords, then the description.
+   *  `loose` (letters in order) only runs when nothing matched for real, so "gpu" does not also bring up
+   *  "Wiederherstellun(g)s(pu)nkt", while a typo like "rmfr" still finds "RAM freigeben". */
+  function tokScore(tok, it, loose) {
     let best = null;
     const tryOn = (f, w, loose, title, cut = 0) => {
       const h = hit(cut ? tok.slice(0, -cut) : tok, f.t, loose && !cut, title ? 3 : 4);
@@ -60,7 +62,7 @@
       const s = h[0] * w * (cut ? .7 : 1);
       if (!best || s > best.s) best = { s, r: title ? h[1] : null };
     };
-    tryOn(it.ft, 1, true, true); tryOn(it.fk, .72, false, false); tryOn(it.fs, .45, false, false);
+    tryOn(it.ft, 1, loose, true); tryOn(it.fk, .72, false, false); tryOn(it.fs, .45, false, false);
     // another ending ("abstürze", "ruckelt") still finds the word it comes from, as the start of a word
     if (!best && tok.length >= 5) for (const cut of [1, 2]) { tryOn(it.ft, 1, false, true, cut); tryOn(it.fk, .72, false, false, cut); if (best) break; }
     return best;
@@ -130,13 +132,20 @@
     if (!pick()) renderSettings();
     pick()?.click();
   }
-  const srvName = s => String(s.name || s.code || '').replace(/\^\d/g, '').replace(/\s+/g, ' ').trim() || 'Unbekannter Server';
+  const plain = v => String(v || '').replace(/\^\d/g, '').replace(/\s+/g, ' ').trim();   // FiveM colour codes (^1…^9) out
+  const srvName = s => plain(s.name || s.code) || 'Unbekannter Server';
+  /** Players only when the server says how many fit (an IP server with locked info reports 0 of 0), then its line. */
+  const srvSub = s => !s.online ? 'Gerade offline'
+    : [s.max ? `${s.players ?? 0} von ${s.max} Spielern` : '', plain(s.desc)].filter(Boolean).join(' · ') || 'Online';
   const shortDesc = d => { const s = String(d || '').split(/ – |; |\. /)[0]; return s.length > 110 ? s.slice(0, 108).replace(/\s+\S*$/, '') + '…' : s; };
   const navShown = p => { const n = $(`.nav[data-p="${p}"]`); return !n || !n.classList.contains('hidden'); };
   /** cfx.re/join/…, IP or IP:Port, host:Port */
   const ADDR = /^(?:https?:\/\/)?(?:cfx\.re\/join\/[a-z0-9]{3,}|(?:\d{1,3}\.){3}\d{1,3}(?::\d{2,5})?|[a-z0-9-]+(?:\.[a-z0-9-]+)+:\d{2,5})\/?$/i;
-  const connectItem = addr => ({ id: 'cn:' + addr, g: 'server', icon: 'link', title: `Mit „${addr}“ verbinden`, noRecent: true, verb: 'Verbinden',
-    sub: S.fmOn ? 'FiveM läuft schon: erst beenden, dann verbinden' : 'FiveM mit deinem Boost starten und direkt verbinden', run: () => launch(addr) });
+  const connectItem = raw => {
+    const addr = raw.replace(/^https?:\/\//i, '').replace(/\/+$/, '');   // FiveM wants "cfx.re/join/…", not a web link
+    return { id: 'cn:' + addr, g: 'server', icon: 'link', title: `Mit „${addr}“ verbinden`, noRecent: true, verb: 'Verbinden',
+      sub: S.fmOn ? 'FiveM läuft schon: erst beenden, dann verbinden' : 'FiveM mit deinem Boost starten und direkt verbinden', run: () => launch(addr) };
+  };
 
   /** Everything the palette can find, built fresh on each open (pages and states may have changed). */
   function index() {
@@ -154,16 +163,17 @@
       add({ id, g: 'page', icon, title, sub, kw, verb: 'Öffnen', here, run });
     }
     // actions: the same functions as the buttons on the pages
-    const fm = !!S.fmOn;
+    const fm = !!S.fmOn, noFm = !!S.fivem && S.fivem.found === false;
     add({ id: 'ac:boost', g: 'action', icon: 'zap', title: 'Boost starten', sub: 'Empfohlene Tweaks, Temp-Dateien, DNS und RAM in einem Schritt', kw: 'optimieren fps leistung schneller boost alles', verb: 'Ausführen', run: () => { go('home'); return boost(); } });
+    // (FiveM not found: the entry leads to the launcher, where the path is chosen, instead of a start that must fail)
     add(fm ? { id: 'ac:fivem', g: 'action', icon: 'power', title: 'FiveM beenden', sub: S.fmGame ? 'Schließt das laufende Spiel, mit Rückfrage' : 'Schließt FiveM, mit Rückfrage', kw: 'beenden schließen stoppen killen spiel hängt eingefroren', verb: 'Ausführen', run: () => killFiveM() }
-      : { id: 'ac:fivem', g: 'action', icon: 'play', title: 'FiveM starten', sub: S.fivem && S.fivem.found === false ? 'FiveM nicht gefunden: Pfad im Launcher wählen' : 'Mit deinem Pre-Launch-Boost', kw: 'starten spielen launch öffnen spiel los', verb: 'Starten', run: () => launch('') });
-    add({ id: 'ac:ram', g: 'action', icon: 'ram', title: 'RAM freigeben', sub: 'Working-Sets und Standby-Liste leeren', kw: 'arbeitsspeicher speicher voll freigeben nachladen', verb: 'Ausführen', run: () => cleanRam() });
+      : { id: 'ac:fivem', g: 'action', icon: 'play', title: 'FiveM starten', sub: noFm ? 'FiveM nicht gefunden: Pfad im Launcher wählen' : 'Mit deinem Pre-Launch-Boost', kw: 'starten spielen launch öffnen spiel los', verb: noFm ? 'Öffnen' : 'Starten', run: () => noFm ? go('launcher') : launch('') });
+    add({ id: 'ac:ram', g: 'action', icon: 'ram', title: 'RAM freigeben', sub: S.settings.purgeStandby === false ? 'Working-Sets der Programme leeren' : 'Working-Sets und Standby-Liste leeren', kw: 'arbeitsspeicher speicher voll freigeben nachladen', verb: 'Ausführen', run: () => cleanRam() });
     add({ id: 'ac:cache', g: 'action', icon: 'trash', title: 'FiveM-Cache leeren', sub: 'Hilft bei Ladeproblemen, der nächste Start lädt etwas länger', kw: 'cache leeren laden ladeprobleme hängt texturen platz', verb: 'Ausführen', run: () => clearFmCache() });
     add({ id: 'ac:health', g: 'action', icon: 'activity', title: 'Systemcheck starten', sub: 'Prüft Treiber, Energieplan, Cache und mehr', kw: 'diagnose check prüfen absturz crash ruckler fehler probleme scan', verb: 'Ausführen', run: () => { const had = !!S.health; go('diag'); if (had) return runHealth(); } });
     add({ id: 'ac:upd', g: 'action', icon: 'download', title: 'Nach Updates suchen', sub: 'Du nutzt ' + ($('#verCur')?.textContent || 'OrbitTweak'), kw: 'update aktualisieren version neu', verb: 'Ausführen', run: () => { openSet('updates'); return checkUpdate(true); } });
     add({ id: 'ac:xh', g: 'action', icon: 'crosshair', title: XH.on ? 'Fadenkreuz ausschalten' : 'Fadenkreuz einschalten', sub: 'Overlay über FiveM · Server-Regeln beachten', kw: 'crosshair zielen overlay an aus', st: XH.on ? 'An' : '', verb: XH.on ? 'Ausschalten' : 'Einschalten', run: () => xhToggle() });
-    if (typeof gwSet === 'function') add({ id: 'ac:border', g: 'action', icon: 'max', title: 'Randloses Vollbild', sub: 'FiveM sofort randlos, ohne Neustart', kw: 'fenster fenstermodus vollbild randlos borderless alt tab', verb: 'Ausführen', run: () => gwSet('borderless') });
+    if (typeof gwSet === 'function') add({ id: 'ac:border', g: 'action', icon: 'max', title: 'Randloses Vollbild', sub: fm ? 'FiveM sofort randlos, ohne Neustart' : 'Geht nur, während FiveM läuft', kw: 'fenster fenstermodus vollbild randlos borderless alt tab', verb: 'Ausführen', run: () => gwSet('borderless') });
     add({ id: 'ac:restore', g: 'action', icon: 'shield', title: 'Wiederherstellungspunkt erstellen', sub: 'Windows-Snapshot, zu dem du jederzeit zurückkannst', kw: 'backup sicherung snapshot wiederherstellen', verb: 'Ausführen', run: () => restorePoint() });
     add({ id: 'ac:revert', g: 'action', icon: 'undo', title: 'Alle Tweaks zurücksetzen', sub: 'Alles, was OrbitTweak geändert hat, auf den Wert davor – mit Rückfrage', kw: 'rückgängig zurück standard reset probleme', verb: 'Ausführen', run: () => revertAll() });
     add({ id: 'ac:wizard', g: 'action', icon: 'sparkle', title: 'Setup-Assistent starten', sub: 'OrbitTweak nochmal von vorne einrichten', kw: 'einrichten assistent setup erste schritte', verb: 'Ausführen', run: () => wizard(0) });
@@ -180,7 +190,7 @@
     for (const s of S.servers || []) {
       const name = srvName(s);
       add({ id: 'sv:' + s.code, g: 'server', icon: 'server', img: s.icon || null, title: name,
-        sub: s.online ? `${s.players ?? 0} von ${s.max ?? 0} Spielern${s.desc ? ' · ' + s.desc : ''}` : 'Gerade offline',
+        sub: srvSub(s),
         kw: ['verbinden join server', ...(s.tags || []), s.locale, s.addr, s.code].filter(Boolean).join(' '), srv: s, verb: 'Verbinden',
         run: () => s.online ? joinServer(s.code) : toast('Server gerade offline', name, false) });
     }
@@ -236,16 +246,22 @@
       if (rec.length) groups.push(['recent', rec.map(it => ({ it, r: [] }))]);
       if (sug.length) groups.push(['sug', sug.map(it => ({ it, r: [] }))]);
     } else {
-      const rec = recent(), by = {}, whole = toks.join(' ');
-      for (const it of P.items) {
-        let s = 0, r = [], ok = true;
-        for (const tok of toks) { const h = tokScore(tok, it); if (!h) { ok = false; break; } s += h.s; if (h.r) r = r.concat(h.r); }
-        if (!ok) continue;
-        const ri = rec.indexOf(it.id);
-        // (equal scores keep the order of the index: pages as in the side bar, designs as in Settings)
-        s = s / toks.length + PRIOR[it.g] + (ri >= 0 ? .1 * (1 - ri / 8) : 0) + (it.ft.t.trim() === whole ? .1 : 0);
-        (by[it.g] ||= []).push({ it, r, s });
-      }
+      const rec = recent(), whole = toks.join(' ');
+      const pass = loose => {
+        const by = {};
+        for (const it of P.items) {
+          let s = 0, r = [], ok = true;
+          for (const tok of toks) { const h = tokScore(tok, it, loose); if (!h) { ok = false; break; } s += h.s; if (h.r) r = r.concat(h.r); }
+          if (!ok) continue;
+          const ri = rec.indexOf(it.id);
+          // (equal scores keep the order of the index: pages as in the side bar, designs as in Settings)
+          s = s / toks.length + PRIOR[it.g] + (ri >= 0 ? .1 * (1 - ri / 8) : 0) + (it.ft.t.trim() === whole ? .1 : 0);
+          (by[it.g] ||= []).push({ it, r, s });
+        }
+        return by;
+      };
+      let by = pass(false);
+      if (!Object.keys(by).length) by = pass(true);
       // an address typed in: connect to it straight away, like "Direkt verbinden" on the servers page
       const addr = P.input.value.trim();
       if (ADDR.test(addr)) (by.server ||= []).unshift({ it: connectItem(addr), r: [], s: 9 });
@@ -407,7 +423,7 @@
     else if (k === 'ArrowUp' || (k === 'Tab' && e.shiftKey)) move(-1);
     else if (k === 'PageDown') move(5, false);
     else if (k === 'PageUp') move(-5, false);
-    else if (k === 'Enter') run(P.sel);
+    else if (k === 'Enter') { if (!e.repeat) run(P.sel); }   // a held Enter must not switch a tweak back and forth
     else {
       used = false;
       if (document.activeElement !== P.input && k.length === 1 && !e.ctrlKey && !e.metaKey) P.input.focus({ preventScroll: true });
