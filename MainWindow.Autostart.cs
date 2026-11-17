@@ -16,13 +16,18 @@ public partial class MainWindow
             case "autostart.list":
                 return new { items = await Autostart.ListAsync() };
 
-            // { id, on } -> { on } (the state read back after writing); a refused write comes back as a German error
+            // { id, on, name? } -> { on } (the state read back after writing); a refused write comes back as a German error.
+            // name is only for the activity feed (the page's display name reads better than "com.squirrel.Teams.Teams")
             case "autostart.set":
             {
                 var id = Str(a, "id"); bool on = Bool(a, "on");
                 bool now = await Task.Run(() => Autostart.Set(id, on));
-                var entry = AutostartLogic.ParseId(id)?.entry ?? id;
-                Log($"Autostart: „{entry}“ {(now ? "startet wieder mit Windows" : "startet nicht mehr mit Windows")}");
+                if (now == on)
+                {
+                    var name = Str(a, "name").Trim();
+                    if (name.Length == 0 || name.Length > 80) name = AutostartLogic.ParseId(id)?.entry ?? id;
+                    Log($"Autostart: „{name}“ {(on ? "startet wieder mit Windows" : "startet nicht mehr mit Windows")}");
+                }
                 return new { on = now };
             }
 
@@ -32,7 +37,7 @@ public partial class MainWindow
                 var id = Str(a, "id");
                 var file = await Task.Run(() => Autostart.Locate(id));
                 if (file == null) return new { ok = false, error = "Die Datei ist nicht mehr da." };
-                Process.Start("explorer.exe", $"/select,\"{file}\"");
+                Process.Start("explorer.exe", $"/select,\"{file}\"")?.Dispose();
                 return new { ok = true };
             }
         }

@@ -77,6 +77,14 @@ Eq(AutostartLogic.SquirrelApp(@"C:\Users\Max\AppData\Local\Microsoft\Teams\Updat
 Eq(AutostartLogic.SquirrelApp(@"C:\x\Update.exe", "--processStartAndWait Slack.exe"), "Slack.exe", "Squirrel processStartAndWait");
 Eq(AutostartLogic.SquirrelApp(@"C:\x\Update.exe", @"--processStart ..\..\evil.exe"), null, "Squirrel app must be a plain name");
 Eq(AutostartLogic.SquirrelApp(@"C:\x\Updater.exe", "--processStart Discord.exe"), null, "only Update.exe");
+foreach (var f in new[] { "Spotify.lnk", "Start.url", "tool.exe", "run.bat", "sync.vbs", "boot.ps1", "notes.txt" })
+    Check(AutostartLogic.StartupFile(f), $"{f} in the startup folder is opened at sign-in");
+foreach (var f in new[] { "desktop.ini", "Desktop.INI", "Thumbs.db", "", @"..\x.lnk" })
+    Check(!AutostartLogic.StartupFile(f), $"\"{f}\" is not a startup entry");
+foreach (var h in new[] { @"C:\Windows\System32\cmd.exe", "powershell.exe", @"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe", "pwsh", "wscript.exe", "MSHTA.EXE", "javaw.exe", "rundll32.exe" })
+    Check(AutostartLogic.ScriptHost(h), $"{h} only runs something else");
+foreach (var h in new[] { @"C:\Steam\steam.exe", "Discord.exe", "cmdtool.exe", @"C:\x\powershell-helper.exe", "" })
+    Check(!AutostartLogic.ScriptHost(h), $"\"{h}\" is a program of its own");
 Eq(AutostartLogic.FileName(@"C:\a\b\c.exe"), "c.exe", "file name of a Windows path");
 Eq(AutostartLogic.Folder(@"C:\a\b\c.exe"), @"C:\a\b", "folder of a Windows path");
 Eq(AutostartLogic.Folder("c.exe"), "", "no folder");
@@ -96,11 +104,17 @@ Eq(AutostartLogic.DisplayName("NvBackend", @"C:\x\NvBackend.exe", "", ""), "NvBa
 Eq(AutostartLogic.DisplayName("ctfmon", @"C:\Windows\System32\ctfmon.exe", "CTF Loader", "Microsoft® Windows® Operating System"), "CTF Loader", "a lower-case value name");
 Eq(AutostartLogic.DisplayName("Foo", @"C:\x\foo.exe", "", "Microsoft® Windows® Operating System"), "Foo", "the Windows product name is no name");
 Eq(AutostartLogic.Tidy("  Realtek®   HD (TM) Audio "), "Realtek HD Audio", "tidy");
+Eq(AutostartLogic.DisplayName("Updater", @"C:\x\GHelper.exe", "G-Helper", "G-Helper"), "G-Helper", "a generic value name gives way to the description");
+Eq(AutostartLogic.DisplayName("Launcher", @"C:\x\launcher.exe", "", ""), "Launcher", "a generic value name stays when nothing better is known");
+Eq(AutostartLogic.DisplayName("nightly-backup", @"C:\Windows\System32\cmd.exe", "", ""), "nightly-backup", "a script entry without version info keeps its own name");
 
 // ---------- advice ----------
 string? Rec(string entry, string exe, string pub = "", string args = "", bool missing = false, string? name = null)
     => AutostartLogic.Recommend(entry, name ?? entry, exe, pub, args, missing)?.Rec;
 Eq(Rec("Steam", @"C:\Steam\steam.exe", "Valve Corporation", "-silent"), "off", "Steam can go");
+Check(AutostartLogic.Recommend("Steam", "Steam", @"C:\Steam\steam.exe", "Valve Corporation", "-silent", false)!.Why.Contains("FiveM"), "Steam says to open it before FiveM");
+Check(!AutostartLogic.Recommend("EpicGamesLauncher", "Epic Games Launcher", @"C:\x\EpicGamesLauncher.exe", "", "", false)!.Why.Contains("Steam"), "other launchers do not talk about Steam");
+Eq(Rec("SteamVR", @"C:\x\vrmonitor.exe", "Valve Corporation"), null, "SteamVR is not Steam");
 Eq(Rec("EpicGamesLauncher", @"C:\x\EpicGamesLauncher.exe", "Epic Games, Inc.", "-silent", name: "Epic Games Launcher"), "off", "Epic can go");
 Eq(Rec("EADM", @"C:\x\EADesktop.exe", "Electronic Arts", name: "EA app"), "off", "EA app can go");
 Eq(Rec("Ubisoft Connect", @"C:\x\upc.exe", "Ubisoft"), "off", "Ubisoft can go");

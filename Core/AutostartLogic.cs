@@ -41,6 +41,11 @@ public static class AutostartLogic
     public static bool PlainFileName(string name)
         => name.Length > 0 && name.IndexOfAny(new[] { '\\', '/', ':', '*', '?', '"', '<', '>', '|' }) < 0 && name != "." && name != "..";
 
+    /// <summary>A file in a startup folder that Windows opens at sign-in: every file there (also a .vbs or .ps1 script,
+    /// and also a hidden one) except the folder's own desktop.ini and a thumbnail cache.</summary>
+    public static bool StartupFile(string name)
+        => PlainFileName(name) && !name.Equals("desktop.ini", StringComparison.OrdinalIgnoreCase) && !name.Equals("Thumbs.db", StringComparison.OrdinalIgnoreCase);
+
     // ---------- the StartupApproved flag ----------
 
     /// <summary>A missing value means on. The first byte decides: even is on, odd is off (the Task Manager writes 02 and
@@ -138,6 +143,22 @@ public static class AutostartLogic
         return PlainFileName(app) ? app : null;
     }
 
+    private static readonly HashSet<string> Hosts = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "cmd", "powershell", "pwsh", "wscript", "cscript", "mshta", "conhost", "rundll32", "regsvr32",
+        "java", "javaw", "python", "pythonw", "py", "pyw", "node", "autohotkey", "autohotkey64", "autohotkeyu64",
+    };
+
+    /// <summary>A program that only runs something else (a script, a DLL, a jar). Its own version info ("Windows
+    /// PowerShell", "Microsoft Corporation") says nothing about the entry, and would dress up a script as part of Windows.</summary>
+    public static bool ScriptHost(string exe)
+    {
+        var f = FileName(exe);
+        int dot = f.LastIndexOf('.');
+        if (dot > 0) { var ext = f[(dot + 1)..]; if (ext.Equals("exe", StringComparison.OrdinalIgnoreCase) || ext.Equals("com", StringComparison.OrdinalIgnoreCase)) f = f[..dot]; }
+        return Hosts.Contains(f);
+    }
+
     // ---------- names ----------
 
     private static readonly Regex Guid8 = new("[0-9a-f]{8}", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
@@ -168,7 +189,7 @@ public static class AutostartLogic
     public static string DisplayName(string entry, string exe, string? description, string? product)
     {
         var e = entry.Trim();
-        if (Readable(e)) return e;
+        if (Readable(e) && !Generic.Contains(e)) return e;   // "Steam" stays, a value named "Updater" says nothing
         var file = FileName(exe);
         var stem = file.Contains('.') ? file[..file.LastIndexOf('.')] : file;
         bool Good(string s) => s.Length >= 2 && s.Length <= 64 && s.Any(char.IsLetter) && !Generic.Contains(s)
@@ -188,6 +209,8 @@ public static class AutostartLogic
     public sealed record Advice(string? Rec, string Why);
 
     private const string WhyLauncher = "Launcher, öffnet sich beim Spielstart von selbst";
+    // FiveM does not start Steam itself, and servers that check the Steam account turn you away without it
+    private const string WhySteam = "Launcher, öffne ihn vor FiveM selbst, wenn dein Server Steam verlangt";
     private const string WhyApp = "App, die du bei Bedarf selbst öffnest";
     private const string WhyUpdater = "Updater, das Programm prüft beim Öffnen selbst";
     private const string WhyHelper = "Hilfsprogramm, für den Start nicht nötig";
@@ -215,7 +238,8 @@ public static class AutostartLogic
         (R(@"nvidia|geforce|\bnvbackend\b|\bnvcpl|advanced micro devices|\bradeon|\bamd (software|adrenalin|noise)|\bamdrs|\bcncmd\b|\bintel\b|\bigfx|graphics command center|arc control"), "on", WhyDriver),
         (R(@"logitech|\blghub\b|\blcore\b|\blogi (options|bolt)|razer|synapse|steelseries|corsair|\bicue\b|hyperx|ngenuity|roccat|wooting|glorious core"), "on", WhyInput),
         // only cost boot time
-        (R(@"\bsteam\b|epic ?games ?launcher|\beadesktop\b|\bealauncher\b|\bea (app|desktop)\b|\beadm\b|\borigin\b|ubisoft|\bupc\b|\buplay\b|battle\.net|rockstar|gog galaxy|galaxyclient|riot ?client|amazon games|bethesda\.net|wargaming"), "off", WhyLauncher),
+        (R(@"\bsteam\b"), "off", WhySteam),
+        (R(@"epic ?games ?launcher|\beadesktop\b|\bealauncher\b|\bea (app|desktop)\b|\beadm\b|\borigin\b|ubisoft|\bupc\b|\buplay\b|battle\.net|rockstar|gog galaxy|galaxyclient|riot ?client|amazon games|bethesda\.net|wargaming"), "off", WhyLauncher),
         (R(@"autolaunch|browser ?assistant|browser_assistant|--auto-launch|--no-startup-window"), "off", WhyBrowser),
         (R(@"adobe ?arm\b|acrobat update|adobe updater|creative cloud|\bccxprocess\b|\badobe ?gc|\bacrotray\b|\bjusched\b|java update|google update|\bccleaner\b"), "off", WhyUpdater),
         (R(@"spotify|\bteams\b|ms-teams|\bskype\b|itunes|whatsapp|\bzoom\b|amazon music|\bdeezer\b|\btidal\b|overwolf"), "off", WhyApp),

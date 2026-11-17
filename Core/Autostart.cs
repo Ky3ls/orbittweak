@@ -88,9 +88,10 @@ internal static class Autostart
             try
             {
                 var fi = new FileInfo(file);
-                if ((fi.Attributes & (FileAttributes.Hidden | FileAttributes.System)) != 0) continue;   // desktop.ini
+                // Windows opens every file in the folder at sign-in (a .vbs as much as a .lnk, hidden or not): all of them
+                // are listed, only desktop.ini is the folder's own
+                if (!AutostartLogic.StartupFile(fi.Name)) continue;
                 var ext = fi.Extension.ToLowerInvariant();
-                if (ext is not (".lnk" or ".url" or ".exe" or ".bat" or ".cmd")) continue;
                 var entry = fi.Name;
                 var stem = System.IO.Path.GetFileNameWithoutExtension(entry);
                 if (ext == ".lnk") list.Add(FromLink(s, entry, stem, file, flags, icons));
@@ -111,14 +112,18 @@ internal static class Autostart
         // rundll32 starts a DLL: that is the file that has to be there
         var dll = AutostartLogic.Rundll32Target(exe, args);
         if (dll != null) target = Resolve(dll);
-        bool exists = target.Length == 0 || File.Exists(target);
+        // a link in the startup folder may open a folder: that is there, too
+        bool exists = target.Length == 0 || File.Exists(target) || Directory.Exists(target);
         // the file whose name, publisher and icon count: Update.exe of a Squirrel install starts the app next to it
         var info = target;
         var sq = AutostartLogic.SquirrelApp(exe, args);
         if (sq != null && exists && target.Length > 0) info = SquirrelExe(target, sq) ?? target;
 
+        // cmd, PowerShell, wscript … only run a script: their "Windows PowerShell · Microsoft Corporation" would make
+        // any script look like a part of Windows, so such an entry keeps its own name and shows no publisher (a DLL
+        // started by rundll32 is the program itself and does count)
         string desc = "", product = "", company = "";
-        if (exists && info.Length > 0)
+        if (exists && info.Length > 0 && (dll != null || !AutostartLogic.ScriptHost(exe)) && File.Exists(info))
         {
             try
             {
@@ -252,9 +257,11 @@ internal static class Autostart
             }
             catch (Exception ex) when (ex is UnauthorizedAccessException or SecurityException or IOException)
             {
-                throw new InvalidOperationException(s.AllUsers
+                // OrbitTweak normally runs as admin: then it is not about rights but about something guarding the key
+                bool admin; try { admin = Proc.IsAdmin(); } catch { admin = true; }
+                throw new InvalidOperationException(s.AllUsers && !admin
                     ? "Windows hat das Umschalten verweigert. Für Programme aller Nutzer braucht OrbitTweak Administratorrechte."
-                    : "Windows hat das Umschalten verweigert: " + ex.Message);
+                    : "Windows hat das Umschalten verweigert. Vermutlich schützt ein Virenschutz oder eine Richtlinie diesen Eintrag.");
             }
         }
         return AutostartLogic.IsOn(Flag(s.ApprovedKey, entry));

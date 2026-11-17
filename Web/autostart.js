@@ -15,6 +15,8 @@ const AS_FMT_DAY = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'lo
 const AS_FMT_YEAR = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'long', year: 'numeric' });
 const asList = l => new Intl.ListFormat('de', { type: 'conjunction' }).format(l);
 const asCanOff = () => (AS.items || []).filter(i => i.rec === 'off' && i.on);
+/** "Neu laden" waits while the list is read and while switches are on their way to Windows (a list read then could miss them). */
+const asReloadState = () => { const b = $('#asReload'); if (b) b.disabled = !!AS.loading || AS.busy.size > 0; };
 
 /** The page's frame, drawn once at load: go() then already finds its cards for the entrance. */
 function asFrame() {
@@ -92,8 +94,9 @@ function asRender(focusId) {
   const set = (id, v) => { const el = $('#' + id); if (el) el.textContent = v; };
   set('asN', items ? all.length : '–'); set('asOn', items ? on : '–'); set('asRec', items ? can.length : '–');
   set('asOnS', items ? (on === 1 ? 'startet mit Windows' : 'starten mit Windows') : 'starten mit Windows');
-  set('asRecS', items ? (can.length ? 'kosten nur Startzeit' : 'nichts Überflüssiges') : 'kosten nur Startzeit');
+  set('asRecS', items ? (can.length ? 'kosten nur Startzeit' : 'alles erledigt') : 'kosten nur Startzeit');
   $('#p-autostart .as-sum')?.classList.toggle('idle', !items);
+  asReloadState();
 
   // the one main action: switch off what only costs boot time
   const undo = AS.undo.filter(id => all.some(i => i.id === id && !i.on));
@@ -107,7 +110,7 @@ function asRender(focusId) {
       <button class="btn p" id="asOff" type="button">${ico('power')}Empfohlene ausschalten</button>${undoBtn}`;
   } else if (items) {
     go = `<div class="as-gh"><span class="as-ok">${ico('check')}</span></div>
-      <p><b>Aufgeräumt</b> Nichts Überflüssiges startet mit Windows.</p>${undoBtn}`;
+      <p><b>Aufgeräumt</b> Nichts, was wir als „Kann aus“ kennen, startet mit Windows.</p>${undoBtn}`;
   }
   const g = $('#asGo'); if (g) { g.innerHTML = go; g.classList.toggle('done', !!items && !can.length); }
 
@@ -137,7 +140,7 @@ function asRender(focusId) {
 
 async function asLoad(quiet) {
   if (AS.loading) return AS.loading;
-  const btn = $('#asReload'); if (btn) btn.disabled = true;
+  if (AS.busy.size) return;   // read again once the switches are through (the next visit or "Neu laden")
   if (!AS.items) { AS.err = ''; asRender(); }
   AS.loading = (async () => {
     try {
@@ -154,7 +157,8 @@ async function asLoad(quiet) {
     }
     AS.keep.clear();
     asRender();
-  })().finally(() => { AS.loading = null; const b = $('#asReload'); if (b) b.disabled = false; });
+  })().finally(() => { AS.loading = null; asReloadState(); });
+  asReloadState();
   return AS.loading;
 }
 
@@ -169,7 +173,7 @@ async function asToggle(id) {
   }
   AS.busy.add(id); AS.keep.add(id); it.on = want; asRender(id);
   try {
-    const r = await api('autostart.set', { id, on: want });
+    const r = await api('autostart.set', { id, on: want, name: it.name });
     it.on = !!(r && r.on);
     if (it.on !== want) toast('Nicht umgeschaltet', `${it.name}: Windows hat die Änderung nicht übernommen`, false);
     else {
@@ -187,8 +191,10 @@ async function asToggle(id) {
 async function asOffAll() {
   let list = asCanOff(); if (!list.length) return;
   const one = list.length === 1;
+  // FiveM does not open Steam itself, and servers that check the Steam account turn you away without it
+  const steam = list.some(i => /\bsteam\b/i.test(i.name)) ? ' Verlangt dein Server Steam, öffne Steam vor FiveM selbst.' : '';
   const ok = await confirmBox(one ? `${list[0].name} ausschalten?` : `${list.length} Programme ausschalten?`,
-    `${asList(list.map(i => i.name))} ${one ? 'startet' : 'starten'} dann nicht mehr mit Windows. Gelöscht wird nichts, du kannst ${one ? 'es' : 'sie'} hier jederzeit wieder einschalten.`,
+    `${asList(list.map(i => i.name))} ${one ? 'startet' : 'starten'} dann nicht mehr mit Windows. Gelöscht wird nichts, du kannst ${one ? 'es' : 'sie'} hier jederzeit wieder einschalten.${steam}`,
     { ok: 'Ausschalten' });
   if (!ok) return;
   list = list.filter(i => AS.items.includes(i) && i.on && !AS.busy.has(i.id));   // the list may have been read anew meanwhile
@@ -197,7 +203,7 @@ async function asOffAll() {
   list.forEach(i => AS.busy.add(i.id)); asRender();
   for (const it of list) {
     try {
-      const r = await api('autostart.set', { id: it.id, on: false });
+      const r = await api('autostart.set', { id: it.id, on: false, name: it.name });
       it.on = !!(r && r.on);
       if (it.on) failed.push([it, 'Windows hat die Änderung nicht übernommen']);
       else { it.offSince = new Date().toISOString(); done.push(it); }
@@ -211,11 +217,12 @@ async function asOffAll() {
 
 async function asUndo() {
   const ids = AS.undo; AS.undo = [];
-  const list = ids.map(id => AS.items.find(i => i.id === id)).filter(i => i && !i.on);
+  const list = ids.map(id => AS.items.find(i => i.id === id)).filter(i => i && !i.on && !AS.busy.has(i.id));
+  if (!list.length) return asRender();
   list.forEach(i => AS.busy.add(i.id)); asRender();
   let n = 0;
   for (const it of list) {
-    try { const r = await api('autostart.set', { id: it.id, on: true }); it.on = !!(r && r.on); if (it.on) { it.offSince = null; n++; } } catch { }
+    try { const r = await api('autostart.set', { id: it.id, on: true, name: it.name }); it.on = !!(r && r.on); if (it.on) { it.offSince = null; n++; } } catch { }
     AS.busy.delete(it.id); AS.keep.add(it.id); asRender();
   }
   if (n === list.length) toast('Rückgängig gemacht', `${n === 1 ? list[0].name + ' startet' : n + ' Programme starten'} wieder mit Windows`);
@@ -248,6 +255,7 @@ $('#p-autostart').addEventListener('click', e => {
 });
 $('#p-autostart').addEventListener('keydown', e => {
   if (e.key !== ' ' && e.key !== 'Enter') return;
+  if (e.repeat) { if (e.target.closest('.tg[data-astg], .as-hd')) e.preventDefault(); return; }   // a held key switches once
   const t = e.target.closest('.tg[data-astg]'); if (t) { e.preventDefault(); return asToggle(t.dataset.astg); }
   const h = e.target.closest('.as-hd'); if (h && e.target === h) { e.preventDefault(); asExpand(h.closest('.as-row').dataset.asid); }
 });
@@ -274,7 +282,7 @@ PAGE_SHOW.autostart = () => { if (!AS.items || Date.now() - AS.at > 30000) asLoa
     hklm32: ['Alle Nutzer · Registrierung (32 Bit)', true, false], user: ['Nur für dich · Autostart-Ordner', false, true],
   };
   const WHY = {
-    launcher: 'Launcher, öffnet sich beim Spielstart von selbst', app: 'App, die du bei Bedarf selbst öffnest',
+    launcher: 'Launcher, öffnet sich beim Spielstart von selbst', steam: 'Launcher, öffne ihn vor FiveM selbst, wenn dein Server Steam verlangt', app: 'App, die du bei Bedarf selbst öffnest',
     updater: 'Updater, das Programm prüft beim Öffnen selbst', missing: 'Datei fehlt, startet ohnehin nicht',
     security: 'Schutz deines PCs, bitte an lassen', audio: 'Ton und Audio-Einstellungen hängen daran',
     driver: 'Treiber-Software, Einstellungen und Profile hängen daran', input: 'Maus, Tastatur und Headset brauchen es für Profile und Tasten',
@@ -287,7 +295,7 @@ PAGE_SHOW.autostart = () => { if (!AS.items || Date.now() - AS.at > 30000) asLoa
     on: true, offSince: null, icon: null, rec: null, why: '', ...o,
   });
   const MOCK = [
-    e('hkcu', 'Steam', 'Steam', 'Valve Corporation', `"${PF86}\\Steam\\steam.exe" -silent`, `${PF86}\\Steam\\steam.exe`, { icon: svg('#2A475E', '#171A21', G.pad), rec: 'off', why: WHY.launcher }),
+    e('hkcu', 'Steam', 'Steam', 'Valve Corporation', `"${PF86}\\Steam\\steam.exe" -silent`, `${PF86}\\Steam\\steam.exe`, { icon: svg('#2A475E', '#171A21', G.pad), rec: 'off', why: WHY.steam }),
     e('hkcu', 'Discord', 'Discord', 'Discord Inc.', `${L}\\Discord\\Update.exe --processStart Discord.exe`, `${L}\\Discord\\Update.exe`, { icon: svg('#7B86FF', '#5865F2', G.chat), why: WHY.discord }),
     e('hkcu', 'Spotify', 'Spotify', 'Spotify AB', `${R}\\Spotify\\Spotify.exe --autostart --minimized`, `${R}\\Spotify\\Spotify.exe`, { icon: svg('#3BE477', '#1AA34A', G.wave), rec: 'off', why: WHY.app }),
     e('hkcu', 'EpicGamesLauncher', 'Epic Games Launcher', 'Epic Games, Inc.', `"${PF86}\\Epic Games\\Launcher\\Portal\\Binaries\\Win64\\EpicGamesLauncher.exe" -silent`, `${PF86}\\Epic Games\\Launcher\\Portal\\Binaries\\Win64\\EpicGamesLauncher.exe`, { icon: svg('#3A3A3E', '#18181B', G.pad), rec: 'off', why: WHY.launcher }),
