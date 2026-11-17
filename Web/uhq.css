@@ -391,26 +391,71 @@ input[type=range][disabled]{cursor:default}
 .tc-bar i{display:block;height:100%;border-radius:3px;background:rgba(255,255,255,.22);transform-origin:left;transition:transform .6s var(--ease)}
 #tabs .tab.on .tc-bar i{background:var(--a)}
 
-/* the list: rows on one surface, a hairline from the text edge */
+/* the list: the category as a small heading with its note on the right (like the Input-Lab cards), then the rows */
 .tlist{padding:6px 8px 8px}
-.tl-h{padding:14px 14px 8px;border-bottom:0}
-.tl-h p{font-size:12.5px;color:var(--mute)}
-.tlist .tw{position:relative;gap:16px;padding:15px 14px;margin:0;border-radius:14px;border:0;transition:background .2s}
+.tl-h{display:flex;align-items:baseline;gap:16px;min-width:0;padding:14px 14px 8px;border-bottom:0}
+.tl-h b{flex:none;font-family:var(--disp);font-size:15.5px;font-weight:580;letter-spacing:-.015em;color:var(--text)}
+.tl-h p{min-width:0;margin-left:auto;font-size:12.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html.th-anime .tl-h b{font-family:var(--head);font-weight:800;letter-spacing:-.004em}
+/* removed tweaks: their own heading under the rows, the note wraps */
+.tlist .tw-old-h{display:block;margin-top:12px;padding:20px 14px 10px;border-top:1px solid var(--line)}
+.tlist .tw-old-h p{margin:5px 0 0;max-width:640px;white-space:normal;line-height:1.5;text-wrap:pretty}
+
+/* a row: icon | name, badges, one short line | switch. Icon and switch stand beside the name and the line, so they
+   stay put when the full text opens below; closed rows without a note are all one height */
+.tlist .tw{position:relative;display:grid;grid-template-columns:40px minmax(0,1fr) auto;align-items:start;gap:0 16px;
+  padding:16px 14px;margin:0;border:0;border-radius:14px;transition:background .2s}
 .tlist .tw+.tw{border-top:0}
-.tlist .tw+.tw::before{content:'';position:absolute;left:70px;right:14px;top:0;height:1px;background:var(--line)}
-.tlist .tw:hover{background:rgba(255,255,255,.028)}
-.tlist .tw:hover::before,.tlist .tw:hover+.tw::before{opacity:0}
-.tlist .tw .ti{width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,.045);color:var(--mute);box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+.tlist .tw+.tw::before{content:'';position:absolute;left:70px;right:14px;top:0;height:1px;background:var(--line);transition:opacity .2s}
+.tlist .tw:is(:hover,:has(:focus-visible)){background:rgba(255,255,255,.028)}
+.tlist .tw.open{background:rgba(255,255,255,.022)}
+.tlist .tw:is(:hover,:has(:focus-visible),.open)::before,.tlist .tw:is(:hover,:has(:focus-visible),.open)+.tw::before{opacity:0}
+.tlist .tw .ti{width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,.045);color:var(--mute);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05);transition:background .3s,color .3s,box-shadow .3s}
 .tlist .tw .ti svg.i{width:18px;height:18px}
 .tlist .tw.on .ti{background:rgba(var(--a-rgb),.12);color:var(--a);box-shadow:inset 0 1px 0 rgba(255,255,255,.05),inset 0 0 0 1px rgba(var(--a-rgb),.14)}
-.tw .tx b{font-size:14px;font-weight:550;letter-spacing:-.008em}
-.tw .tx p{font-size:12.5px;color:var(--sub);margin-top:3px;line-height:1.45}
-.tlist .tw:not(.on) .tx b{color:#D3D8E2}
-.tw .tx p.tw-d{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
-.tw.open .tx p.tw-d{display:block;-webkit-line-clamp:unset}
-.tw .tw-more{display:none;margin-top:4px;padding:0;border:0;background:none;font:inherit;font-size:12px;font-weight:550;color:var(--mute);cursor:pointer}
-.tw.more .tw-more{display:inline-block}
-.tw .tw-more:hover{color:#E8EBF1}
+.tlist .tw .tg{margin-top:7px}
+.tlist .tw:not(.dis):hover .tg:not(.on){background:rgba(255,255,255,.11)}   /* the whole row flips the switch */
+.tlist .tw.old .btn{margin-top:5px}
+.tw .tx{min-width:0}
+
+/* name and badges */
+.tw-n{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;min-height:22px}
+.tw .tw-n b{font-size:14px;font-weight:550;letter-spacing:-.008em;color:var(--text)}
+.tlist .tw:not(.on) .tw-n b{color:color-mix(in oklab,var(--text) 86%,var(--sub))}
+.tw-n .eff{height:20px;margin-left:0;padding:0 8px;border-radius:99px;font-size:11px;font-weight:550;letter-spacing:0;cursor:default}
+.tw-n .eff.tw-live{gap:5px;background:rgba(255,255,255,.055);color:var(--sub)}
+.tw-n .eff.tw-live::before{content:'';flex:none;width:5px;height:5px;border-radius:50%;background:var(--good)}
+.tw-n .eff.tw-opt{background:none;box-shadow:inset 0 0 0 1px var(--line2);color:var(--mute)}
+
+/* the one short line, with a quiet "Details" right after it */
+.tw .tx p.tw-s{margin-top:2px;font-size:12.5px;line-height:1.5;color:var(--sub);text-wrap:pretty}
+.tw .tw-more{display:inline-block;margin-left:4px;padding:0 3px;border:0;border-radius:6px;background:none;font:inherit;font-size:12px;font-weight:500;
+  line-height:inherit;color:var(--mute);white-space:nowrap;cursor:pointer;transition:color .2s}
+.tw .tw-more svg.i{width:13px;height:13px;margin-right:4px;vertical-align:-2px;transition:transform .3s var(--ease)}
+.tw.open .tw-more svg.i{transform:rotate(90deg)}
+.tw .tw-more:hover{color:var(--text)}
+.tw .tw-more:focus-visible{outline:2px solid rgba(var(--a-rgb),.75);outline-offset:1px}
+/* in the Input-Lab's narrow column the rows read like their neighbours there: the line, then "Details" under it */
+#inputTweaks .tw .tx p.tw-s{text-wrap:balance}
+#inputTweaks .tw .tw-more{display:block;width:fit-content;margin:6px 0 0;padding:0;color:var(--sub)}
+#inputTweaks .tw .tw-more:hover{color:var(--text)}
+#inputTweaks .tw .tw-more svg.i{margin-right:5px;color:var(--mute)}
+
+/* the full text: a sunken panel to read (a click there does not flip the switch) */
+.tw .tx p.tw-d{display:none;max-width:680px;margin-top:10px;padding:12px 14px;border-radius:12px;background:var(--well);box-shadow:var(--well-edge);
+  font-size:12.5px;line-height:1.6;color:var(--sub);text-wrap:pretty;cursor:auto}
+.tw.open .tx p.tw-d{display:block}
+.tw.tw-fx .tx p.tw-d{animation:twIn .32s var(--ease) both}
+@keyframes twIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.tw.tw-fx .tx p.tw-d{animation:none}.tw .tw-more svg.i{transition:none}}
+
+/* the note on this PC: last, small, with a dot; amber when it says why the switch cannot be turned on */
+.tw .tx .tw-hint{display:flex;align-items:baseline;gap:8px;margin-top:6px;font-size:12px;line-height:1.45;color:var(--mute)}
+.tw .tx .tw-hint::before{content:'';flex:none;width:4px;height:4px;border-radius:50%;background:currentColor;opacity:.75;transform:translateY(-3px)}
+.tlist .tw.dis .tw-hint{color:rgba(242,196,107,.88)}
+.tlist .tw.dis .tx :is(b,p){opacity:1}
+.tlist .tw.dis .tx :is(.tw-n,.tw-s){opacity:.7}
 
 /* =====================================================================
    CLIPPER

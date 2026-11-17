@@ -9,6 +9,8 @@ public class Tweak
     public string Id { get; init; } = "";
     public string Cat { get; init; } = "system";
     public string Name { get; init; } = "";
+    /// <summary>One short line under the name (about 35–70 characters, plain and honest); <see cref="Desc"/> opens under "Details".</summary>
+    public string Sum { get; init; } = "";
     public string Desc { get; init; } = "";
     public string Icon { get; init; } = "zap";
     public string? Badge { get; init; }
@@ -17,7 +19,7 @@ public class Tweak
     public Func<bool>? RecWhen { get; init; }
     /// <summary>False when the tweak cannot work on this PC (the hint says why): it can then only be switched off. null = always.</summary>
     public Func<bool>? Usable { get; init; }
-    /// <summary>A short note on the state on this PC, shown under the description (null = none).</summary>
+    /// <summary>A short note on the state on this PC, shown under the summary (null = none).</summary>
     public Func<string?>? Hint { get; init; }
     /// <summary>
     /// Whether OrbitTweak made the current "on" state. "Alle zurücksetzen" only undoes that (or what carries an

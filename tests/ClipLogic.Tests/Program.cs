@@ -440,6 +440,9 @@ Check(!KillLogic.SameText("ZM Blaze killed Kronos77", "ZM Blaze killed Viper_12"
     Check(TweakLogic.PagefileOk(new[] { @"C:\pagefile.sys 4096 8192", @"D:\pagefile.sys 4096 8192" }, 16384), "two page files count together");
 }
 
+// ---------- tweaks: the short line of every row, and the browser preview's copy of the list ----------
+TweakTexts.Run(Check);
+
 // ---------- tweaks: backups and CPU detection ----------
 {
     Check(TweakLogic.ShouldBackup("1", "0"), "a value that differs from the target is saved");
