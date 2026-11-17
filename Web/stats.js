@@ -6,7 +6,7 @@
    "Runde vorbei" note when a round of five minutes or more ends.
    ===================================================================== */
 
-const ST = { d: null, at: 0, err: null, n: 14, all: false, busy: null, anim: false };
+const ST = { d: null, at: 0, err: null, n: 14, all: false, busy: null, again: false, anim: false };
 try { if (localStorage.getItem('st.range') === '30') ST.n = 30; } catch { }
 const ST_WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 const ST_WDL = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
@@ -40,13 +40,14 @@ const stExtra = () => ST.d && ST.d.current ? Math.max(0, (performance.now() - ST
 /* ---------- loading ---------- */
 async function stLoad(animate) {
   ST.anim = ST.anim || !!animate;   // a load already on its way draws with the animation too
-  if (ST.busy) return ST.busy;
+  // one on its way may have asked before a round was removed or the history cleared: one more right after it
+  if (ST.busy) { ST.again = true; return ST.busy; }
   ST.busy = (async () => {
     try { ST.d = await api('stats.get'); ST.at = performance.now(); ST.err = null; }
     catch (e) { ST.err = (e && e.message) || 'Unbekannter Fehler'; }
     stHome();
     if (curPage === 'stats') { const a = ST.anim; ST.anim = false; stRender(a); }
-  })().finally(() => { ST.busy = null; });
+  })().finally(() => { ST.busy = null; if (ST.again) { ST.again = false; stLoad(false); } });
   return ST.busy;
 }
 
@@ -79,7 +80,7 @@ function stShell(mode) {
       <div class="st-x"><span></span><div class="st-xs" id="stX"></div></div>
       <div class="st-tip"></div>
     </div>
-    <div class="card st-srv" style="--i:3"><div class="st-h"><div><b>Deine Server</b><p>Nach Spielzeit, seit Beginn</p></div></div><div id="stSrv"></div></div>
+    <div class="card st-srv" style="--i:3"><div class="st-h"><div><b>Deine Server</b><p id="stSrvSub"></p></div></div><div id="stSrv"></div></div>
     <div class="card st-rec" id="stRec" style="--i:4"></div>
     <div class="card st-hours" style="--i:5">
       <div class="st-h"><div><b>Wann du spielst</b><p id="stHrsSub"></p></div></div>
@@ -102,7 +103,7 @@ function stEmptyHtml() {
     <div class="st-el">
       <span class="st-ei">${ico('chart')}</span>
       <h2>Noch keine Runde gezählt</h2>
-      <p>Starte FiveM wie immer. Ab deinem nächsten Spiel zählt OrbitTweak von selbst mit, du musst dafür nichts einschalten.</p>
+      <p>Starte FiveM wie immer. Solange OrbitTweak dabei offen ist, auch minimiert, zählt es ab deiner nächsten Runde von selbst mit.</p>
       <ul>
         <li>${ico('clock')}Spielzeit pro Tag, Woche und insgesamt</li>
         <li>${ico('server')}Deine Server und ihr Anteil an der Zeit</li>
@@ -139,7 +140,7 @@ function stChartFill(animate) {
   const days = ST.d.days.slice(-ST.n), x = stExtra(), todayKey = stKey(Date.now());
   const vals = days.map((d, i) => d.secs + (i === days.length - 1 ? x : 0));
   const maxH = Math.max(...vals, 0) / 3600, step = maxH <= 3 ? 1 : maxH <= 8 ? 2 : 4, top = Math.max(step, Math.ceil(maxH / step) * step);
-  $$('#stRange button').forEach(b => b.classList.toggle('on', +b.dataset.n === ST.n));
+  $$('#stRange button').forEach(b => { const on = +b.dataset.n === ST.n; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
   const played = vals.filter(v => v >= 60);
   $('#stAvg').textContent = played.length ? `Ø ${stDur(played.reduce((a, b) => a + b, 0) / played.length)} an ${stCount(played.length, 'Spieltag', 'Spieltagen')}` : 'In diesem Zeitraum nicht gespielt';
   let gl = '', yl = '';
@@ -147,12 +148,14 @@ function stChartFill(animate) {
   $('#stGl').innerHTML = '<i class="base" style="bottom:0"></i>' + gl; $('#stY').innerHTML = yl;
   const bars = $('#stBars'), sig = ST.n + '|' + days[0].day + '|' + days.length;
   const h = v => v < 30 ? '' : Math.max(1.2, v / (top * 3600) * 100).toFixed(2) + '%';
+  // the value of each day for screen readers (the tooltip is for the mouse)
+  const lab = i => `${stDayName(stParse(days[i].day), true)}: ${vals[i] >= 60 ? stDur(vals[i]) : 'nicht gespielt'}`;
   bars.closest('.st-chart').style.setProperty('--gap', ST.n > 14 ? '4px' : '8px');
   if (bars.dataset.sig === sig && !animate) {   // same days: only the heights change (the open round grows)
-    [...bars.children].forEach((c, i) => { c.classList.toggle('zero', vals[i] < 30); c.firstChild.style.height = h(vals[i]); });
+    [...bars.children].forEach((c, i) => { c.classList.toggle('zero', vals[i] < 30); c.firstChild.style.height = h(vals[i]); c.setAttribute('aria-label', lab(i)); });
   } else {
     bars.dataset.sig = sig;
-    bars.innerHTML = days.map((d, i) => `<div class="st-col${d.day === todayKey ? ' today' : ''}${vals[i] < 30 ? ' zero' : ''}" data-k="${i}"><i class="st-bar" style="height:${h(vals[i])};--k:${i}"></i></div>`).join('');
+    bars.innerHTML = days.map((d, i) => `<div class="st-col${d.day === todayKey ? ' today' : ''}${vals[i] < 30 ? ' zero' : ''}" data-k="${i}" role="img" aria-label="${esc(lab(i))}"><i class="st-bar" style="height:${h(vals[i])};--k:${i}"></i></div>`).join('');
     stRise(bars, animate);
   }
   // labels: two lines for 14 days; for 30 only Mondays and today (each with room to the next). "Heute" needs
@@ -176,6 +179,7 @@ function stRise(box, animate) {
 
 function stSrvFill(animate) {
   const list = ST.d.servers;
+  $('#stSrvSub').textContent = ST.d.since ? `Nach Spielzeit, seit ${stDate(ST.d.since, true)}` : 'Nach Spielzeit';
   $('#stSrv').innerHTML = list.map((s, i) => {
     const name = s.name || s.addr, ini = name ? (name.match(/[A-Za-z0-9ÄÖÜäöü]/) || ['?'])[0].toUpperCase() : '';
     return `<div class="st-sr${name ? '' : ' unk'}${i === 0 ? ' first' : ''}" title="${esc(stCount(s.rounds, 'Runde', 'Runden'))}${s.addr ? ' · ' + esc(s.addr) : ''}">
@@ -304,11 +308,40 @@ function stHome() {
   const d = ST.d, x = stExtra(), today = d ? d.today + x : 0, week = d ? d.week + x : 0;
   if (!d || (today < 60 && week < 60)) { if (b) b.classList.add('hidden'); return; }
   if (!b) {
-    box.insertAdjacentHTML('beforeend', '<button class="bn-chip st-hm" id="stHome" type="button" title="Zur Spielzeit"></button>');
+    box.insertAdjacentHTML('beforeend', '<button class="bn-chip st-hm" id="stHome" type="button"></button>');
     b = $('#stHome'); b.onclick = () => go('stats');
+    // the banner's text changes with the window, the theme and the name: keep the figure clear of it
+    if (window.ResizeObserver) {
+      let raf = 0; const ro = new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(stHomeFit); });
+      [$('#banner'), $('#banner .bn-txt'), box].forEach(el => el && ro.observe(el));
+    }
+    if (document.fonts) document.fonts.ready.then(stHomeFit);
   }
-  b.innerHTML = today >= 60 ? `${ico('clock')}<span>Heute gespielt</span><b>${stDur(today)}</b>` : `${ico('chart')}<span>Diese Woche</span><b>${stDur(week)}</b>`;
+  const [icon, long, short, v] = today >= 60 ? ['clock', 'Heute gespielt', 'Heute', today] : ['chart', 'Diese Woche', 'Woche', week];
+  b.innerHTML = `${ico(icon)}<span class="l">${long}</span><span class="s">${short}</span><b>${stDur(v)}</b>`;
+  b.title = `${long}: ${stDur(v)} – zur Spielzeit`;
   b.classList.remove('hidden');
+  stHomeFit();
+}
+
+/** The figure never sits on the greeting: first the short label, and where even that does not fit it stays away. */
+function stHomeFit() {
+  const b = $('#stHome'), row = b && b.parentElement, ban = $('#banner');
+  if (!b || !ban || b.classList.contains('hidden')) return;
+  b.classList.remove('tight', 'off');
+  if (!b.offsetParent) return;   // the start page is not shown: measured when it is
+  const hits = () => {
+    // the chips in the corner together (they may stick out of their row when it runs out of room)
+    const cs = [...row.children].map(c => c.getBoundingClientRect()).filter(q => q.width > 0), bx = ban.getBoundingClientRect();
+    if (!cs.length) return false;
+    const r = { left: Math.min(...cs.map(q => q.left)), right: Math.max(...cs.map(q => q.right)), top: Math.min(...cs.map(q => q.top)), bottom: Math.max(...cs.map(q => q.bottom)) };
+    if (r.left < bx.left + 16) return true;
+    return $$('#banner .bn-txt > *').some(el => {
+      const rg = document.createRange(); rg.selectNodeContents(el);
+      return [...rg.getClientRects()].some(q => q.width > 0 && q.right > r.left - 12 && q.left < r.right + 12 && q.bottom > r.top - 6 && q.top < r.bottom + 6);
+    });
+  };
+  if (hits()) { b.classList.add('tight'); if (hits()) b.classList.add('off'); }
 }
 
 /* ---------- hooks: page, host event, timers ---------- */

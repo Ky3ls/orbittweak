@@ -160,8 +160,13 @@
 #p-stats .st-msg p{margin-top:3px;font-size:12.5px;color:var(--mute)}
 
 /* ---------- start page: one figure in the banner's corner, a click away from the page ---------- */
-#p-home .bn-r{display:flex;flex-wrap:wrap-reverse;justify-content:flex-end;gap:8px;max-width:calc(100% - 40px)}
+/* one row next to "Letzter Boost"; stats.js shortens the label (.tight) or leaves the figure out (.off) where it would touch the greeting */
+#p-home .bn-r{display:flex;flex-wrap:nowrap;justify-content:flex-end;gap:8px}
+#p-home .bn-r>*{flex:none;white-space:nowrap}
 #p-home .st-hm{gap:7px;padding:0 12px 0 10px;font-weight:450;color:rgba(236,239,245,.76);transition:background .2s}
+#p-home .st-hm .s,#p-home .st-hm.tight .l,#p-home .st-hm.tight svg.i,#p-home .st-hm.off{display:none}
+#p-home .st-hm.tight{padding:0 12px}
+#p-home .st-hm.tight .s{display:inline}
 #p-home .st-hm svg.i{width:14px;height:14px;color:rgba(236,239,245,.58)}
 #p-home .st-hm b{font-weight:600;color:#fff;font-variant-numeric:tabular-nums}
 #p-home .st-hm:hover{background:rgba(7,9,14,.88)}

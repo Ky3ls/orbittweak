@@ -513,7 +513,8 @@ Check(!KillLogic.SameText("ZM Blaze killed Kronos77", "ZM Blaze killed Viper_12"
     rec.Clip(); rec.Clip();
     rec.Server(100, "cfx:nova", "NovaCity", t.AddSeconds(30), t.AddSeconds(40));
     Check(rec.Open!.Key == "cfx:nova" && rec.Open.Server == "NovaCity" && rec.Open.Start == gs, "the first server found is the server of the whole round");
-    rec.Tick(100, gs, "b3095", t.AddMinutes(30), 100, 3, 100);
+    for (int m = 1; m <= 30; m++) rec.Tick(100, gs, "b3095", t.AddMinutes(m), 100, 3, 100);   // looked at all the time
+    Check(ended.Count == 0 && rec.Open!.Start == gs, "a round that is looked at all the time goes on");
     bool split = rec.Server(100, "cfx:blue", "BlueLine", t.AddMinutes(20), t.AddMinutes(30));
     Check(split && ended.Count == 1 && ended[0].End == t.AddMinutes(20) && ended[0].Kills == 3 && ended[0].Clips == 2 && !ended[0].Open
         && rec.Open!.Key == "cfx:blue" && rec.Open.Start == t.AddMinutes(20) && rec.Open.Kills == 0 && rec.Open.Clips == 0, "a server change splits the round where the new connect was noted");
@@ -530,6 +531,20 @@ Check(!KillLogic.SameText("ZM Blaze killed Kronos77", "ZM Blaze killed Viper_12"
     rec.Tick(301, L(17, 23), null, L(17, 23, 30), 300, 1, 0);
     Check(ended.Count == 3 && ended[2].End == L(17, 22, 2) && rec.Open!.Pid == 301, "another game process ends the round and starts a new one");
 
+    // the PC slept with the game open: that time is not play time
+    var gl = new PlayLog(); var gr = new PlayRecorder(gl); var gEnded = new List<PlayRound>(); gr.Ended = gEnded.Add;
+    var g0 = L(18, 20);
+    gr.Tick(700, g0, "b3095", g0, 700, 2, 700);
+    gr.Server(700, "cfx:nova", "NovaCity", g0.AddSeconds(20), g0.AddSeconds(30));
+    for (int m = 1; m <= 40; m++) gr.Tick(700, g0, "b3095", g0.AddMinutes(m), 700, 2, 700);
+    bool woke = gr.Tick(700, g0, "b3095", g0.AddHours(9), 700, 2, 700);   // the next morning, the game still open
+    Check(woke && gEnded.Count == 0 && gl.Rounds.Count == 2 && gl.Rounds[0].End == g0.AddMinutes(40) && !gl.Rounds[0].Open && gl.Rounds[0].Pid == 0
+        && gr.Open!.Start == g0.AddHours(9) && gr.Open.Key == "cfx:nova" && gr.Open.Server == "NovaCity" && gr.Open.Pid == 700 && gr.Open.Build == "b3095",
+        "a sleeping PC cuts the round quietly there, the hours asleep do not count");
+    gr.Tick(700, g0, "b3095", g0.AddHours(9).AddMinutes(2), 700, 3, 700);
+    gr.Tick(700, g0, "b3095", g0.AddHours(9).AddMinutes(4), 700, 3, 700);
+    Check(gl.Rounds.Count == 2 && gr.Open!.Kills == 1 && gl.Rounds[0].Kills == 0 && gr.Open.Secs == 240, "after the pause the new round counts on, with its own kills");
+
     // one round removed, the history cleared: the round being played stays
     var rc = new PlayRecorder(new PlayLog());
     rc.Tick(1, L(17, 10), null, L(17, 12), 0, 0, 0);
@@ -545,7 +560,7 @@ Check(!KillLogic.SameText("ZM Blaze killed Kronos77", "ZM Blaze killed Viper_12"
     try
     {
         var l1 = new PlayLog(file); var r1 = new PlayRecorder(l1);
-        r1.Tick(500, L(17, 18), null, L(17, 19), 0, 0, 0);
+        r1.Tick(500, L(17, 18), null, L(17, 19, 29), 0, 0, 0);
         r1.Tick(500, L(17, 18), null, L(17, 19, 30), 500, 4, 500);
         r1.Close(L(17, 19, 31));
         PlayLog.Write(file, l1.Serialize());
@@ -567,7 +582,14 @@ Check(!KillLogic.SameText("ZM Blaze killed Kronos77", "ZM Blaze killed Viper_12"
         Check(r4.Log.Rounds.Count == 2 && r4.Open!.Start == L(17, 18, 0, 30) && !r4.Log.Rounds[0].Open, "a new game with the same process id is a new round");
         File.WriteAllText(file, "{\"V\":1,\"Rounds\":[{\"Start\":");
         var l5 = PlayLog.Load(file);
-        Check(l5.Rounds.Count == 0 && File.Exists(file + ".bad"), "a broken file is kept aside as .bad");
+        Check(l5.Rounds.Count == 0 && File.Exists(file + ".bad") && !l5.Unreadable, "a broken file is kept aside as .bad");
+        PlayLog.Write(file, l1.Serialize()); File.Delete(file + ".bad");
+        using (new FileStream(file, FileMode.Open, FileAccess.ReadWrite, FileShare.None))   // another program holds it
+        {
+            var l7 = PlayLog.Load(file);
+            Check(l7.Unreadable && l7.Rounds.Count == 0 && !File.Exists(file + ".bad"), "a file that cannot be opened is marked, so it is never written over");
+        }
+        Check(PlayLog.Load(file) is { Unreadable: false, Rounds.Count: 1 }, "once free it reads again with the whole history");
         var l6 = new PlayLog();
         for (int i = 0; i < PlayLog.Keep + 7; i++) l6.Add(R(L(1, 0).AddMinutes(i * 3), L(1, 0).AddMinutes(i * 3 + 2)));
         Check(l6.Rounds.Count == PlayLog.Keep && l6.Rounds[0].Start == L(1, 0).AddMinutes(21) && l6.Rounds.Select(r => r.Id).Distinct().Count() == PlayLog.Keep, "only the last 5000 rounds are kept, each with its own id");

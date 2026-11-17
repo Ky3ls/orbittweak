@@ -45,19 +45,31 @@ internal sealed class PlayLog
     /// <summary>The file, null for a log that only lives in memory.</summary>
     public string? File { get; }
     public List<PlayRound> Rounds { get; private set; } = new();
+    /// <summary>
+    /// The file is there but could not be opened (held by another program, no access). The log starts empty and must
+    /// not be written, or the history in the file would be lost.
+    /// </summary>
+    public bool Unreadable { get; private set; }
 
     public PlayLog(string? file = null) { File = file; }
 
-    /// <summary>Reads the file. An unreadable one is kept aside as .bad and the log starts empty.</summary>
+    /// <summary>Reads the file. A broken one is kept aside as .bad and the log starts empty.</summary>
     public static PlayLog Load(string file)
     {
         var log = new PlayLog(file);
         // a first save that was cut off between writing and putting it in place leaves only the temp file
         var src = System.IO.File.Exists(file) ? file : System.IO.File.Exists(file + ".tmp") ? file + ".tmp" : null;
         if (src == null) return log;
+        byte[] bytes;
+        for (int i = 0; ; i++)
+        {
+            try { bytes = System.IO.File.ReadAllBytes(src); break; }
+            catch (IOException) when (i < 2) { Thread.Sleep(150); }   // a virus scanner or backup tool has it open for a moment
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { log.Unreadable = true; return log; }
+        }
         try
         {
-            var s = JsonSerializer.Deserialize<Shape>(System.IO.File.ReadAllBytes(src), Opts);
+            var s = JsonSerializer.Deserialize<Shape>(bytes, Opts);
             log.Rounds = (s?.Rounds ?? new()).Where(r => r != null && r.End >= r.Start).OrderBy(r => r.Start).ToList();
             log.Trim();
         }
@@ -112,8 +124,13 @@ internal sealed class PlayRecorder
     public PlayLog Log { get; }
     /// <summary>The round being played now (it is also in the log, marked open).</summary>
     public PlayRound? Open { get; private set; }
-    /// <summary>A round was finished and kept (60 s or more).</summary>
+    /// <summary>A round was finished and kept (60 s or more). Not called for a round cut by a pause (see <see cref="MaxGap"/>).</summary>
     public Action<PlayRound>? Ended { get; set; }
+    /// <summary>
+    /// The same game not seen for longer than this: the PC was asleep or hibernating (OrbitTweak looks every 2 s). That
+    /// time is not play time, so the round ended when the game was last seen and a new one starts at the next look.
+    /// </summary>
+    public static readonly TimeSpan MaxGap = TimeSpan.FromMinutes(3);
     private bool _resolved;
     // the clipper's kill count as last seen: (game process it counts for, kills); only what is added to it is new
     private uint _seenPid; private int _seenKills;
@@ -126,14 +143,27 @@ internal sealed class PlayRecorder
     /// </summary>
     public bool Tick(int pid, DateTimeOffset? gameStart, string? build, DateTimeOffset now, uint killPid, int kills, uint playPid)
     {
-        bool changed = false;
-        if (!_resolved) { _resolved = true; changed |= Resume(pid, gameStart); _seenPid = killPid; _seenKills = kills; }
+        bool changed = false, resumed = false;
+        if (!_resolved)
+        {
+            _resolved = true; changed |= Resume(pid, gameStart); _seenPid = killPid; _seenKills = kills;
+            resumed = Open != null;   // OrbitTweak alone was closed meanwhile: the game ran on, that time counts
+        }
         // the game was closed or another one runs: the round ended when it was last seen
         if (Open != null && (pid == 0 || pid != Open.Pid)) { Finish(Open.End); changed = true; }
+        PlayRound? cut = null;
+        if (Open != null && !resumed && now - Open.End > MaxGap)
+        {
+            // the same game after a long pause (the PC slept): cut there, quietly, the game is still running
+            cut = Open;
+            Finish(Open.End, note: false); changed = true;
+        }
         if (pid == 0) return changed;
         if (Open == null)
         {
-            var r = new PlayRound { Start = gameStart ?? now, End = now, Open = true, Pid = pid, GameStart = gameStart, Build = build };
+            var r = cut != null
+                ? new PlayRound { Start = now, End = now, Open = true, Pid = pid, GameStart = gameStart, Build = cut.Build ?? build, Key = cut.Key, Server = cut.Server }
+                : new PlayRound { Start = gameStart ?? now, End = now, Open = true, Pid = pid, GameStart = gameStart, Build = build };
             if (r.Start > now) r.Start = now;
             Log.Add(r); Open = r;
             _seenPid = killPid; _seenKills = kills;   // kills from before the round are not its own
@@ -174,20 +204,20 @@ internal sealed class PlayRecorder
     public void Clip() { if (Open != null) Open.Clips++; }
 
     /// <summary>OrbitTweak is closing: the open round is saved with this last-seen time and stays open for the next start.</summary>
-    public void Close(DateTimeOffset now) { if (Open != null && now > Open.End) Open.End = now; }
+    public void Close(DateTimeOffset now) { if (Open != null && now > Open.End && now - Open.End <= MaxGap) Open.End = now; }
 
     /// <summary>Deletes the history. The round being played goes on.</summary>
     public int Clear() => Log.Rounds.RemoveAll(r => r != Open);
 
     public bool Remove(long id) => Log.Rounds.RemoveAll(r => r.Id == id && r != Open) > 0;
 
-    private void Finish(DateTimeOffset end)
+    private void Finish(DateTimeOffset end, bool note = true)
     {
         var r = Open!; Open = null;
         if (end > r.Start) r.End = end;
         r.Open = false; r.Pid = 0; r.GameStart = null;
         if (r.Secs < PlayStats.MinSecs) Log.Rounds.Remove(r);   // the game crashed while loading
-        else Ended?.Invoke(r);
+        else if (note) Ended?.Invoke(r);
     }
 
     /// <summary>

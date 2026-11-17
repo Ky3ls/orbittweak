@@ -24,6 +24,7 @@ public partial class MainWindow
     private PlayRecorder MakePlay()
     {
         var p = new PlayRecorder(PlayLog.Load(PlayFile));
+        if (p.Log.Unreadable) Log("📊 Spielzeit: playtime.json ist gerade gesperrt – diese Sitzung wird nicht gespeichert, dein Verlauf bleibt erhalten");
         p.Ended = r =>
         {
             if (r.Secs >= PlayStats.NoteSecs)
@@ -40,12 +41,15 @@ public partial class MainWindow
             case "stats.get":
             {
                 var now = DateTimeOffset.Now;
-                if (Play.Open is { } o && now > o.End) o.End = now;   // the game was seen at most 2 s ago
+                // the game was seen at most 2 s ago; after a longer gap (the PC just woke up) the next look decides
+                if (Play.Open is { } o && now > o.End && now - o.End < TimeSpan.FromSeconds(5)) o.End = now;
                 res = PlayStats.Summarize(Play.Log.Rounds, Play.Open, now);
                 break;
             }
             case "stats.clear":
             {
+                // the file could not be read at the start: clearing here would not reach it
+                if (Play.Log.Unreadable) throw new InvalidOperationException("Dein Verlauf ist gerade gesperrt. Starte OrbitTweak neu und versuch es dann noch einmal.");
                 int n = Play.Clear();
                 PlaySave();
                 if (n > 0) Log($"📊 Spielzeit-Verlauf gelöscht ({n} {(n == 1 ? "Runde" : "Runden")})");
@@ -80,7 +84,7 @@ public partial class MainWindow
             var p = Play;
             bool had = p.Open != null;
             var now = DateTimeOffset.Now;
-            bool save = p.Tick(gamePid, gameStart is DateTime gs ? new DateTimeOffset(gs) : null, had ? null : PlayBuild(), now, _roundPid, _roundKills, _playPid);
+            bool save = p.Tick(gamePid, gameStart is DateTime gs ? new DateTimeOffset(gs) : null, had || gamePid == 0 ? null : PlayBuild(), now, _roundPid, _roundKills, _playPid);
             if (p.Open == null) { if (save) PlaySave(); return; }
             if (!had) _playSrvNext = DateTime.Now.AddSeconds(8);   // a new round: look for its server soon (FiveM notes it on connect)
             if (!_playSrvBusy && DateTime.Now >= _playSrvNext) _ = PlayServer(p.Open);
@@ -152,7 +156,7 @@ public partial class MainWindow
     /// </summary>
     private void PlaySave(bool now = false)
     {
-        if (_play == null) return;
+        if (_play == null || _play.Log.Unreadable) return;   // never over a history that could not be read
         _playSaved = DateTime.Now;
         byte[] data;
         try { data = _play.Log.Serialize(); } catch { return; }
