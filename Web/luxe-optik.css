@@ -17,6 +17,11 @@
 /* small section label inside a surface, sentence case */
 :is(#p-gfx,#p-display,#p-xhair,#p-mods) .xsec-h{display:block;font-size:12.5px;font-weight:500;color:var(--sub);margin-bottom:10px;letter-spacing:0}
 
+/* Grafik and Live-Farben are two pages behind one tab bar: their heads keep the same height (two lines of text),
+   so the tab bar stays where it is when you switch */
+:is(#p-gfx,#p-display) .ph .pd{min-height:3.1em}
+#p-gfx .ph-r{margin-bottom:12px}   /* the small chip sits on the centre line of the big buttons next door */
+
 /* page tabs: one line like the clipper, the short note sits right */
 :is(#p-gfx,#p-display,#p-mods) .vtabs{margin-bottom:24px}
 :is(#p-gfx,#p-display,#p-mods) .vtabs .tab{display:flex;align-items:center;gap:10px;height:42px;padding:0 16px;min-width:0}
@@ -243,7 +248,9 @@
 #p-xhair .xsliders{margin-top:22px;border-top:1px solid var(--line)}
 #p-xhair .xsliders .xsec{margin-top:16px}
 #p-xhair .xsliders .xsec-h{margin-bottom:4px}
-#p-xhair .xtgl{display:grid;grid-template-columns:1fr 1fr;gap:0 18px;margin-top:10px}
+/* one switch per row, label left and switch right: side by side the first switch sat closer to the second label */
+#p-xhair .xtgl{display:grid;grid-template-columns:minmax(0,1fr);gap:0;margin-top:10px}
+#p-xhair .xtgl .xs.tgl+.xs.tgl{box-shadow:inset 0 1px 0 var(--line)}
 #p-xhair .xs{grid-template-columns:92px minmax(0,1fr) 44px;gap:14px;padding:7px 0}
 #p-xhair .xs span{font-size:13px;font-weight:500;color:var(--sub)}
 #p-xhair .xs b{font-family:var(--disp);font-size:13.5px;font-weight:450;color:var(--text)}
@@ -434,7 +441,7 @@
    ===================================================================== */
 @media (max-width:1100px){
   #p-gfx .gl-head{flex-wrap:wrap}
-  #p-gfx .gl-acts{width:100%}
+  #p-gfx .gl-acts{width:100%;padding-left:62px}   /* under the text, not under the icon */
   .gcg-b{grid-template-columns:1fr}
   #p-gfx .gcg-b .gc:nth-child(2){box-shadow:inset 0 1px 0 var(--line)}
   #p-display .dpgrid,#p-xhair .xgrid,.dpb-grid{grid-template-columns:1fr}

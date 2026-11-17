@@ -56,10 +56,11 @@
 #p-cleaner .crow:hover{background:rgba(255,255,255,.028)}
 #p-cleaner .crow:hover::before,#p-cleaner .crow:hover+.crow::before{opacity:0}
 #p-cleaner .crow:focus-visible{outline:2px solid rgba(var(--a-rgb),.75);outline-offset:-2px}
-/* the checkbox: a sunken square, filled with the accent like a switch when chosen */
+/* the checkbox: a sunken square; chosen, it takes the same softened accent as a switch that is on,
+   so the five ticks do not compete with "Bereinigen" */
 #p-cleaner .cb{width:20px;height:20px;border:0;border-radius:7px;background:rgba(255,255,255,.07);box-shadow:inset 0 1px 2px rgba(0,0,0,.4),inset 0 0 0 1px rgba(255,255,255,.06);transition:background .25s,box-shadow .25s}
-#p-cleaner .cb.on{background:var(--fill);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 1px 2px rgba(0,0,0,.35)}
-#p-cleaner .cb svg{width:12px;height:12px;stroke:var(--on);stroke-width:3.2}
+#p-cleaner .cb.on{background:var(--on-fill);box-shadow:var(--on-edge),0 1px 2px rgba(0,0,0,.35)}
+#p-cleaner .cb svg{width:12px;height:12px;stroke:#fff;stroke-width:3.2;filter:drop-shadow(0 1px 1px rgba(0,0,0,.25))}
 #p-cleaner .crow .ti{width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,.045);color:var(--mute);box-shadow:inset 0 1px 0 rgba(255,255,255,.05);transition:color .25s}
 #p-cleaner .crow .ti svg.i{width:18px;height:18px}
 #p-cleaner .crow.sel .ti{color:var(--sub)}
@@ -398,6 +399,13 @@
    ===================================================================== */
 @media (max-width:1100px){
   #p-cleaner .cgrid{grid-template-columns:1fr}
+  #p-cleaner .lx-inst{order:-1}   /* the instrument with "Bereinigen" first, as on Diagnose */
+  /* the instrument lies on its side, like the boost on the start page (uhq.css) */
+  :is(#p-cleaner,#p-diag) .lx-ic{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:1fr auto auto auto 1fr;column-gap:40px;justify-items:start;text-align:left;padding:10px 6px 24px}
+  :is(#p-cleaner,#p-diag) .lx-ic>.gauge{grid-area:1/1/-1/2;margin:0}
+  :is(#p-cleaner,#p-diag) .lx-ic>h3{grid-area:2/2;margin-top:0}
+  :is(#p-cleaner,#p-diag) .lx-ic>p{grid-area:3/2;max-width:380px}
+  :is(#p-cleaner,#p-diag) .lx-ic>.lx-go{grid-area:4/2;width:min(100%,340px)}
   #p-diag .dgrid{grid-template-columns:1fr;grid-template-areas:"inst" "chk" "net" "crash" "log"}
   #p-settings .sgrid{grid-template-columns:1fr}
   #p-settings .sside{position:static}

@@ -10,7 +10,7 @@
   --bg:#05070C;
   --card:#11151E; --card2:#151A24; --raise:#1A202C;
   --line:rgba(196,210,255,.07); --line2:rgba(196,210,255,.12);
-  --text:#ECEFF5; --sub:#9AA2B3; --mute:#6E778A;
+  --text:#ECEFF5; --sub:#9AA2B3; --mute:#7E879A;      /* mute still reads at 4.5:1 on a hovered row */
   --good:#5FD4A3; --warn:#F2C46B; --bad:#F28B8B;
   /* surfaces: a pane of light over the sheet, a light edge on top, a hairline all round, a soft shadow below */
   --plat:linear-gradient(180deg,rgba(255,255,255,.042),rgba(255,255,255,.018) 46%,rgba(255,255,255,.014));
@@ -22,6 +22,10 @@
   --fill:linear-gradient(180deg,rgba(255,255,255,.2),rgba(255,255,255,0) 58%),var(--a);
   --fill-edge:inset 0 1px 0 rgba(255,255,255,.34),inset 0 -1px 0 rgba(0,0,0,.14);
   --grad:linear-gradient(180deg,color-mix(in oklab,var(--a) 80%,#fff),var(--a));
+  /* a state that is on (switch, checkbox): the accent softened toward the quiet grey, so it reads as on
+     without competing with the one main action */
+  --on-fill:linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,0) 60%),color-mix(in oklab,var(--a) 58%,#8C94A6);
+  --on-edge:inset 0 1px 0 rgba(255,255,255,.2),inset 0 0 0 1px rgba(0,0,0,.08);
   --r-sheet:24px; --r-plat:20px; --r-tile:14px; --r-ctl:11px;
   --disp:'Geist','Inter','Segoe UI',sans-serif;
   --body:'Inter','Segoe UI',sans-serif;
@@ -31,8 +35,8 @@ body{background:var(--night)}
 body::before{display:none}
 ::selection{background:rgba(var(--a-rgb),.3)}
 ::-webkit-scrollbar{width:10px}
-::-webkit-scrollbar-thumb{background:rgba(255,255,255,.07);border:3px solid transparent;background-clip:padding-box;border-radius:10px}
-::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.14);background-clip:padding-box}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border:3px solid transparent;background-clip:padding-box;border-radius:10px}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.2);background-clip:padding-box}
 ::-webkit-scrollbar-track{margin:18px 0}
 
 /* ---------- ambient light on the window base (moves by transform only) ---------- */
@@ -75,23 +79,32 @@ body::before{display:none}
 /* ---------- side bar: no panel, just the list on the window base ---------- */
 .side{background:transparent;border-right:0;padding:4px 14px 14px}
 .side-nav{margin:0 -4px;padding:0 4px}
-.nav-h{position:relative;display:block;padding:16px 10px 6px;font-size:11.5px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--mute)}
-.nav-ind+.nav-h{padding-top:6px}
+/* a tighter rhythm (30 px rows, 28 px group gaps): all four groups and the start button fit a 1280 × 800 window */
+.nav-h{position:relative;display:block;padding:12px 10px 4px;font-size:11.5px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--mute)}
+.nav-ind+.nav-h{padding-top:4px}
+/* in a lower window the list scrolls: the last row fades out while there is more below (scroll-linked, opacity only) */
+.side-nav::after{content:'';position:sticky;bottom:0;z-index:2;display:block;height:34px;margin-top:-34px;pointer-events:none;opacity:0;
+  background:linear-gradient(180deg,transparent,var(--night) 92%)}
+@supports (animation-timeline:scroll()){
+  .side-nav::after{animation:navMore linear both;animation-timeline:scroll(self)}
+}
+@keyframes navMore{from{opacity:1}to{opacity:0}}
 .nav-h::after{display:none}
 .nav-h::before{position:absolute;right:12px;top:50%;margin-top:1px;width:5px;height:5px;opacity:0;transition:opacity .2s,transform .3s var(--ease)}
 .nav-h:hover::before,.nav-h.cl::before{opacity:.7}
 .nav-h:hover{color:var(--sub)}
-.nav{height:34px;gap:11px;padding:0 10px;border-radius:11px;font-size:13.5px;font-weight:450;color:var(--sub);letter-spacing:-.003em}
+.nav{height:30px;gap:11px;padding:0 10px;border-radius:10px;font-size:13.5px;font-weight:450;color:var(--sub);letter-spacing:-.003em}
 .nav svg.i{width:18px;height:18px;padding:0;border:0;border-radius:0;background:none;box-shadow:none;color:var(--mute);filter:none;stroke-width:1.7}
 .nav:hover{color:var(--text)}
 .nav:hover svg.i{transform:none;border-color:transparent;color:var(--sub)}
 .side-nav .nav:not(.active):hover{transform:none;background:rgba(255,255,255,.025)}
 .nav.active{color:var(--text);font-weight:500}
 .nav.active svg.i{background:none;color:var(--a);box-shadow:none;filter:none;animation:none}
-.nav-ind{left:4px;right:4px;height:34px;border:0;border-radius:11px;background:linear-gradient(180deg,rgba(255,255,255,.075),rgba(255,255,255,.045));
+.nav-ind{left:4px;right:4px;height:30px;border:0;border-radius:10px;background:linear-gradient(180deg,rgba(255,255,255,.075),rgba(255,255,255,.045));
   box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 1px 2px rgba(0,0,0,.35),0 8px 18px -12px rgba(0,0,0,.8);transition:transform .45s var(--ease),opacity .3s}
 .nav-ind::before{display:none}
-.nav .badge{font-size:10px;font-weight:600;letter-spacing:.02em;padding:2px 7px;background:rgba(var(--a-rgb),.13);color:var(--a);box-shadow:none}
+/* "An" / "Auto" beside a page: a quiet state, not a call to action (the small badges in the foot keep the accent) */
+.nav .badge{font-size:10.5px;font-weight:550;letter-spacing:0;padding:2px 7px;background:rgba(255,255,255,.065);color:var(--sub);box-shadow:none}
 
 .side-cta{margin-top:12px}
 .launch{background:var(--fill);background-size:auto;color:var(--on);animation:none;
@@ -175,12 +188,14 @@ h2{font-weight:580;letter-spacing:-.016em}
 .ib{width:34px;height:34px;border:0;border-radius:10px;background:rgba(255,255,255,.045);box-shadow:var(--edge);color:var(--sub)}
 .ib:hover{color:var(--text);background:rgba(255,255,255,.075)}
 
-/* switch: a sunken track, a lit knob; on, the track fills with the accent */
+/* switch: a sunken track, a lit knob; on, the track takes the softened accent and the knob turns white.
+   The full accent stays for the one main action of a view, so a list of switches never outshouts it */
 .tg{width:42px;height:26px;border:0;border-radius:99px;background:rgba(255,255,255,.085);box-shadow:inset 0 1px 2px rgba(0,0,0,.4),inset 0 0 0 1px rgba(255,255,255,.04);transition:background .3s,box-shadow .3s}
 .tg::after{left:3px;top:3px;width:20px;height:20px;background:linear-gradient(180deg,#E6EAF1,#C3C9D4);box-shadow:0 1px 3px rgba(0,0,0,.5),0 0 0 .5px rgba(0,0,0,.2);transition:left .35s var(--ease),width .2s}
 .tg:hover{border-color:transparent;background:rgba(255,255,255,.11)}
-.tg.on,.tg.on:hover{background:var(--fill);background-size:auto;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),inset 0 0 0 1px rgba(0,0,0,.06);animation:none}
-.tg.on::after{left:19px;background:#fff;animation:none;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+.tg.on,.tg.on:hover{background:var(--on-fill);background-size:auto;box-shadow:var(--on-edge);animation:none}
+.tg.on:hover{filter:brightness(1.06)}
+.tg.on::after{left:19px;background:#fff;animation:none;box-shadow:0 1px 3px rgba(0,0,0,.4)}
 .tg.on:active::after{left:15px}
 .tg:active::after{width:24px}
 
@@ -453,9 +468,11 @@ button.kc-st:hover{background:rgba(255,255,255,.022);border-color:transparent}
 .hl-go{margin-top:20px;gap:24px}
 .hl-info{font-size:13px;color:var(--sub)}
 .hl-info b{font-weight:550}
-#p-clip .hl-auto{margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
-.hl-auto>span{font-size:13px;font-weight:500}
-.hl-auto em{font-size:12px;color:var(--mute)}
+#p-clip .hl-auto{justify-content:space-between;gap:16px;margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}   /* text left, switch right, like every row */
+.hl-auto>span{font-size:13.5px;font-weight:550;letter-spacing:-.005em}
+.hl-auto em{font-size:12.5px;color:var(--mute);margin-top:3px}
+/* saving a clip by hand is a quiet second way (the hotkey is the first): neutral, with the red of a recording */
+#p-clip .btn.rec svg.i{color:#F05A57}
 
 /* your clips: pictures first, quiet text below, no boxes round them */
 #p-clip .cl-lib{padding:20px 22px 24px;margin-bottom:20px}
@@ -484,7 +501,6 @@ button.kc-st:hover{background:rgba(255,255,255,.022);border-color:transparent}
 .clipc .m span,.clipc .m-t span{font-size:12px;color:var(--mute);margin-top:3px}
 .cl-act{width:28px;height:28px;border-radius:8px}
 .cl-empty{border:0;border-radius:16px;background:var(--well);box-shadow:var(--well-edge)}
-.cl-ei{border-radius:50%;background:rgba(255,255,255,.05);color:var(--sub)}
 
 /* kill detection and recording tabs: same surfaces, quieter edges */
 #p-clip .ke{padding:22px;margin-bottom:20px}
@@ -497,15 +513,29 @@ button.kc-st:hover{background:rgba(255,255,255,.022);border-color:transparent}
 .ke-opt b{font-weight:550}
 .cl-rec{border:0;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
 
-/* keyboard focus: a soft accent ring, only for keyboard use */
+/* keyboard focus: a soft accent ring, only for keyboard use. The :where() line gives every other control the same
+   ring (zero specificity, so a page's own focus style still wins); Chromium's own ring is near black on this sheet */
+:where(button,summary,a[href],[tabindex]:not([tabindex="-1"])):focus-visible{outline:2px solid rgba(var(--a-rgb),.75);outline-offset:2px}
 :is(.btn,.ib,.nav,.tab,.qt,.kc-st,.seg button,.launch,.boostbtn,.cl-act,.tg):focus-visible{outline:2px solid rgba(var(--a-rgb),.75);outline-offset:2px}
-.nav:focus-visible,.tab:focus-visible,.seg button:focus-visible{outline-offset:-2px}
+/* rows and cells that run to the edge of a clipped surface draw the ring inside */
+:is(.nav,.tab,.seg button,.kc-st,.qt,.lh-i,summary,.lchip):focus-visible{outline-offset:-2px}
 
 @media (min-width:1500px){.quick{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media (max-width:1100px){
-  .home{grid-template-columns:1fr}
+  /* one column: the named areas have to follow, or the grid keeps a second column and squeezes the status card */
+  .home{grid-template-columns:minmax(0,1fr);grid-template-areas:"bn" "hero" "live" "quick" "srv" "actv"}
+  .home>#curSrv.hidden+.actv{grid-area:actv}
   #tabs.tabs{grid-template-columns:repeat(2,minmax(0,1fr))}
   .kc-st:nth-child(3){box-shadow:none}
+}
+/* a wide instrument lies on its side: the gauge on the left, its words and the action beside it
+   (shared by the boost here and the cleaner and the check in luxe-system.css) */
+@media (max-width:1100px){
+  .hero-c{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:1fr auto auto auto 1fr;column-gap:40px;justify-items:start;text-align:left;padding:10px 6px 24px}
+  .hero-c>.gauge{grid-area:1/1/-1/2;margin:0}
+  .hero-c>h3{grid-area:2/2;margin-top:0;text-align:left}
+  .hero-c>p{grid-area:3/2;max-width:380px;text-align:left}
+  .hero-c>.boostbtn{grid-area:4/2;width:min(100%,340px)}
 }
 @media (prefers-reduced-motion:reduce){
   .page.enter .card,.page.enter .tabs,.page.enter>.ph,.page.enter>.banner{animation:none}

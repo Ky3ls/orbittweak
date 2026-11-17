@@ -34,7 +34,7 @@ html.th-winter{
   --sheet-t:#0A111D; --sheet-b:#070B13;
   --card:#0F1622; --card2:#131B28; --raise:#18212F;
   --line:rgba(196,226,255,.075); --line2:rgba(196,226,255,.13);
-  --text:#EDF2F8; --sub:#9DAABD; --mute:#6F7D92;
+  --text:#EDF2F8; --sub:#9DAABD; --mute:#7E8CA2;
   --on:#06121F;
   /* frost: the same pane of light, a touch cooler, with a breath of rime in the top left corner */
   --plat:radial-gradient(160px 70px at 0 0,rgba(214,238,255,.045),transparent 72%),
@@ -104,7 +104,7 @@ html.th-anime{
   --sheet-t:#110C19; --sheet-b:#0B0812;
   --card:#171021; --card2:#1B1427; --raise:#221A30;
   --line:rgba(255,206,236,.07); --line2:rgba(255,206,236,.125);
-  --text:#F2EEF6; --sub:#B3A8C1; --mute:#83789A;
+  --text:#F2EEF6; --sub:#B3A8C1; --mute:#8C82A3;
   --on:#2B0A1F;
   --plat:linear-gradient(180deg,rgba(255,236,247,.046),rgba(255,236,247,.019) 46%,rgba(255,236,247,.014));
   --edge:inset 0 1px 0 rgba(255,230,244,.09),inset 0 0 0 1px rgba(255,206,236,.045);

@@ -120,9 +120,9 @@
     <button class="nav" data-p="f8"><svg class="i"><use href="#terminal"/></svg>F8-Befehle</button>
     <button class="nav" data-p="stats"><svg class="i"><use href="#chart"/></svg>Spielzeit</button>
     <div class="nav-h">Optik</div>
-    <button class="nav" data-p="gfx"><svg class="i"><use href="#monitor"/></svg>Grafik &amp; Farben<span class="badge hidden" id="navDp">AN</span></button>
-    <button class="nav" data-p="xhair"><svg class="i"><use href="#crosshair"/></svg>Fadenkreuz<span class="badge hidden" id="navXh">AN</span></button>
-    <button class="nav" data-p="mods"><svg class="i"><use href="#puzzle"/></svg>Mods &amp; ReShade<span class="badge hidden" id="navMm">AN</span></button>
+    <button class="nav" data-p="gfx"><svg class="i"><use href="#monitor"/></svg>Grafik &amp; Farben<span class="badge hidden" id="navDp">An</span></button>
+    <button class="nav" data-p="xhair"><svg class="i"><use href="#crosshair"/></svg>Fadenkreuz<span class="badge hidden" id="navXh">An</span></button>
+    <button class="nav" data-p="mods"><svg class="i"><use href="#puzzle"/></svg>Mods &amp; ReShade<span class="badge hidden" id="navMm">An</span></button>
     <div class="nav-h">Werkzeuge</div>
     <button class="nav" data-p="clip"><svg class="i"><use href="#film"/></svg>Clipper</button>
     <button class="nav" data-p="pad"><svg class="i"><use href="#gamepad"/></svg>Controller<span class="badge hidden" id="navPad">An</span></button>
@@ -326,7 +326,7 @@
           <div class="gl-t"><b>Fenstermodus</b><p id="gwHint">Sofort und ohne Neustart. Läuft FiveM im Vollbild, drück im Spiel erst Alt+Enter.</p></div>
           <div class="gl-acts">
             <button class="btn" onclick="gwSet('windowed')"><svg class="i"><use href="#square"/></svg>Fenster</button>
-            <button class="btn p" onclick="gwSet('borderless')"><svg class="i"><use href="#max"/></svg>Randloses Vollbild</button>
+            <button class="btn" onclick="gwSet('borderless')"><svg class="i"><use href="#max"/></svg>Randloses Vollbild</button>
           </div>
         </div>
         <div class="gl-stats">
@@ -472,7 +472,7 @@
     <section class="page" id="p-clip">
       <div class="ph">
         <div><div class="kicker">Clipper</div><h1>Kill-Clips <span class="grad">automatisch</span></h1><p class="pd">Jeder Kill landet von selbst als Clip in deinem Videos-Ordner. Hier schaust du sie an, teilst sie und machst ein Video daraus.</p></div>
-        <div class="ph-r"><button class="btn" onclick="clipOpen('')"><svg class="i"><use href="#folder"/></svg>Videos-Ordner</button><button class="btn p" onclick="clipTest()"><svg class="i"><use href="#rec"/></svg>Clip jetzt speichern</button></div>
+        <div class="ph-r"><button class="btn" onclick="clipOpen('')"><svg class="i"><use href="#folder"/></svg>Videos-Ordner</button><button class="btn rec" onclick="clipTest()"><svg class="i"><use href="#rec"/></svg>Clip jetzt speichern</button></div>
       </div>
       <!-- status on top: the master switch and the numbers that matter (filled by clipUI / kcTiles) -->
       <div class="card kc" id="clStat">
@@ -533,7 +533,7 @@
             <button class="btn p lg hidden" id="hlGo"><svg class="i"><use href="#film"/></svg><span>Video erstellen</span></button>
           </div>
           <div class="mmb-prog hidden" id="hlProg"><div><i id="hlBar"></i></div><span id="hlTxt"></span></div>
-          <div class="row hl-auto"><div class="tg sm" id="hlAuto"></div><span>Nach jeder Runde von selbst ein Video machen<em>sobald du FiveM schließt, ab zwei Kills</em></span></div>
+          <div class="row hl-auto"><span>Nach jeder Runde von selbst ein Video machen<em>sobald du FiveM schließt, ab zwei Kills</em></span><div class="tg" id="hlAuto"></div></div>
         </div>
       </div>
 
