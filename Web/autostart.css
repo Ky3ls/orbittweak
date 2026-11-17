@@ -1,1 +1,117 @@
-/* 2.27 – placeholder, filled in by its feature. */
+/* =====================================================================
+   AUTOSTART (2.27, autostart.js): three quiet numbers and the one main action on one surface, below them the list
+   of programs on one surface with a hairline that starts at the text. Uses the Luxe tokens of uhq.css; the scene
+   themes (luxe-themes.css) only change those tokens. Only transforms and opacity move; no backdrop blur.
+   ===================================================================== */
+
+/* ---------- summary: Programme | Davon an | Können aus | the main action ---------- */
+#p-autostart .as-sum{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) minmax(272px,1.3fr);gap:0;padding:0;margin-bottom:20px;overflow:hidden}
+#p-autostart .as-m{min-width:0;padding:20px 22px 22px}
+#p-autostart .as-m+.as-m{box-shadow:inset 1px 0 0 var(--line)}
+#p-autostart .as-k{display:block;font-size:12px;font-weight:500;color:var(--mute)}
+#p-autostart .as-m b{display:block;margin-top:14px;font-family:var(--disp);font-size:40px;font-weight:300;letter-spacing:-.05em;line-height:1;color:var(--text);font-variant-numeric:tabular-nums;transition:color .3s}
+#p-autostart .as-sum.idle .as-m b{color:var(--mute)}
+#p-autostart .as-s{display:block;margin-top:9px;font-size:12px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* the action: the programs it would switch off as small icons, one line that names them, the accent button */
+#p-autostart .as-go{display:flex;flex-direction:column;justify-content:center;gap:12px;min-width:0;padding:18px 22px 20px;
+  background:radial-gradient(120% 110% at 100% 0,rgba(var(--a-rgb),.075),transparent 68%);box-shadow:inset 1px 0 0 var(--line)}
+#p-autostart .as-go:empty{background:none}
+#p-autostart .as-go.done{background:radial-gradient(120% 110% at 100% 0,rgba(95,212,163,.06),transparent 68%)}
+#p-autostart .as-gh{display:flex;align-items:center;min-height:28px}
+#p-autostart .as-pile{display:flex;align-items:center;gap:6px;min-width:0}
+#p-autostart .as-pi{width:26px;height:26px;flex:none;display:grid;place-items:center}
+#p-autostart .as-pi img{width:24px;height:24px;object-fit:contain}
+#p-autostart .as-pi .as-mono{width:24px;height:24px;border-radius:7px;font-size:11.5px}
+#p-autostart .as-pm{flex:none;height:22px;padding:0 8px;margin-left:2px;display:inline-flex;align-items:center;border-radius:99px;background:rgba(255,255,255,.06);font-size:11.5px;font-weight:550;color:var(--sub);font-variant-numeric:tabular-nums}
+#p-autostart .as-ok{width:28px;height:28px;display:grid;place-items:center;border-radius:50%;background:rgba(95,212,163,.1);color:var(--good)}
+#p-autostart .as-ok svg.i{width:15px;height:15px;stroke-width:2}
+#p-autostart .as-go p{font-size:13px;line-height:1.45;color:var(--sub);text-wrap:pretty}
+#p-autostart .as-go p b{font-weight:550;color:var(--text)}
+#p-autostart .as-go.done p b{display:block;margin-bottom:1px}
+#p-autostart .as-go .btn.p{justify-content:center;height:40px;border-radius:12px}
+#p-autostart .as-go .btn.gh{align-self:flex-start;margin:-4px 0 -6px -8px}
+
+/* ---------- the list ---------- */
+#p-autostart .as-list{padding:6px 8px 8px}
+#p-autostart .as-lh{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 14px 10px}
+#p-autostart .as-lh>div{min-width:0}
+#p-autostart .as-lh b{display:block;font-family:var(--disp);font-size:15.5px;font-weight:580;letter-spacing:-.015em}
+#p-autostart .as-lh p{font-size:12.5px;color:var(--mute);margin-top:3px;font-variant-numeric:tabular-nums}
+#p-autostart .as-lh .seg{flex:none}
+#p-autostart .as-cnt{font-style:normal;margin-left:6px;padding:1px 6px;border-radius:99px;font-size:10.5px;font-weight:550;background:rgba(255,255,255,.07);color:var(--mute);font-variant-numeric:tabular-nums}
+#p-autostart .seg button.on .as-cnt{background:rgba(255,255,255,.1);color:var(--sub)}
+
+/* a row: the head (icon, name, publisher) opens the details, the switch stands on its own */
+#p-autostart .as-row{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:16px;padding-right:14px;border-radius:14px;transition:background .2s}
+#p-autostart .as-row+.as-row::before{content:'';position:absolute;left:64px;right:14px;top:0;height:1px;background:var(--line);transition:opacity .2s}
+#p-autostart .as-row:hover{background:rgba(255,255,255,.028)}
+#p-autostart .as-row:hover::before,#p-autostart .as-row:hover+.as-row::before,#p-autostart .as-row.open::before,#p-autostart .as-row.open+.as-row::before{opacity:0}
+#p-autostart .as-row.open{background:rgba(255,255,255,.022)}
+#p-autostart .as-hd{display:grid;grid-template-columns:36px minmax(0,1fr) 16px;align-items:center;gap:14px;min-width:0;padding:12px 0 12px 14px;cursor:pointer;border-radius:14px 0 0 14px}
+#p-autostart .as-hd:focus-visible{outline:2px solid rgba(var(--a-rgb),.75);outline-offset:-2px}
+#p-autostart .as-ic{width:36px;height:36px;display:grid;place-items:center}
+#p-autostart .as-ic img{width:32px;height:32px;object-fit:contain;transition:opacity .25s}
+#p-autostart .as-mono{width:36px;height:36px;display:grid;place-items:center;border-radius:11px;background:rgba(255,255,255,.05);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),inset 0 0 0 1px rgba(255,255,255,.03);
+  font-family:var(--disp);font-size:15px;font-weight:550;color:var(--sub);transition:opacity .25s}
+#p-autostart .as-tx{display:block;min-width:0}
+#p-autostart .as-t{display:flex;align-items:center;gap:8px;min-width:0;min-height:20px}
+#p-autostart .as-t b{min-width:0;font-size:14px;font-weight:550;letter-spacing:-.008em;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .25s}
+#p-autostart .as-sub{display:block;margin-top:3px;font-size:12.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#p-autostart .as-miss{color:var(--sub)}
+#p-autostart .as-miss svg.i{width:12px;height:12px;margin:0 5px -1px 0;color:var(--warn);stroke-width:2}
+#p-autostart .as-ch{width:15px;height:15px;color:var(--mute);opacity:0;transition:opacity .2s,transform .3s var(--ease)}
+#p-autostart .as-row:hover .as-ch,#p-autostart .as-hd:focus-visible .as-ch{opacity:.8}
+#p-autostart .as-row.open .as-ch{opacity:.8;transform:rotate(90deg)}
+
+/* off: the program steps back, the switch says the rest */
+#p-autostart .as-row.off .as-t b{color:var(--sub)}
+#p-autostart .as-row.off .as-ic img{opacity:.42;filter:grayscale(.85)}
+#p-autostart .as-row.off .as-ic .as-mono{opacity:.55}
+
+/* the small advice: amber for what can go, green for what should stay, red when that one is off */
+#p-autostart .as-rec{flex:none;display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:99px;font-size:11px;font-weight:550;letter-spacing:.005em;cursor:help}
+#p-autostart .as-rec.off{background:rgba(242,196,107,.1);color:var(--warn)}
+#p-autostart .as-rec.keep{background:none;box-shadow:inset 0 0 0 1px rgba(95,212,163,.2);color:color-mix(in oklab,var(--good) 78%,var(--sub))}
+#p-autostart .as-rec.warn{background:rgba(242,139,139,.1);color:var(--bad)}
+
+/* details: the full command in a well, the facts in one quiet line */
+#p-autostart .as-det{grid-column:1/-1;padding:0 0 14px 64px;animation:asIn .28s var(--ease) both}
+@keyframes asIn{from{opacity:0;transform:translateY(-3px)}}
+#p-autostart .as-cmd{display:block;padding:10px 12px;border-radius:12px;background:var(--well);box-shadow:var(--well-edge);font-family:var(--mono);font-size:11.5px;line-height:1.6;color:var(--sub);
+  overflow-wrap:anywhere;word-break:normal;user-select:text;cursor:text}
+#p-autostart .as-df{display:flex;align-items:center;gap:12px;margin-top:10px}
+#p-autostart .as-facts{flex:1;display:flex;flex-wrap:wrap;gap:6px 18px;min-width:0}
+#p-autostart .as-facts span{display:inline-flex;align-items:center;gap:6px;min-width:0;font-size:12px;color:var(--mute)}
+#p-autostart .as-facts svg.i{width:13px;height:13px}
+#p-autostart .as-df .btn{flex:none;margin-right:-6px}
+#p-autostart .tg.busy{opacity:.5}
+
+/* empty, waiting and error states: a round mark, one line, one quiet line below */
+#p-autostart .as-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 16px 56px;text-align:center}
+#p-autostart .as-empty>svg.i{width:20px;height:20px;padding:12px;box-sizing:content-box;border-radius:50%;background:rgba(255,255,255,.05);color:var(--sub);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+#p-autostart .as-empty.ok>svg.i{background:rgba(95,212,163,.1);color:var(--good)}
+#p-autostart .as-empty.wait>svg.i{background:rgba(var(--a-rgb),.1);color:var(--a)}
+#p-autostart .as-empty.bad>svg.i{background:rgba(242,139,139,.1);color:var(--bad)}
+#p-autostart .as-empty b{margin-top:14px;font-size:14px;font-weight:550;letter-spacing:-.008em;color:var(--text)}
+#p-autostart .as-empty span{margin-top:4px;font-size:12.5px;line-height:1.45;color:var(--mute);max-width:360px}
+#p-autostart .as-empty .btn{margin-top:16px}
+
+/* anime: card titles in the rounded face like the other pages' card titles; numbers stay Geist */
+html.th-anime #p-autostart .as-lh b{font-family:var(--head);font-weight:800;letter-spacing:-.004em}
+
+/* the quiet way here from the Cleaner */
+#p-cleaner .as-link{display:inline-flex;align-items:center;gap:7px;margin-top:12px;padding:0;font-size:12.5px;font-weight:500;color:var(--mute);transition:color .2s}
+#p-cleaner .as-link svg.i{width:14px;height:14px;color:var(--mute);transition:color .2s,transform .3s var(--ease)}
+#p-cleaner .as-link b{font-weight:550;color:var(--sub);transition:color .2s}
+#p-cleaner .as-link:hover,#p-cleaner .as-link:hover b{color:var(--text)}
+#p-cleaner .as-link:hover svg.i:last-child{transform:translateX(2px)}
+#p-cleaner .as-link:focus-visible{outline:2px solid rgba(var(--a-rgb),.75);outline-offset:3px;border-radius:6px}
+
+@media (max-width:1100px){
+  #p-autostart .as-sum{grid-template-columns:repeat(3,minmax(0,1fr))}
+  #p-autostart .as-go{grid-column:1/-1;flex-direction:row;align-items:center;gap:16px;padding:14px 22px;box-shadow:inset 0 1px 0 var(--line)}
+  #p-autostart .as-go p{flex:1;min-width:0}
+  #p-autostart .as-go .btn.gh{align-self:center;margin:0}
+}
+@media (prefers-reduced-motion:reduce){#p-autostart .as-det{animation:none}}
