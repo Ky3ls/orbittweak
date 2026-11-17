@@ -82,11 +82,13 @@ body::before{display:none}
 /* a tighter rhythm (30 px rows, 28 px group gaps): all four groups and the start button fit a 1280 × 800 window */
 .nav-h{position:relative;display:block;padding:12px 10px 4px;font-size:11.5px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--mute)}
 .nav-ind+.nav-h{padding-top:4px}
-/* in a lower window the list scrolls: the last row fades out while there is more below (scroll-linked, opacity only) */
+/* in a lower window the list scrolls: the last row fades out while there is more below (scroll-linked, opacity only).
+   The timeline is the list itself (nearest scroller; "self" would be the pseudo element, which never scrolls); the fade
+   stays full until the last 34 px of the way and is gone at the end. A list that fits has no timeline, so it stays hidden */
 .side-nav::after{content:'';position:sticky;bottom:0;z-index:2;display:block;height:34px;margin-top:-34px;pointer-events:none;opacity:0;
   background:linear-gradient(180deg,transparent,var(--night) 92%)}
 @supports (animation-timeline:scroll()){
-  .side-nav::after{animation:navMore linear both;animation-timeline:scroll(self)}
+  .side-nav::after{animation:navMore linear both;animation-timeline:scroll(nearest block);animation-range:calc(100% - 34px) 100%}
 }
 @keyframes navMore{from{opacity:1}to{opacity:0}}
 .nav-h::after{display:none}
@@ -525,12 +527,12 @@ button.kc-st:hover{background:rgba(255,255,255,.022);border-color:transparent}
   /* one column: the named areas have to follow, or the grid keeps a second column and squeezes the status card */
   .home{grid-template-columns:minmax(0,1fr);grid-template-areas:"bn" "hero" "live" "quick" "srv" "actv"}
   .home>#curSrv.hidden+.actv{grid-area:actv}
+  /* no server card: drop its row too, or its two gaps add up to a double gap above the activity */
+  .home:has(>#curSrv.hidden){grid-template-areas:"bn" "hero" "live" "quick" "actv"}
   #tabs.tabs{grid-template-columns:repeat(2,minmax(0,1fr))}
   .kc-st:nth-child(3){box-shadow:none}
-}
-/* a wide instrument lies on its side: the gauge on the left, its words and the action beside it
-   (shared by the boost here and the cleaner and the check in luxe-system.css) */
-@media (max-width:1100px){
+  /* a wide instrument lies on its side: the gauge on the left, its words and the action beside it
+     (shared by the boost here and the cleaner and the check in luxe-system.css) */
   .hero-c{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:1fr auto auto auto 1fr;column-gap:40px;justify-items:start;text-align:left;padding:10px 6px 24px}
   .hero-c>.gauge{grid-area:1/1/-1/2;margin:0}
   .hero-c>h3{grid-area:2/2;margin-top:0;text-align:left}
