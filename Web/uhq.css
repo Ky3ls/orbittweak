@@ -415,7 +415,7 @@ html.th-anime .tl-h b{font-family:var(--head);font-weight:800;letter-spacing:-.0
 .tlist .tw .ti svg.i{width:18px;height:18px}
 .tlist .tw.on .ti{background:rgba(var(--a-rgb),.12);color:var(--a);box-shadow:inset 0 1px 0 rgba(255,255,255,.05),inset 0 0 0 1px rgba(var(--a-rgb),.14)}
 .tlist .tw .tg{margin-top:7px}
-.tlist .tw:not(.dis):hover .tg:not(.on){background:rgba(255,255,255,.11)}   /* the whole row flips the switch */
+.tlist .tw:not(.dis,:has(.tw-d:hover,.tw-more:hover)):hover .tg:not(.on){background:rgba(255,255,255,.11)}   /* the row flips the switch, the text and Details do not */
 .tlist .tw.old .btn{margin-top:5px}
 .tw .tx{min-width:0}
 
@@ -425,7 +425,8 @@ html.th-anime .tl-h b{font-family:var(--head);font-weight:800;letter-spacing:-.0
 .tlist .tw:not(.on) .tw-n b{color:color-mix(in oklab,var(--text) 86%,var(--sub))}
 .tw-n .eff{height:20px;margin-left:0;padding:0 8px;border-radius:99px;font-size:11px;font-weight:550;letter-spacing:0;cursor:default}
 .tw-n .eff.tw-live{gap:5px;background:rgba(255,255,255,.055);color:var(--sub)}
-.tw-n .eff.tw-live::before{content:'';flex:none;width:5px;height:5px;border-radius:50%;background:var(--good)}
+/* a quiet dot, not a green one: on a switch that is off a green light would read as "running" */
+.tw-n .eff.tw-live::before{content:'';flex:none;width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.8}
 .tw-n .eff.tw-opt{background:none;box-shadow:inset 0 0 0 1px var(--line2);color:var(--mute)}
 
 /* the one short line, with a quiet "Details" right after it */
@@ -450,10 +451,10 @@ html.th-anime .tl-h b{font-family:var(--head);font-weight:800;letter-spacing:-.0
 @keyframes twIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.tw.tw-fx .tx p.tw-d{animation:none}.tw .tw-more svg.i{transition:none}}
 
-/* the note on this PC: last, small, with a dot; amber when it says why the switch cannot be turned on */
+/* the note on this PC: last, small, with a dot; amber when it says why the tweak does not fit this PC (also while it is still on) */
 .tw .tx .tw-hint{display:flex;align-items:baseline;gap:8px;margin-top:6px;font-size:12px;line-height:1.45;color:var(--mute)}
 .tw .tx .tw-hint::before{content:'';flex:none;width:4px;height:4px;border-radius:50%;background:currentColor;opacity:.75;transform:translateY(-3px)}
-.tlist .tw.dis .tw-hint{color:rgba(242,196,107,.88)}
+.tlist .tw.nu .tw-hint{color:rgba(242,196,107,.88)}
 .tlist .tw.dis .tx :is(b,p){opacity:1}
 .tlist .tw.dis .tx :is(.tw-n,.tw-s){opacity:.7}
 

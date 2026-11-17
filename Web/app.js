@@ -541,13 +541,13 @@ function twText(key, sum, desc, hint, where) {
 function tweakHtml(t, compact) {
   const badge = !t.badge ? '' : TW_BADGE[t.badge] || `<span class="eff">${esc(t.badge)}</span>`;
   // most tweaks are recommended, so only the exceptions are marked
-  const rec = !compact && !t.rec ? '<span class="eff tw-opt" title="Boost und „Empfohlene anwenden“ lassen ihn aus">Optional</span>' : '';
-  // not usable on this PC: the switch only works to turn it off, the note says why
-  const off = t.usable === false && !t.applied;
+  const rec = !compact && !t.rec ? '<span class="eff tw-opt" title="Boost und „Empfohlene hier anwenden“ lassen ihn aus">Optional</span>' : '';
+  // not usable on this PC: the switch only works to turn it off, the note says why (amber, also while it is still on)
+  const nu = t.usable === false, off = nu && !t.applied;
   const open = !!t.sum && TW_OPEN.has(t.id);
-  return `<div class="tw ${t.applied ? 'on' : ''}${off ? ' dis' : ''}${open ? ' open' : ''}"><div class="ti">${ico(t.icon)}</div>`
+  return `<div class="tw${t.applied ? ' on' : ''}${nu ? ' nu' : ''}${off ? ' dis' : ''}${open ? ' open' : ''}"><div class="ti">${ico(t.icon)}</div>`
     + `<div class="tx"><div class="tw-n"><b>${esc(t.name)}</b>${badge}${rec}</div>${twText(t.id, t.sum, t.desc, t.hint, compact ? 'il' : 'tw')}</div>`
-    + `<div class="tg ${t.applied ? 'on' : ''}" data-id="${t.id}" role="switch" tabindex="0" aria-checked="${!!t.applied}" aria-label="${esc(t.name)}"></div></div>`;
+    + `<div class="tg ${t.applied ? 'on' : ''}" data-id="${t.id}" role="switch" tabindex="0" aria-checked="${!!t.applied}"${off ? ' aria-disabled="true"' : ''} aria-label="${esc(t.name)}"></div></div>`;
 }
 function legacyHtml() {
   const l = S.legacy || [];
@@ -556,7 +556,7 @@ function legacyHtml() {
     + l.map(t => {
       // the heading already says "removed": the name goes without the suffix, an older version of a tweak that is still there is marked
       const k = 'old:' + t.id, old = / \(alte Version\)$/.test(t.name), name = t.name.replace(/ \((entfernt|alte Version)\)$/, '');
-      return `<div class="tw old${t.sum && TW_OPEN.has(k) ? ' open' : ''}"><div class="ti">${ico('undo')}</div><div class="tx"><div class="tw-n"><b>${esc(name)}</b>${old ? '<span class="eff">alte Version</span>' : ''}</div>${twText(k, t.sum, t.desc, t.hint, 'tw')}</div><button class="btn sm" data-legacy="${t.id}">Zurücksetzen</button></div>`;
+      return `<div class="tw old${t.sum && TW_OPEN.has(k) ? ' open' : ''}"><div class="ti">${ico('undo')}</div><div class="tx"><div class="tw-n"><b>${esc(name)}</b>${old ? '<span class="eff">Alte Version</span>' : ''}</div>${twText(k, t.sum, t.desc, t.hint, 'tw')}</div><button class="btn sm" data-legacy="${t.id}">Zurücksetzen</button></div>`;
     }).join('');
 }
 // a re-render replaces the rows: keyboard focus goes back to the same switch, link, tab or button
@@ -587,12 +587,19 @@ document.addEventListener('click', async e => {
   if (e.target.closest('.tab')) return;
   const lg = e.target.closest('[data-legacy]');
   if (lg) {
+    // a disabled button drops its focus: afterwards it goes to the next removed tweak, or to the tab when none is left
+    const had = document.activeElement === lg, at = $$('#tgrid [data-legacy]').indexOf(lg);
     lg.disabled = true;
     const r = await api('tweak.legacyRevert', { id: lg.dataset.legacy }).catch(er => ({ ok: false, error: er.message }));
     const it = (S.legacy || []).find(x => x.id === lg.dataset.legacy);
     if (r.ok) { S.legacy = S.legacy.filter(x => x !== it); toast('Zurückgesetzt', (it ? it.name.replace(/ \((entfernt|alte Version)\)$/, '') : '') + (it && it.hint ? ' · ' + it.hint : '')); }
     else { lg.disabled = false; toast('Nicht zurückgesetzt', r.error || '', false); }
-    renderTweaks(); return;
+    renderTweaks();
+    if (had && (document.activeElement === document.body || document.activeElement === lg)) {
+      const l = $$('#tgrid [data-legacy]');
+      (l[Math.min(at, l.length - 1)] || $('#tabs .tab.on'))?.focus({ preventScroll: true });
+    }
+    return;
   }
   const mo = e.target.closest('.tw [data-more]');
   if (mo) {
