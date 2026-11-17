@@ -539,7 +539,7 @@ public partial class MainWindow : Window
             {
                 // removed tweaks that are still active, and (once after the update) what was undone by itself
                 var mig = _migrated != null ? await _migrated : null;
-                var items = await Task.Run(() => Catalog.Old.Where(l => l.SafeCheck()).Select(l => new { id = l.Id, name = l.Name, desc = l.Desc, hint = l.Hint }).ToList());
+                var items = await Task.Run(() => Catalog.Old.Where(l => l.SafeCheck()).Select(l => new { id = l.Id, name = l.Name, sum = l.Sum, desc = l.Desc, hint = l.Hint }).ToList());
                 object? note = null;
                 if (S.TweaksMigrated && mig != null && (mig.Undone.Count > 0 || items.Count > 0))
                     note = new { undone = mig.Undone, reboot = mig.Reboot, active = items.Count };
@@ -1815,7 +1815,7 @@ public partial class MainWindow : Window
     private async Task<object> TweakList()
     {
         var st = await Task.Run(() => _tweaks.Select(t => (applied: t.SafeCheck(), rec: t.IsRecommended, usable: t.IsUsable, hint: t.SafeHint())).ToList());
-        return _tweaks.Select((t, i) => new { id = t.Id, cat = t.Cat, name = t.Name, desc = t.Desc, icon = t.Icon, badge = t.Badge, rec = st[i].rec, applied = st[i].applied, usable = st[i].usable, hint = st[i].hint }).ToList();
+        return _tweaks.Select((t, i) => new { id = t.Id, cat = t.Cat, name = t.Name, sum = t.Sum, desc = t.Desc, icon = t.Icon, badge = t.Badge, rec = st[i].rec, applied = st[i].applied, usable = st[i].usable, hint = st[i].hint }).ToList();
     }
 
     // =====================================================================

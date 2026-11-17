@@ -71,6 +71,7 @@ internal static class Catalog
             new Tweak
             {
                 Id = "gpu", Cat = "fivem", Icon = "monitor", Name = "Starke Grafikkarte für FiveM",
+                Sum = "Bei zwei Grafikchips läuft FiveM sicher auf der starken Karte",
                 Desc = "Trägt FiveM in den Windows-Grafikeinstellungen auf „Hohe Leistung“ ein – auf Laptops und PCs mit zwei Grafikchips ein Sicherheitsnetz, das Cfx.re bei endlosem Laden oder fehlender Spiel-UI empfiehlt (FiveM wählt die starke Karte meist schon selbst), mit nur einer Grafikkarte ändert sich nichts.",
                 RecWhen = () => Hw.SwitchableGpus,
                 Hint = () => Hw.SwitchableGpus ? null : "Nur eine Grafikkarte erkannt: hier ändert sich nichts",
@@ -89,6 +90,7 @@ internal static class Catalog
             new Tweak
             {
                 Id = "winopt", Cat = "fivem", Icon = "max", Recommended = false, Name = "Fenster-Optimierung für FiveM",
+                Sum = "Weniger Verzögerung im Randlos- und Fenstermodus",
                 Desc = "Schaltet die Windows-11-„Optimierungen für Spiele im Fenstermodus“ nur für FiveM ein, damit die Bildausgabe im Randlos- oder Fenstermodus mit weniger Verzögerung läuft und G-Sync/FreeSync greifen kann – im echten Vollbild und bei FiveM für GTA V Enhanced (DirectX 12) bringt es nichts, und wenn Alt-Tab oder das Umschalten danach hakt, schalte es wieder aus.",
                 Hint = () => WinOptByWindows() ? "Windows hat die Optimierung schon für alle Spiele eingeschaltet"
                            : Hw.SwitchableGpus ? "Laptop oder PC mit zwei Grafikchips: hier hakt das Umschalten am ehesten" : null,
@@ -115,6 +117,7 @@ internal static class Catalog
             new Tweak
             {
                 Id = "nothrottle", Cat = "fivem", Icon = "gauge", Badge = "LIVE", Name = "Kein Energiesparen fürs Spiel",
+                Sum = "Am Akku schickt Windows FiveM nicht mehr in den Sparmodus",
                 Desc = "Verhindert auf Laptops am Akku, dass Windows FiveM in den Sparmodus schickt, wenn das Spiel nicht im Vordergrund ist oder du eine Weile nichts drückst – am Netzteil mit dem Spiel vorne ändert sich nichts, und die CPU-Priorität bleibt bewusst auf „Normal“, weil „Hoch“ laut Cfx.re Ladehänger und Voice-Lag auslösen kann.",
                 RecWhen = () => Hw.HasBattery,
                 Check = () => s.GameNoThrottle,
@@ -128,6 +131,7 @@ internal static class Catalog
             new Tweak
             {
                 Id = "bgbrake", Cat = "fivem", Icon = "cpu", Badge = "LIVE", Name = "Hintergrund-Apps ausbremsen",
+                Sum = "FiveM geht vor Browser und Launcher – spürbar nur bei voller CPU",
                 Desc = "Solange FiveM läuft, stellt OrbitTweak Browser, Launcher und Cloud-Apps hinter das Spiel (niedrigere Priorität, unter Windows 11 zusätzlich Effizienzmodus, bei CPUs mit E-Kernen landen sie dort), was spürbar nur hilft, wenn deine CPU im Spiel ausgelastet ist – Voice-Apps, Apps, die gerade Ton abspielen, und das Fenster, das du gerade benutzt, bleiben unangetastet, und nach dem Spiel ist alles wie vorher.",
                 Check = () => s.BgThrottle,
                 Apply = () => { s.BgThrottle = true; s.Save(); },
@@ -136,6 +140,7 @@ internal static class Catalog
             new Tweak
             {
                 Id = "timer", Cat = "fivem", Icon = "timer", Badge = "LIVE", Recommended = false, Name = "Timer 0,5 ms im Spiel (Experiment)",
+                Sum = "Feinster Windows-Takt im Spiel – ein Gewinn ist nicht belegt",
                 Desc = "Fordert, solange FiveM läuft, den feinsten Windows-Takt an, der beim Spiel aber nur ankommt, wenn FiveM selbst einen feineren Takt anfordert – ein spürbarer Gewinn ist nicht belegt, dafür braucht dein PC etwas mehr Strom.",
                 Check = () => s.TimerRes,
                 Apply = () => { s.TimerRes = true; s.Save(); },
@@ -146,6 +151,7 @@ internal static class Catalog
             new Tweak
             {
                 Id = "ult", Cat = "system", Icon = "zap", Name = "Energieplan Höchstleistung",
+                Sum = "CPU muss nicht erst hochtakten, der Effekt ist meist klein",
                 Desc = "Wechselt auf einen eigenen Höchstleistungs-Energieplan, damit die CPU nicht erst hochtakten muss, und holt beim Ausschalten deinen bisherigen Plan zurück – auf aktuellen Desktops ist der Effekt klein, und im Leerlauf braucht der PC etwas mehr Strom.",
                 RecWhen = () => !Hw.DualCcdX3D && !Hw.HasBattery && !Hw.ModernStandby,
                 Usable = () => !Hw.DualCcdX3D && !Hw.ModernStandby,
@@ -164,6 +170,7 @@ internal static class Catalog
             new Tweak
             {
                 Id = "gm", Cat = "system", Icon = "gamepad", Name = "Spielmodus",
+                Sum = "Keine Treiber-Updates und Neustart-Hinweise beim Spielen",
                 Desc = "Sorgt dafür, dass der Windows-Spielmodus an ist (Standard): Während du spielst, hält Windows Update Treiber-Installationen und Neustart-Hinweise zurück – mehr FPS bringt er kaum, für Ryzen-X3D-CPUs mit zwei Chiplets ist er aber Pflicht.",
                 Hint = () => Hw.DualCcdX3D ? "Ryzen X3D: Ohne Spielmodus legt der AMD-Treiber FiveM nicht auf den Cache-Chiplet" : null,
                 // a missing value is Windows' default: on
@@ -176,6 +183,7 @@ internal static class Catalog
             new Tweak
             {
                 Id = "dvr", Cat = "system", Icon = "videooff", Name = "Game-Bar-Aufnahme aus",
+                Sum = "Keine Game-Bar-Aufnahme mehr, auch nicht im Hintergrund",
                 Desc = "Schaltet die Aufnahme der Xbox Game Bar samt „Im Hintergrund aufnehmen“ ab – mehr FPS gibt es nur, wenn die Hintergrundaufnahme vorher lief, und wenn du Clips mit der Game Bar aufnimmst, lass diesen Schalter aus.",
                 RecWhen = () => s.Clip.Recorder != "gamebar",
                 Usable = () => s.Clip.Recorder != "gamebar",
@@ -205,6 +213,7 @@ internal static class Catalog
             new Tweak
             {
                 Id = "hags", Cat = "system", Icon = "monitor", Badge = "NEUSTART", Recommended = false, Name = "Hardware-GPU-Planung",
+                Sum = "Grafikkarte plant selbst – meist kein spürbarer Unterschied",
                 Desc = "Schaltet die Windows-Einstellung „Hardwarebeschleunigte GPU-Planung“ ein, wenn Grafikkarte und Treiber sie unterstützen – laut Microsoft merkt man meist keinen Unterschied, in Tests waren es 0–4 % mehr FPS, und bei Abstürzen oder Rucklern schaltest du sie besser wieder aus.",
                 // the setting exists since Windows 10 2004 (build 19041); on older builds the value is read by nothing
                 Usable = () => SysInfo.Build >= 19041 && Hw.Hags() is var h && (!h.known || h.supported),
@@ -245,6 +254,7 @@ internal static class Catalog
             new Tweak
             {
                 Id = "vfx", Cat = "system", Icon = "sparkle", Recommended = false, Name = "Windows-Animationen aus",
+                Sum = "Fenster und Menüs ohne Animation – im Spiel ändert sich nichts",
                 Desc = "Schaltet Fenster-, Menü- und Taskleisten-Animationen von Windows ab, damit sich der Desktop direkter anfühlt (Taskleiste erst nach Ab- und Anmelden) – im Spiel selbst bringt das keine FPS.",
                 Check = () => Spi.GetMinAnimate() == 0 && Spi.Get(0x1002) == 0 && Spi.Get(0x1016) == 0 && Spi.Get(0x1004) == 0 && Reg.Is(ADV, "TaskbarAnimations", 0),
                 Owned = () => Reg.Get(VFX_BK, "Saved") != null,
@@ -254,6 +264,7 @@ internal static class Catalog
             new Tweak
             {
                 Id = "pagefile", Cat = "system", Icon = "ram", Badge = "NEUSTART", Name = "Auslagerungsdatei absichern",
+                Sum = "Schützt FiveM vor Abstürzen bei vollem Arbeitsspeicher",
                 Desc = "Stellt die Auslagerungsdatei wieder auf „von Windows verwaltet“, falls sie abgeschaltet oder zu klein ist, damit FiveM bei vollem Arbeitsspeicher nicht abstürzt – mehr FPS bringt das nicht.",
                 // "in Ordnung" is also a big enough page file of your own, not only the Windows default
                 Hint = () => PagefileOk() && Reg.Get(OWN, "PagefileBackup") == null ? "Bei dir schon in Ordnung" : null,
@@ -278,6 +289,7 @@ internal static class Catalog
             new Tweak
             {
                 Id = "nic", Cat = "network", Icon = "wifi", Badge = "NEUSTART", Name = "LAN-Energiesparen aus",
+                Sum = "Netzwerkkarte schläft nicht mehr ein – am Ping kaum spürbar",
                 Desc = "Schaltet Energy Efficient Ethernet und ähnliche Stromsparmodi deiner Netzwerkkarte ab, damit sie zwischen Paketen nicht kurz einschläft und die von Intel dokumentierten EEE-Geschwindigkeitseinbrüche beim I225-V ausbleiben; am Ping merkst du das kaum, und es wirkt erst nach einem Neustart.",
                 Usable = () => NicTargets().Any() || NicOwned(),
                 Hint = () => NicTargets().Any() ? null : "Deine Netzwerkkarte hat keinen dieser Stromsparmodi",
@@ -314,6 +326,7 @@ internal static class Catalog
             new Tweak
             {
                 Id = "wifiscan", Cat = "network", Icon = "wifi", Badge = "LIVE", Name = "WLAN-Scans im Spiel aus",
+                Sum = "Kann Ping-Zacken über WLAN verringern, solange FiveM läuft",
                 Desc = "Solange FiveM läuft, sucht Windows über WLAN nicht mehr im Hintergrund nach anderen Netzen, was die typischen periodischen Ping-Zacken über WLAN verringern kann; nach dem Spiel ist alles wie vorher, und mit LAN-Kabel passiert gar nichts.",
                 RecWhen = NetLink.HasWifi,
                 Hint = () => NetLink.DefaultIsWifi() == false ? "Du bist per Kabel verbunden: hier ändert sich nichts" : null,
@@ -324,6 +337,7 @@ internal static class Catalog
             new Tweak
             {
                 Id = "delopt", Cat = "network", Icon = "download", Recommended = false, Name = "Update-Verteilung im Heimnetz aus",
+                Sum = "Dein PC verteilt keine Windows-Updates mehr an andere Geräte",
                 Desc = "Dein PC gibt Windows-Updates nicht mehr an andere Geräte weiter; standardmäßig teilt Windows ohnehin nur im eigenen Heimnetz, das lohnt sich also vor allem, wenn mehrere Windows-PCs bei dir im WLAN hängen oder du „Geräte im Internet“ erlaubt hattest.",
                 Check = () => Reg.Is(DO, "DODownloadMode", 0),
                 // a policy 0 without a backup can be an admin's or another tool's: "Alle zurücksetzen" leaves it
@@ -347,6 +361,7 @@ internal static class Catalog
             new Tweak
             {
                 Id = "sticky", Cat = "input", Icon = "ban", Name = "Bedienungshilfe-Popups aus",
+                Sum = "Keine Bedienungshilfe-Fenster mitten im Spiel",
                 Desc = "5× Shift, langes Halten von Shift rechts oder Num und Alt+Shift+Num öffnen keine Bedienungshilfe-Fenster mehr, die dich mitten im Spiel rauswerfen; Funktionen, die du selbst eingeschaltet hast, behalten ihr Kürzel.",
                 Check = () => Access.Take(3).All(a => Spi.GetStruct(a.get, a.words) is { } f && ((f[1] & TweakLogic.HOTKEYACTIVE) == 0 || UsesFeature(a, f[1]))),
                 Owned = () => Bk.HasPrefix("sticky."),
@@ -386,6 +401,7 @@ internal static class Catalog
             new Tweak
             {
                 Id = "winkey", Cat = "input", Icon = "ban", Badge = "LIVE", Recommended = false, Name = "Windows-Taste im Spiel sperren",
+                Sum = "Startmenü öffnet sich im Spiel nicht mehr",
                 Desc = "Solange FiveM im Vordergrund ist, öffnet ein versehentlicher Druck auf die Windows-Taste neben Strg und Alt nicht mehr das Startmenü und wirft dich nicht aus dem Vollbild; außerhalb des Spiels funktioniert sie ganz normal.",
                 Check = () => s.BlockWinKey,
                 Apply = () => { s.BlockWinKey = true; s.Save(); },
@@ -394,6 +410,7 @@ internal static class Catalog
             new Tweak
             {
                 Id = "accel", Cat = "input", Icon = "target", Name = "Zeigerbeschleunigung aus",
+                Sum = "Mauszeiger folgt in Menüs und auf dem Desktop 1:1",
                 Desc = "Schaltet „Zeigerpräzision verbessern“ sofort aus, damit der Mauszeiger in FiveM-Menüs wie Inventar und Handy und auf dem Desktop 1:1 deiner Hand folgt; das Zielen mit Raw Input oder DirectInput ist ohnehin unbeschleunigt.",
                 Hint = () => "Für unbeschleunigtes Zielen in GTA: Einstellungen › Tastatur/Maus › Maus-Eingabemethode „Raw Input“",
                 Check = () => Spi.GetMouse() is { } m && m[2] == 0,
@@ -413,6 +430,7 @@ internal static class Catalog
             new Tweak
             {
                 Id = "usb", Cat = "input", Icon = "usb", Name = "USB-Energiesparen aus (Netzbetrieb)",
+                Sum = "Hilft, wenn Headset oder Empfänger kurz aussetzen",
                 Desc = "Im aktiven Energieplan schickt Windows am Netzteil keine USB-Geräte mehr in den Stromsparmodus; das hilft, wenn Headset, Funk-Empfänger oder USB-Hub nach kurzer Pause kurz aussetzen, Maus und Tastatur legt Windows ohnehin meist nicht schlafen.",
                 Usable = () => Power.Active() is { } a && UsbAc(a) >= 0,
                 Hint = () => Power.Active() is { } a && UsbAc(a) >= 0 ? null : "Diese Einstellung gibt es in deinem Energieplan nicht",
@@ -424,6 +442,7 @@ internal static class Catalog
             new Tweak
             {
                 Id = "kbd", Cat = "input", Icon = "keyboard", Recommended = false, Name = "Kürzere Wiederholverzögerung",
+                Sum = "Tasten wiederholen sich nach etwa 250 statt 500 ms",
                 Desc = "Gehaltene Tasten wiederholen sich schon nach etwa 250 statt 500 ms, praktisch beim Löschen im Chat oder im Handy-Menü; aufs Laufen und Zielen im Spiel hat das keinen Einfluss.",
                 Hint = () => WasdTweak.Lag().on ? "Solange die schnelle Tastenwiederholung an ist, gilt deren Timing" : null,
                 Check = () => Spi.Get(0x0016) == 0 && Spi.Get(0x000A) == 31,
@@ -449,6 +468,7 @@ internal static class Catalog
             new Tweak
             {
                 Id = "gbbtn", Cat = "input", Icon = "gamepad", Recommended = false, Name = "Xbox-Taste öffnet keine Game Bar",
+                Sum = "Mit Controller keine Game Bar mehr mitten im Spiel",
                 Desc = "Mit Controller öffnet die Xbox-Taste nicht mehr versehentlich die Game Bar mitten im Spiel, Win+G funktioniert weiter; ohne Controller ändert sich nichts.",
                 Check = () => Reg.Is(GB, "UseNexusForGameBarEnabled", 0),
                 Owned = () => Bk.Has("gbbtn"),
@@ -467,6 +487,7 @@ internal static class Catalog
             new Tweak
             {
                 Id = "langkey", Cat = "input", Icon = "keyboard", Recommended = false, Name = "Sprachwechsel per Alt+Shift aus",
+                Sum = "Y und Z tauschen nicht mehr plötzlich die Plätze",
                 Desc = "Alt+Shift und Strg+Shift schalten nicht mehr nebenbei die Tastatursprache um (plötzlich Y und Z vertauscht), Windows+Leertaste geht weiter; nur sinnvoll, wenn du mehr als ein Tastaturlayout installiert hast.",
                 Check = () => Reg.Is(LANG, "Language Hotkey", "3") && Reg.Is(LANG, "Layout Hotkey", "3"),
                 Owned = () => Bk.HasPrefix("langkey."),
@@ -717,8 +738,9 @@ internal static class Catalog
     // ======================================================================================================
     //  REMOVED TWEAKS: still active ones are shown under System › "Entfernte Tweaks" with a reset button
     // ======================================================================================================
+    /// <param name="Sum">one short line under the name; <paramref name="Desc"/> opens under "Details"</param>
     /// <param name="Own">true when Check reads OrbitTweak's own flag, so the value is surely ours; only those are part of "Alle zurücksetzen"</param>
-    public sealed record Legacy(string Id, string Name, string Desc, Func<bool> Check, Action Revert, string? Hint = null, bool Own = false)
+    public sealed record Legacy(string Id, string Name, string Sum, string Desc, Func<bool> Check, Action Revert, string? Hint = null, bool Own = false)
     {
         public bool SafeCheck() { try { return Check(); } catch { return false; } }
     }
@@ -727,6 +749,7 @@ internal static class Catalog
     public static readonly List<Legacy> Old = new()
     {
         new("sysmain", "SysMain aus (entfernt)",
+            "Bringt auf SSDs nichts und schaltet die Speicherkomprimierung ab",
             "Entfernt, weil es auf SSDs keine FPS bringt, Ladezeiten von Festplatten verlängert und nebenbei die Speicherkomprimierung abschaltet – ist es bei dir noch aktiv, kannst du es hier zurücksetzen.",
             () => Reg.Is(SYSMAIN, "Start", 4),
             () =>
@@ -736,6 +759,7 @@ internal static class Catalog
                 if (!Reg.Is(SYSMAIN, "Start", 2)) throw new InvalidOperationException("SysMain konnte nicht aktiviert werden");
             }),
         new("memcomp", "Speicher-Komprimierung aus (entfernt)",
+            "Ohne Komprimierung lagert Windows auf die Festplatte aus",
             "Entfernt, weil Windows nur komprimiert, wenn der RAM knapp wird, und ohne Komprimierung dann auf die Festplatte auslagert, was mehr ruckelt – OrbitTweak konnte sie nicht von selbst wieder einschalten, weil SysMain aus ist.",
             () => Reg.Is(OWN, "MemCompOff", 1),
             () =>
@@ -745,15 +769,18 @@ internal static class Catalog
                 Reg.Del(OWN, "MemCompOff");
             }, "Wirkt nach einem Neustart", Own: true),
         new("bgapps", "Hintergrund-Apps blockieren (entfernt)",
+            "Traf nur Store-Apps und konnte Benachrichtigungen abschalten",
             "Entfernt, weil es nur Store-Apps traf (nicht Discord, Browser oder Launcher) und dir dabei Benachrichtigungen abschalten konnte – ist es bei dir noch aktiv, kannst du es hier zurücksetzen.",
             () => Reg.Is(@"HKCU\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications", "GlobalUserDisabled", 1),
             () => Reg.Del(@"HKCU\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications", "GlobalUserDisabled"),
             "Wirkt nach dem Ab- und Anmelden"),
         new("telemetry", "Telemetrie minimieren (entfernt)",
+            "Bringt keine Leistung – das geht auch in den Einstellungen",
             "Entfernt, weil es keine Leistung bringt und auf Home und Pro nur „Erforderliche Diagnosedaten“ erzwingt, was du auch selbst in den Einstellungen wählen kannst – ist es bei dir noch aktiv, kannst du es hier zurücksetzen.",
             () => Reg.Is(@"HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection", "AllowTelemetry", 0),
             () => Reg.Del(@"HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection", "AllowTelemetry")),
         new("fseglobal", "Vollbild-Optimierungen global aus (entfernt)",
+            "Undokumentierte Werte ohne nachweisbaren Vorteil",
             "Entfernt, weil diese undokumentierten Werte alle DirectX-Spiele ohne nachweisbaren Vorteil ändern; laut Microsoft ist die Vollbild-Optimierung im Schnitt genauso schnell wie echtes Vollbild. Die Werte können auch von einem anderen Tool stammen.",
             // GameDVR_FSEBehavior is not there on a stock profile: the old switch-off wrote it too (as 0)
             () => Reg.Is(GCS, "GameDVR_HonorUserFSEBehaviorMode", 1) || Reg.Is(GCS, "GameDVR_DXGIHonorFSEWindowsCompatible", 1)
@@ -764,6 +791,7 @@ internal static class Catalog
                 Reg.Set(GCS, "GameDVR_DXGIHonorFSEWindowsCompatible", 0); Reg.Del(GCS, "GameDVR_FSEBehavior");
             }),
         new("mmcss", "Spiele-Priorität (MMCSS) (entfernt)",
+            "Windows setzt den Wert zurück, für FiveM ändert sich nichts",
             "Entfernt: Laut Microsoft wird der Wert 0 auf 20 zurückgesetzt, und die übrigen Einträge gelten nur für Programme, die sich beim Multimedia-Dienst anmelden – für FiveM ändert sich dadurch nichts.",
             () => Reg.Is(MM, "SystemResponsiveness", 0) && Reg.Is(GAMES, "Scheduling Category", "High"),
             () =>
@@ -772,10 +800,12 @@ internal static class Catalog
                 Reg.SetStr(GAMES, "Scheduling Category", "Medium"); Reg.SetStr(GAMES, "SFIO Priority", "Normal");
             }),
         new("throttle", "Energiedrosselung aus (entfernt)",
+            "Ersetzt durch „Kein Energiesparen fürs Spiel“",
             "Entfernt, weil der systemweite Schalter das Spiel im Vordergrund ohnehin nicht drosselt und nur Hintergrund-Apps das Stromsparen nimmt – ersetzt durch „Kein Energiesparen fürs Spiel“. Der Wert kann auch per Gruppenrichtlinie gesetzt sein.",
             () => Reg.Is(THROTTLE, "PowerThrottlingOff", 1),
             () => Reg.Del(THROTTLE, "PowerThrottlingOff"), "Wirkt nach einem Neustart"),
         new("vfxold", "Visuelle Effekte reduzieren (alte Version)",
+            "Ersetzt durch „Windows-Animationen aus“",
             "Die alte Version hat nur die Auswahl im Leistungsdialog umgestellt und Untermenüs ohne Verzögerung aufklappen lassen; beides geht hier auf den Windows-Standard zurück. Die neue Version heißt „Windows-Animationen aus“.",
             () => Reg.Is(VFX, "VisualFXSetting", 2) && Reg.Is(DESK, "MenuShowDelay", "0"),
             () => { Reg.SetStr(DESK, "MenuShowDelay", "400"); Reg.Set(VFX, "VisualFXSetting", 0); }, "Wirkt nach dem Ab- und Anmelden"),
