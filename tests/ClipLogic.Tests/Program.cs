@@ -458,6 +458,148 @@ TweakTexts.Run(Check);
     Check(!TweakLogic.IsDualCcdX3D("13th Gen Intel(R) Core(TM) i7-13700K"), "Intel is not X3D");
 }
 
+// ---------- play time (Spielzeit) ----------
+{
+    var cet = TimeSpan.FromHours(1);
+    DateTimeOffset L(int d, int h, int m = 0, int s = 0) => new(2026, 11, d, h, m, s, cet);   // November 2026, German winter time
+    PlayRound R(DateTimeOffset a, DateTimeOffset b, string? key = null, string? name = null, int kills = 0) => new() { Start = a, End = b, Key = key, Server = name, Kills = kills };
+
+    // days and hours
+    var sd = PlayStats.SplitDays(L(16, 23, 30), L(17, 1, 15));
+    Check(sd.Count == 2 && sd[0].day == new DateTime(2026, 11, 16) && sd[0].secs == 1800 && sd[1].day == new DateTime(2026, 11, 17) && sd[1].secs == 4500, "a round over midnight is split at midnight");
+    var dst = R(new DateTimeOffset(2026, 10, 25, 1, 30, 0, TimeSpan.FromHours(2)), new DateTimeOffset(2026, 10, 25, 2, 30, 0, TimeSpan.FromHours(1)));
+    Check(dst.Secs == 7200 && PlayStats.SplitDays(dst.Start, dst.End).Sum(x => x.secs) == 7200, "a round over the clock change keeps its real length");
+    var hrs = PlayStats.Hours(new[] { R(L(16, 20, 30), L(16, 22, 15)) }, new DateTime(2026, 11, 1));
+    Check(hrs[20] == 1800 && hrs[21] == 3600 && hrs[22] == 900 && hrs.Sum() == 6300, "seconds per hour of the day");
+    Check(PlayStats.Hours(new[] { R(L(16, 20, 30), L(16, 22, 15)) }, new DateTime(2026, 11, 17)).Sum() == 0, "hours before the window do not count");
+    Check(PlayStats.WeekStart(new DateTime(2026, 11, 17)) == new DateTime(2026, 11, 16) && PlayStats.WeekStart(new DateTime(2026, 11, 22)) == new DateTime(2026, 11, 16)
+        && PlayStats.WeekStart(new DateTime(2026, 11, 23)) == new DateTime(2026, 11, 23), "weeks start on Monday");
+
+    // days in a row: 10, 11, 12 played, 14 only 30 s (does not count), 15 and 16 played
+    var pd = PlayStats.PerDay(new[] { R(L(10, 20), L(10, 21)), R(L(11, 20), L(11, 21)), R(L(12, 20), L(12, 21)), R(L(14, 20), L(14, 20, 0, 30)), R(L(15, 20), L(15, 21)), R(L(16, 20), L(16, 21)) });
+    var st = PlayStats.Streak(pd, new DateTime(2026, 11, 17));
+    Check(st == (2, 3), $"days in a row: 2 up to yesterday while today has none yet, best 3 ({st})");
+    Check(PlayStats.Streak(pd, new DateTime(2026, 11, 18)).current == 0, "a whole day without play breaks the run");
+    var dl = PlayStats.Days(pd, new DateTime(2026, 11, 17), 14);
+    Check(dl.Count == 14 && dl[^1].Day == "2026-11-17" && dl[^1].Secs == 0 && dl[^2].Secs == 3600 && dl[^2].Rounds == 1 && dl[0].Day == "2026-11-04", "14 days up to today, oldest first");
+
+    // servers
+    var srv = PlayStats.Servers(new[] { R(L(1, 20), L(1, 23), "cfx:nova", "NovaCity"), R(L(2, 20), L(2, 21), "cfx:nova", "NovaCity RP"), R(L(3, 20), L(3, 22), "ip:1.2.3.4:30120"), R(L(4, 20), L(4, 21)) }, 5);
+    Check(srv.Count == 3 && srv[0].Name == "NovaCity RP" && srv[0].Addr == "cfx.re/join/nova" && srv[0].Secs == 4 * 3600 && srv[0].Rounds == 2 && Math.Abs(srv[0].Share - 4 / 7.0) < 1e-3,
+        "servers: grouped by address, with the newest name and the share of all play time");
+    Check(srv[1].Addr == "1.2.3.4:30120" && srv[1].Name == null && srv[2].Addr == null && srv[2].Name == null, "a server without a name keeps its address, unknown ones are one entry");
+
+    // what the page gets: Monday 16, today is Tuesday 17, 21:00, a round runs since 20:00
+    var now = L(17, 21);
+    var open = new PlayRound { Start = L(17, 20), End = now, Open = true, Pid = 42 };
+    var all = new List<PlayRound> { R(L(9, 18), L(9, 19), kills: 3), R(L(16, 20), L(16, 22, 30), "cfx:nova", "NovaCity", 7), R(L(17, 18), L(17, 18, 45)), open };
+    var sum = PlayStats.Summarize(all, open, now);
+    Check(sum.Today == 6300 && sum.TodayRounds == 2, $"today counts the open round ({sum.Today})");
+    Check(sum.Week == 15300 && sum.LastWeek == 3600, $"this week from Monday, last week ({sum.Week}, {sum.LastWeek})");
+    Check(sum.Total == 18900 && sum.Rounds == 4 && sum.Since == L(9, 18).ToUnixTimeMilliseconds(), "total");
+    Check(sum.Current != null && sum.Current.Secs == 3600 && sum.Recent.Count == 3 && sum.Recent[0].Start == L(17, 18).ToUnixTimeMilliseconds(), "the open round is current, the list holds the others, newest first");
+    Check(sum.Records.Longest!.Secs == 9000 && sum.Records.Longest.Server == "NovaCity" && sum.Records.MostKills!.Kills == 7 && sum.Records.Avg == 18900 / 4, "records");
+    Check(sum.Records.Streak == 2 && sum.Days.Count == 30 && sum.Days[^1].Secs == 6300 && sum.Hours[20] == 3600 + 3600, "days in a row, days and hours");
+    Check(PlayStats.Summarize(new List<PlayRound>(), null, now).Records.MostKills == null, "no kills, no kill record");
+
+    // the recorder follows the game
+    var log = new PlayLog(); var rec = new PlayRecorder(log);
+    var ended = new List<PlayRound>(); rec.Ended = ended.Add;
+    var t = L(17, 20); var gs = L(17, 19, 59);
+    rec.Tick(0, null, null, t, 0, 0, 0);
+    Check(rec.Open == null && log.Rounds.Count == 0, "no game, no round");
+    rec.Tick(100, gs, "b3095", t, 0, 0, 0);
+    Check(rec.Open != null && rec.Open.Start == gs && rec.Open.Build == "b3095" && rec.Open.Open, "a round starts with the game process, at its start time");
+    rec.Tick(100, gs, "b3095", t.AddSeconds(2), 100, 1, 100);
+    rec.Tick(100, gs, "b3095", t.AddSeconds(4), 100, 3, 100);
+    Check(rec.Open!.Kills == 3, "kills of the round come from the clipper's count");
+    rec.Clip(); rec.Clip();
+    rec.Server(100, "cfx:nova", "NovaCity", t.AddSeconds(30), t.AddSeconds(40));
+    Check(rec.Open!.Key == "cfx:nova" && rec.Open.Server == "NovaCity" && rec.Open.Start == gs, "the first server found is the server of the whole round");
+    for (int m = 1; m <= 30; m++) rec.Tick(100, gs, "b3095", t.AddMinutes(m), 100, 3, 100);   // looked at all the time
+    Check(ended.Count == 0 && rec.Open!.Start == gs, "a round that is looked at all the time goes on");
+    bool split = rec.Server(100, "cfx:blue", "BlueLine", t.AddMinutes(20), t.AddMinutes(30));
+    Check(split && ended.Count == 1 && ended[0].End == t.AddMinutes(20) && ended[0].Kills == 3 && ended[0].Clips == 2 && !ended[0].Open
+        && rec.Open!.Key == "cfx:blue" && rec.Open.Start == t.AddMinutes(20) && rec.Open.Kills == 0 && rec.Open.Clips == 0, "a server change splits the round where the new connect was noted");
+    rec.Tick(100, gs, "b3095", t.AddMinutes(31), 100, 5, 100);
+    Check(rec.Open!.Kills == 2, "kills after the split belong to the new round");
+    bool save = rec.Tick(0, null, null, t.AddMinutes(32), 100, 5, 0);
+    Check(save && rec.Open == null && ended.Count == 2 && ended[1].End == t.AddMinutes(31) && ended[1].Pid == 0 && log.Rounds.Count == 2, "the round ends with the game, at the last look");
+    rec.Tick(200, L(17, 21), null, L(17, 21, 0, 30), 0, 0, 0);
+    rec.Tick(0, null, null, L(17, 21, 0, 40), 0, 0, 0);
+    Check(log.Rounds.Count == 2 && ended.Count == 2, "a round under a minute is dropped (crash while loading)");
+    rec.Tick(300, L(17, 22), null, L(17, 22, 1), 100, 5, 0);
+    rec.Tick(300, L(17, 22), null, L(17, 22, 2), 300, 1, 300);
+    Check(rec.Open!.Kills == 1, "a new game process starts again at zero kills");
+    rec.Tick(301, L(17, 23), null, L(17, 23, 30), 300, 1, 0);
+    Check(ended.Count == 3 && ended[2].End == L(17, 22, 2) && rec.Open!.Pid == 301, "another game process ends the round and starts a new one");
+
+    // the PC slept with the game open: that time is not play time
+    var gl = new PlayLog(); var gr = new PlayRecorder(gl); var gEnded = new List<PlayRound>(); gr.Ended = gEnded.Add;
+    var g0 = L(18, 20);
+    gr.Tick(700, g0, "b3095", g0, 700, 2, 700);
+    gr.Server(700, "cfx:nova", "NovaCity", g0.AddSeconds(20), g0.AddSeconds(30));
+    for (int m = 1; m <= 40; m++) gr.Tick(700, g0, "b3095", g0.AddMinutes(m), 700, 2, 700);
+    bool woke = gr.Tick(700, g0, "b3095", g0.AddHours(9), 700, 2, 700);   // the next morning, the game still open
+    Check(woke && gEnded.Count == 0 && gl.Rounds.Count == 2 && gl.Rounds[0].End == g0.AddMinutes(40) && !gl.Rounds[0].Open && gl.Rounds[0].Pid == 0
+        && gr.Open!.Start == g0.AddHours(9) && gr.Open.Key == "cfx:nova" && gr.Open.Server == "NovaCity" && gr.Open.Pid == 700 && gr.Open.Build == "b3095",
+        "a sleeping PC cuts the round quietly there, the hours asleep do not count");
+    gr.Tick(700, g0, "b3095", g0.AddHours(9).AddMinutes(2), 700, 3, 700);
+    gr.Tick(700, g0, "b3095", g0.AddHours(9).AddMinutes(4), 700, 3, 700);
+    Check(gl.Rounds.Count == 2 && gr.Open!.Kills == 1 && gl.Rounds[0].Kills == 0 && gr.Open.Secs == 240, "after the pause the new round counts on, with its own kills");
+
+    // one round removed, the history cleared: the round being played stays
+    var rc = new PlayRecorder(new PlayLog());
+    rc.Tick(1, L(17, 10), null, L(17, 12), 0, 0, 0);
+    rc.Log.Add(R(L(16, 10), L(16, 11)));
+    var rid = rc.Log.Rounds.First(r => r != rc.Open).Id;
+    Check(!rc.Remove(rc.Open!.Id) && rc.Remove(rid) && rc.Log.Rounds.Count == 1, "one round can be removed, not the one being played");
+    rc.Log.Add(R(L(15, 10), L(15, 11)));
+    Check(rc.Clear() == 1 && rc.Log.Rounds.Single() == rc.Open, "clearing the history keeps the round being played");
+
+    // the file
+    var dir = Path.Combine(Path.GetTempPath(), "orbit-play-" + Guid.NewGuid().ToString("N"));
+    var file = Path.Combine(dir, "playtime.json");
+    try
+    {
+        var l1 = new PlayLog(file); var r1 = new PlayRecorder(l1);
+        r1.Tick(500, L(17, 18), null, L(17, 19, 29), 0, 0, 0);
+        r1.Tick(500, L(17, 18), null, L(17, 19, 30), 500, 4, 500);
+        r1.Close(L(17, 19, 31));
+        PlayLog.Write(file, l1.Serialize());
+        Check(File.Exists(file) && !File.Exists(file + ".tmp"), "written in one piece, no temp file left");
+        var r2 = new PlayRecorder(PlayLog.Load(file));
+        r2.Tick(500, L(17, 18), null, L(17, 20), 0, 0, 0);
+        Check(r2.Open != null && r2.Open.Start == L(17, 18) && r2.Open.Kills == 4 && r2.Log.Rounds.Count == 1, "a restart of OrbitTweak alone takes the running round up again");
+        r2.Tick(500, L(17, 18), null, L(17, 20, 0, 2), 500, 1, 500);
+        Check(r2.Open!.Kills == 5, "and keeps counting its kills");
+        var r3 = new PlayRecorder(PlayLog.Load(file));
+        var ended3 = new List<PlayRound>(); r3.Ended = ended3.Add;
+        bool s3 = r3.Tick(0, null, null, L(18, 9), 0, 0, 0);
+        var only = r3.Log.Rounds.Single();
+        Check(s3 && r3.Open == null && !only.Open && only.End == L(17, 19, 31) && only.Pid == 0 && ended3.Count == 0, "after a crash an unfinished round is closed at its last-seen time");
+        var closedJson = System.Text.Encoding.UTF8.GetString(r3.Log.Serialize());
+        Check(!closedJson.Contains("\"Pid\"") && !closedJson.Contains("\"Open\"") && !closedJson.Contains("\"GameStart\"") && closedJson.Contains("\"Kills\":4"), "a closed round keeps no process data in the file");
+        var r4 = new PlayRecorder(PlayLog.Load(file));
+        r4.Tick(500, L(17, 18, 0, 30), null, L(18, 9), 0, 0, 0);
+        Check(r4.Log.Rounds.Count == 2 && r4.Open!.Start == L(17, 18, 0, 30) && !r4.Log.Rounds[0].Open, "a new game with the same process id is a new round");
+        File.WriteAllText(file, "{\"V\":1,\"Rounds\":[{\"Start\":");
+        var l5 = PlayLog.Load(file);
+        Check(l5.Rounds.Count == 0 && File.Exists(file + ".bad") && !l5.Unreadable, "a broken file is kept aside as .bad");
+        PlayLog.Write(file, l1.Serialize()); File.Delete(file + ".bad");
+        using (new FileStream(file, FileMode.Open, FileAccess.ReadWrite, FileShare.None))   // another program holds it
+        {
+            var l7 = PlayLog.Load(file);
+            Check(l7.Unreadable && l7.Rounds.Count == 0 && !File.Exists(file + ".bad"), "a file that cannot be opened is marked, so it is never written over");
+        }
+        Check(PlayLog.Load(file) is { Unreadable: false, Rounds.Count: 1 }, "once free it reads again with the whole history");
+        var l6 = new PlayLog();
+        for (int i = 0; i < PlayLog.Keep + 7; i++) l6.Add(R(L(1, 0).AddMinutes(i * 3), L(1, 0).AddMinutes(i * 3 + 2)));
+        Check(l6.Rounds.Count == PlayLog.Keep && l6.Rounds[0].Start == L(1, 0).AddMinutes(21) && l6.Rounds.Select(r => r.Id).Distinct().Count() == PlayLog.Keep, "only the last 5000 rounds are kept, each with its own id");
+    }
+    finally { try { Directory.Delete(dir, true); } catch { } }
+}
+
 Console.WriteLine($"{passed} passed, {failed} failed");
 return failed == 0 ? 0 : 1;
 

@@ -1753,11 +1753,13 @@ public partial class MainWindow : Window
             if (kills is { Count: > 0 }) ClipMarks.Add(file, kills.Select(k => (cutAt - k).TotalSeconds));   // where the kills sit, for the slow motion of a montage
             Log($"🎬 {auto ?? "Clip gespeichert"} → {Path.GetFileName(file)}");
             Emit("clip", new { recorder = "orbit", auto, file = Path.GetFileName(file) });
+            StatsClip();
             return null;
         }
         await Clipper.Save(S.Clip.Recorder);
         Log(auto != null ? $"🎬 {auto}" : $"🎬 Clip gespeichert ({Clipper.Recorders[S.Clip.Recorder].label})");
         Emit("clip", new { recorder = S.Clip.Recorder, auto });
+        StatsClip();
         if (S.Clip.Flash) _flashUntil = DateTime.Now.AddSeconds(1.8);
         LiveTick();
         return null;

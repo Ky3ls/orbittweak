@@ -14,5 +14,6 @@
     <Compile Include="../../Core/MontageBeat.cs" Link="Core/MontageBeat.cs" />
     <Compile Include="../../Core/KillLogic.cs" Link="Core/KillLogic.cs" />
     <Compile Include="../../Core/TweakLogic.cs" Link="Core/TweakLogic.cs" />
+    <Compile Include="../../Core/PlayStats.cs" Link="Core/PlayStats.cs" />
   </ItemGroup>
 </Project>
