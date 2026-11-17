@@ -14,6 +14,9 @@
 <link rel="stylesheet" href="luxe-optik.css">
 <link rel="stylesheet" href="luxe-tools.css">
 <link rel="stylesheet" href="luxe-system.css">
+<link rel="stylesheet" href="stats.css">
+<link rel="stylesheet" href="autostart.css">
+<link rel="stylesheet" href="palette.css">
 <link rel="stylesheet" href="luxe-themes.css">
 </head>
 <body>
@@ -74,6 +77,10 @@
     <symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></symbol>
     <symbol id="trophy" viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></symbol>
     <symbol id="aim" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/></symbol>
+    <symbol id="chart" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M8 17v-5M13 17V8M18 17v-9"/></symbol>
+    <symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="flame" viewBox="0 0 24 24"><path d="M12 22c4 0 7-2.7 7-7 0-3.3-2-6-4.5-8.5.2 2.3-.8 4-2.5 4.5C12.5 8 11 5 8 2c.3 3.5-3 6.5-3 11 0 5 3 9 7 9z"/></symbol>
+    <symbol id="command" viewBox="0 0 24 24"><path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3"/></symbol>
     <symbol id="usb" viewBox="0 0 24 24"><circle cx="10" cy="7" r="1"/><circle cx="4" cy="20" r="1"/><path d="M4.7 19.3 19 5M21 3l-3 1 2 2ZM9.26 7.68 5 12l2 5M10 14l5 2 3.5-3.5M18 12l1-1 1 1-1 1Z"/></symbol>
   </defs>
 </svg>
@@ -111,6 +118,7 @@
     <button class="nav" data-p="servers"><svg class="i"><use href="#server"/></svg>Server</button>
     <button class="nav" data-p="launcher"><svg class="i"><use href="#rocket"/></svg>Launcher</button>
     <button class="nav" data-p="f8"><svg class="i"><use href="#terminal"/></svg>F8-Befehle</button>
+    <button class="nav" data-p="stats"><svg class="i"><use href="#chart"/></svg>Spielzeit</button>
     <div class="nav-h">Optik</div>
     <button class="nav" data-p="gfx"><svg class="i"><use href="#monitor"/></svg>Grafik &amp; Farben<span class="badge hidden" id="navDp">AN</span></button>
     <button class="nav" data-p="xhair"><svg class="i"><use href="#crosshair"/></svg>Fadenkreuz<span class="badge hidden" id="navXh">AN</span></button>
@@ -123,6 +131,7 @@
     <div class="nav-h">System</div>
     <button class="nav" data-p="tweaks"><svg class="i"><use href="#zap"/></svg>Tweaks</button>
     <button class="nav" data-p="cleaner"><svg class="i"><use href="#trash"/></svg>Cleaner</button>
+    <button class="nav" data-p="autostart"><svg class="i"><use href="#power"/></svg>Autostart</button>
     <button class="nav" data-p="diag"><svg class="i"><use href="#heart"/></svg>Diagnose</button>
             </div>
     <div class="side-cta">
@@ -233,6 +242,12 @@
         </div>
       </div>
     </section>
+
+    <!-- ================= SPIELZEIT (stats.js renders it) ================= -->
+    <section class="page" id="p-stats"></section>
+
+    <!-- ================= AUTOSTART (autostart.js renders it) ================= -->
+    <section class="page" id="p-autostart"></section>
 
     <!-- ================= SERVERS ================= -->
     <section class="page" id="p-servers">
@@ -1185,5 +1200,8 @@
 
 <script src="pad.js"></script>
 <script src="app.js"></script>
+<script src="stats.js"></script>
+<script src="autostart.js"></script>
+<script src="palette.js"></script>
 </body>
 </html>

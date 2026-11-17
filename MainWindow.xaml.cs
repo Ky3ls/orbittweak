@@ -1356,6 +1356,9 @@ public partial class MainWindow : Window
                 return new { ok = r.Contains("OK") };
             }
         }
+        // 2.27: features that live in their own partial files (MainWindow.Stats.cs, MainWindow.Autostart.cs)
+        if (cmd.StartsWith("stats.", StringComparison.Ordinal)) return await StatsCmd(cmd, a);
+        if (cmd.StartsWith("autostart.", StringComparison.Ordinal)) return await AutostartCmd(cmd, a);
         throw new InvalidOperationException("Unbekannter Befehl: " + cmd);
     }
 
@@ -2082,6 +2085,7 @@ public partial class MainWindow : Window
                 finally { foreach (var p in procs) p.Dispose(); }
             });
             _dcFm = fmOpen; _dcGamePid = gamePid; _dcGameStart = gameStart; _dcProbed = true;
+            StatsTick(gamePid, gameStart);   // play time: a round starts and ends with the game process
         }
         finally { _probing = false; }
     }

@@ -329,6 +329,7 @@ function go(p) {
   if (p === 'tweaks' || p === 'input') requestAnimationFrame(twClip);
   ({ servers: () => S.servers.length || loadServers(), gfx: () => { S.gfx || loadGfx(); gwRefresh(); }, f8: () => loadF8().then(renderF8), admin: () => admShow(admTab), minimap: modsRefresh, clip: () => { clipList(); hlLoad(); }, mods: modsRefresh, settings: () => { setTab($('#setTabs .tab.on')?.dataset.st || 'account'); spProfile(); }, xhair: () => setTimeout(xhPlace, 30), cleaner: () => S.clean.length || scan(),
      diag: () => { S.health ? renderHealth(S.health) : runHealth(); loadLogs(); }, launcher: renderCmd, home: refreshCache })[p]?.();
+  PAGE_SHOW[p]?.();
 }
 window.go = go;
 
@@ -2951,6 +2952,9 @@ async function boot() {
 }
 
 /* ======================= MOCK BACKEND (browser preview) ======================= */
+/** 2.27: feature files (stats.js, autostart.js, palette.js) add their own mock commands and page hooks here. */
+const MOCK_EXT = {};
+const PAGE_SHOW = {};
 const Mock = {
   settings: { accent: 'inferno', autoInstall: false, restoreBeforeBoost: true, purgeStandby: true, autoUpdate: true, firstRun: false, lastBoost: null, xhairAck: false, xhair: { on: false, onlyGame: false, key: 0x79, offsetX: 0, offsetY: 0, json: null }, display: { on: false, onlyGame: true, vibrance: 0, brightness: 0, contrast: 0, gamma: 100, key: 0 } },
   // the same tweaks as Core/Catalog.cs (names and texts), with made-up states
@@ -2983,6 +2987,7 @@ const Mock = {
   ],
   async call(cmd, a) {
     await sleep(100); const M = this;
+    if (MOCK_EXT[cmd]) return MOCK_EXT[cmd](a);
     switch (cmd) {
       case 'init': setInterval(() => onEvent('stats', { cpu: Math.round(18 + Math.random() * 30), ram: 54, ramUsed: 17.3, ramTotal: 32, fm: { running: true, game: true, build: 'b3095', prio: 'Hoch', gameRam: 5.6e9 } }), 1000);
         return { user: 'Max', admin: true, version: '2.2.0', sys: { cpu: 'AMD Ryzen 7 7800X3D 8-Core Processor', gpu: 'NVIDIA GeForce RTX 4070 SUPER', os: 'Windows 11 Pro', ramGb: 32 }, fivem: { found: true, path: 'C:\\Users\\Max\\AppData\\Local\\FiveM' }, settings: M.settings };
