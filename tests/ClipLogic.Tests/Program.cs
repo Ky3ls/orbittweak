@@ -628,6 +628,57 @@ TweakTexts.Run(Check);
     Check(FpsLimitLogic.CardState("-|141", 141) == (141, false) && FpsLimitLogic.CardState("-|141", 120) == (141, false),
         "card: a written entry is set, its written value is what the card compares");
 
+    // a refused save leaves no pending entry behind (the store as FpsTex.cs writes it: BackupOf, then AfterWrite)
+    {
+        var store = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        void Put(List<(string name, string? entry)> changes) { foreach (var (nm, e) in changes) if (e == null) store.Remove(nm); else store[nm] = e; }
+        // BackupOf: the entry from before, else the value now as a pending entry, noted as made by this write
+        string BackupOf(string name, int live, int stored, List<string> created)
+        {
+            if (store.TryGetValue(name, out var old)) return FpsLimitLogic.ParseEntry(old, stored).backup;
+            var b = FpsLimitLogic.Backup(live > 0, 0, false, (uint)live);
+            store[name] = FpsLimitLogic.PendingEntry(b); created.Add(name);
+            return b;
+        }
+        const string P = "Grand Theft Auto V";
+        // the finding's walk: P has no limit, the card sets 141, the driver refuses to save
+        var created = new List<string>(); var entries = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        entries[P] = FpsLimitLogic.Entry(BackupOf(P, 0, 0, created), 141);
+        Check(store[P] == "-|0" && created.SequenceEqual(new[] { P }), "before the driver writes, the backup is in the store as pending and noted as made now");
+        Put(FpsLimitLogic.AfterWrite(false, entries, created));
+        Check(!store.ContainsKey(P), "entry removed after a refused save: no stale backup stays behind");
+        Check(FpsLimitLogic.CardState(store.GetValueOrDefault(P), 141) == (0, true) && FpsLimitLogic.CardState(store.GetValueOrDefault(P), 0) == (0, false),
+            "after the refusal: pending on the card while a limit is kept, untouched without one");
+        Check(FpsLimitLogic.UpkeepPlan(new (string, string?)[] { ("FiveM_b2802_GTAProcess.exe", P) }, store.Select(e => (e.Key, (string?)e.Value)), 141, true).Foreign.SequenceEqual(new[] { P }),
+            "after the refusal the probe still writes the profile on the next start of FiveM");
+        Check(FpsLimitLogic.OffPlan(store.Select(e => (e.Key, true, 60, (string?)e.Value)), 0).steps.Count == 0,
+            "after the refusal Aus has nothing to put back in P (it never touched it)");
+        // the user sets P to 60 in the NVIDIA Control Panel, then 141 on the card works: a fresh backup of the 60
+        created.Clear(); entries.Clear();
+        entries[P] = FpsLimitLogic.Entry(BackupOf(P, 60, 0, created), 141);
+        Check(store[P] == "60|0", "the next write backs up the user's 60, not a stale value");
+        Put(FpsLimitLogic.AfterWrite(true, entries, created));
+        Check(store[P] == "60|141", "saved: the entry gets the written value");
+        var offP = FpsLimitLogic.OffPlan(store.Select(e => (e.Key, true, 141, (string?)e.Value)), 141);
+        Check(offP.steps.SequenceEqual(new[] { (P, FpsLimitLogic.OffStep.Restore) }) && FpsLimitLogic.RestoreValue(FpsLimitLogic.ParseEntry(store[P], 141).backup) == 60u,
+            "and Aus gives the user's 60 back instead of wiping it");
+        // a refusal only takes out what it made: an entry from before stays, also a pending one (OrbitTweak ended right
+        // after the driver saved, it is the only backup of that profile)
+        store.Clear(); store["FiveM"] = "100|0"; store[P] = "-|141";
+        created.Clear(); entries.Clear();
+        entries["FiveM"] = FpsLimitLogic.Entry(BackupOf("FiveM", 141, 141, created), 120);
+        entries[P] = FpsLimitLogic.Entry(BackupOf(P, 141, 141, created), 120);
+        entries["NVIDIA Neu"] = FpsLimitLogic.Entry(BackupOf("NVIDIA Neu", 0, 141, created), 120);
+        Check(created.SequenceEqual(new[] { "NVIDIA Neu" }) && entries["FiveM"] == "100|120", "an entry from before is reused, not made again");
+        Put(FpsLimitLogic.AfterWrite(false, entries, created));
+        Check(store.Count == 2 && store["FiveM"] == "100|0" && store[P] == "-|141", "refused: the entries from before stay as they were, the new one goes");
+        Check(FpsLimitLogic.AfterWrite(true, new Dictionary<string, string?> { ["A"] = "-|141", ["B"] = null }, new[] { "A" })
+            .SequenceEqual(new (string, string?)[] { ("A", "-|141"), ("B", null) }), "saved: every changed entry goes in, one Aus drops goes");
+        Check(FpsLimitLogic.AfterWrite(false, new Dictionary<string, string?> { ["B"] = null }, Array.Empty<string>()).Count == 0,
+            "a refused Aus changes no entry");
+        Check(FpsLimitLogic.AfterWrite(false, new Dictionary<string, string?>(), new[] { "A", "a" }).Count == 1, "each name once");
+    }
+
     // "Aus" per profile of someone else
     var R = FpsLimitLogic.OffStep.Restore; var D = FpsLimitLogic.OffStep.Drop; var K = FpsLimitLogic.OffStep.Keep;
     Check(FpsLimitLogic.OffDecision(true, 141, "-|141", 0) == R, "still has what OrbitTweak wrote: put back");
@@ -640,11 +691,12 @@ TweakTexts.Run(Check);
     Check(FpsLimitLogic.OffDecision(true, 141, "-", 141) == R && FpsLimitLogic.OffDecision(true, 100, "-", 141) == K,
         "an entry without '|': OrbitTweak wrote the stored limit");
     Check(FpsLimitLogic.OffDecision(true, 100, "-", 0) == R, "no record of OrbitTweak's limit at all: the backup alone counts, as before");
-    // a pending entry (backup taken, the driver never saved): Aus sets the backup, which such a profile still has
-    Check(FpsLimitLogic.OffDecision(true, 100, "100|0", 141) == R && FpsLimitLogic.RestoreValue(FpsLimitLogic.ParseEntry("100|0", 141).backup) == 100u,
-        "pending entry, profile still at its 100: Aus writes the same 100 (harmless), never reported as changed");
-    Check(FpsLimitLogic.OffDecision(true, 0, "-|0", 141) == R && FpsLimitLogic.RestoreValue(FpsLimitLogic.ParseEntry("-|0", 141).backup) == null,
-        "pending entry, no limit of its own: Aus deletes a setting the profile does not have (harmless)");
+    // a pending entry (backup taken, the driver saved, OrbitTweak ended before it noted that): Aus sets the backup back
+    Check(FpsLimitLogic.OffDecision(true, 141, "100|0", 141) == R && FpsLimitLogic.RestoreValue(FpsLimitLogic.ParseEntry("100|0", 141).backup) == 100u,
+        "pending entry, the driver saved 141: Aus gives the 100 back, never reported as changed");
+    Check(FpsLimitLogic.OffDecision(true, 100, "100|0", 141) == R && FpsLimitLogic.OffDecision(true, 0, "-|0", 141) == R
+        && FpsLimitLogic.RestoreValue(FpsLimitLogic.ParseEntry("-|0", 141).backup) == null,
+        "pending entry with the profile still at its backup: Aus writes what it has anyway (harmless)");
     Check(FpsLimitLogic.OffDecision(false, 0, "-|0", 141) == D, "pending entry of a profile that is gone: only the entry goes");
 
     // Aus over all profiles: every entry goes, also of a profile it leaves as the user set it
@@ -682,7 +734,10 @@ TweakTexts.Run(Check);
     Check(oldUp.Foreign.Count == 0, "upkeep: an entry without '|' counts as written with the stored limit");
     var retry = FpsLimitLogic.UpkeepPlan(new (string, string?)[] { ("FiveM_b2802_GTAProcess.exe", "Grand Theft Auto V"), ("FiveM_b2699_GTAProcess.exe", "FiveM") },
         new (string, string?)[] { ("grand theft auto v", "-|0"), ("FiveM", "60|141") }, 141, ownExists: true);
-    Check(retry.Foreign.SequenceEqual(new[] { "Grand Theft Auto V" }), "upkeep: a pending entry (the driver refused to save) is written again, a written one not");
+    Check(retry.Foreign.SequenceEqual(new[] { "Grand Theft Auto V" }), "upkeep: a pending entry (OrbitTweak ended before noting the save) is written again, a written one not");
+    var retryNone = FpsLimitLogic.UpkeepPlan(new (string, string?)[] { ("FiveM_b2802_GTAProcess.exe", "Grand Theft Auto V"), ("FiveM_b2699_GTAProcess.exe", "FiveM") },
+        new (string, string?)[] { ("FiveM", "60|141") }, 141, ownExists: true);
+    Check(retryNone.Foreign.SequenceEqual(new[] { "Grand Theft Auto V" }), "upkeep: a profile without entry (the driver refused, its pending entry went) is written again");
 
     // the card names every profile of someone else a limit writes, not only the newest build's
     var fo = FpsLimitLogic.ForeignOf(new (string, string?)[] { ("FiveM_b2802_GTAProcess.exe", "Grand Theft Auto V"), ("FiveM_b3095_GTAProcess.exe", null),

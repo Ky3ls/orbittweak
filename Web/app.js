@@ -3351,22 +3351,48 @@ const Mock = {
    NVIDIA driver; ?fpsforeign FiveM's newest build sits in NVIDIA's GTA V profile next to GTA5.exe and PlayGTAV.exe;
    ?fpsdrift OrbitTweak keeps 141, the profile has 100 since (Control Panel; with ?fpsforeign "Aus" leaves that profile);
    ?fpsnoexe no game exe in FiveM's cache yet; ?fpsolder the newest build is in no profile, an older one (b2802) in NVIDIA's
-   GTA V profile */
-const DRV_Q = new URLSearchParams(location.search), FPS_CHANGED = DRV_Q.has('fpsdrift');
-const DRV_MOCK = { fps: FPS_CHANGED ? 141 : 0, live: FPS_CHANGED ? 100 : 0, wrote: FPS_CHANGED ? 141 : 0, tex: 4, texBefore: null };
+   GTA V profile; ?fpsclean OrbitTweak keeps 141 and FiveM's cache was cleaned since: no game exe, OrbitTweak's own profile
+   is still there (with ?fpsdrift it has 100 since), with ?fpsolder also the GTA V profile it set, which a new limit follows */
+const DRV_Q = new URLSearchParams(location.search), FPS_CHANGED = DRV_Q.has('fpsdrift'), FPS_CLEAN = DRV_Q.has('fpsclean');
+const DRV_MOCK = { fps: FPS_CHANGED || FPS_CLEAN ? 141 : 0, live: FPS_CHANGED ? 100 : FPS_CLEAN ? 141 : 0, wrote: FPS_CHANGED || FPS_CLEAN ? 141 : 0, tex: 4, texBefore: null,
+  // ?fpsclean: the own profile and the GTA V profile's live and written value (written 0 = no entry)
+  own: FPS_CLEAN, gta: { live: FPS_CLEAN && DRV_Q.has('fpsolder') ? 141 : 0, wrote: FPS_CLEAN && DRV_Q.has('fpsolder') ? 141 : 0 } };
+const FPS_GTA = { name: 'Grand Theft Auto V', others: 2, otherApps: ['GTA5.exe', 'PlayGTAV.exe'] };
 MOCK_EXT['fps.get'] = async () => {
   if (DRV_Q.has('nonvidia')) return { available: false, reason: 'nonvidia', limit: 0, kept: 0, written: 0, hz: 144, suggestion: 141, profile: null, ours: false, pending: false, others: 0, otherApps: [], foreign: [], exes: 0 };
+  if (FPS_CLEAN) {
+    // no exe: the host still looks at the profiles. The own one shows its value now (written = the kept limit), the kept
+    // limit is pending only without one; the GTA V profile is named while a new limit follows there (still OrbitTweak's value)
+    const profile = DRV_MOCK.own ? 'OrbitTweak FiveM' : null, g = DRV_MOCK.gta;
+    return { available: true, reason: null, limit: profile ? DRV_MOCK.live : DRV_MOCK.fps, kept: DRV_MOCK.fps, written: profile ? DRV_MOCK.fps : 0,
+      hz: 144, suggestion: 141, profile, ours: DRV_MOCK.fps > 0, pending: DRV_MOCK.fps > 0 && !profile, others: 0, otherApps: [],
+      foreign: g.wrote && g.live === g.wrote ? [{ ...FPS_GTA, limit: g.live, written: g.wrote, pending: false, builds: [] }] : [], exes: 0 };
+  }
   const exes = DRV_Q.has('fpsnoexe') ? 0 : 2, foreign = DRV_Q.has('fpsforeign') && exes > 0, older = DRV_Q.has('fpsolder') && exes > 0 && !foreign;
   const profile = !exes ? null : foreign ? 'Grand Theft Auto V' : DRV_MOCK.fps || DRV_MOCK.live ? 'OrbitTweak FiveM' : null;
   const pending = DRV_MOCK.fps > 0 && !profile;
   // NVIDIA's GTA V profile with the newest build (?fpsforeign) or an older one (?fpsolder)
-  const gta = { name: 'Grand Theft Auto V', limit: DRV_MOCK.live, written: DRV_MOCK.wrote, pending: false, others: 2, otherApps: ['GTA5.exe', 'PlayGTAV.exe'], builds: [older ? 'FiveM b2802' : 'FiveM b3095'] };
+  const gta = { ...FPS_GTA, limit: DRV_MOCK.live, written: DRV_MOCK.wrote, pending: false, builds: [older ? 'FiveM b2802' : 'FiveM b3095'] };
   return { available: true, reason: null, limit: pending ? DRV_MOCK.fps : profile ? DRV_MOCK.live : 0, kept: DRV_MOCK.fps, written: profile ? DRV_MOCK.wrote : 0,
     hz: 144, suggestion: 141, profile, ours: DRV_MOCK.fps > 0, pending, others: foreign ? 2 : 0, otherApps: foreign ? gta.otherApps : [], foreign: foreign || older ? [gta] : [], exes };
 };
 MOCK_EXT['fps.set'] = async a => {
   const l = a.limit, stayed = [];
   if (!(l === 0 || (l >= 30 && l <= 500))) return { error: 'Erlaubt sind Aus oder 30 bis 500 FPS.' };
+  if (FPS_CLEAN) {
+    // no exe: a limit goes into the own profile while it exists (none is made) and follows to the GTA V profile while that
+    // still has OrbitTweak's value; "Aus" deletes the own profile and puts GTA V back unless it was changed outside
+    const g = DRV_MOCK.gta;
+    if (l) {
+      if (DRV_MOCK.own) DRV_MOCK.live = l;
+      if (g.wrote && g.live === g.wrote) g.live = g.wrote = l;
+    } else {
+      if (g.wrote && g.live !== g.wrote) stayed.push({ profile: FPS_GTA.name, limit: g.live });
+      else if (g.wrote) g.live = 0;
+      g.wrote = 0; DRV_MOCK.own = false; DRV_MOCK.live = 0;
+    }
+    DRV_MOCK.fps = l; return { ok: true, limit: l, stayed };
+  }
   if (l) DRV_MOCK.live = DRV_MOCK.wrote = l;
   else {
     // someone else's profile whose value was changed outside OrbitTweak stays as it is; the own profile goes

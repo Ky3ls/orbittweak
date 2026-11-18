@@ -122,8 +122,8 @@ internal static class FpsLimitLogic
     /// what is new and never writes a profile again that OrbitTweak already set, so a value changed in the NVIDIA Control
     /// Panel stays. Exes in no profile go into the own profile; the own profile gets the limit only when it is made right
     /// now (<see cref="Plan.Own"/>), else the new exe takes the value the profile has. Of someone else's profiles only
-    /// those OrbitTweak has not written yet get the limit: without an entry, or with one that still waits for the driver
-    /// to save (<see cref="Written"/> 0, e.g. the driver refused last time).
+    /// those OrbitTweak has not written yet get the limit: without an entry (also when the driver refused last time, the
+    /// write took its pending entry out again) or with a pending one (<see cref="Written"/> 0).
     /// </summary>
     public static Plan UpkeepPlan(IEnumerable<(string exe, string? profile)> found, IEnumerable<(string name, string? entry)> entries, int stored, bool ownExists)
     {
@@ -182,8 +182,9 @@ internal static class FpsLimitLogic
     // ---------- backup of a profile of someone else ----------
     // One registry value per such profile: "<backup>|<written>", the value before OrbitTweak's first change and the value
     // OrbitTweak wrote there last. The backup goes in before the driver writes anything, with written 0 ("not written
-    // yet", PendingEntry); the written value follows only once the driver has saved. An entry without '|' (2.29.0 before
-    // release) means written = the stored limit.
+    // yet", PendingEntry); the written value follows only once the driver has saved. A driver that refuses to save takes
+    // that pending entry out again (AfterWrite), so it stays only when OrbitTweak ends between the driver's save and the
+    // store's write. An entry without '|' (2.29.0 before release) means written = the stored limit.
     /// <summary>
     /// What a foreign profile had before OrbitTweak set its limit: its own value, or "-" when it had none (the setting
     /// was not found, or only inherited from the global or base profile) or NVIDIA's predefined value (deleting the
@@ -201,17 +202,30 @@ internal static class FpsLimitLogic
 
     /// <summary>"Aus" puts a foreign profile back only while it still has the limit OrbitTweak set: a value the user
     /// changed since stays. Without a record of OrbitTweak's limit (<paramref name="set"/> 0: none, or a pending entry)
-    /// the backup alone counts: a profile the driver never saved still has the value of its backup, so setting it again
-    /// changes nothing, and one the driver saved before the app could note it gets its value back.</summary>
+    /// the backup alone counts: a pending entry is left only when the driver saved but OrbitTweak ended before it could
+    /// note what it wrote, so that profile gets its value back.</summary>
     public static bool ShouldRestore(int live, int set) => set == 0 || live == set;
 
     /// <summary>The registry value for a profile of someone else: its backup and what OrbitTweak wrote there.</summary>
     public static string Entry(string backup, int written) => backup + "|" + written.ToString(CultureInfo.InvariantCulture);
 
-    /// <summary>The entry stored before the first write to a profile of someone else: the backup, nothing written yet. A
-    /// driver that then refuses to save leaves the profile as it was and the entry like this, so the profile still counts
-    /// as not set (<see cref="Written"/> 0): the probe and the next limit set on the card write it again.</summary>
+    /// <summary>The entry stored before the first write to a profile of someone else: the backup, nothing written yet
+    /// (<see cref="Written"/> 0). It is there for the moment between the driver's save and the store's write: should
+    /// OrbitTweak end in it, the backup of a profile the driver did change is not lost. A driver that refuses to save
+    /// takes it out again (<see cref="AfterWrite"/>).</summary>
     public static string PendingEntry(string backup) => Entry(backup, 0);
+
+    /// <summary>
+    /// What goes into the backup store once a write to the driver is over (SetLimit, Upkeep), as (name, entry; null =
+    /// goes). The driver saved: every entry the write changed. It refused (the session threw, so nothing was saved and
+    /// every profile is as it was): only the pending entries this write made itself go again (<paramref name="created"/>).
+    /// No stale backup stays behind: the profile counts as not set (no entry, <see cref="CardState"/>), the probe and the
+    /// next limit write it again and take a fresh backup of what it has then, and "Aus" does not touch it. An entry from
+    /// before stays as it is, also a pending one: that may be the only backup of a profile the driver did save.
+    /// </summary>
+    public static List<(string name, string? entry)> AfterWrite(bool saved, IReadOnlyDictionary<string, string?> entries, IEnumerable<string> created) =>
+        saved ? entries.Select(e => (e.Key, e.Value)).ToList()
+            : created.Distinct(StringComparer.OrdinalIgnoreCase).Select(n => (n, (string?)null)).ToList();
 
     /// <summary>What OrbitTweak wrote to a profile of someone else by its entry; 0 = nothing yet (no entry, or a pending
     /// one). Never a value "changed outside OrbitTweak": the card compares only a written value above 0.</summary>

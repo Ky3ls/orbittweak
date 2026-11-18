@@ -80,9 +80,11 @@ internal static unsafe class FpsLimit
     /// also before OrbitTweak wrote anything, with the other applications in it (they get the limit too); limit = what
     /// that profile has now, or the kept limit while it only comes on the next start of FiveM (pending); written = what
     /// OrbitTweak wrote to that profile (0 = nothing yet), so the card can tell a value changed outside OrbitTweak.
-    /// foreign: every profile of someone else a limit set on the card (or the probe) writes, the newest build's first:
-    /// those of all cached builds and those a new limit follows to, each with its state and other applications, so the
-    /// card can name every one that caps other programs too.
+    /// With a kept limit and the newest exe in no profile, or none cached (FiveM's cache cleaned), that is the own profile
+    /// while it exists: the next start puts the exe there and it takes the value the profile has (Upkeep does not write
+    /// it again). foreign: every profile of someone else a limit set on the card (or the probe) writes, the newest build's
+    /// first: those of all cached builds and those a new limit follows to, also with no exe cached, each with its state
+    /// and other applications, so the card can name every one that caps other programs too.
     /// </summary>
     public static object Get()
     {
@@ -91,28 +93,26 @@ internal static unsafe class FpsLimit
         if (reason != null) return new { available = false, reason, limit = 0, kept = 0, written = 0, hz, suggestion, profile = (string?)null, ours = false, pending = false, others = (int?)0, otherApps = Array.Empty<string>(), foreign = Array.Empty<object>(), exes = 0 };
         // the same exes SetLimit writes for
         var paths = ExePaths(RunningGame());
-        // with no exe yet (FiveM never started) or one in no profile, the driver has no profile for the game: a kept limit
-        // comes with the next start of FiveM (Upkeep) and is shown until then
+        // with no profile for the game yet (FiveM never started, or its exe in no profile and no own profile made), a kept
+        // limit comes with the next start of FiveM (Upkeep makes the own profile) and is shown until then
         int kept = Stored, limit = kept, written = 0; bool pending = kept > 0; int? others = 0;
         string? profile = null; var otherApps = new List<string>(); var foreign = new List<object>();
         try
         {
             lock (Gate)
             {
+                // also with no exe: the own profile and the profiles a new limit follows to are there all the same
                 var newest = paths.OrderByDescending(p => { try { return File.GetLastWriteTimeUtc(p); } catch { return DateTime.MinValue; } }).FirstOrDefault();
-                if (newest != null)
+                var x = Session(false, s => Look(s, paths, newest == null ? "" : Path.GetFileName(newest), kept));
+                if (x.newest is { } n)
                 {
-                    var x = Session(false, s => Look(s, paths, Path.GetFileName(newest), kept));
-                    if (x.newest is { } n)
-                    {
-                        profile = n.Name; written = n.Written; pending = n.Pending;
-                        if (!pending) limit = n.Live;
-                        otherApps = n.Apps ?? otherApps; others = n.Others;
-                    }
-                    foreach (var f in x.foreign)
-                        foreign.Add(new { name = f.Name, limit = f.Pending ? kept : f.Live, written = f.Written, pending = f.Pending, others = f.Others,
-                            otherApps = (f.Apps ?? new()).Take(3).ToArray(), builds = f.Exes.Select(FriendlyName).Distinct().ToArray() });
+                    profile = n.Name; written = n.Written; pending = n.Pending;
+                    if (!pending) limit = n.Live;
+                    otherApps = n.Apps ?? otherApps; others = n.Others;
                 }
+                foreach (var f in x.foreign)
+                    foreign.Add(new { name = f.Name, limit = f.Pending ? kept : f.Live, written = f.Written, pending = f.Pending, others = f.Others,
+                        otherApps = (f.Apps ?? new()).Take(3).ToArray(), builds = f.Exes.Select(FriendlyName).Distinct().ToArray() });
             }
         }
         catch { }
@@ -125,8 +125,10 @@ internal static unsafe class FpsLimit
     /// them) and how many (null = unknown), and FiveM's game exes in it.</summary>
     private sealed record Seen(string Name, int Live, int Written, bool Pending, List<string>? Apps, int? Others, List<string> Exes);
 
-    /// <summary>The profile of the newest exe (null = none) and every profile of someone else a limit set now writes, as
-    /// Apply decides them: of each cached exe (FpsLimitLogic.ForeignOf), then the ones that follow.</summary>
+    /// <summary>The profile of the newest exe (null = none; <paramref name="newest"/> "" = no exe cached) and every profile
+    /// of someone else a limit set now writes, as Apply decides them: of each cached exe (FpsLimitLogic.ForeignOf), then
+    /// the ones that follow. With a kept limit, a newest exe in no profile or none at all has the own profile while it
+    /// exists: the next start of FiveM puts the exe there and it takes the value that profile has now.</summary>
     private static (Seen? newest, List<Seen> foreign) Look(IntPtr s, List<string> paths, string newest, int kept)
     {
         var found = paths.Select(p => (exe: Path.GetFileName(p), prof: ProfileOf(s, p))).ToList();
@@ -135,7 +137,12 @@ internal static unsafe class FpsLimit
         foreach (var (name, exes) in of)
             list.Add(See(s, found.First(f => f.prof is { } p && p.name.Equals(name, StringComparison.OrdinalIgnoreCase)).prof!.Value.h, name, kept, exes));
         foreach (var (name, h, _) in Following(s, of.Select(f => f.profile).ToList(), kept)) list.Add(See(s, h, name, kept, new()));
-        if (found.FirstOrDefault(f => f.exe.Equals(newest, StringComparison.OrdinalIgnoreCase)).prof is not { } np) return (null, list);
+        if (found.FirstOrDefault(f => f.exe.Equals(newest, StringComparison.OrdinalIgnoreCase)).prof is not { } np)
+        {
+            // without a kept limit the probe adds nothing, so the own profile would not be the newest build's
+            var own = kept > 0 ? FindProfile(s, OwnProfile) : IntPtr.Zero;
+            return (own != IntPtr.Zero ? See(s, own, OwnProfile, kept, new(), own: true) : null, list);
+        }
         return (np.name.Equals(OwnProfile, StringComparison.OrdinalIgnoreCase) ? See(s, np.h, np.name, kept, new(), own: true)
             : list.First(x => x.Name.Equals(np.name, StringComparison.OrdinalIgnoreCase)), list);
     }
@@ -166,10 +173,13 @@ internal static unsafe class FpsLimit
             {
                 int before = Stored;
                 var paths = ExePaths(RunningGame());
-                // entries of profiles of someone else that change (null = goes): written only once the driver has saved
+                // entries of profiles of someone else that change (null = goes): written only once the driver has saved;
+                // the pending ones this write made (BackupOf) go again when it did not
                 var entries = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
-                Session(true, s => limit == 0 ? Off(s, before, entries, stayed) : Apply(s, limit, before, paths, entries));
-                foreach (var (name, e) in entries) if (e == null) Reg.Del(BK, name); else Reg.SetStr(BK, name, e);
+                var created = new List<string>();
+                try { Session(true, s => limit == 0 ? Off(s, before, entries, stayed) : Apply(s, limit, before, paths, entries, created)); }
+                catch { Store(AfterWrite(false, entries, created)); throw; }
+                Store(AfterWrite(true, entries, created));
                 if (limit == 0) Reg.Del(OWN, "FpsLimit"); else Reg.Set(OWN, "FpsLimit", limit);
                 _known = limit == 0 ? null : paths.Select(p => Path.GetFileName(p)).ToList();
             }
@@ -195,16 +205,26 @@ internal static unsafe class FpsLimit
         if (!NeedsSync(names, _known) || !Available) return (0, new());
         lock (Gate)
         {
-            // entries of the profiles of someone else it sets: written only once the driver has saved
+            // entries of the profiles of someone else it sets: written only once the driver has saved; the pending ones
+            // this write made (BackupOf) go again when it did not, so the retry takes a fresh backup
             var entries = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+            var created = new List<string>();
             try
             {
-                int added = Session(s => Keep(s, limit, paths, entries));
-                foreach (var (name, e) in entries) Reg.SetStr(BK, name, e!);
+                int added;
+                try { added = Session(s => Keep(s, limit, paths, entries, created)); }
+                catch { Store(AfterWrite(false, entries, created)); throw; }
+                Store(AfterWrite(true, entries, created));
                 return (added, entries.Keys.ToList());
             }
             finally { _known = names; }   // a driver that refuses is asked again on the next start of FiveM, not every few seconds
         }
+    }
+
+    /// <summary>Writes what FpsLimitLogic.AfterWrite decided into the backup store (null = the entry goes).</summary>
+    private static void Store(List<(string name, string? entry)> changes)
+    {
+        foreach (var (name, e) in changes) if (e == null) Reg.Del(BK, name); else Reg.SetStr(BK, name, e);
     }
 
     /// <summary>FiveM is closed (the probe sees none of its processes): its next start looks at the profiles once more, so
@@ -227,7 +247,7 @@ internal static unsafe class FpsLimit
     // ---------- writing ----------
     /// <summary>The limit set on the card: into the own profile (exes in no profile go in), every profile of someone else
     /// an exe belongs to, and the profiles OrbitTweak set before that still have its value (FpsLimitLogic.Follows).</summary>
-    private static int Apply(IntPtr s, int limit, int before, List<string> paths, Dictionary<string, string?> entries)
+    private static int Apply(IntPtr s, int limit, int before, List<string> paths, Dictionary<string, string?> entries, List<string> created)
     {
         var found = paths.Select(p => (exe: Path.GetFileName(p), prof: ProfileOf(s, p))).ToList();
         var plan = Decide(found.Select(f => (f.exe, f.prof?.name)));
@@ -239,7 +259,7 @@ internal static unsafe class FpsLimit
         {
             var h = found.First(f => f.prof is { } p && p.name.Equals(name, StringComparison.OrdinalIgnoreCase)).prof!.Value.h;
             // the value before OrbitTweak's first change stays the backup, also when the limit changes again
-            var backup = BackupOf(s, h, name, before);
+            var backup = BackupOf(s, h, name, before, created);
             SetFrl(s, h, (uint)limit);
             entries[name] = Entry(backup, limit);
         }
@@ -270,8 +290,9 @@ internal static unsafe class FpsLimit
     }
 
     /// <summary>Upkeep's part (FpsLimitLogic.UpkeepPlan); saves only when it changed something. The entries of the
-    /// profiles of someone else it sets go into <paramref name="entries"/>, for the caller to write once the driver saved.</summary>
-    private static (int, bool) Keep(IntPtr s, int limit, List<string> paths, Dictionary<string, string?> entries)
+    /// profiles of someone else it sets go into <paramref name="entries"/>, for the caller to write once the driver saved,
+    /// the pending ones it made into <paramref name="created"/>.</summary>
+    private static (int, bool) Keep(IntPtr s, int limit, List<string> paths, Dictionary<string, string?> entries, List<string> created)
     {
         var found = paths.Select(p => (exe: Path.GetFileName(p), prof: ProfileOf(s, p))).ToList();
         var own = FindProfile(s, OwnProfile);
@@ -282,7 +303,7 @@ internal static unsafe class FpsLimit
         foreach (var name in plan.Foreign)
         {
             var h = found.First(f => f.prof is { } p && p.name.Equals(name, StringComparison.OrdinalIgnoreCase)).prof!.Value.h;
-            var backup = BackupOf(s, h, name, limit);
+            var backup = BackupOf(s, h, name, limit, created);
             SetFrl(s, h, (uint)limit);
             entries[name] = Entry(backup, limit);
         }
@@ -303,15 +324,17 @@ internal static unsafe class FpsLimit
 
     /// <summary>The backup for a write to a profile of someone else: its entry's (the value before OrbitTweak's first
     /// change, also from a pending entry), else its value now. A new one goes into the backup store as a pending entry
-    /// before anything is written (FpsLimitLogic.PendingEntry): a driver that then refuses to save leaves the profile as it
-    /// was and the entry pending, so the profile still counts as not set. The written value follows through the caller's
-    /// entries once the driver has saved.</summary>
-    private static string BackupOf(IntPtr s, IntPtr h, string name, int stored)
+    /// before anything is written (FpsLimitLogic.PendingEntry), so OrbitTweak ending right after the driver saved does
+    /// not lose it, and its name into <paramref name="created"/>: a driver that refuses to save leaves the profile as it
+    /// was, and the caller takes exactly those entries out again (FpsLimitLogic.AfterWrite). The written value follows
+    /// through the caller's entries once the driver has saved.</summary>
+    private static string BackupOf(IntPtr s, IntPtr h, string name, int stored, List<string> created)
     {
         if (Reg.Get(BK, name) is string old) return ParseEntry(old, stored).backup;
         var g = GetFrl(s, h);
         var backup = Backup(g.found, g.location, g.predefined, g.value);
         Reg.SetStr(BK, name, PendingEntry(backup));
+        created.Add(name);
         return backup;
     }
 
