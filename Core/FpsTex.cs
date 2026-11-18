@@ -141,7 +141,20 @@ internal static unsafe class FpsLimit
         {
             // without a kept limit the probe adds nothing, so the own profile would not be the newest build's
             var own = kept > 0 ? FindProfile(s, OwnProfile) : IntPtr.Zero;
-            return (own != IntPtr.Zero ? See(s, own, OwnProfile, kept, new(), own: true) : null, list);
+            if (own != IntPtr.Zero) return (See(s, own, OwnProfile, kept, new(), own: true), list);
+            // no exe cached (FiveM's cache cleaned): FiveM brings the same build's exe back under the same name, and the
+            // driver puts it into the profile of someone else that names it. OrbitTweak wrote there before (an entry), so
+            // the card shows that profile with its live value, also when it was changed in the NVIDIA Control Panel since
+            if (newest.Length == 0 && kept > 0)
+                foreach (var name in Reg.ValueNames(BK))
+                {
+                    var h = FindProfile(s, name);
+                    if (h == IntPtr.Zero || AppsOf(s, h) is not { } apps || !apps.Any(a => IsGameExe(Path.GetFileName(a)))) continue;
+                    var seen = list.FirstOrDefault(x => x.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) ?? See(s, h, name, kept, new());
+                    if (!list.Contains(seen)) list.Add(seen);
+                    return (seen, list);
+                }
+            return (null, list);
         }
         return (np.name.Equals(OwnProfile, StringComparison.OrdinalIgnoreCase) ? See(s, np.h, np.name, kept, new(), own: true)
             : list.First(x => x.Name.Equals(np.name, StringComparison.OrdinalIgnoreCase)), list);
