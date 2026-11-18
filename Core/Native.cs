@@ -20,6 +20,9 @@ internal static class Native
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool GlobalMemoryStatusEx([In, Out] MEMORYSTATUSEX m);
 
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetPhysicallyInstalledSystemMemory(out ulong kb);
+
     [DllImport("psapi.dll")]
     private static extern bool EmptyWorkingSet(IntPtr hProcess);
 
@@ -71,6 +74,13 @@ internal static class Native
     {
         var m = new MEMORYSTATUSEX();
         return GlobalMemoryStatusEx(m) ? (m.ullTotalPhys, m.ullAvailPhys, m.dwMemoryLoad) : (0, 0, 0);
+    }
+
+    /// <summary>The installed RAM in KB as the firmware reports it (Memory().total is less: hardware-reserved memory is left out); 0 when unknown.</summary>
+    public static ulong InstalledKb()
+    {
+        try { return GetPhysicallyInstalledSystemMemory(out var kb) ? kb : 0; }
+        catch { return 0; }
     }
 
     private static bool EnablePrivilege(string name)

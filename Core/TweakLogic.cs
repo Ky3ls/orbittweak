@@ -60,7 +60,7 @@ internal static class TweakLogic
     /// <summary>
     /// True when Windows manages the page file (the default "?:\pagefile.sys", or a drive with system-managed size
     /// "C:\pagefile.sys 0 0"), or when a custom setup gives a commit limit (RAM + page files) of at least 32 GB.
-    /// False when the page file is switched off or small.
+    /// False when the page file is switched off or small. ramMb is the installed RAM (<see cref="InstalledRamMb"/>).
     /// </summary>
     public static bool PagefileOk(string[]? pagingFiles, double ramMb)
     {
@@ -76,6 +76,13 @@ internal static class TweakLogic
         }
         return sumMax > 0 && ramMb + sumMax >= 32768;
     }
+
+    /// <summary>
+    /// The installed RAM in MB: what the firmware reports (installedKb), else the usable RAM rounded to whole GB.
+    /// Usable RAM is a little less (a 16 GB PC shows about 16 250 MB), and a page file the size of the RAM must still count as enough.
+    /// </summary>
+    public static double InstalledRamMb(ulong installedKb, double usableMb)
+        => installedKb > 0 ? installedKb / 1024.0 : Math.Round(usableMb / 1024) * 1024;
 
     // ---------- backups ----------
     /// <summary>
