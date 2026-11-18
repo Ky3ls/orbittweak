@@ -100,7 +100,7 @@
     ['games', 'Minigames', 'aim', 'Aim-Training vor dem Spielen', 'aim training zielen reaktion aufwärmen warm up minigame'],
     ['tweaks', 'Tweaks', 'zap', 'Windows-Einstellungen fürs Spiel', 'fps leistung boost windows optimieren schalter performance'],
     ['cleaner', 'Cleaner', 'trash', 'Caches und Reste entfernen', 'speicher platz cache temp müll aufräumen festplatte ssd voll ram arbeitsspeicher löschen'],
-    ['autostart', 'Autostart', 'power', 'Programme, die mit Windows starten', 'hochfahren start langsam programme autostart windows boot'],
+    ['autostart', 'Autostart', 'power', 'Programme, die mit Windows starten', 'hochfahren start langsam programme autostart windows boot store apps teams whatsapp'],
     ['diag', 'Diagnose', 'heart', 'Ursachen für Ruckler, Abstürze und Ladeprobleme', 'absturz abstürze crash ruckler ruckeln stottern fehler logs probleme check lädt laden hängt freeze'],
     ['settings', 'Einstellungen', 'settings', 'Konto, Design, Verhalten und Updates', 'optionen einstellungen settings'],
     ['admin', 'Admin', 'shield', 'Lizenz-Keys und Mod-Freigaben', 'keys lizenz freigaben codes'],

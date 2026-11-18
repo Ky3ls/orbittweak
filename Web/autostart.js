@@ -1,6 +1,7 @@
 'use strict';
 /* 2.27 – Autostart: what starts with Windows. Switching off works exactly like the Task Manager (the flag under
-   Explorer\StartupApproved), nothing is deleted. Host: MainWindow.Autostart.cs, Core/Autostart.cs, Core/AutostartLogic.cs. */
+   Explorer\StartupApproved, for Store apps their State value since 2.28), nothing is deleted.
+   Host: MainWindow.Autostart.cs, Core/Autostart.cs, Core/AutostartStore.cs, Core/AutostartLogic.cs. */
 
 const AS = {
   items: null, at: 0, err: '', loading: null,
@@ -14,7 +15,7 @@ const AS_FILTERS = [['all', 'Alle'], ['on', 'An'], ['off', 'Aus']];
 const AS_FMT_DAY = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'long' });
 const AS_FMT_YEAR = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'long', year: 'numeric' });
 const asList = l => new Intl.ListFormat('de', { type: 'conjunction' }).format(l);
-const asCanOff = () => (AS.items || []).filter(i => i.rec === 'off' && i.on);
+const asCanOff = () => (AS.items || []).filter(i => i.rec === 'off' && i.on && !i.lock);
 /** "Neu laden" waits while the list is read and while switches are on their way to Windows (a list read then could miss them). */
 const asReloadState = () => { const b = $('#asReload'); if (b) b.disabled = !!AS.loading || AS.busy.size > 0; };
 
@@ -46,6 +47,7 @@ function asIcon(it) {
 }
 /** "Kann aus" while it still starts; "Besser an" always (warm when it is off). */
 function asChip(it) {
+  if (it.lock) return `<span class="as-rec pol" title="${esc(it.why)}">Richtlinie</span>`;
   if (it.rec === 'off' && it.on) return `<span class="as-rec off" title="${esc(it.why)}">Kann aus</span>`;
   if (it.rec === 'on') return `<span class="as-rec ${it.on ? 'keep' : 'warn'}" title="${esc(it.why)}">Besser an</span>`;
   return '';
@@ -57,13 +59,17 @@ function asSince(iso) {
 }
 function asDetail(it) {
   const since = !it.on ? asSince(it.offSince) : '';
-  const recIco = it.rec === 'on' ? 'shield' : it.rec === 'off' ? 'power' : 'sparkle';
+  const recIco = it.lock ? 'lock' : it.rec === 'on' ? 'shield' : it.rec === 'off' ? 'power' : 'sparkle';
+  // a Store app's entry is "family/task id": the task is what Windows switches
+  const task = it.store ? String(it.entry).slice(String(it.entry).indexOf('/') + 1) : '';
   const facts = [
     it.why ? `<span>${ico(it.exists ? recIco : 'alert')}${esc(it.why)}</span>` : '',
     since ? `<span>${ico('clock')}Aus seit ${esc(since)}</span>` : '',
-    `<span>${ico(it.folder ? 'file' : 'layers')}${it.folder ? 'Datei' : 'Registrierungswert'} „${esc(it.entry)}“</span>`,
+    it.store ? `<span>${ico('bag')}Store-App, Startaufgabe „${esc(task)}“</span>`
+      : `<span>${ico(it.folder ? 'file' : 'layers')}${it.folder ? 'Datei' : 'Registrierungswert'} „${esc(it.entry)}“</span>`,
   ].filter(Boolean).join('');
-  const canShow = it.folder || (it.exists && it.path);   // a dead link in the startup folder is still there to show
+  // a dead link in the startup folder is still there to show; a Store app's folder (WindowsApps) cannot be opened
+  const canShow = !it.store && (it.folder || (it.exists && it.path));
   return `<div class="as-det">
     <code class="as-cmd">${esc(it.command)}</code>
     <div class="as-df"><div class="as-facts">${facts}</div>${canShow ? `<button class="btn sm gh" type="button" data-asrev="${esc(it.id)}">${ico('folder')}Im Explorer zeigen</button>` : ''}</div>
@@ -78,7 +84,7 @@ function asRow(it) {
       <span class="as-tx"><span class="as-t"><b>${esc(it.name)}</b>${asChip(it)}</span><span class="as-sub">${sub}</span></span>
       <svg class="i as-ch"><use href="#chev"/></svg>
     </div>
-    <div class="tg ${it.on ? 'on' : ''}${busy ? ' busy' : ''}" data-astg="${esc(it.id)}" role="switch" tabindex="0" aria-checked="${it.on}" aria-label="${esc(it.name)} mit Windows starten" title="${it.on ? 'Startet mit Windows' : 'Startet nicht mit Windows'}"></div>
+    <div class="tg ${it.on ? 'on' : ''}${busy ? ' busy' : ''}${it.lock ? ' pol' : ''}" data-astg="${esc(it.id)}" role="switch" tabindex="0" aria-checked="${it.on}"${it.lock ? ' aria-disabled="true"' : ''} aria-label="${esc(it.name)} mit Windows starten" title="${it.lock ? 'Von einer Richtlinie festgelegt' : it.on ? 'Startet mit Windows' : 'Startet nicht mit Windows'}"></div>
     ${open ? asDetail(it) : ''}
   </div>`;
 }
@@ -110,7 +116,7 @@ function asRender(focusId) {
       <button class="btn p" id="asOff" type="button">${ico('power')}Empfohlene ausschalten</button>${undoBtn}`;
   } else if (items) {
     go = `<div class="as-gh"><span class="as-ok">${ico('check')}</span></div>
-      <p><b>Aufgeräumt</b> Hier startet nichts, was wir als „Kann aus“ kennen. Store-Apps wie Teams oder WhatsApp findest du unter Einstellungen › Apps › Autostart.</p>${undoBtn}`;
+      <p><b>Aufgeräumt</b> Hier startet nichts mehr, was wir als „Kann aus“ kennen.</p>${undoBtn}`;
   }
   const g = $('#asGo'); if (g) { g.innerHTML = go; g.classList.toggle('done', !!items && !can.length); }
 
@@ -119,20 +125,22 @@ function asRender(focusId) {
   const seg = $('#asSeg');
   if (seg) seg.innerHTML = AS_FILTERS.map(([k, t]) => `<button type="button" class="${AS.filter === k ? 'on' : ''}" data-asf="${k}" aria-pressed="${AS.filter === k}">${t}<i class="as-cnt">${items ? n[k] : '–'}</i></button>`).join('');
   const lh = $('#asLhP');
+  const nStore = all.filter(i => i.store).length;
   if (lh) lh.textContent = !items ? (AS.err ? 'Nicht gelesen' : 'Wird gelesen…')
     : !all.length ? 'Keine Einträge gefunden'
-    : `${all.filter(i => !i.folder).length} aus der Registrierung · ${all.filter(i => i.folder).length} aus dem Autostart-Ordner`;
+    : `${all.filter(i => !i.folder && !i.store).length} aus der Registrierung · ${all.filter(i => i.folder).length} aus dem Autostart-Ordner`
+      + (nStore ? ` · ${nStore} ${nStore === 1 ? 'Store-App' : 'Store-Apps'}` : '');
 
   const rows = $('#asRows'); if (!rows) return;
   if (!items) {
     rows.innerHTML = AS.err
       ? asEmpty('alert', 'Autostart nicht gelesen', AS.err, 'bad', `<button class="btn sm" type="button" data-asretry>${ico('refresh')}Noch mal versuchen</button>`)
-      : asEmpty('power', 'Lese den Autostart', 'Registrierung und Autostart-Ordner', 'wait');
+      : asEmpty('power', 'Lese den Autostart', 'Registrierung, Autostart-Ordner und Store-Apps', 'wait');
     return;
   }
   const shown = all.filter(i => AS.filter === 'all' || AS.keep.has(i.id) || (AS.filter === 'on') === i.on);
   rows.innerHTML = shown.length ? shown.map(asRow).join('')
-    : !all.length ? asEmpty('check', 'Nichts im Autostart', 'In der Registrierung und im Autostart-Ordner steht kein Programm.', 'ok')
+    : !all.length ? asEmpty('check', 'Nichts im Autostart', 'In der Registrierung, im Autostart-Ordner und bei den Store-Apps startet kein Programm.', 'ok')
     : AS.filter === 'off' ? asEmpty('power', 'Nichts ausgeschaltet', 'Alles in der Liste startet mit Windows.')
     : asEmpty('power', 'Nichts startet mit Windows', 'Alle Einträge sind ausgeschaltet.');
   if (focusId && hadFocus === focusId) rows.querySelector(`.tg[data-astg="${CSS.escape(focusId)}"]`)?.focus({ preventScroll: true });
@@ -165,6 +173,7 @@ async function asLoad(quiet) {
 async function asToggle(id) {
   const it = AS.items && AS.items.find(x => x.id === id);
   if (!it || AS.busy.has(id)) return;
+  if (it.lock) return toast('Nicht umschaltbar', `${it.name}: ${it.why || 'Von einer Richtlinie festgelegt'}`, false);
   const want = !it.on;
   // audio, drivers, input devices and protection: one question before they go
   if (!want && it.rec === 'on' && it.exists) {
@@ -177,7 +186,7 @@ async function asToggle(id) {
     it.on = !!(r && r.on);
     if (it.on !== want) toast('Nicht umgeschaltet', `${it.name}: Windows hat die Änderung nicht übernommen`, false);
     else {
-      it.offSince = want ? null : new Date().toISOString();
+      it.offSince = want || it.store ? null : new Date().toISOString();   // Windows keeps no time for a Store app
       toast(want ? 'Startet wieder mit Windows' : 'Startet nicht mehr mit Windows', `${it.name} · ab dem nächsten Windows-Start`);
     }
   } catch (e) {
@@ -206,7 +215,7 @@ async function asOffAll() {
       const r = await api('autostart.set', { id: it.id, on: false, name: it.name });
       it.on = !!(r && r.on);
       if (it.on) failed.push([it, 'Windows hat die Änderung nicht übernommen']);
-      else { it.offSince = new Date().toISOString(); done.push(it); }
+      else { it.offSince = it.store ? null : new Date().toISOString(); done.push(it); }
     } catch (e) { failed.push([it, (e && e.message) || 'Fehler']); }
     AS.busy.delete(it.id); AS.keep.add(it.id); asRender();
   }
@@ -280,6 +289,7 @@ PAGE_SHOW.autostart = () => { if (!AS.items || Date.now() - AS.at > 30000) asLoa
   const SRC = {
     hkcu: ['Nur für dich · Registrierung', false, false], hklm: ['Alle Nutzer · Registrierung', true, false],
     hklm32: ['Alle Nutzer · Registrierung (32 Bit)', true, false], user: ['Nur für dich · Autostart-Ordner', false, true],
+    store: ['Nur für dich · Store-App', false, false],
   };
   const WHY = {
     launcher: 'Launcher, öffnet sich beim Spielstart von selbst', steam: 'Launcher, öffne ihn vor FiveM selbst, wenn dein Server Steam verlangt', app: 'App, die du bei Bedarf selbst öffnest',
@@ -290,9 +300,10 @@ PAGE_SHOW.autostart = () => { if (!AS.items || Date.now() - AS.at > 30000) asLoa
   };
   const ago = d => new Date(Date.now() - d * 864e5).toISOString();
   const L = 'C:\\Users\\Max\\AppData\\Local', R = 'C:\\Users\\Max\\AppData\\Roaming', PF = 'C:\\Program Files', PF86 = 'C:\\Program Files (x86)';
+  const WA = 'C:\\Program Files\\WindowsApps';
   const e = (src, entry, name, publisher, command, path, o = {}) => ({
     id: src + '|' + entry, name, entry, publisher, command, path, exists: true, source: SRC[src][0], allUsers: SRC[src][1], folder: SRC[src][2],
-    on: true, offSince: null, icon: null, rec: null, why: '', ...o,
+    store: src === 'store', lock: false, on: true, offSince: null, icon: null, rec: null, why: '', ...o,
   });
   const MOCK = [
     e('hkcu', 'Steam', 'Steam', 'Valve Corporation', `"${PF86}\\Steam\\steam.exe" -silent`, `${PF86}\\Steam\\steam.exe`, { icon: svg('#2A475E', '#171A21', G.pad), rec: 'off', why: WHY.steam }),
@@ -309,16 +320,20 @@ PAGE_SHOW.autostart = () => { if (!AS.items || Date.now() - AS.at > 30000) asLoa
     e('hkcu', 'Opera GX Browser Assistant', 'Opera GX Browser Assistant', '', `${L}\\Programs\\Opera GX\\assistant\\browser_assistant.exe`, `${L}\\Programs\\Opera GX\\assistant\\browser_assistant.exe`, { exists: false, rec: 'off', why: WHY.missing }),
     e('hklm', 'Adobe Creative Cloud', 'Adobe Creative Cloud', 'Adobe Inc.', `"${PF}\\Adobe\\Adobe Creative Cloud\\ACC\\Creative Cloud.exe" --showwindow=false --onOSstartup=true`, `${PF}\\Adobe\\Adobe Creative Cloud\\ACC\\Creative Cloud.exe`, { icon: svg('#FF6B5E', '#DA1F26', G.rings), on: false, offSince: ago(41), rec: 'off', why: WHY.updater }),
     e('user', 'ShareX.lnk', 'ShareX', 'ShareX Team', `"${PF}\\ShareX\\ShareX.exe" -silent`, `${PF}\\ShareX\\ShareX.exe`, { icon: svg('#5BC0F8', '#2B7BD6', G.snap) }),
+    e('store', 'MSTeams_8wekyb3d8bbwe/TeamsTfwStartupTask', 'Microsoft Teams', 'Microsoft Corporation', `${WA}\\MSTeams_25163.3611.3774.6315_x64__8wekyb3d8bbwe\\ms-teams.exe`, `${WA}\\MSTeams_25163.3611.3774.6315_x64__8wekyb3d8bbwe\\ms-teams.exe`, { icon: svg('#7B83EB', '#4B53BC', G.chat), rec: 'off', why: WHY.app }),
+    e('store', '5319275A.WhatsAppDesktop_cv1g1gvanyjgm/WhatsAppStartupTask', 'WhatsApp', 'WhatsApp Inc.', `${WA}\\5319275A.WhatsAppDesktop_2.2546.3.0_x64__cv1g1gvanyjgm\\WhatsApp.Root.exe`, `${WA}\\5319275A.WhatsAppDesktop_2.2546.3.0_x64__cv1g1gvanyjgm\\WhatsApp.Root.exe`, { icon: svg('#4BE07B', '#1DA851', G.chat), rec: 'off', why: WHY.app }),
+    e('store', 'Microsoft.WindowsTerminal_8wekyb3d8bbwe/StartTerminalOnLoginTask', 'Terminal', 'Microsoft Corporation', `${WA}\\Microsoft.WindowsTerminal_1.23.12811.0_x64__8wekyb3d8bbwe\\WindowsTerminal.exe`, `${WA}\\Microsoft.WindowsTerminal_1.23.12811.0_x64__8wekyb3d8bbwe\\WindowsTerminal.exe`, { on: false }),
   ];
   MOCK_EXT['autostart.list'] = async () => { await sleep(260); return { items: MOCK.map(i => ({ ...i })) }; };
   MOCK_EXT['autostart.set'] = async a => {
     const i = MOCK.find(x => x.id === a.id);
     if (!i) throw new Error('Den Eintrag gibt es nicht mehr. Lade die Liste neu.');
-    if (i.on !== !!a.on) { i.on = !!a.on; i.offSince = i.on ? null : new Date().toISOString(); }
+    if (i.lock) throw new Error('Eine Richtlinie legt fest, ob diese App mit Windows startet. Das lässt sich hier nicht ändern.');
+    if (i.on !== !!a.on) { i.on = !!a.on; i.offSince = i.on || i.store ? null : new Date().toISOString(); }
     return { on: i.on };
   };
   MOCK_EXT['autostart.reveal'] = async a => {
     const i = MOCK.find(x => x.id === a.id);
-    return i && (i.exists || i.folder) ? { ok: true } : { ok: false, error: 'Die Datei ist nicht mehr da.' };
+    return i && !i.store && (i.exists || i.folder) ? { ok: true } : { ok: false, error: 'Die Datei ist nicht mehr da.' };
   };
 }

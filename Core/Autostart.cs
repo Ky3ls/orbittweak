@@ -29,6 +29,10 @@ public sealed class AutostartItem
     public string Source { get; init; } = "";
     public bool AllUsers { get; init; }
     public bool Folder { get; init; }
+    /// <summary>A Store app's startup task (2.28): switched by its State value, nothing to show in Explorer.</summary>
+    public bool Store { get; init; }
+    /// <summary>A group policy decides (Store apps, State 3 or 4): the switch is locked.</summary>
+    public bool Lock { get; init; }
     public bool On { get; init; }
     public DateTime? OffSince { get; init; }
     /// <summary>The program's icon as PNG data URL, or null (the page draws its own).</summary>
@@ -38,18 +42,25 @@ public sealed class AutostartItem
     public string Why { get; init; } = "";
 }
 
-/// <summary>The autostart manager: lists the three Run keys and the two startup folders and switches entries on and
-/// off exactly like the Task Manager (the binary flags under Explorer\StartupApproved). Nothing is ever deleted.
-/// The pure rules live in AutostartLogic.cs.</summary>
-internal static class Autostart
+/// <summary>The autostart manager: lists the three Run keys, the two startup folders and the Store apps' startup tasks
+/// and switches entries on and off exactly like the Task Manager (the binary flags under Explorer\StartupApproved, the
+/// State value of a Store app in AutostartStore.cs). Nothing is ever deleted. The pure rules live in AutostartLogic.cs.</summary>
+internal static partial class Autostart
 {
     private const int IconPx = 48;   // drawn at 32 px on the page: sharp up to 150 % scaling
 
     // ---------- reading ----------
 
     /// <summary>Everything that starts with Windows. Runs on its own STA thread: the shell calls for links and icons want
-    /// an initialized COM apartment, and WPF's bitmaps get a thread of their own instead of a pool thread.</summary>
-    public static Task<List<AutostartItem>> ListAsync() => Sta(() => List(true));
+    /// an initialized COM apartment, and WPF's bitmaps get a thread of their own instead of a pool thread.
+    /// The Store apps are read meanwhile on a pool thread (the package list needs no apartment, and their logos are files).</summary>
+    public static async Task<List<AutostartItem>> ListAsync()
+    {
+        var store = Task.Run(() => StoreList(true));
+        var list = await Sta(() => List(true));
+        list.AddRange(await store);
+        return list.OrderBy(i => i.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+    }
 
     private static List<AutostartItem> List(bool icons)
     {
@@ -244,6 +255,7 @@ internal static class Autostart
     {
         var p = AutostartLogic.ParseId(id) ?? throw new InvalidOperationException("Unbekannter Autostart-Eintrag.");
         var (s, entry) = p;
+        if (s == AutostartLogic.Store) return SetStore(entry, on);
         if (!Present(s, entry)) throw new InvalidOperationException("Den Eintrag gibt es nicht mehr. Lade die Liste neu.");
         var cur = Flag(s.ApprovedKey, entry);
         // on with no flag at all is already on: nothing to write (Windows itself only writes the flag on a change)
@@ -274,6 +286,7 @@ internal static class Autostart
         var p = AutostartLogic.ParseId(id);
         if (p == null) return null;
         var (s, entry) = p.Value;
+        if (s == AutostartLogic.Store) return null;   // a Store app's folder (WindowsApps) cannot be opened in Explorer
         if (s.Folder)
         {
             if (!AutostartLogic.PlainFileName(entry)) return null;

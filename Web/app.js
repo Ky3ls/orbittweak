@@ -3622,6 +3622,10 @@ document.addEventListener('click', async e => {
 
 /* ======================= WHAT'S NEW: shown once after an update ======================= */
 const CHANGES = {
+  '2.28.0': [
+    ['bag', 'Store-Apps im Autostart', 'Die Autostart-Seite zeigt jetzt auch Store-Apps wie das neue Teams, WhatsApp oder Spotify aus dem Store. Du schaltest sie an und aus wie in den Windows-Einstellungen, gelöscht wird nichts, und „Empfohlene ausschalten“ nimmt sie mit.'],
+    ['lock', 'Richtlinien sichtbar', 'Legt eine Richtlinie deiner Firma oder Schule fest, ob eine App mit Windows startet, steht das dabei und der Schalter bleibt, wie er ist.'],
+  ],
   '2.27.0': [
     ['chart', 'Spielzeit', 'Neue Seite: wie lange du heute, diese Woche und insgesamt spielst, mit Verlauf über 14 oder 30 Tage, deinen Servern, Rekorden und den letzten Runden. OrbitTweak zählt von selbst mit, solange es offen ist (minimiert reicht).'],
     ['clock', 'Runde vorbei', 'Nach einer Runde ab fünf Minuten zeigt OrbitTweak kurz Länge, Server und Kills. Auf der Übersicht steht klein, wie lange du heute gespielt hast.'],

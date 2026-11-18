@@ -151,5 +151,115 @@ Check(AutostartLogic.Recommend("Steam", "Steam", @"C:\x\steam.exe", "", "", true
 Check(AutostartLogic.Recommend("OneDrive", "Microsoft OneDrive", @"C:\x\OneDrive.exe", "", "", false) is { Rec: null } a && a.Why.Length > 0, "OneDrive carries a note without advice");
 Check(AutostartLogic.Recommend("Discord", "Discord", @"C:\x\Update.exe", "", "", false) is { Rec: null }, "Discord carries a note without advice");
 
+// ---------- Store apps (2.28) ----------
+var store = AutostartLogic.Store;
+Check(!AutostartLogic.Sources.Contains(store), "the Store source is not one of the Run/folder sources");
+Check(store.ApprovedKey == @"HKCU\Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\SystemAppData", "Store state lives under SystemAppData of the user");
+Check(!store.AllUsers && !store.Folder, "Store apps are per user and no folder");
+var teamsEntry = AutostartLogic.StoreEntry("MSTeams_8wekyb3d8bbwe", "TeamsTfwStartupTask");
+Eq(teamsEntry, "MSTeams_8wekyb3d8bbwe/TeamsTfwStartupTask", "Store entry");
+var sid = AutostartLogic.Id(store, teamsEntry);
+Eq(sid, "store|MSTeams_8wekyb3d8bbwe/TeamsTfwStartupTask", "Store id");
+Check(AutostartLogic.ParseId(sid) is { } sp && sp.src == store && sp.entry == teamsEntry, "a Store id is read back");
+Eq(AutostartLogic.ParseStoreEntry(teamsEntry), (("MSTeams_8wekyb3d8bbwe", "TeamsTfwStartupTask") as (string, string)?), "a Store entry is split");
+Eq(AutostartLogic.ParseStoreEntry("5319275A.WhatsAppDesktop_cv1g1gvanyjgm/WhatsAppStartupTask")?.family, "5319275A.WhatsAppDesktop_cv1g1gvanyjgm", "WhatsApp's family is valid");
+Eq(AutostartLogic.ParseStoreEntry("SpotifyAB.SpotifyMusic_zpdnekdrzrea0/Spotify")?.taskId, "Spotify", "Spotify's task");
+foreach (var bad in new[] { "", "/x", "MSTeams_8wekyb3d8bbwe/", "MSTeams/Task", @"..\..\Run_8wekyb3d8bbwe/x", "MSTeams_8wekyb3d8bbwe/a\\b", "MSTeams_8wekyb3d8bbwe/..", "MSTeams_8wekyb3d8bbw/x", "MS Teams_8wekyb3d8bbwe/x", "MSTeams_8wekyb3d8bbwe/ x" })
+    Check(AutostartLogic.ParseStoreEntry(bad) == null, $"bad Store entry \"{bad}\" is refused");
+Check(AutostartLogic.ParseStoreEntry(null) == null, "no Store entry");
+Check(AutostartLogic.ParseStoreEntry("MSTeams_8wekyb3d8bbwe/a/b") == null, "a task id with a slash is refused");
+Check(AutostartLogic.TaskIdOk("TeamsTfwStartupTask") && AutostartLogic.TaskIdOk("My Task.1") && !AutostartLogic.TaskIdOk("a|b") && !AutostartLogic.TaskIdOk("a\u0001") && !AutostartLogic.TaskIdOk(new string('x', 256)), "task ids");
+
+// state: 0 disabled, 1 by the user, 2 enabled, 3/4 policy; no value = the manifest decides
+Check(AutostartLogic.StoreOn(2, false) && AutostartLogic.StoreOn(4, false), "2 and 4 are on");
+Check(!AutostartLogic.StoreOn(0, true) && !AutostartLogic.StoreOn(1, true) && !AutostartLogic.StoreOn(3, true), "0, 1 and 3 are off");
+Check(AutostartLogic.StoreOn(null, true) && !AutostartLogic.StoreOn(null, false), "no value: the manifest's Enabled");
+Check(AutostartLogic.StoreOn(9, true) && !AutostartLogic.StoreOn(9, false), "an unknown value: the manifest's Enabled");
+Check(AutostartLogic.StoreLocked(3) && AutostartLogic.StoreLocked(4) && !AutostartLogic.StoreLocked(1) && !AutostartLogic.StoreLocked(2) && !AutostartLogic.StoreLocked(null), "only 3 and 4 are locked");
+Eq(AutostartLogic.StoreState(true), 2, "on is written as 2");
+Eq(AutostartLogic.StoreState(false), 1, "off is written as 1 (by the user), so the app cannot switch itself on again");
+Check(AutostartLogic.StoreOn(AutostartLogic.StoreState(false), true) == false && AutostartLogic.StoreOn(AutostartLogic.StoreState(true), false), "what is written reads back");
+
+// manifests
+const string teamsXml = """
+<?xml version="1.0" encoding="utf-8"?>
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10" xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10" xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10" IgnorableNamespaces="uap desktop">
+  <Identity Name="MSTeams" Publisher="CN=Microsoft Corporation" Version="24295.605.3225.8804" ProcessorArchitecture="x64" />
+  <Properties><DisplayName>Microsoft Teams</DisplayName><PublisherDisplayName>Microsoft Corporation</PublisherDisplayName><Logo>Images\StoreLogo.png</Logo></Properties>
+  <Applications>
+    <Application Id="MSTeams" Executable="ms-teams.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements DisplayName="Microsoft Teams" Square150x150Logo="Images\Square150x150Logo.png" Square44x44Logo="Images\Square44x44Logo.png" Description="Teams" BackgroundColor="transparent" />
+      <Extensions>
+        <uap:Extension Category="windows.protocol"><uap:Protocol Name="msteams" /></uap:Extension>
+        <desktop:Extension Category="windows.startupTask" Executable="ms-teams.exe" EntryPoint="Windows.FullTrustApplication">
+          <desktop:StartupTask TaskId="TeamsTfwStartupTask" Enabled="true" DisplayName="Microsoft Teams" />
+        </desktop:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+</Package>
+""";
+var tt = AutostartLogic.ParseManifest(teamsXml);
+Eq(tt.Count, 1, "Teams declares one startup task");
+Check(tt.Count == 1 && tt[0] == new AutostartLogic.StoreTask("MSTeams", "ms-teams.exe", "TeamsTfwStartupTask", true, "Microsoft Teams", @"Images\Square44x44Logo.png"), $"Teams task read: {(tt.Count > 0 ? tt[0].ToString() : "none")}");
+
+const string uwpXml = """
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10" xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10" xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5">
+  <Properties><Logo>Assets\StoreLogo.png</Logo></Properties>
+  <Applications>
+    <Application Id="App" Executable="Chat.exe" EntryPoint="Chat.App">
+      <uap:VisualElements DisplayName="ms-resource:AppName" Square44x44Logo="" />
+      <Extensions>
+        <uap5:Extension Category="windows.startupTask"><uap5:StartupTask TaskId="ChatStartup" Enabled="false" DisplayName="ms-resource:StartupName" /></uap5:Extension>
+        <uap5:Extension Category="windows.startupTask"><uap5:StartupTask TaskId="ChatStartup" Enabled="true" /></uap5:Extension>
+        <uap5:Extension Category="windows.startupTask"><uap5:StartupTask TaskId="..\Run" Enabled="true" /></uap5:Extension>
+      </Extensions>
+    </Application>
+    <Application Id="Helper" Executable="Helper\helper.exe">
+      <Extensions>
+        <uap5:Extension Category="Windows.StartupTask"><uap5:StartupTask TaskId="HelperTask" Enabled="1" /></uap5:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+</Package>
+""";
+var ut = AutostartLogic.ParseManifest(uwpXml);
+Eq(ut.Count, 2, "a doubled task id and an unsafe one are dropped");
+Check(ut.Count == 2 && ut[0].TaskId == "ChatStartup" && !ut[0].Enabled && ut[0].Executable == "Chat.exe" && ut[0].Logo == @"Assets\StoreLogo.png", "UWP task: the app's exe, the package logo when the app has none");
+Check(ut.Count == 2 && !AutostartLogic.PlainText(ut[0].DisplayName), "an ms-resource name is no plain text");
+Check(ut.Count == 2 && ut[1] == new AutostartLogic.StoreTask("Helper", @"Helper\helper.exe", "HelperTask", true, "", @"Assets\StoreLogo.png"), "second app: Enabled=\"1\", category in any case");
+Eq(AutostartLogic.ParseManifest("""<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"><Applications><Application Id="A" Executable="a.exe"/></Applications></Package>""").Count, 0, "no startup task");
+Eq(AutostartLogic.ParseManifest("not xml <").Count, 0, "broken XML gives none");
+Eq(AutostartLogic.ParseManifest("").Count, 0, "empty manifest gives none");
+Eq(AutostartLogic.ParseManifest(null).Count, 0, "no manifest gives none");
+Eq(AutostartLogic.ParseManifest("""<!DOCTYPE p [<!ENTITY x SYSTEM "file:///c:/windows/win.ini">]><Package><Applications><Application Id="A"><Extensions><Extension Category="windows.startupTask"><StartupTask TaskId="&x;"/></Extension></Extensions></Application></Applications></Package>""").Count, 0, "a DTD is refused");
+Check(AutostartLogic.PlainText("WhatsApp") && !AutostartLogic.PlainText("ms-resource:x") && !AutostartLogic.PlainText(" ") && !AutostartLogic.PlainText(null) && !AutostartLogic.PlainText(new string('a', 65)), "plain text");
+
+// logos
+var logos = new[] { "Square44x44Logo.scale-100.png", "Square44x44Logo.scale-200.png", "Square44x44Logo.targetsize-48.png", "Square44x44Logo.targetsize-48_altform-unplated.png",
+    "Square44x44Logo.targetsize-64_altform-lightunplated.png", "Square44x44Logo.contrast-white_targetsize-64.png", "Square150x150Logo.scale-200.png", "Square44x44Logo.targetsize-16_altform-unplated.png" };
+Eq(AutostartLogic.PickLogo(@"Images\Square44x44Logo.png", logos), "Square44x44Logo.targetsize-48_altform-unplated.png", "the unplated 48 px logo wins");
+Eq(AutostartLogic.PickLogo("Square44x44Logo.png", new[] { "Square44x44Logo.scale-100.png", "Square44x44Logo.scale-200.png", "Square44x44Logo.scale-400.png" }), "Square44x44Logo.scale-100.png", "scale 100 (44 px) is closest to 64 among 44, 88 and 176");
+Eq(AutostartLogic.PickLogo("Logo.png", new[] { "Logo.png" }), "Logo.png", "the plain file when it exists");
+Eq(AutostartLogic.PickLogo("Logo.png", new[] { "Logo.contrast-black_scale-100.png", "Logo.theme-light_scale-100.png" }), null, "high contrast and light theme never");
+Eq(AutostartLogic.PickLogo("Logo.png", new[] { "LogoBig.png", "Logo.png.bak", "Other.png" }), null, "other files are no variants");
+Eq(AutostartLogic.PickLogo("Logo", new[] { "Logo" }), null, "a logo without extension");
+Eq(AutostartLogic.PickLogo("StoreLogo.png", new[] { "StoreLogo.scale-100.png", "StoreLogo.targetsize-48_altform-unplated_devicefamily-colorfulunplated.png" }), "StoreLogo.targetsize-48_altform-unplated_devicefamily-colorfulunplated.png", "unknown qualifiers do not hurt");
+
+// advice for Store apps (the entry is family/task id, the name the package's)
+string? SRec(string family, string task, string name, string exe = "", string pub = "")
+    => AutostartLogic.Recommend(family + "/" + task, name, exe, pub, "", false)?.Rec;
+Eq(SRec("MSTeams_8wekyb3d8bbwe", "TeamsTfwStartupTask", "Microsoft Teams", @"C:\Program Files\WindowsApps\MSTeams_x\ms-teams.exe", "Microsoft Corporation"), "off", "new Teams can go");
+Eq(SRec("5319275A.WhatsAppDesktop_cv1g1gvanyjgm", "WhatsAppStartupTask", "WhatsApp", "", "WhatsApp Inc."), "off", "WhatsApp can go");
+Eq(SRec("SpotifyAB.SpotifyMusic_zpdnekdrzrea0", "Spotify", "Spotify Music", "", "Spotify AB"), "off", "Spotify from the Store can go");
+Eq(SRec("Microsoft.GamingApp_8wekyb3d8bbwe", "XboxAppStartupTask", "Xbox", "", "Microsoft Corporation"), "off", "the Xbox app can go");
+Eq(SRec("Microsoft.YourPhone_8wekyb3d8bbwe", "YourPhoneStartupTask", "Smartphone-Link", "", "Microsoft Corporation"), "off", "Phone Link can go");
+Eq(SRec("TelegramMessengerLLP.TelegramDesktop_t4vj0pshhgkwm", "Telegram", "Telegram Desktop"), "off", "Telegram can go");
+Eq(SRec("RealtekSemiconductorCorp.RealtekAudioControl_dt26b99r8h8gj", "RtkUWP", "Realtek Audio Console", "", "Realtek Semiconductor Corp"), "on", "Realtek Audio Console stays");
+Eq(SRec("DolbyLaboratories.DolbyAccess_rz1tebttyb220", "DolbyStartup", "Dolby Access", "", "Dolby Laboratories"), "on", "Dolby stays");
+Eq(SRec("Microsoft.WindowsTerminal_8wekyb3d8bbwe", "StartTerminalOnLoginTask", "Terminal", "", "Microsoft Corporation"), null, "Terminal: no advice");
+Check(AutostartLogic.Recommend("AppleInc.iCloud_nzyj5cx40ttqa/iCloudStartup", "iCloud", "", "Apple Inc.", "", false) is { Rec: null } ic && ic.Why.Contains("Synchron"), "iCloud: a sync note, no advice");
+Eq(SRec("Microsoft.Copilot_8wekyb3d8bbwe", "CopilotStartupTask", "Microsoft Copilot"), "off", "Copilot can go");
+
 Console.WriteLine($"{passed} passed, {failed} failed");
 return failed == 0 ? 0 : 1;

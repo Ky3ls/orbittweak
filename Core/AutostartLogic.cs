@@ -24,7 +24,14 @@ public static class AutostartLogic
         new("common", true, true, "", @"HKLM\" + Approved + @"\StartupFolder", "Alle Nutzer · Autostart-Ordner"),
     };
 
-    /// <summary>Stable id of an entry: its source and the Run value name or the file name in the folder.</summary>
+    /// <summary>Store apps (MSIX packages) declare a startup task in their manifest; Windows keeps its state per user as
+    /// the DWORD "State" under SystemAppData\&lt;package family&gt;\&lt;task id&gt; (Settings › Apps › Autostart and the Task
+    /// Manager read and write the same value). Kept apart from Sources: it is no Run key and no StartupApproved flag.</summary>
+    public static readonly AutostartSource Store = new("store", false, false, "",
+        @"HKCU\Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\SystemAppData", "Nur für dich · Store-App");
+
+    /// <summary>Stable id of an entry: its source and the Run value name, the file name in the folder, or for a Store app
+    /// "family/task id".</summary>
     public static string Id(AutostartSource s, string entry) => s.Key + "|" + entry;
 
     public static (AutostartSource src, string entry)? ParseId(string? id)
@@ -33,7 +40,7 @@ public static class AutostartLogic
         int i = id.IndexOf('|');
         if (i <= 0 || i == id.Length - 1) return null;
         var key = id[..i];
-        var s = Sources.FirstOrDefault(x => x.Key == key);
+        var s = key == Store.Key ? Store : Sources.FirstOrDefault(x => x.Key == key);
         return s == null ? null : (s, id[(i + 1)..]);
     }
 
@@ -74,6 +81,130 @@ public static class AutostartLogic
             return t.Year is >= 2000 and < 2200 ? t : null;
         }
         catch (ArgumentOutOfRangeException) { return null; }
+    }
+
+    // ---------- Store apps ----------
+
+    /// <summary>The StartupTaskState Windows writes: 0 disabled (by the app or never enabled), 1 disabled by the user,
+    /// 2 enabled, 3 disabled by policy, 4 enabled by policy. No value: the manifest's Enabled decides (a desktop app may
+    /// start enabled, a UWP app always starts disabled and asks first).</summary>
+    public static bool StoreOn(int? state, bool enabledInManifest)
+        => state switch { 2 or 4 => true, 0 or 1 or 3 => false, _ => enabledInManifest };
+
+    /// <summary>3 and 4 come from a group policy: Windows ignores the user's choice, so the switch is locked.</summary>
+    public static bool StoreLocked(int? state) => state is 3 or 4;
+
+    /// <summary>What we write: 2 (enabled) or 1 (disabled by the user). 1 and not 0: an app may switch itself on again
+    /// from 0 without asking, from 1 only the user can.</summary>
+    public static int StoreState(bool on) => on ? 2 : 1;
+
+    // package family name: name (3–50 of letters, digits, '.', '-'), '_', the 13-character publisher id
+    private static readonly Regex Family = new(@"^[A-Za-z0-9][A-Za-z0-9.\-]{2,49}_[a-z0-9]{13}$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    /// <summary>A task id from a manifest that is safe as one registry key name below the package's key.</summary>
+    public static bool TaskIdOk(string? id)
+        => !string.IsNullOrWhiteSpace(id) && id.Length <= 255 && id == id.Trim() && id != "." && id != ".."
+           && id.All(c => c >= ' ' && c != '\\' && c != '/' && c != '|' && c != 0x7F);
+
+    public static bool FamilyOk(string? family) => family != null && Family.IsMatch(family);
+
+    /// <summary>The entry part of a Store app's id: "family/task id".</summary>
+    public static string StoreEntry(string family, string taskId) => family + "/" + taskId;
+
+    public static (string family, string taskId)? ParseStoreEntry(string? entry)
+    {
+        if (string.IsNullOrEmpty(entry)) return null;
+        int i = entry.IndexOf('/');
+        if (i <= 0) return null;
+        var (f, t) = (entry[..i], entry[(i + 1)..]);
+        return FamilyOk(f) && TaskIdOk(t) ? (f, t) : null;
+    }
+
+    /// <summary>One startup task from an AppxManifest.xml: the app it belongs to, the exe it starts (relative to the
+    /// package folder, "" for a UWP app), its id, whether the manifest enables it, its display name (may be an
+    /// "ms-resource:" reference) and the app's small logo (relative path, may be "").</summary>
+    public sealed record StoreTask(string AppId, string Executable, string TaskId, bool Enabled, string DisplayName, string Logo);
+
+    /// <summary>The startup tasks a package manifest declares (desktop:Extension or uap5:Extension with the category
+    /// windows.startupTask). Matched by local name: the namespaces differ between manifest versions. A manifest that
+    /// is no XML gives none.</summary>
+    public static List<StoreTask> ParseManifest(string? xml)
+    {
+        var list = new List<StoreTask>();
+        if (string.IsNullOrWhiteSpace(xml)) return list;
+        System.Xml.Linq.XDocument doc;
+        try { doc = System.Xml.Linq.XDocument.Parse(xml); }   // DTDs are refused (the default), a manifest has none
+        catch { return list; }
+        if (doc.Root == null) return list;
+        static string A(System.Xml.Linq.XElement? e, string name) => ((string?)e?.Attribute(name) ?? "").Trim();
+        static System.Xml.Linq.XElement? Child(System.Xml.Linq.XElement? e, string local) => e?.Elements().FirstOrDefault(x => x.Name.LocalName == local);
+        var pkgLogo = (Child(Child(doc.Root, "Properties"), "Logo")?.Value ?? "").Trim();
+        foreach (var app in doc.Root.Descendants().Where(e => e.Name.LocalName == "Application"))
+        {
+            var ve = Child(app, "VisualElements");
+            var logo = A(ve, "Square44x44Logo");
+            if (logo.Length == 0) logo = pkgLogo;
+            var appName = A(ve, "DisplayName");
+            foreach (var ext in app.Descendants().Where(e => e.Name.LocalName == "Extension"
+                         && string.Equals(A(e, "Category"), "windows.startupTask", StringComparison.OrdinalIgnoreCase)))
+            {
+                var st = Child(ext, "StartupTask");
+                var id = ((string?)st?.Attribute("TaskId") ?? "");
+                if (st == null || !TaskIdOk(id) || list.Any(t => t.TaskId.Equals(id, StringComparison.OrdinalIgnoreCase))) continue;
+                var en = A(st, "Enabled");
+                var exe = A(ext, "Executable");
+                if (exe.Length == 0) exe = A(app, "Executable");
+                var shown = A(st, "DisplayName");
+                list.Add(new(A(app, "Id"), exe, id, en.Equals("true", StringComparison.OrdinalIgnoreCase) || en == "1",
+                    shown.Length > 0 ? shown : appName, logo));
+            }
+        }
+        return list;
+    }
+
+    /// <summary>A name from a manifest that can be shown as it is (not an "ms-resource:" reference).</summary>
+    public static bool PlainText(string? s)
+        => !string.IsNullOrWhiteSpace(s) && s.Trim().Length <= 64 && !s.TrimStart().StartsWith("ms-resource:", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The best file for a manifest logo among the files in its folder. The manifest names
+    /// "Square44x44Logo.png", the package holds "Square44x44Logo.targetsize-48_altform-unplated.png",
+    /// "….scale-200.png" … : the unplated one (drawn for a dark background, without the coloured tile) near 64 px wins;
+    /// high-contrast and light-theme variants never. Null when none fits.</summary>
+    public static string? PickLogo(string logoFile, IEnumerable<string> names)
+    {
+        var file = FileName(logoFile);
+        int dot = file.LastIndexOf('.');
+        if (dot <= 0) return null;
+        var (stem, ext) = (file[..dot], file[dot..]);
+        string? best = null; int bestScore = -1;
+        foreach (var n in names)
+        {
+            int score;
+            if (n.Equals(file, StringComparison.OrdinalIgnoreCase)) score = LogoScore("");
+            else if (n.Length > stem.Length + 1 + ext.Length && n.StartsWith(stem + ".", StringComparison.OrdinalIgnoreCase) && n.EndsWith(ext, StringComparison.OrdinalIgnoreCase))
+                score = LogoScore(n[(stem.Length + 1)..^ext.Length]);
+            else continue;
+            if (score > bestScore || (score == bestScore && best != null && string.CompareOrdinal(n, best) < 0)) { best = n; bestScore = score; }
+        }
+        return best;
+    }
+
+    /// <summary>Score of a logo file's qualifiers ("targetsize-48_altform-unplated"); -1 = never.</summary>
+    private static int LogoScore(string qualifiers)
+    {
+        int score = 0, size = 0;
+        foreach (var raw in qualifiers.Split('_', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var q = raw.ToLowerInvariant();
+            if (q.StartsWith("contrast-") || q == "theme-light" || q == "altform-lightunplated") return -1;
+            if (q == "altform-unplated") score += 40;
+            else if (q.StartsWith("altform-")) return -1;
+            else if (q == "theme-dark") score += 5;
+            else if (q.StartsWith("targetsize-") && int.TryParse(q[11..], out var t)) size = t;
+            else if (q.StartsWith("scale-") && int.TryParse(q[6..], out var sc)) size = 44 * sc / 100;
+        }
+        score += size == 0 ? 30 : size < 32 ? 10 : Math.Max(20, 100 - Math.Abs(size - 64));
+        return score;
     }
 
     // ---------- command lines ----------
@@ -228,7 +359,7 @@ public static class AutostartLogic
     {
         (R(@"orbittweak"), null, ""),
         (R(@"discord"), null, "Für Sprachchat oft gewollt, deine Entscheidung"),
-        (R(@"onedrive|dropbox|google ?drive|googledrivesync|icloud ?drive|\bnextcloud\b|\bmega ?sync\b"), null, "Synchronisiert deine Dateien nur, solange es läuft"),
+        (R(@"onedrive|dropbox|google ?drive|googledrivesync|\bicloud\b|icloud ?drive|\bnextcloud\b|\bmega ?sync\b"), null, "Synchronisiert deine Dateien nur, solange es läuft"),
         // exceptions inside vendors that otherwise should stay on
         (R(@"razer cortex|\bcortex\b"), "off", WhyHelper),
         (R(@"driver & support assistant|driver and support assistant|\bdsatray\b"), "off", WhyUpdater),
@@ -239,10 +370,10 @@ public static class AutostartLogic
         (R(@"logitech|\blghub\b|\blcore\b|\blogi (options|bolt)|razer|synapse|steelseries|corsair|\bicue\b|hyperx|ngenuity|roccat|wooting|glorious core"), "on", WhyInput),
         // only cost boot time
         (R(@"\bsteam\b"), "off", WhySteam),
-        (R(@"epic ?games ?launcher|\beadesktop\b|\bealauncher\b|\bea (app|desktop)\b|\beadm\b|\borigin\b|ubisoft|\bupc\b|\buplay\b|battle\.net|rockstar|gog galaxy|galaxyclient|riot ?client|amazon games|bethesda\.net|wargaming"), "off", WhyLauncher),
+        (R(@"epic ?games ?launcher|\beadesktop\b|\bealauncher\b|\bea (app|desktop)\b|\beadm\b|\borigin\b|ubisoft|\bupc\b|\buplay\b|battle\.net|rockstar|gog galaxy|galaxyclient|riot ?client|amazon games|bethesda\.net|wargaming|microsoft\.gamingapp"), "off", WhyLauncher),
         (R(@"autolaunch|browser ?assistant|browser_assistant|--auto-launch|--no-startup-window"), "off", WhyBrowser),
         (R(@"adobe ?arm\b|acrobat update|adobe updater|creative cloud|\bccxprocess\b|\badobe ?gc|\bacrotray\b|\bjusched\b|java update|google update|\bccleaner\b"), "off", WhyUpdater),
-        (R(@"spotify|\bteams\b|ms-teams|\bskype\b|itunes|whatsapp|\bzoom\b|amazon music|\bdeezer\b|\btidal\b|overwolf"), "off", WhyApp),
+        (R(@"spotify|\bteams\b|ms-teams|\bskype\b|itunes|whatsapp|\btelegram\b|\bmessenger\b|phone ?link|smartphone-link|\byourphone\b|\bcopilot\b|\bzoom\b|amazon music|\bdeezer\b|\btidal\b|overwolf"), "off", WhyApp),
     };
 
     /// <summary>The advice for one entry, from its names, exe, publisher and arguments.</summary>
