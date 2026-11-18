@@ -73,12 +73,19 @@ internal static class HealthLogic
         return r;
     }
 
-    /// <summary>The Diagnose row: never a fault. On is an "info" row with a button to Windows Security; null = not shown.</summary>
+    private const string HvciTradeOff = "schützt den Windows-Kern vor eingeschleustem Code und unsicheren Treibern, kostet in Spielen "
+        + "meist bis 5 % FPS, in einzelnen bis rund 10 %; manche Anti-Cheats wie FACEIT können sie verlangen";
+
+    /// <summary>
+    /// The Diagnose row: never a fault. On is an "info" row with a button to Windows Security; so is switched on but not
+    /// running yet (what a Windows update that turns it on leaves until the restart): the trade-off is the same, and
+    /// whether it then really runs is not certain (drivers, hardware), so the row says what is, not what will be.
+    /// null = not shown.
+    /// </summary>
     public static (string value, string st, string? fix)? HvciRow(Hvci h) => h switch
     {
-        Hvci.On => ("An – schützt den Windows-Kern vor eingeschleustem Code und unsicheren Treibern, kostet in Spielen meist bis 5 % FPS, "
-                    + "in einzelnen bis rund 10 %; manche Anti-Cheats wie FACEIT können sie verlangen", "info", "coreisolation"),
-        Hvci.Pending => ("Aus bis zum nächsten Neustart, dann an", "ok", null),
+        Hvci.On => ("An – " + HvciTradeOff, "info", "coreisolation"),
+        Hvci.Pending => ("Eingeschaltet, wartet auf einen Neustart – " + HvciTradeOff, "info", "coreisolation"),
         Hvci.Off => ("Aus", "ok", null),
         Hvci.Unsupported => ("Nicht verfügbar", "ok", null),
         _ => null,

@@ -510,8 +510,8 @@ TweakTexts.Run(Check);
         Check(HealthLogic.HvciRow(h) is { st: "info" or "ok" }, $"{h}: never warn or bad");
     Check(HealthLogic.HvciRow(HealthLogic.Hvci.Off) is ("Aus", "ok", null), "off: \"Aus\", fine, no button");
     Check(HealthLogic.HvciRow(HealthLogic.Hvci.Unsupported) is ("Nicht verfügbar", "ok", null), "not possible on this PC: \"Nicht verfügbar\", fine");
-    Check(HealthLogic.HvciRow(HealthLogic.Hvci.Pending) is { st: "ok", fix: null } p && p.value.StartsWith("Aus"), "switched on, not running yet: still off until the restart");
-    Check(HealthLogic.HvciRow(HealthLogic.Hvci.Unknown) == null, "unknown: the row is left out");
+    Check(HealthLogic.HvciRow(HealthLogic.Hvci.Pending) is { st: "info", fix: "coreisolation" } p && p.value.StartsWith("Eingeschaltet") && p.value.Contains("Neustart") && p.value.Contains("5 %"),
+        "switched on, not running yet (a Windows update before the restart): the same note and way to Windows Security");    Check(HealthLogic.HvciRow(HealthLogic.Hvci.Unknown) == null, "unknown: the row is left out");
     Check(HealthLogic.HvciQuery.Contains("root\\Microsoft\\Windows\\DeviceGuard") && HealthLogic.HvciQuery.Contains("Win32_DeviceGuard") && !HealthLogic.HvciQuery.Contains('"'),
         "the query reads Win32_DeviceGuard and has no double quote that would end the -Command argument");
 }
