@@ -84,6 +84,22 @@ internal static class TweakLogic
     public static double InstalledRamMb(ulong installedKb, double usableMb)
         => installedKb > 0 ? installedKb / 1024.0 : Math.Round(usableMb / 1024) * 1024;
 
+    // ---------- communication ducking (HKCU\Software\Microsoft\Multimedia\Audio, UserDuckingPreference) ----------
+    // What Windows does with every other sound while a call runs (Systemsteuerung › Sound › Kommunikation):
+    // 0 mute, 1 lower by 80 % (the default), 2 lower by 50 %, 3 do nothing.
+    public const int DUCK_MUTE = 0, DUCK_80 = 1, DUCK_50 = 2, DUCK_NONE = 3;
+
+    /// <summary>The mode Windows works with: a DWORD 0 to 3 as it is; missing or anything else is the default (80 %).</summary>
+    public static int DuckingMode(object? value) => value is int v && v is >= DUCK_MUTE and <= DUCK_NONE ? v : DUCK_80;
+
+    /// <summary>A note when the user chose something other than the default: the tweak then replaces that choice.</summary>
+    public static string? DuckingHint(int mode) => mode switch
+    {
+        DUCK_MUTE => "Bei dir schaltet Windows andere Sounds bei Anrufen gerade ganz stumm",
+        DUCK_50 => "Bei dir dreht Windows andere Sounds bei Anrufen gerade um 50 % leiser",
+        _ => null,
+    };
+
     // ---------- backups ----------
     /// <summary>
     /// Whether a backup of the value as it is now should be written before a tweak sets "target": only when the value

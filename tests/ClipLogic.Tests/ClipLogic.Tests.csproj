@@ -17,5 +17,6 @@
     <Compile Include="../../Core/PlayStats.cs" Link="Core/PlayStats.cs" />
     <Compile Include="../../Core/GfxFile.cs" Link="Core/GfxFile.cs" />
     <Compile Include="../../Core/FpsTexLogic.cs" Link="Core/FpsTexLogic.cs" />
+    <Compile Include="../../Core/HealthLogic.cs" Link="Core/HealthLogic.cs" />
   </ItemGroup>
 </Project>

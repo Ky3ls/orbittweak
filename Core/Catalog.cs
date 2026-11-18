@@ -37,6 +37,8 @@ internal static class Catalog
     private const string MOUCLASS = @"HKLM\SYSTEM\CurrentControlSet\Services\mouclass\Parameters";
     private const string PSCHED = @"HKLM\SOFTWARE\Policies\Microsoft\Windows\Psched";
     private const string NAMEPRIO = @"HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\ServiceProvider";
+    /// <summary>Systemsteuerung › Sound › Kommunikation: what Windows does with other sounds while a call runs (<see cref="TweakLogic.DuckingMode"/>).</summary>
+    private const string MMEDIA = @"HKCU\Software\Microsoft\Multimedia", AUDIO = MMEDIA + @"\Audio", DUCK = "UserDuckingPreference";
 
     private const string USB_SUB = "2a737441-1930-4402-8d77-b2bebba308a3";
     private const string USB_SUSPEND = "48e6b7a6-50f5-4782-a5d4-53bb8f07e226";
@@ -284,6 +286,32 @@ internal static class Catalog
                     if (Reg.Get(OWN, "PagefileBackup") is not string[] b) throw new InvalidOperationException("OrbitTweak hat die Auslagerungsdatei nicht geändert – nichts zurückzusetzen");
                     Reg.Set(MEM, "PagingFiles", b, RegistryValueKind.MultiString);
                     Reg.Del(OWN, "PagefileBackup");
+                }
+            },
+            new Tweak
+            {
+                // optional: Cfx.re has not confirmed FiveM's voice as a communication stream that starts the ducking
+                Id = "ducking", Cat = "system", Icon = "sliders", Recommended = false, Name = "Andere Sounds bei Voice nicht leiser",
+                Sum = "Windows dreht Musik und Spiel bei Anrufen nicht mehr leiser",
+                Desc = "Sobald eine App einen Anruf öffnet – etwa Discord oder Teams, vielleicht auch FiveM-Voice –, dreht Windows Musik und Spielsound standardmäßig um 80 % leiser; der Tweak stellt das auf „Nichts unternehmen“ (wie Systemsteuerung › Sound › Kommunikation) und wirkt ab dem nächsten Anruf, spätestens nach einem Neustart. Dass FiveM-Voice das auslöst, hat Cfx.re nicht bestätigt – wird der Ton trotzdem leiser, liegt es an etwas anderem, etwa an Discords eigener Absenkung anderer Apps oder an „Audioverbesserungen“.",
+                Hint = () => TweakLogic.DuckingHint(TweakLogic.DuckingMode(Reg.Get(AUDIO, DUCK))),
+                Check = () => TweakLogic.DuckingMode(Reg.Get(AUDIO, DUCK)) == TweakLogic.DUCK_NONE,
+                Owned = () => Bk.Has("ducking"),
+                Apply = () =>
+                {
+                    // the value as it is now, or "-" when it is missing (= Windows' default, 80 %); a key that is not
+                    // there yet is marked, so the revert takes it away again when nothing else was put in it
+                    Bk.Keep("ducking", Reg.Get(AUDIO, DUCK)?.ToString(), TweakLogic.DUCK_NONE.ToString());
+                    if (!Reg.SubKeys(MMEDIA).Contains("Audio", StringComparer.OrdinalIgnoreCase)) Reg.SetStr(Bk.User, "ducking.key", "new");
+                    Reg.Set(AUDIO, DUCK, TweakLogic.DUCK_NONE);
+                },
+                Revert = () =>
+                {
+                    // without a backup (set by hand or by another tool) it goes back to Windows' default: no value
+                    if (int.TryParse(Bk.Take("ducking"), out var v)) Reg.Set(AUDIO, DUCK, v);
+                    else Reg.Del(AUDIO, DUCK);
+                    if (Bk.Has("ducking.key") && Reg.ValueNames(AUDIO).Length == 0 && Reg.SubKeys(AUDIO).Length == 0) Reg.DelKey(AUDIO);
+                    Bk.Drop("ducking"); Bk.Drop("ducking.key");
                 }
             },
 
