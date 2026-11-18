@@ -474,7 +474,7 @@ function boostProgress(pct, text) {
 async function boost(fromWizard) {
   if (S.boosting) return;
   S.boosting = true;
-  const btn = $('#boostBtn'), g = $('#gauge');
+  const btn = $('#boostBtn'), g = $('#boostGauge');   // (#gauge is the icon symbol)
   btn.classList.remove('done'); btn.classList.add('run'); g.classList.add('run');
   $('#scoreChip').textContent = 'Läuft'; $('#scoreChip').className = 'chip a';
   $('#heroTitle').textContent = 'Boost läuft…'; $('#boostSub').textContent = 'wird optimiert';
@@ -3625,6 +3625,7 @@ const CHANGES = {
   '2.28.0': [
     ['bag', 'Store-Apps im Autostart', 'Die Autostart-Seite zeigt jetzt auch Store-Apps wie das neue Teams, WhatsApp oder Spotify aus dem Store. Du schaltest sie an und aus wie in den Windows-Einstellungen, gelöscht wird nichts, und „Empfohlene ausschalten“ nimmt sie mit.'],
     ['padlock', 'Richtlinien sichtbar', 'Legt eine Richtlinie deiner Firma oder Schule fest, ob eine App mit Windows startet, steht das dabei und der Schalter bleibt, wie er ist.'],
+    ['zap', 'Boost-Ring läuft mit', 'Während des Boosts dreht sich der Ring auf der Übersicht wieder sichtbar, am Ende springt die Zahl kurz an. Das war seit einiger Zeit stumm.'],
   ],
   '2.27.0': [
     ['chart', 'Spielzeit', 'Neue Seite: wie lange du heute, diese Woche und insgesamt spielst, mit Verlauf über 14 oder 30 Tage, deinen Servern, Rekorden und den letzten Runden. OrbitTweak zählt von selbst mit, solange es offen ist (minimiert reicht).'],

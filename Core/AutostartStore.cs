@@ -171,7 +171,8 @@ internal static partial class Autostart
 
     private static string StoreKey(string family, string taskId) => AutostartLogic.Store.ApprovedKey + "\\" + family + "\\" + taskId;
 
-    /// <summary>The State DWORD, or null when Windows has none yet (then the manifest's default holds).</summary>
+    /// <summary>The State DWORD, or null when Windows has none yet (the app was never opened: the task is not registered
+    /// and counts as off).</summary>
     private static int? StoreStateOf(string family, string taskId)
     {
         try
