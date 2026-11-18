@@ -141,6 +141,33 @@
 #p-gfx .gc .rng{flex:none;width:210px;gap:14px}
 #p-gfx .gc .rng b{width:42px;font-family:var(--disp);font-size:14px;font-weight:450;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
 
+/* FiveM and driver (FPS limit, texture budget): built like the live card, a row of controls between head and values;
+   their buttons stay neutral, the accent belongs to "Speichern" */
+#gfxDrv{margin-top:32px}
+#p-gfx .gdrv{padding:0;margin-bottom:16px;overflow:hidden}
+#p-gfx .gdrv .gl-head{align-items:flex-start}
+#p-gfx .gdrv .gl-head>.chip{flex:none;margin-top:2px;font-variant-numeric:tabular-nums}
+.gd-ctl{display:flex;align-items:center;flex-wrap:wrap;gap:10px 12px;padding:16px 22px;border-top:1px solid var(--line)}
+.gd-l{min-width:52px;font-size:12px;font-weight:500;color:var(--mute)}
+#fpsSeg{flex-wrap:nowrap}
+#fpsSeg button{display:inline-flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums;white-space:nowrap}
+#fpsSeg small{font-size:10.5px;font-weight:500;color:var(--mute)}
+.gd-own{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--mute)}
+.gd-own .in{width:118px;height:36px;padding:0 12px;font-variant-numeric:tabular-nums}
+.gd-rng{position:relative;flex:1;min-width:180px;display:flex;align-items:center}
+.gd-rng input{width:100%}
+.gd-mark{position:absolute;top:calc(50% + 6px);width:2px;height:6px;border-radius:2px;background:var(--good);opacity:.85;transform:translateX(-1px);pointer-events:none}
+.gd-val{min-width:70px;text-align:right;font-family:var(--disp);font-size:22px;font-weight:350;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+#p-gfx .gdrv .gl-v{align-items:baseline;gap:0}
+:is(.gd-val,.gdrv .gl-v) small{margin-left:4px;font-size:.55em;font-weight:450;letter-spacing:0;color:var(--mute)}
+.gd-hint{margin:-6px 22px 14px;padding-left:64px;font-size:12px;color:var(--mute)}
+.gd-hint.warn{color:var(--warn)}
+#p-gfx .gdrv .gl-v.gd-name{display:block;overflow:hidden;text-overflow:ellipsis;font-size:17px;font-weight:500;letter-spacing:-.015em;line-height:29px}
+.gd-note{display:flex;align-items:flex-start;gap:12px;padding:16px 22px 18px;border-top:1px solid var(--line)}
+.gd-note svg.i{flex:none;width:16px;height:16px;margin-top:2px;color:var(--warn)}
+.gd-note b{display:block;font-size:13.5px;font-weight:550}
+.gd-note span{display:block;margin-top:2px;font-size:12.5px;line-height:1.5;color:var(--sub);text-wrap:pretty}
+
 /* save bar: the path quietly on the left, the one accent on the right */
 #p-gfx .savebar{gap:8px;padding:14px 36px 16px;border-top:0;background:linear-gradient(180deg,rgba(10,13,19,.96),#080B11);box-shadow:inset 0 1px 0 var(--line)}
 .sb-path{display:flex;align-items:center;gap:8px;min-width:0;font-size:12.5px;color:var(--mute)}
