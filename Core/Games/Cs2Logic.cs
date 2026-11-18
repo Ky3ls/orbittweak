@@ -67,12 +67,16 @@ public static class Cs2Logic
 
     private readonly record struct Tok(TokKind Kind, int Start, int End, int InStart, int InEnd, bool Quoted);
 
+    /// <summary>White space as Valve's KeyValues reader sees it: ASCII only, so a byte 0x85 or 0xA0 of a file read as
+    /// Latin-1 (<see cref="Decode"/>) never splits a token.</summary>
+    private static bool Ws(char c) => c is ' ' or '\t' or '\r' or '\n' or '\v' or '\f';
+
     /// <summary>The next token: a quoted or bare string, a brace, or the end. Skips white space, a BOM and // comments.</summary>
     private static Tok Next(string s, ref int i)
     {
         while (true)
         {
-            while (i < s.Length && (char.IsWhiteSpace(s[i]) || s[i] == '\uFEFF')) i++;
+            while (i < s.Length && (Ws(s[i]) || s[i] == '\uFEFF')) i++;
             if (i >= s.Length) return new Tok(TokKind.End, i, i, i, i, false);
             if (s[i] == '/' && i + 1 < s.Length && s[i + 1] == '/')
             {
@@ -93,7 +97,7 @@ public static class Cs2Logic
             if (i < s.Length) i++;
             return new Tok(TokKind.Str, st, i, inS, inE, true);
         }
-        while (i < s.Length && !char.IsWhiteSpace(s[i]) && s[i] is not ('"' or '{' or '}')) i++;
+        while (i < s.Length && !Ws(s[i]) && s[i] is not ('"' or '{' or '}')) i++;
         return new Tok(TokKind.Str, st, i, st, i, false);
     }
 
@@ -226,7 +230,7 @@ public static class Cs2Logic
         if (pair != null)
         {
             if (pair.Quoted) return s[..pair.ValStart] + Escape(value) + s[pair.ValEnd..];
-            var bare = value.Length > 0 && value.All(c => !char.IsWhiteSpace(c) && c is not ('"' or '{' or '}' or '\\'));
+            var bare = value.Length > 0 && value.All(c => !Ws(c) && c is not ('"' or '{' or '}' or '\\'));
             return s[..pair.ValTokStart] + (bare ? value : "\"" + Escape(value) + "\"") + s[pair.End..];
         }
         var nl = s.Contains("\r\n") ? "\r\n" : "\n";
@@ -266,6 +270,27 @@ public static class Cs2Logic
         return ls;
     }
 
+    /// <summary>
+    /// The text of a settings file and whether it starts with a UTF-8 BOM. Read as Latin-1, one char per byte, so
+    /// <see cref="Encode"/> gives back every byte OrbitTweak did not change, also non-ASCII ones (a microphone name in
+    /// voice_device_override) and bytes that are no valid UTF-8. Keys and the values OrbitTweak writes are ASCII.
+    /// </summary>
+    public static (string text, bool bom) Decode(byte[] b)
+    {
+        bool bom = b.Length >= 3 && b[0] == 0xEF && b[1] == 0xBB && b[2] == 0xBF;
+        return (Encoding.Latin1.GetString(b, bom ? 3 : 0, b.Length - (bom ? 3 : 0)), bom);
+    }
+
+    public static byte[] Encode(string text, bool bom)
+    {
+        var data = Encoding.Latin1.GetBytes(text);
+        if (!bom) return data;
+        var all = new byte[data.Length + 3];
+        all[0] = 0xEF; all[1] = 0xBB; all[2] = 0xBF;
+        data.CopyTo(all, 3);
+        return all;
+    }
+
     // ------------------------------------------------------------------ backups
 
     /// <summary>A backup: the raw value as it was, or "-" when the line was not there.</summary>
@@ -303,6 +328,13 @@ public static class Cs2Logic
         CvTeleFps or CvTelePing => Level(raw, 1),
         _ => raw ?? Missing,
     };
+
+    /// <summary>
+    /// The value now means something else than the backup (what was there before OrbitTweak's first change). "Changed" on
+    /// the page and the count of "Zurücksetzen" use it, so a file CS2 saved again in another form ("400" instead of
+    /// "400.000000", or a line it wrote with the default) does not count as changed.
+    /// </summary>
+    public static bool Differs(string key, string backup, string? raw) => Canon(key, backup == Missing ? null : backup) != Canon(key, raw);
 
     // ------------------------------------------------------------------ values
 

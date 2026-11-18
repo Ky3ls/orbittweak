@@ -15,12 +15,12 @@ OG_MOCK['cs2'] = {
     {
       id: 'reflex', title: 'NVIDIA Reflex', kind: 'choice',
       sum: 'Senkt die Verzögerung zwischen Mausklick und Bild',
-      desc: 'Schaltet die Latenzbremse, die in CS2 eingebaut ist (Einstellungen › Video › Erweitert › Frame-Pacing). Mit einer NVIDIA-Karte ist das Reflex, mit AMD ist es Anti-Lag 2. CS2 lässt dann keine Bilder mehr in der Warteschlange der Grafikkarte warten. Das senkt die Systemlatenz vor allem, wenn deine Grafikkarte voll ausgelastet ist (NVIDIA nennt bis zu 35 %), und kostet praktisch keine FPS. Standard ist „An“. „An + Boost“ gibt es nur bei NVIDIA: Es hält den Grafiktakt zusätzlich hoch, das bringt noch etwas weniger Verzögerung, kostet aber mehr Strom und ein paar FPS. Laut NVIDIA lohnt es sich nur, wenn dir die niedrigste Latenz wichtiger ist als die höchsten FPS. Reflex im Spiel ersetzt den „Modus für niedrige Latenz“ im NVIDIA-Treiber. Du brauchst NVIDIA ab GTX 900 oder AMD ab RX 5000 mit aktuellem Treiber; mit Intel-Grafik bietet CS2 die Option nicht an. Wenn dir damit Ruckler auffallen, schalte es testweise aus.',
+      desc: 'Schaltet die Latenzbremse, die in CS2 eingebaut ist (Einstellungen › Video › Erweitert › Frame-Pacing). Mit einer NVIDIA-Karte ist das Reflex, mit AMD ist es Anti-Lag 2. CS2 lässt dann keine Bilder mehr in der Warteschlange der Grafikkarte warten. Das senkt die Systemlatenz vor allem, wenn deine Grafikkarte voll ausgelastet ist (NVIDIA nennt bis zu 35 %), und kostet praktisch keine FPS. Standard ist „An“. „An + Boost“ gibt es nur bei NVIDIA: Es hält den Grafiktakt zusätzlich hoch. Das drückt die Verzögerung noch etwas weiter, kann laut Valve aber mehr Strom ziehen und die FPS leicht senken. Es lohnt sich also nur, wenn dir die niedrigste Latenz wichtiger ist als die höchsten FPS. Reflex im Spiel ersetzt den „Modus für niedrige Latenz“ im NVIDIA-Treiber. Du brauchst NVIDIA ab GTX 900 oder AMD ab RX 5000 mit aktuellem Treiber; mit Intel-Grafik bietet CS2 die Option nicht an. Wenn dir damit Ruckler auffallen, schalte es testweise aus.',
       value: '1', options: [{ v: '0', t: 'Aus' }, { v: '1', t: 'An (Standard)' }, { v: '2', t: 'An + Boost (nur NVIDIA)' }],
       min: null, max: null, step: null, unit: null,
       // like Cs2Logic.ReflexRec: "Empfohlene anwenden" turns it on but keeps a chosen boost (a getter, so it follows set and revert)
       rec: true, get recValue() { return this.value === '2' ? '2' : '1'; }, effect: 'latency',
-      source: 'Eigene CS2-Einstellung (setting.r_low_latency). NVIDIA: bis zu 35 % weniger Systemlatenz, Boost nur für niedrigste Latenz. AMD Anti-Lag 2 ist seit Treiber 24.6.1 in CS2 eingebaut.',
+      source: 'Eigene CS2-Einstellung (setting.r_low_latency). Tooltip von Valve: Boost kann mehr Strom ziehen und FPS kosten. NVIDIA: bis zu 35 % weniger Systemlatenz in CS2. AMD Anti-Lag 2 ist seit Treiber 24.6.1 in CS2 eingebaut.',
       needsClosed: true, available: true, why: '', changed: false,
     },
     {
@@ -44,7 +44,7 @@ OG_MOCK['cs2'] = {
     {
       id: 'contrast', title: 'Spielerkontrast verstärken', kind: 'switch',
       sum: 'Gegner heben sich in dunklen und kontrastarmen Ecken besser ab',
-      desc: 'Das ist eine Option von CS2 selbst (Video › Erweitert): Ein Filter macht Spielermodelle vor kontrastarmem Hintergrund besser erkennbar. Sie ist standardmäßig an. Valve schreibt selbst, dass sie Grafikleistung kosten kann; Community-Tests sprechen meist von 0 bis 2 % weniger FPS. Wenn auf einem sehr schwachen PC jedes Bild zählt, kannst du sie ausschalten. Dann siehst du Gegner in dunklen Ecken aber etwas schlechter.',
+      desc: 'Das ist eine Option von CS2 selbst (Video › Erweitert): Ein Filter macht Spielermodelle vor kontrastarmem Hintergrund besser erkennbar. Sie ist standardmäßig an. Valve schreibt selbst, dass sie Grafikleistung kosten kann. Saubere Messungen dazu gibt es kaum; Einstellungs-Guides nennen höchstens 1 bis 2 % weniger FPS. Wenn auf einem sehr schwachen PC jedes Bild zählt, kannst du sie ausschalten. Dann siehst du Gegner in dunklen Ecken aber etwas schlechter.',
       value: true, options: null, min: null, max: null, step: null, unit: null,
       rec: true, recValue: true, effect: 'comfort',
       source: 'Tooltip von Valve im Spiel: bessere Erkennbarkeit, kann Leistung kosten. Standard an.',
@@ -63,11 +63,11 @@ OG_MOCK['cs2'] = {
     {
       id: 'telemetry', title: 'FPS- und Ping-Anzeige', kind: 'choice',
       sum: 'CS2 blendet FPS und Ping selbst im HUD ein',
-      desc: 'Schaltet die Telemetrie, die in CS2 eingebaut ist (Einstellungen › Spiel › Telemetrie), für „Frametime und FPS“ und für „Ping“: nie, nur bei schlechten Werten (Standard) oder immer. Das bringt selbst keine FPS. Du siehst aber, ob deine anderen Einstellungen etwas bewirken, und das ohne Overlay-Programme, die CS2 im Trusted Mode ohnehin blockiert.',
+      desc: 'Schaltet die Telemetrie, die in CS2 eingebaut ist (Einstellungen › Spiel › Telemetrie), für „Frametime und FPS“ und für „Ping“: nie, nur bei schlechten Werten (Standard) oder immer. Das bringt selbst keine FPS. Du siehst aber, ob deine anderen Einstellungen etwas bewirken, und das ohne Overlay-Programme von Drittanbietern, die der Trusted Mode von CS2 oft blockiert.',
       value: '1', options: [{ v: '0', t: 'Nie' }, { v: '1', t: 'Nur bei schlechten Werten (Standard)' }, { v: '2', t: 'Immer' }],
       min: null, max: null, step: null, unit: null,
       rec: false, recValue: null, effect: 'comfort',
-      source: 'CS2-Einstellung Spiel › Telemetrie. Laut Steam-Support blockiert der Trusted Mode Overlays von Drittprogrammen.',
+      source: 'CS2-Einstellung Spiel › Telemetrie. Laut Steam-Support blockiert der Trusted Mode Dateien von Drittprogrammen, die auf das Spiel zugreifen.',
       needsClosed: true, available: true, why: '', changed: false,
     },
     {

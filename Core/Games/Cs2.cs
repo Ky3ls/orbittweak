@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
-using System.Text;
 using System.Text.Json;
 
 namespace OrbitTweak.Core;
@@ -216,7 +215,7 @@ internal sealed class Cs2Tweaks : IGameTweaks
         string? V(string key) => video == null ? null : Cs2Logic.Get(video, Cs2Logic.VideoBlock, key, false);
         string? C(string key) => conv == null ? null : Cs2Logic.Get(conv, Cs2Logic.ConvarBlock, key, true);
         bool IsChanged(string item) => Fields.Where(f => f.Item == item).Any(f =>
-            Reg.Get(Bk.User, f.Backup) is string b && b != Cs2Logic.BackupOf(f.Convar ? C(f.Key) : V(f.Key)));
+            Reg.Get(Bk.User, f.Backup) is string b && Cs2Logic.Differs(f.Key, b, f.Convar ? C(f.Key) : V(f.Key)));
 
         var vendor = Cs2Logic.Vendor(V(Cs2Logic.KeyVendor));
         var reflex = Cs2Logic.Reflex(V(Cs2Logic.KeyReflex), vendor);
@@ -228,10 +227,10 @@ internal sealed class Cs2Tweaks : IGameTweaks
             {
                 Id = "reflex", Title = Cs2Logic.ReflexTitle(vendor), Kind = "choice",
                 Sum = "Senkt die Verzögerung zwischen Mausklick und Bild",
-                Desc = "Schaltet die Latenzbremse, die in CS2 eingebaut ist (Einstellungen › Video › Erweitert › Frame-Pacing). Mit einer NVIDIA-Karte ist das Reflex, mit AMD ist es Anti-Lag 2. CS2 lässt dann keine Bilder mehr in der Warteschlange der Grafikkarte warten. Das senkt die Systemlatenz vor allem, wenn deine Grafikkarte voll ausgelastet ist (NVIDIA nennt bis zu 35 %), und kostet praktisch keine FPS. Standard ist „An“. „An + Boost“ gibt es nur bei NVIDIA: Es hält den Grafiktakt zusätzlich hoch, das bringt noch etwas weniger Verzögerung, kostet aber mehr Strom und ein paar FPS. Laut NVIDIA lohnt es sich nur, wenn dir die niedrigste Latenz wichtiger ist als die höchsten FPS. Reflex im Spiel ersetzt den „Modus für niedrige Latenz“ im NVIDIA-Treiber. Du brauchst NVIDIA ab GTX 900 oder AMD ab RX 5000 mit aktuellem Treiber; mit Intel-Grafik bietet CS2 die Option nicht an. Wenn dir damit Ruckler auffallen, schalte es testweise aus.",
+                Desc = "Schaltet die Latenzbremse, die in CS2 eingebaut ist (Einstellungen › Video › Erweitert › Frame-Pacing). Mit einer NVIDIA-Karte ist das Reflex, mit AMD ist es Anti-Lag 2. CS2 lässt dann keine Bilder mehr in der Warteschlange der Grafikkarte warten. Das senkt die Systemlatenz vor allem, wenn deine Grafikkarte voll ausgelastet ist (NVIDIA nennt bis zu 35 %), und kostet praktisch keine FPS. Standard ist „An“. „An + Boost“ gibt es nur bei NVIDIA: Es hält den Grafiktakt zusätzlich hoch. Das drückt die Verzögerung noch etwas weiter, kann laut Valve aber mehr Strom ziehen und die FPS leicht senken. Es lohnt sich also nur, wenn dir die niedrigste Latenz wichtiger ist als die höchsten FPS. Reflex im Spiel ersetzt den „Modus für niedrige Latenz“ im NVIDIA-Treiber. Du brauchst NVIDIA ab GTX 900 oder AMD ab RX 5000 mit aktuellem Treiber; mit Intel-Grafik bietet CS2 die Option nicht an. Wenn dir damit Ruckler auffallen, schalte es testweise aus.",
                 Value = reflex, Options = Cs2Logic.ReflexOptions(vendor).Select(o => new GameOption(o.v, o.t)).ToList(),
                 Rec = true, RecValue = Cs2Logic.ReflexRec(reflex), Effect = "latency", NeedsClosed = true,
-                Source = "Eigene CS2-Einstellung (setting.r_low_latency). NVIDIA: bis zu 35 % weniger Systemlatenz, Boost nur für niedrigste Latenz. AMD Anti-Lag 2 ist seit Treiber 24.6.1 in CS2 eingebaut.",
+                Source = "Eigene CS2-Einstellung (setting.r_low_latency). Tooltip von Valve: Boost kann mehr Strom ziehen und FPS kosten. NVIDIA: bis zu 35 % weniger Systemlatenz in CS2. AMD Anti-Lag 2 ist seit Treiber 24.6.1 in CS2 eingebaut.",
                 Available = files && Cs2Logic.HasLowLatency(vendor),
                 Why = !files ? fileWhy : Cs2Logic.HasLowLatency(vendor) ? "" : "Nur mit NVIDIA- oder AMD-Grafikkarte",
                 Changed = IsChanged("reflex"),
@@ -260,7 +259,7 @@ internal sealed class Cs2Tweaks : IGameTweaks
             {
                 Id = "contrast", Title = "Spielerkontrast verstärken", Kind = "switch",
                 Sum = "Gegner heben sich in dunklen und kontrastarmen Ecken besser ab",
-                Desc = "Das ist eine Option von CS2 selbst (Video › Erweitert): Ein Filter macht Spielermodelle vor kontrastarmem Hintergrund besser erkennbar. Sie ist standardmäßig an. Valve schreibt selbst, dass sie Grafikleistung kosten kann; Community-Tests sprechen meist von 0 bis 2 % weniger FPS. Wenn auf einem sehr schwachen PC jedes Bild zählt, kannst du sie ausschalten. Dann siehst du Gegner in dunklen Ecken aber etwas schlechter.",
+                Desc = "Das ist eine Option von CS2 selbst (Video › Erweitert): Ein Filter macht Spielermodelle vor kontrastarmem Hintergrund besser erkennbar. Sie ist standardmäßig an. Valve schreibt selbst, dass sie Grafikleistung kosten kann. Saubere Messungen dazu gibt es kaum; Einstellungs-Guides nennen höchstens 1 bis 2 % weniger FPS. Wenn auf einem sehr schwachen PC jedes Bild zählt, kannst du sie ausschalten. Dann siehst du Gegner in dunklen Ecken aber etwas schlechter.",
                 Value = Cs2Logic.On(C(Cs2Logic.CvContrast), true),
                 Rec = true, RecValue = true, Effect = "comfort", NeedsClosed = true,
                 Source = "Tooltip von Valve im Spiel: bessere Erkennbarkeit, kann Leistung kosten. Standard an.",
@@ -281,11 +280,11 @@ internal sealed class Cs2Tweaks : IGameTweaks
             {
                 Id = "telemetry", Title = "FPS- und Ping-Anzeige", Kind = "choice",
                 Sum = "CS2 blendet FPS und Ping selbst im HUD ein",
-                Desc = "Schaltet die Telemetrie, die in CS2 eingebaut ist (Einstellungen › Spiel › Telemetrie), für „Frametime und FPS“ und für „Ping“: nie, nur bei schlechten Werten (Standard) oder immer. Das bringt selbst keine FPS. Du siehst aber, ob deine anderen Einstellungen etwas bewirken, und das ohne Overlay-Programme, die CS2 im Trusted Mode ohnehin blockiert.",
+                Desc = "Schaltet die Telemetrie, die in CS2 eingebaut ist (Einstellungen › Spiel › Telemetrie), für „Frametime und FPS“ und für „Ping“: nie, nur bei schlechten Werten (Standard) oder immer. Das bringt selbst keine FPS. Du siehst aber, ob deine anderen Einstellungen etwas bewirken, und das ohne Overlay-Programme von Drittanbietern, die der Trusted Mode von CS2 oft blockiert.",
                 Value = Cs2Logic.Level(C(Cs2Logic.CvTeleFps), 1),
                 Options = Cs2Logic.TelemetryOptions().Select(o => new GameOption(o.v, o.t)).ToList(),
                 Rec = false, Effect = "comfort", NeedsClosed = true,
-                Source = "CS2-Einstellung Spiel › Telemetrie. Laut Steam-Support blockiert der Trusted Mode Overlays von Drittprogrammen.",
+                Source = "CS2-Einstellung Spiel › Telemetrie. Laut Steam-Support blockiert der Trusted Mode Dateien von Drittprogrammen, die auf das Spiel zugreifen.",
                 Available = files, Why = fileWhy, Changed = IsChanged("telemetry"),
             },
             new()
@@ -393,14 +392,18 @@ internal sealed class Cs2Tweaks : IGameTweaks
         if (!AnyFileBackup()) Bk.Drop(DirKey);
     }
 
-    /// <summary>On sets cs2.exe to "high performance", off brings back what was there before (or "let Windows decide").</summary>
+    /// <summary>
+    /// On sets cs2.exe to "high performance", off brings back what was there before (or "let Windows decide"). On after an
+    /// off that replaced a "high performance" the user had set himself puts that back and drops the backup.
+    /// </summary>
     private static bool SetGpu(Where w, bool on)
     {
         if (w.Exe is not { } exe) throw new InvalidOperationException(Cs2Logic.NotFound);
         if (!Hw.SwitchableGpus && GpuPrefs.Backed(GpuBk).Length == 0) throw new InvalidOperationException("Nur eine Grafikkarte erkannt: hier ändert sich nichts.");
         if (on)
         {
-            if (GpuPrefs.Get(exe, "GpuPreference") != "2") GpuPrefs.SetField(exe, "GpuPreference", "2", GpuBk);
+            if ((Reg.Get($@"{Bk.User}\{GpuBk}", exe) as string) == "2") GpuPrefs.RestoreField(exe, "GpuPreference", GpuBk);
+            else if (GpuPrefs.Get(exe, "GpuPreference") != "2") GpuPrefs.SetField(exe, "GpuPreference", "2", GpuBk);
         }
         else
         {
@@ -435,9 +438,12 @@ internal sealed class Cs2Tweaks : IGameTweaks
                 foreach (var f in file)
                 {
                     var b = Reg.Get(Bk.User, f.Backup) as string ?? Cs2Logic.Missing;
-                    if (Cs2Logic.BackupOf(Cs2Logic.Get(next, f.Block, f.Key, f.Convar)) == b) continue;
-                    next = Cs2Logic.Restore(next, f.Block, f.Key, f.Convar, b);
-                    back.Add(f.Item);
+                    var cur = Cs2Logic.Get(next, f.Block, f.Key, f.Convar);
+                    if (Cs2Logic.BackupOf(cur) == b) continue;
+                    // the exact old bytes come back; it only counts when the value meant something else
+                    var r = Cs2Logic.Restore(next, f.Block, f.Key, f.Convar, b);
+                    if (r != next && Cs2Logic.Differs(f.Key, b, cur)) back.Add(f.Item);
+                    next = r;
                 }
                 if (next != text) { CheckWritable(path); WriteText(path, next, bom); }
                 foreach (var f in file) Bk.Drop(f.Backup);
@@ -452,12 +458,17 @@ internal sealed class Cs2Tweaks : IGameTweaks
 
     // ================================================================== files and values
 
-    /// <summary>The text of a settings file and whether it starts with a UTF-8 BOM (kept as it is on write).</summary>
+    /// <summary>
+    /// The text of a settings file (one char per byte) and whether it starts with a UTF-8 BOM (kept on write). A file that
+    /// cannot be read (gone, locked, no access) is a German error.
+    /// </summary>
     private static (string text, bool bom) ReadText(string path)
     {
-        var b = File.ReadAllBytes(path);
-        bool bom = b.Length >= 3 && b[0] == 0xEF && b[1] == 0xBB && b[2] == 0xBF;
-        return (new UTF8Encoding(false).GetString(b, bom ? 3 : 0, b.Length - (bom ? 3 : 0)), bom);
+        try { return Cs2Logic.Decode(File.ReadAllBytes(path)); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw new InvalidOperationException($"{Path.GetFileName(path)} ließ sich nicht lesen: {ex.Message}");
+        }
     }
 
     private static void CheckWritable(string path)
@@ -469,8 +480,7 @@ internal sealed class Cs2Tweaks : IGameTweaks
     /// <summary>Writes "file.orbit.tmp" and moves it over the file, so a failed write never leaves half a settings file.</summary>
     private static void WriteText(string path, string text, bool bom)
     {
-        var data = new UTF8Encoding(false).GetBytes(text);
-        if (bom) data = new byte[] { 0xEF, 0xBB, 0xBF }.Concat(data).ToArray();
+        var data = Cs2Logic.Encode(text, bom);
         var tmp = path + ".orbit.tmp";
         try
         {

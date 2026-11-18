@@ -48,6 +48,7 @@ internal static class Cs2Tests
         Editing(Check);
         Versions(Check);
         Backups(Check);
+        Bytes(Check);
         Values(Check);
         Steam(Check);
         Page(Check);
@@ -170,6 +171,38 @@ internal static class Cs2Tests
         Check(Cs2Logic.Canon(Cs2Logic.CvContrast, null) == "1" && Cs2Logic.Canon(Cs2Logic.CvContrast, "false") == "0", "cs2: missing contrast is on");
         Check(Cs2Logic.Canon(Cs2Logic.CvNetBuffer, null) == "0" && Cs2Logic.Canon(Cs2Logic.CvTeleFps, null) == "1" && Cs2Logic.Canon(Cs2Logic.CvTelePing, null) == "1", "cs2: defaults of buffer and telemetry");
         Check(Cs2Logic.Canon("other", null) == "-" && Cs2Logic.Canon("other", "x") == "x", "cs2: an unknown key compares raw");
+
+        // "Changed" and the count of "Zurücksetzen" go by meaning, not by the raw text CS2 saved
+        Check(!Cs2Logic.Differs(Cs2Logic.CvFps, "400.000000", "400") && !Cs2Logic.Differs(Cs2Logic.CvFps, "-", "400.000000"), "cs2: fps_max saved in another form is not changed");
+        Check(Cs2Logic.Differs(Cs2Logic.CvFps, "400.000000", "240") && Cs2Logic.Differs(Cs2Logic.CvFps, "-", "0"), "cs2: another fps_max is changed");
+        Check(!Cs2Logic.Differs(Cs2Logic.KeyReflex, "-", "1") && Cs2Logic.Differs(Cs2Logic.KeyReflex, "-", "2"), "cs2: a missing Reflex line and \"1\" mean the same");
+        Check(!Cs2Logic.Differs(Cs2Logic.CvContrast, "1", "true") && Cs2Logic.Differs(Cs2Logic.CvContrast, "1", "0"), "cs2: contrast by meaning");
+        Check(Cs2Logic.Differs(Cs2Logic.CvTelePing, "-", "2") && !Cs2Logic.Differs(Cs2Logic.CvTelePing, "-", null), "cs2: telemetry by meaning");
+    }
+
+    private static void Bytes(Action<bool, string> Check)
+    {
+        // a UTF-8 microphone name, a byte that is no valid UTF-8 (0xFF), NBSP and NEL bytes inside values, BOM and CRLF
+        var head = new byte[] { 0xEF, 0xBB, 0xBF };
+        var body = System.Text.Encoding.ASCII.GetBytes("\"config\"\r\n{\r\n\t\"convars\"\r\n\t{\r\n\t\t\"fps_max\"\t\t\"400.000000\"\r\n\t\t\"voice_device_override\"\t\t\"");
+        var name = new byte[] { 0xD0, 0x9C, 0xD0, 0xB8, 0xD0, 0xBA, 0x20, 0xFF, 0xC2, 0xA0, 0x85 };
+        var tail = System.Text.Encoding.ASCII.GetBytes("\"\r\n\t}\r\n}\r\n");
+        var file = head.Concat(body).Concat(name).Concat(tail).ToArray();
+        var (text, bom) = Cs2Logic.Decode(file);
+        Check(bom && text.Length == file.Length - 3, "cs2: decode keeps one char per byte and finds the BOM");
+        Check(Cs2Logic.Encode(text, bom).SequenceEqual(file), "cs2: decode and encode give the same bytes");
+        Check(Cs2Logic.Get(text, C, "fps_max", true) == "400.000000" && Cs2Logic.Get(text, C, "voice_device_override", true)!.Length == name.Length, "cs2: values with non-ASCII bytes are read whole");
+        var set = Cs2Logic.Set(text, C, "fps_max", "240", true)!;
+        var want = head.Concat(body).Concat(name).Concat(tail).ToArray();
+        var at = Array.IndexOf(want, (byte)'4', 3 + "\"config\"\r\n{\r\n\t\"convars\"\r\n\t{\r\n\t\t\"fps_max\"\t\t\"".Length);
+        var expect = want.Take(at).Concat(System.Text.Encoding.ASCII.GetBytes("240")).Concat(want.Skip(at + "400.000000".Length)).ToArray();
+        Check(Cs2Logic.Encode(set, bom).SequenceEqual(expect), "cs2: an edit keeps every other byte, also invalid UTF-8");
+        var add = Cs2Logic.Set(text, C, "cl_net_buffer_ticks", "1", true)!;
+        Check(Cs2Logic.Encode(Cs2Logic.Remove(add, C, "cl_net_buffer_ticks", true), bom).SequenceEqual(file), "cs2: add and remove give the same bytes with non-ASCII in the file");
+        Check(Cs2Logic.Decode(Array.Empty<byte>()) == ("", false) && Cs2Logic.Encode("", false).Length == 0, "cs2: an empty file");
+        // NBSP (0xA0) and NEL (0x85) are no white space for KeyValues: a bare token stays whole
+        Check(Cs2Logic.Get("\"a\" { k x\u00A0y }", new[] { "a" }, "k", false) == "x\u00A0y" && Cs2Logic.Get("\"a\" { k x\u0085y }", new[] { "a" }, "k", false) == "x\u0085y",
+            "cs2: only ASCII white space splits tokens");
     }
 
     private static void Values(Action<bool, string> Check)
