@@ -2093,9 +2093,11 @@ public partial class MainWindow : Window
                         _prefUpkeep = DateTime.Now;
                         int added = Catalog.PrefUpkeep();
                         if (added > 0) Log($"🖥 Grafikeinstellung für {added} neue FiveM-Datei(en) übernommen");
-                        // the FPS limit too: a new build's exe goes into the driver profile (cheap until the list of exes changes)
-                        try { if (FpsLimit.Upkeep(game?.ProcessName) is > 0 and var fps) Log($"🎯 FPS-Limit für {fps} neue FiveM-Datei(en) übernommen"); } catch { }
                     }
+                    // the FPS limit too, on every look: a new build's exe should be in the driver profile before the game
+                    // process makes its graphics device (cheap until the list of exes changes)
+                    if (_authed && procs.Length > 0)
+                        try { if (FpsLimit.Upkeep(game?.ProcessName) is > 0 and var fps) Log($"🎯 FPS-Limit für {fps} neue FiveM-Datei(en) übernommen"); } catch { }
                     if (_authed && game != null && S.AutoBorderless)
                     {
                         try

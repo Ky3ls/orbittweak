@@ -77,7 +77,9 @@ internal static unsafe class FpsLimit
         string? reason = !Available ? "nonvidia" : FiveM.Root == null ? "nofivem" : null;
         if (reason != null) return new { available = false, reason, limit = 0, hz, suggestion, profile = (string?)null, ours = false, exes = 0 };
         var paths = ExePaths(null);
-        int kept = Stored, limit = kept; string? profile = limit > 0 ? OwnProfile : null;
+        // a profile is only named once the driver has one for the game: with no exe yet (FiveM never started) or a new
+        // build not put in yet, there is none, even while OrbitTweak keeps a limit
+        int kept = Stored, limit = kept; string? profile = null;
         try
         {
             lock (Gate)

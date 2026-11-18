@@ -877,8 +877,9 @@ function renderFps() {
   const vals = [...new Set([sug, ...FPS_COMMON, lim].filter(v => v >= 30))].sort((a, b) => a - b);
   chip.className = 'chip' + (lim ? ' g' : ''); chip.textContent = lim ? lim + ' FPS' : 'Aus';
   // the profile the driver uses for FiveM: OrbitTweak's own one, or one that already had FiveM in it (then only its limit changes)
-  const profS = !f.profile ? (f.exes ? 'OrbitTweak legt beim Setzen eins an' : 'Kommt beim nächsten FiveM-Start dazu')
-    : f.profile === 'OrbitTweak FiveM' ? 'Von OrbitTweak angelegt, „Aus“ löscht es wieder' : 'Gab es schon, nur das Limit ändert sich (mit Backup)';
+  // (someone else's profile can hold more than FiveM, e.g. NVIDIA's own one for GTA V: the limit then counts for all of it)
+  const profS = !f.profile ? (f.exes && !f.ours ? 'OrbitTweak legt beim Setzen eins an' : 'Kommt beim nächsten FiveM-Start dazu')
+    : f.profile === 'OrbitTweak FiveM' ? 'Von OrbitTweak angelegt, „Aus“ löscht es wieder' : 'Gab es schon, Limit gilt fürs ganze Profil';
   body.innerHTML = `<div class="gd-ctl"><span class="gd-l">Limit</span>
       <div class="seg" id="fpsSeg"><button data-fps="0" class="${lim ? '' : 'on'}">Aus</button>${vals.map(v => `<button data-fps="${v}" class="${v === lim ? 'on' : ''}">${v}${v === sug ? '<small>Vorschlag</small>' : ''}</button>`).join('')}</div>
       <span class="sp"></span>
@@ -903,7 +904,13 @@ function fpsOwn() {
 }
 document.addEventListener('click', e => {
   const b = e.target.closest('#fpsSeg button');
-  if (b) { if (!b.classList.contains('on')) fpsSet(+b.dataset.fps); return; }
+  if (b) {
+    if (b.classList.contains('on')) return;
+    // "Aus" puts back what OrbitTweak changed; a limit OrbitTweak did not set is not its to take away
+    if (b.dataset.fps === '0' && !S.fps?.ours)
+      return toast('Nicht von OrbitTweak', 'Dieses Limit steht schon vorher im Treiberprofil. Ändern kannst du es dort, wo es gesetzt wurde, zum Beispiel in der NVIDIA-Systemsteuerung.', false);
+    fpsSet(+b.dataset.fps); return;
+  }
   if (e.target.closest('#fpsGo')) fpsOwn();
 });
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'fpsOwn') fpsOwn(); });
@@ -933,7 +940,7 @@ function renderTex() {
     <p class="gd-hint" id="texHint"></p>
     <div class="gl-stats">
       ${gdStat('In fivem.cfg', `${t.value * 5}<small>%</small>`, t.value ? `Budget ×${nf2.format(t.value / 12 + 1)} · vid_budgetScale ${t.value}` : 'FiveM-Standard')}
-      ${gdStat('Vorschlag', `${t.suggestion * 5}<small>%</small>`, gb ? `Die Hälfte deiner ${gb} GB bleibt frei` : 'Grafikspeicher unbekannt')}
+      ${gdStat('Vorschlag', `${t.suggestion * 5}<small>%</small>`, !gb ? 'Grafikspeicher unbekannt' : t.suggestion ? `Die Hälfte deiner ${gb} GB bleibt frei` : `Bei ${gb} GB lieber FiveMs Standard`)}
       ${gdStat('Grafikspeicher', gb ? `${gb}<small>GB</small>` : '—', 'VRAM deiner Grafikkarte')}
     </div>`;
   texPreview();
@@ -967,7 +974,7 @@ document.addEventListener('click', e => {
 });
 // FiveM started or closed: the texture card follows (writing only works while FiveM is closed)
 setInterval(async () => {
-  if (curPage !== 'gfx' || !S.tex) return;
+  if (curPage !== 'gfx' || !S.tex || document.hidden) return;
   const r = await api('tex.get').catch(() => null);
   if (r && (r.running !== S.tex.running || r.found !== S.tex.found || r.value !== S.tex.value)) texLoad(true);
 }, 5000);
