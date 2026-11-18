@@ -845,9 +845,9 @@ async function gfxSave() {
 async function gfxRestore() {
   const r = await api('gfx.restore'); if (r.error) return toast('Nicht wiederhergestellt', r.error, false);
   await loadGfx();
-  // 'gtaOld': up to 2.28.0 the presets went into GTA V's own settings; those come back once
+  // old: up to 2.28.0 the presets went into GTA V's own settings; those come back once ('gtaOld' when only they did)
   if (r.kind === 'gtaOld') toast('GTA-V-Einstellungen zurückgeholt', 'Story-Modus und GTA Online haben wieder deine alten Grafikwerte. FiveM war davon nie betroffen.');
-  else toast('Backup wiederhergestellt', 'Original-Grafikeinstellungen aktiv');
+  else toast('Backup wiederhergestellt', r.old ? 'Original-Grafikeinstellungen aktiv, auch die alten von GTA V sind zurück' : 'Original-Grafikeinstellungen aktiv');
 }
 
 /* ======================= INPUT LAB ======================= */
@@ -3157,11 +3157,11 @@ const Mock = {
         { code: 'aa', name: '^2Green^7Valley RP', desc: 'Whitelist-Server', players: 0, max: 64, online: false, ping: null, locale: 'EN', tags: ['whitelist'] }];
       case 'cfx.status': return [{ name: 'Server-Liste', ok: true, ms: 41 }, { name: 'Cfx.re Web', ok: true, ms: 57 }, { name: 'Content-CDN', ok: true, ms: 23 }, { name: 'Cfx.re Forum', ok: true, ms: 64 }];
       case 'gfx.get': case 'gfx.save': case 'gfx.restore': {
-        // ?gfx=gta: an install from before June 2020 (Documents settings.xml), ?gfx=none: FiveM never started
+        // ?gfx=gta: an install from before June 2020 (settings.xml under AppData\Local), ?gfx=none: FiveM never started
         const q = new URLSearchParams(location.search).get('gfx'), kind = q === 'gta' ? 'gta' : 'fivem';
         const path = kind === 'gta' ? 'C:\\Users\\Max\\AppData\\Local\\Rockstar Games\\GTA V\\settings.xml' : 'C:\\Users\\Max\\AppData\\Roaming\\CitizenFX\\gta5_settings.xml';
         if (cmd === 'gfx.save') return q === 'none' ? { error: 'gta5_settings.xml nicht gefunden. Starte FiveM einmal, dann legt FiveM die Datei an.' } : { ok: true, kind, path };
-        if (cmd === 'gfx.restore') return q === 'none' ? { error: 'Für gta5_settings.xml gibt es noch kein Backup.' } : { ok: true, kind, path };
+        if (cmd === 'gfx.restore') return q === 'none' ? { error: 'Für gta5_settings.xml gibt es noch kein Backup.' } : { ok: true, kind, path, old: false };
         return q === 'none' ? { found: false, kind, path, values: {}, hasBackup: false } : { found: true, kind, path, values: { ...PRESETS.bal.v, Windowed: 2 }, hasBackup: true };
       }
       case 'ini.get': return { channel: 'production' };

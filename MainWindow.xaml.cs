@@ -669,7 +669,12 @@ public partial class MainWindow : Window
                 try { var (kind, path) = Gfx.Save(a.GetProperty("values")); Log($"🎨 Grafik-Einstellungen gespeichert ({Path.GetFileName(path)})"); return new { ok = true, kind, path }; }
                 catch (Exception ex) { return new { error = ex.Message }; }
             case "gfx.restore":
-                try { var (kind, path) = Gfx.Restore(); Log($"↺ Grafik-Backup wiederhergestellt ({Path.GetFileName(path)})"); return new { ok = true, kind, path }; }
+                try
+                {
+                    var (kind, path, old) = Gfx.Restore();
+                    Log($"↺ Grafik-Backup wiederhergestellt ({Path.GetFileName(path)}){(old && kind != "gtaOld" ? ", dazu die alten GTA-V-Einstellungen" : "")}");
+                    return new { ok = true, kind, path, old };
+                }
                 catch (Exception ex) { return new { error = ex.Message }; }
 
             // ---------- crosshair ----------

@@ -12,7 +12,8 @@ namespace OrbitTweak.Core;
 
 // =====================================================================
 //  GTA V graphics settings – presets. Written into the file FiveM really reads (GfxFile): its own
-//  gta5_settings.xml, or the Documents settings.xml on installs from before June 2020.
+//  gta5_settings.xml, or on installs from before June 2020 the settings.xml under AppData\Local (FiveM redirects
+//  Documents\Rockstar Games there).
 // =====================================================================
 internal static class Gfx
 {
@@ -100,25 +101,37 @@ internal static class Gfx
         return (kind, path);
     }
 
-    /// <summary>Puts back the backup of the file FiveM reads now (each file has its own, right next to it). Without one,
-    /// the backup that versions up to 2.28.0 made of GTA V's own Documents settings.xml comes back once (kind "gtaOld"):
-    /// those versions wrote the presets there, where only story mode and GTA Online read them.</summary>
-    public static (string kind, string path) Restore()
+    /// <summary>Puts back the backup of the file FiveM reads now (each file has its own, right next to it). The backup that
+    /// versions up to 2.28.0 made of GTA V's own Documents settings.xml comes back too, once (old = true): those versions
+    /// wrote the presets there, where only story mode and GTA Online read them. kind is "gtaOld" when only that one came back.</summary>
+    public static (string kind, string path, bool old) Restore()
     {
         var (kind, path) = Target();
         var backup = GfxFile.BackupOf(path);
-        if (!File.Exists(backup))
+        bool own = File.Exists(backup), old = LegacyBackupWaiting(path);
+        if (!own && !old) throw new InvalidOperationException($"Für {Path.GetFileName(path)} gibt es noch kein Backup.");
+        if (FiveM.IsRunning || (old && GtaRunning()))
+            throw new InvalidOperationException(old ? "Bitte GTA V und FiveM zuerst schließen, sonst überschreibt das Spiel die Datei."
+                : "Bitte FiveM zuerst schließen, sonst überschreibt das Spiel die Datei.");
+        if (own) CopyOver(backup, path);
+        if (old)
         {
-            if (!LegacyBackupWaiting(path)) throw new InvalidOperationException($"Für {Path.GetFileName(path)} gibt es noch kein Backup.");
-            if (FiveM.IsRunning || GtaRunning()) throw new InvalidOperationException("Bitte GTA V und FiveM zuerst schließen, sonst überschreibt das Spiel die Datei.");
             var legacy = GfxFile.BackupOf(LegacyPath);
-            File.Copy(legacy, LegacyPath, true);
-            File.Delete(legacy);   // once: GTA V may keep settings changed in the game since
-            return ("gtaOld", LegacyPath);
+            CopyOver(legacy, LegacyPath);
+            // once: GTA V may keep settings changed in the game since. A backup that cannot go (read-only, locked) only
+            // means the offer stays; the settings are back either way
+            try { File.SetAttributes(legacy, FileAttributes.Normal); File.Delete(legacy); } catch { }
         }
-        if (FiveM.IsRunning) throw new InvalidOperationException("Bitte FiveM zuerst schließen, sonst überschreibt das Spiel die Datei.");
-        File.Copy(backup, path, true);
-        return (kind, path);
+        return own ? (kind, path, old) : ("gtaOld", LegacyPath, true);
+    }
+
+    /// <summary>Copies a backup over its file, also onto a file the player made read-only (the backup's own attributes
+    /// come along, so a read-only original is read-only again).</summary>
+    private static void CopyOver(string backup, string file)
+    {
+        if (File.Exists(file) && File.GetAttributes(file).HasFlag(FileAttributes.ReadOnly))
+            File.SetAttributes(file, File.GetAttributes(file) & ~FileAttributes.ReadOnly);
+        File.Copy(backup, file, true);
     }
 
     private static bool LegacyBackupWaiting(string target)
@@ -431,7 +444,7 @@ internal static class Health
         try { saver = Power.Active() == "a1841308-3541-4fab-bc81-f71556f20b4a"; } catch { }
         items.Add(T("ult") ? new("Energieplan", "Höchstleistung aktiv", "ok")
             // Windows' "Energiesparmodus" plan holds the CPU back: "Ausbalanciert" is the right plan for playing
-            : saver ? new("Energieplan", "Energiesparplan aktiv – bremst beim Spielen, stell auf „Ausbalanciert“", "warn")
+            : saver ? new("Energieplan", "Plan „Energiesparmodus“ aktiv – bremst beim Spielen, stell auf „Ausbalanciert“", "warn")
             : ult == null || !ult.IsRecommended ? new("Energieplan", "Ausbalanciert bzw. eigener Plan", "ok")
             : new("Energieplan", "Ausbalanciert – Höchstleistung möglich", "warn", "tweak:ult"));
         // the clipper's Game Bar recorder needs it: then it is no fault, and the tweak could not switch it off anyway
