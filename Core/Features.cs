@@ -16,7 +16,11 @@ namespace OrbitTweak.Core;
 // =====================================================================
 internal static class Gfx
 {
-    public static string GtaPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Rockstar Games", "GTA V", "settings.xml");
+    /// <summary>user:/settings.xml as FiveM opens it on older installs: FiveM redirects Documents\Rockstar Games to
+    /// %LocalAppData%\Rockstar Games (see GfxFile.cs).</summary>
+    public static string GtaPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Rockstar Games", "GTA V", "settings.xml");
+    /// <summary>GTA V's own settings (story mode, GTA Online). Versions up to 2.28.0 wrote the presets here, FiveM never reads it.</summary>
+    public static string LegacyPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Rockstar Games", "GTA V", "settings.xml");
     /// <summary>FiveM's fxd:/gta5_settings.xml; fxd:/ is %AppData%\CitizenFX\.</summary>
     public static string FiveMPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CitizenFX", "gta5_settings.xml");
 
@@ -43,7 +47,8 @@ internal static class Gfx
     public static object Get()
     {
         var (kind, path) = Target();
-        var hasBackup = File.Exists(GfxFile.BackupOf(path));
+        // "Backup wiederherstellen" also brings back GTA V's own settings that versions up to 2.28.0 changed (see Restore)
+        var hasBackup = File.Exists(GfxFile.BackupOf(path)) || LegacyBackupWaiting(path);
         if (!File.Exists(path)) return new { found = false, kind, path, values = new Dictionary<string, string>(), hasBackup };
         var doc = XDocument.Load(path);
         var g = doc.Root?.Element("graphics");
@@ -95,15 +100,40 @@ internal static class Gfx
         return (kind, path);
     }
 
-    /// <summary>Puts back the backup of the file FiveM reads now (each file has its own, right next to it).</summary>
+    /// <summary>Puts back the backup of the file FiveM reads now (each file has its own, right next to it). Without one,
+    /// the backup that versions up to 2.28.0 made of GTA V's own Documents settings.xml comes back once (kind "gtaOld"):
+    /// those versions wrote the presets there, where only story mode and GTA Online read them.</summary>
     public static (string kind, string path) Restore()
     {
         var (kind, path) = Target();
         var backup = GfxFile.BackupOf(path);
-        if (!File.Exists(backup)) throw new InvalidOperationException($"Für {Path.GetFileName(path)} gibt es noch kein Backup.");
+        if (!File.Exists(backup))
+        {
+            if (!LegacyBackupWaiting(path)) throw new InvalidOperationException($"Für {Path.GetFileName(path)} gibt es noch kein Backup.");
+            if (FiveM.IsRunning || GtaRunning()) throw new InvalidOperationException("Bitte GTA V und FiveM zuerst schließen, sonst überschreibt das Spiel die Datei.");
+            var legacy = GfxFile.BackupOf(LegacyPath);
+            File.Copy(legacy, LegacyPath, true);
+            File.Delete(legacy);   // once: GTA V may keep settings changed in the game since
+            return ("gtaOld", LegacyPath);
+        }
         if (FiveM.IsRunning) throw new InvalidOperationException("Bitte FiveM zuerst schließen, sonst überschreibt das Spiel die Datei.");
         File.Copy(backup, path, true);
         return (kind, path);
+    }
+
+    private static bool LegacyBackupWaiting(string target)
+        => !string.Equals(target, LegacyPath, StringComparison.OrdinalIgnoreCase) && File.Exists(GfxFile.BackupOf(LegacyPath));
+
+    private static bool GtaRunning()
+    {
+        foreach (var n in new[] { "GTA5", "GTA5_Enhanced", "PlayGTAV" })
+        {
+            var ps = Process.GetProcessesByName(n);
+            bool any = ps.Length > 0;
+            foreach (var p in ps) p.Dispose();
+            if (any) return true;
+        }
+        return false;
     }
 }
 
@@ -397,8 +427,12 @@ internal static class Health
         items.Add(new("Windows-Version", $"Build {build}" + (build >= 19045 ? "" : " – Update empfohlen"), build >= 19045 ? "ok" : "warn"));
 
         var ult = tweaks.FirstOrDefault(t => t.Id == "ult");
+        bool saver = false;
+        try { saver = Power.Active() == "a1841308-3541-4fab-bc81-f71556f20b4a"; } catch { }
         items.Add(T("ult") ? new("Energieplan", "Höchstleistung aktiv", "ok")
-            : ult == null || !ult.IsRecommended ? new("Energieplan", "Ausbalanciert bzw. eigener Plan (für diesen PC richtig)", "ok")
+            // Windows' "Energiesparmodus" plan holds the CPU back: "Ausbalanciert" is the right plan for playing
+            : saver ? new("Energieplan", "Energiesparplan aktiv – bremst beim Spielen, stell auf „Ausbalanciert“", "warn")
+            : ult == null || !ult.IsRecommended ? new("Energieplan", "Ausbalanciert bzw. eigener Plan", "ok")
             : new("Energieplan", "Ausbalanciert – Höchstleistung möglich", "warn", "tweak:ult"));
         // the clipper's Game Bar recorder needs it: then it is no fault, and the tweak could not switch it off anyway
         bool clipNeedsDvr = tweaks.FirstOrDefault(t => t.Id == "dvr") is { IsUsable: false };

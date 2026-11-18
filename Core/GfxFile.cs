@@ -6,8 +6,10 @@ namespace OrbitTweak.Core;
 //
 //  citizenfx/fivem code/components/gta-core-five/src/VidBehavior.cpp: on a "new install" FiveM points GTA's settings
 //  file to fxd:/gta5_settings.xml, and fxd:/ is %AppData%\CitizenFX\ (rage-device-five/src/CitizenMount.Shared.cpp).
-//  When that file is missing on start, FiveM copies user:/settings.xml (Documents\Rockstar Games\GTA V) once and
-//  then sets borderless and vsync off. Older installs keep reading the Documents settings.xml.
+//  When that file is missing on start, FiveM copies user:/settings.xml once and then sets borderless and vsync off.
+//  Older installs keep reading user:/settings.xml. Since 2023 FiveM redirects everything under Documents\Rockstar Games
+//  to %LocalAppData%\Rockstar Games (client/citicore/FileMapping.Win32.cpp), so for FiveM that file is
+//  %LocalAppData%\Rockstar Games\GTA V\settings.xml; the Documents one is only GTA V's own (story mode, GTA Online).
 // =====================================================================
 internal static class GfxFile
 {
@@ -28,7 +30,7 @@ internal static class GfxFile
     /// <summary>
     /// The file FiveM reads on its next start. <paramref name="newInstall"/> is <see cref="IsNewInstall"/>, or null
     /// when the FiveM.app folder was not found. Then FiveM's own file wins when it exists (every install since June
-    /// 2020 has one), the old Documents file only when it is the one there.
+    /// 2020 has one), the old settings.xml only when it is the one there.
     /// </summary>
     public static string Pick(bool? newInstall, bool fivemFileExists, bool gtaFileExists) => newInstall switch
     {

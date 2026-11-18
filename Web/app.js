@@ -806,8 +806,9 @@ const num = v => v === 'true' ? 1 : v === 'false' ? 0 : parseFloat(v);
 async function loadGfx() {
   try { S.gfx = await api('gfx.get'); } catch { S.gfx = { found: false, values: {} }; }
   S.gfxEdit = { ...S.gfx.values };
-  // kind 'fivem': FiveM's own gta5_settings.xml (every install since June 2020), 'gta': the Documents settings.xml of older installs
-  const g = S.gfx, gta = g.kind === 'gta', file = gta ? 'settings.xml' : 'gta5_settings.xml', of = gta ? 'von GTA V' : 'von FiveM';
+  // kind 'fivem': FiveM's own gta5_settings.xml (every install since June 2020), 'gta': the settings.xml older installs read
+  // (FiveM keeps it under AppData\Local, it redirects Documents\Rockstar Games there)
+  const g = S.gfx, gta = g.kind === 'gta', file = gta ? 'settings.xml' : 'gta5_settings.xml', of = gta ? 'von FiveM (ältere Installation)' : 'von FiveM';
   $('#gfxState').className = 'chip ' + (g.found ? 'g' : 'r');
   $('#gfxState').textContent = file + (g.found ? ' gefunden' : ' fehlt');
   $('#gfxWhere').textContent = `Wird in ${file} ${of} gespeichert, mit Backup`;
@@ -841,7 +842,13 @@ async function gfxSave() {
   if (r.path && r.path !== S.gfx.path) await loadGfx(); else { S.gfx.values = { ...S.gfxEdit }; renderGfx(false); }
   toast('Grafik gespeichert', 'Backup erstellt · gilt beim nächsten Start');
 }
-async function gfxRestore() { const r = await api('gfx.restore'); if (r.error) return toast('Nicht wiederhergestellt', r.error, false); await loadGfx(); toast('Backup wiederhergestellt', 'Original-Grafikeinstellungen aktiv'); }
+async function gfxRestore() {
+  const r = await api('gfx.restore'); if (r.error) return toast('Nicht wiederhergestellt', r.error, false);
+  await loadGfx();
+  // 'gtaOld': up to 2.28.0 the presets went into GTA V's own settings; those come back once
+  if (r.kind === 'gtaOld') toast('GTA-V-Einstellungen zurückgeholt', 'Story-Modus und GTA Online haben wieder deine alten Grafikwerte. FiveM war davon nie betroffen.');
+  else toast('Backup wiederhergestellt', 'Original-Grafikeinstellungen aktiv');
+}
 
 /* ======================= INPUT LAB ======================= */
 // The tester shows what the game would see: with both keys of a pair held the game cancels them out and the figure
@@ -3152,14 +3159,14 @@ const Mock = {
       case 'gfx.get': case 'gfx.save': case 'gfx.restore': {
         // ?gfx=gta: an install from before June 2020 (Documents settings.xml), ?gfx=none: FiveM never started
         const q = new URLSearchParams(location.search).get('gfx'), kind = q === 'gta' ? 'gta' : 'fivem';
-        const path = kind === 'gta' ? 'C:\\Users\\Max\\Documents\\Rockstar Games\\GTA V\\settings.xml' : 'C:\\Users\\Max\\AppData\\Roaming\\CitizenFX\\gta5_settings.xml';
+        const path = kind === 'gta' ? 'C:\\Users\\Max\\AppData\\Local\\Rockstar Games\\GTA V\\settings.xml' : 'C:\\Users\\Max\\AppData\\Roaming\\CitizenFX\\gta5_settings.xml';
         if (cmd === 'gfx.save') return q === 'none' ? { error: 'gta5_settings.xml nicht gefunden. Starte FiveM einmal, dann legt FiveM die Datei an.' } : { ok: true, kind, path };
         if (cmd === 'gfx.restore') return q === 'none' ? { error: 'Für gta5_settings.xml gibt es noch kein Backup.' } : { ok: true, kind, path };
         return q === 'none' ? { found: false, kind, path, values: {}, hasBackup: false } : { found: true, kind, path, values: { ...PRESETS.bal.v, Windowed: 2 }, hasBackup: true };
       }
       case 'ini.get': return { channel: 'production' };
       case 'clean.scan': return [['fm', 'FiveM Cache', 'cache, server-cache, server-cache-priv', 'gamepad', 3.2e9], ['logs', 'FiveM Logs & Crashes', 'Alte Logs und Crashdumps', 'file', 2.1e8], ['temp', 'Temporäre Dateien', 'Benutzer- und System-Temp', 'folder', 1.6e9], ['shader', 'Shader-Cache', 'DirectX / NVIDIA / AMD', 'monitor', 7.4e8], ['wu', 'Windows-Update Reste', 'Bereits installierte Pakete', 'download', 9.1e8], ['bin', 'Papierkorb', 'Endgültig leeren', 'trash', 2.4e8]].map(([id, name, desc, icon, size], i) => ({ id, name, desc, icon, size, sel: i < 5 }));
-      case 'health': return { score: 75, items: [{ name: 'FiveM installiert', value: 'C:\\Users\\Max\\AppData\\Local\\FiveM', st: 'ok' }, { name: 'Arbeitsspeicher', value: '32 GB, perfekt für FiveM', st: 'ok' }, { name: 'Auslagerungsdatei', value: 'Von Windows verwaltet', st: 'ok' }, { name: 'Energieplan', value: 'Ausbalanciert bzw. eigener Plan (für diesen PC richtig)', st: 'ok' }, { name: 'Game-Bar-Hintergrundaufnahme', value: 'Läuft – kostet FPS', st: 'bad', fix: 'tweak:dvr' }, { name: 'Verbindung', value: 'WLAN – für FiveM ist ein LAN-Kabel der größte Hebel', st: 'warn', fix: 'tweak:wifiscan' }, { name: 'GPU-Treiber', value: 'NVIDIA 566.36 · 4 Monate alt', st: 'ok' }, { name: 'FiveM-Cache', value: '3.2 GB, leeren empfohlen', st: 'warn', fix: 'cache' }] };
+      case 'health': return { score: 75, items: [{ name: 'FiveM installiert', value: 'C:\\Users\\Max\\AppData\\Local\\FiveM', st: 'ok' }, { name: 'Arbeitsspeicher', value: '32 GB, perfekt für FiveM', st: 'ok' }, { name: 'Auslagerungsdatei', value: 'Von Windows verwaltet', st: 'ok' }, { name: 'Energieplan', value: 'Ausbalanciert bzw. eigener Plan', st: 'ok' }, { name: 'Game-Bar-Hintergrundaufnahme', value: 'Läuft – kostet FPS', st: 'bad', fix: 'tweak:dvr' }, { name: 'Verbindung', value: 'WLAN – für FiveM ist ein LAN-Kabel der größte Hebel', st: 'warn', fix: 'tweak:wifiscan' }, { name: 'GPU-Treiber', value: 'NVIDIA 566.36 · 4 Monate alt', st: 'ok' }, { name: 'FiveM-Cache', value: '3.2 GB, leeren empfohlen', st: 'warn', fix: 'cache' }] };
       case 'logs': return { lines: ['[ 1203] Loading game build 3095', '[ 2210] Warning: texture budget exceeded', '[ 4501] Connecting to 127.0.0.1:30120', '[ 9012] SCRIPT ERROR: @core/server.lua:12 attempt to index nil', '[12001] Session started'], crashes: [] };
       case 'update.check': return { configured: true, current: '2.2.0', latest: '2.3.0', available: new URLSearchParams(location.search).has('upd'), date: '12.11.2026', notes: ['Neuer Look mit weniger Effekten', 'Server-Favoriten laden schneller', 'Fix: Launcher-Pfad wird gespeichert'] };
       default: return { ok: true, freed: 3.4e8, count: 0, applied: true };
@@ -3643,9 +3650,9 @@ document.addEventListener('click', async e => {
 /* ======================= WHAT'S NEW: shown once after an update ======================= */
 const CHANGES = {
   '2.28.1': [
-    ['sliders', 'Grafik-Presets wirken in FiveM', 'Die Presets unter Grafik & Farben landen jetzt in FiveMs eigener Datei gta5_settings.xml. Bisher schrieben sie in die Einstellungen von GTA V, die FiveM seit 2020 nicht mehr liest.'],
+    ['sliders', 'Grafik-Presets wirken in FiveM', 'Die Presets unter Grafik & Farben landen jetzt in der Datei, die FiveM wirklich liest, meist FiveMs eigene gta5_settings.xml. Bisher schrieben sie in die Einstellungen von GTA V, die FiveM nicht liest. „Backup wiederherstellen“ holt diese GTA-V-Einstellungen einmal zurück.'],
     ['zap', 'Boost nur noch mit Nutzen', 'Alle 21 Tweaks wurden geprüft. Der Boost schaltet nur noch, was deinem PC hilft: Höchstleistung und LAN-Energiesparen bleiben, wie sie sind, die Game-Bar-Aufnahme geht nur aus, wenn „Im Hintergrund aufnehmen“ lief, und USB-Energiesparen nur noch am Desktop. Den Rest schaltest du einzeln ein.'],
-    ['power', 'Energiesparmodus geht wieder', 'Der Höchstleistungsplan übernimmt jetzt deine Zeiten für Bildschirm und Energiesparmodus. Lief er schon, bekommt er sie einmal von deinem vorherigen Plan, damit der PC wieder von selbst schlafen geht.'],
+    ['power', 'Energiesparmodus geht wieder', 'Der Höchstleistungsplan übernimmt jetzt deine Zeiten für Bildschirm, Festplatte, Energiesparmodus und Ruhezustand. Lief er schon, holt er einmal die Zeiten deines vorherigen Plans überall dort, wo bei ihm „Nie“ stand, damit der PC wieder von selbst schlafen geht.'],
     ['shield', 'Auslagerungsdatei richtig erkannt', 'Bei 16 GB RAM galt eine gesunde Auslagerungsdatei als zu klein und wurde ersetzt. Das passiert nicht mehr.'],
     ['keyboard', 'Kleinere Korrekturen', 'Die kürzere Wiederholverzögerung ändert nur noch die Verzögerung, ausgebremste Programme laufen nach dem Abmelden sofort wieder normal, und mehrere Tweak-Texte sagen jetzt ehrlicher, was sie bringen.'],
   ],

@@ -570,6 +570,7 @@ internal static class Catalog
         {
             Reg.SetStr(OWN, "UltPrev", cur);
             CopyTimeouts(cur, g);   // also into a plan made before: the user may have changed them since
+            Reg.Set(OWN, "UltTimeouts", 1);   // the one-time fill in Migrate is for plans from before 2.28.1 only
         }
         Proc.Run("powercfg", $"/setactive {g}");
         if (Power.Active() != g) throw new InvalidOperationException("Energieplan ließ sich nicht aktivieren");
@@ -1045,11 +1046,15 @@ internal static class Catalog
         {
             // 2.28.1: before, our copy of High performance/Ultimate kept the template's timeouts, which never sleep on AC, so a
             // desktop that Boost switched to it stopped going to sleep by itself. Once: where our plan says "never" and the
-            // plan before it had a time, that time comes back (a time the user set in our plan since then is not "never" and stays)
+            // plan before it had a time, that time comes back (a time the user set in our plan since then is not "never" and stays).
+            // Plans from before 2.26 kept no "before": Balanced stands in (those versions only switched from Balanced or Power
+            // saver, and UltRevert goes back to Balanced too). Done for good on the first run, also when there is no plan:
+            // a plan made later gets the user's times in UltApply, and a "never" set in it afterwards is the user's own.
             if (Reg.Is(OWN, "UltTimeouts", 1)) return;
             var g = Reg.Get(OWN, "UltScheme") as string;
+            if (g == null || !Power.Exists(g)) { Reg.Set(OWN, "UltTimeouts", 1); return; }
             var prev = Reg.Get(OWN, "UltPrev") as string;
-            if (g == null || prev == null || !Power.Exists(g) || !Power.Exists(prev)) return;
+            if (prev == null || !Power.Exists(prev)) prev = Power.BALANCED;
             int n = 0;
             foreach (var (sub, set) in Timeouts)
                 foreach (var ac in new[] { true, false })
@@ -1058,7 +1063,7 @@ internal static class Catalog
                     if (was > 0 && Power.Read(g, sub, set, ac) == 0) { Power.Write(g, sub, set, ac, was); n++; }
                 }
             if (n > 0 && Power.Active() == g) Proc.Run("powercfg", $"/setactive {g}");   // the active plan takes new values on activation
-            if (n > 0) r.Log.Add("↺ Energieplan „OrbitTweak Höchstleistung“: Bildschirm- und Energiespar-Zeiten deines vorherigen Plans übernommen");
+            if (n > 0) r.Log.Add("↺ Energieplan „OrbitTweak Höchstleistung“: Zeiten deines vorherigen Plans übernommen, wo „Nie“ stand");
             Reg.Set(OWN, "UltTimeouts", 1);
         });
 

@@ -477,20 +477,20 @@ TweakTexts.Run(Check);
     Check(GfxFile.IsNewInstall(true, U(2019, 3, 1)) == true && GfxFile.IsNewInstall(true, null) == true, "the marker file always means new");
     Check(GfxFile.IsNewInstall(false, null), "no crashes folder: FiveM makes it on its next start, so that start counts as new");
     Check(GfxFile.Pick(GfxFile.IsNewInstall(false, null), false, true) == GfxFile.FiveMKind,
-        "FiveM.app without crashes folder and only the Documents file: FiveM's file (FiveM makes it from that one on start)");
+        "FiveM.app without crashes folder and only the old settings.xml: FiveM's file (FiveM makes it from that one on start)");
 
     // which file
     Check(GfxFile.Pick(true, true, true) == GfxFile.FiveMKind, "new install with both files: FiveM's gta5_settings.xml");
     Check(GfxFile.Pick(true, false, true) == GfxFile.FiveMKind, "new install that has not started yet still uses FiveM's file (it is made from the old one)");
-    Check(GfxFile.Pick(false, true, true) == GfxFile.GtaKind, "old install keeps the Documents settings.xml, even with a stray gta5_settings.xml");
-    Check(GfxFile.Pick(false, false, true) == GfxFile.GtaKind && GfxFile.Pick(false, false, false) == GfxFile.GtaKind, "old install: Documents settings.xml as before");
+    Check(GfxFile.Pick(false, true, true) == GfxFile.GtaKind, "old install keeps settings.xml (AppData\\Local for FiveM), even with a stray gta5_settings.xml");
+    Check(GfxFile.Pick(false, false, true) == GfxFile.GtaKind && GfxFile.Pick(false, false, false) == GfxFile.GtaKind, "old install: settings.xml");
     Check(GfxFile.Pick(null, true, true) == GfxFile.FiveMKind && GfxFile.Pick(null, true, false) == GfxFile.FiveMKind, "unknown install: FiveM's file when it exists");
-    Check(GfxFile.Pick(null, false, true) == GfxFile.GtaKind, "unknown install with only the Documents file: that one, as before");
+    Check(GfxFile.Pick(null, false, true) == GfxFile.GtaKind, "unknown install with only the old settings.xml: that one");
     Check(GfxFile.Pick(null, false, false) == GfxFile.FiveMKind, "no file at all: FiveM's file, it appears after the first start");
 
     // backups sit next to their own file
     var fx = Path.Combine("C:", "Users", "Max", "AppData", "Roaming", "CitizenFX", "gta5_settings.xml");
-    var gta = Path.Combine("C:", "Users", "Max", "Documents", "Rockstar Games", "GTA V", "settings.xml");
+    var gta = Path.Combine("C:", "Users", "Max", "AppData", "Local", "Rockstar Games", "GTA V", "settings.xml");
     Check(Path.GetDirectoryName(GfxFile.BackupOf(fx)) == Path.GetDirectoryName(fx) && Path.GetDirectoryName(GfxFile.BackupOf(gta)) == Path.GetDirectoryName(gta),
         "each backup lies next to its file");
     Check(GfxFile.BackupOf(fx) != GfxFile.BackupOf(gta) && GfxFile.BackupOf(gta).EndsWith("settings.xml.orbit-backup"), "two files, two backups; the old backup name stays");
