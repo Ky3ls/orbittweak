@@ -63,11 +63,11 @@ internal static partial class Autostart
             Id = AutostartLogic.Id(AutostartLogic.Store, entry), Name = name, Entry = entry, Publisher = app.Publisher,
             Command = exe.Length > 0 ? exe : @"shell:AppsFolder\" + app.Family + (t.AppId.Length > 0 ? "!" + t.AppId : ""),
             Path = exe, Exists = true, Source = AutostartLogic.Store.Label, AllUsers = false, Folder = false, Store = true,
-            On = AutostartLogic.StoreOn(state, t.Enabled), OffSince = null, Icon = icons ? app.Icon : null,
+            On = AutostartLogic.StoreOn(state), OffSince = null, Icon = icons ? app.Icon : null,
             // a policy decides: no advice to follow, the reason instead
             Lock = locked,
             Rec = locked ? null : advice?.Rec,
-            Why = locked ? (state == 4 ? "Eine Richtlinie lässt es immer starten" : "Eine Richtlinie hält es aus") : advice?.Why ?? "",
+            Why = locked ? (state == 4 ? "Eine Richtlinie lässt es immer starten" : "Eine Richtlinie lässt es nicht starten") : advice?.Why ?? "",
         };
     }
 
@@ -208,7 +208,7 @@ internal static partial class Autostart
         var cur = StoreStateOf(family, taskId);
         if (AutostartLogic.StoreLocked(cur))
             throw new InvalidOperationException("Eine Richtlinie legt fest, ob diese App mit Windows startet. Das lässt sich hier nicht ändern.");
-        if (AutostartLogic.StoreOn(cur, task.Enabled) != on)
+        if (AutostartLogic.StoreOn(cur) != on)
         {
             try
             {
@@ -220,6 +220,6 @@ internal static partial class Autostart
                 throw new InvalidOperationException("Windows hat das Umschalten verweigert. Vermutlich schützt ein Virenschutz oder eine Richtlinie diesen Eintrag.");
             }
         }
-        return AutostartLogic.StoreOn(StoreStateOf(family, taskId), task.Enabled);
+        return AutostartLogic.StoreOn(StoreStateOf(family, taskId));
     }
 }

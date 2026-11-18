@@ -59,7 +59,7 @@ function asSince(iso) {
 }
 function asDetail(it) {
   const since = !it.on ? asSince(it.offSince) : '';
-  const recIco = it.lock ? 'lock' : it.rec === 'on' ? 'shield' : it.rec === 'off' ? 'power' : 'sparkle';
+  const recIco = it.lock ? 'padlock' : it.rec === 'on' ? 'shield' : it.rec === 'off' ? 'power' : 'sparkle';
   // a Store app's entry is "family/task id": the task is what Windows switches
   const task = it.store ? String(it.entry).slice(String(it.entry).indexOf('/') + 1) : '';
   const facts = [

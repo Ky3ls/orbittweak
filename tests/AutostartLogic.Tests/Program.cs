@@ -170,15 +170,15 @@ Check(AutostartLogic.ParseStoreEntry(null) == null, "no Store entry");
 Check(AutostartLogic.ParseStoreEntry("MSTeams_8wekyb3d8bbwe/a/b") == null, "a task id with a slash is refused");
 Check(AutostartLogic.TaskIdOk("TeamsTfwStartupTask") && AutostartLogic.TaskIdOk("My Task.1") && !AutostartLogic.TaskIdOk("a|b") && !AutostartLogic.TaskIdOk("a\u0001") && !AutostartLogic.TaskIdOk(new string('x', 256)), "task ids");
 
-// state: 0 disabled, 1 by the user, 2 enabled, 3/4 policy; no value = the manifest decides
-Check(AutostartLogic.StoreOn(2, false) && AutostartLogic.StoreOn(4, false), "2 and 4 are on");
-Check(!AutostartLogic.StoreOn(0, true) && !AutostartLogic.StoreOn(1, true) && !AutostartLogic.StoreOn(3, true), "0, 1 and 3 are off");
-Check(AutostartLogic.StoreOn(null, true) && !AutostartLogic.StoreOn(null, false), "no value: the manifest's Enabled");
-Check(AutostartLogic.StoreOn(9, true) && !AutostartLogic.StoreOn(9, false), "an unknown value: the manifest's Enabled");
+// state: 0 disabled, 1 by the user, 2 enabled, 3/4 policy; no value = not registered yet (never opened) = off
+Check(AutostartLogic.StoreOn(2) && AutostartLogic.StoreOn(4), "2 and 4 are on");
+Check(!AutostartLogic.StoreOn(0) && !AutostartLogic.StoreOn(1) && !AutostartLogic.StoreOn(3), "0, 1 and 3 are off");
+Check(!AutostartLogic.StoreOn(null), "no value: the app was never opened, Windows does not start it");
+Check(!AutostartLogic.StoreOn(9) && !AutostartLogic.StoreOn(-1), "an unknown value is off");
 Check(AutostartLogic.StoreLocked(3) && AutostartLogic.StoreLocked(4) && !AutostartLogic.StoreLocked(1) && !AutostartLogic.StoreLocked(2) && !AutostartLogic.StoreLocked(null), "only 3 and 4 are locked");
 Eq(AutostartLogic.StoreState(true), 2, "on is written as 2");
 Eq(AutostartLogic.StoreState(false), 1, "off is written as 1 (by the user), so the app cannot switch itself on again");
-Check(AutostartLogic.StoreOn(AutostartLogic.StoreState(false), true) == false && AutostartLogic.StoreOn(AutostartLogic.StoreState(true), false), "what is written reads back");
+Check(!AutostartLogic.StoreOn(AutostartLogic.StoreState(false)) && AutostartLogic.StoreOn(AutostartLogic.StoreState(true)), "what is written reads back");
 
 // manifests
 const string teamsXml = """
@@ -232,7 +232,8 @@ Eq(AutostartLogic.ParseManifest("""<Package xmlns="http://schemas.microsoft.com/
 Eq(AutostartLogic.ParseManifest("not xml <").Count, 0, "broken XML gives none");
 Eq(AutostartLogic.ParseManifest("").Count, 0, "empty manifest gives none");
 Eq(AutostartLogic.ParseManifest(null).Count, 0, "no manifest gives none");
-Eq(AutostartLogic.ParseManifest("""<!DOCTYPE p [<!ENTITY x SYSTEM "file:///c:/windows/win.ini">]><Package><Applications><Application Id="A"><Extensions><Extension Category="windows.startupTask"><StartupTask TaskId="&x;"/></Extension></Extensions></Application></Applications></Package>""").Count, 0, "a DTD is refused");
+Eq(AutostartLogic.ParseManifest("""<!DOCTYPE p [<!ENTITY x SYSTEM "file:///c:/windows/win.ini">]><Package><Applications><Application Id="A"><Extensions><Extension Category="windows.startupTask"><StartupTask TaskId="&x;"/></Extension></Extensions></Application></Applications></Package>""").Count, 0, "a DTD with an external entity is refused");
+Eq(AutostartLogic.ParseManifest("""<!DOCTYPE p [<!ENTITY x "abc">]><Package><Applications><Application Id="A"><Extensions><Extension Category="windows.startupTask"><StartupTask TaskId="&x;"/></Extension></Extensions></Application></Applications></Package>""").Count, 0, "a DTD with an internal entity is refused too");
 Check(AutostartLogic.PlainText("WhatsApp") && !AutostartLogic.PlainText("ms-resource:x") && !AutostartLogic.PlainText(" ") && !AutostartLogic.PlainText(null) && !AutostartLogic.PlainText(new string('a', 65)), "plain text");
 
 // logos
@@ -245,6 +246,7 @@ Eq(AutostartLogic.PickLogo("Logo.png", new[] { "Logo.contrast-black_scale-100.pn
 Eq(AutostartLogic.PickLogo("Logo.png", new[] { "LogoBig.png", "Logo.png.bak", "Other.png" }), null, "other files are no variants");
 Eq(AutostartLogic.PickLogo("Logo", new[] { "Logo" }), null, "a logo without extension");
 Eq(AutostartLogic.PickLogo("StoreLogo.png", new[] { "StoreLogo.scale-100.png", "StoreLogo.targetsize-48_altform-unplated_devicefamily-colorfulunplated.png" }), "StoreLogo.targetsize-48_altform-unplated_devicefamily-colorfulunplated.png", "unknown qualifiers do not hurt");
+Eq(AutostartLogic.PickLogo("Logo.png", new[] { "Logo.contrast-standard_scale-100.png", "Logo.contrast-high_scale-100.png", "Logo.contrast-white_targetsize-48.png" }), "Logo.contrast-standard_scale-100.png", "contrast-standard is the normal look");
 
 // advice for Store apps (the entry is family/task id, the name the package's)
 string? SRec(string family, string task, string name, string exe = "", string pub = "")
@@ -254,6 +256,7 @@ Eq(SRec("5319275A.WhatsAppDesktop_cv1g1gvanyjgm", "WhatsAppStartupTask", "WhatsA
 Eq(SRec("SpotifyAB.SpotifyMusic_zpdnekdrzrea0", "Spotify", "Spotify Music", "", "Spotify AB"), "off", "Spotify from the Store can go");
 Eq(SRec("Microsoft.GamingApp_8wekyb3d8bbwe", "XboxAppStartupTask", "Xbox", "", "Microsoft Corporation"), "off", "the Xbox app can go");
 Eq(SRec("Microsoft.YourPhone_8wekyb3d8bbwe", "YourPhoneStartupTask", "Smartphone-Link", "", "Microsoft Corporation"), "off", "Phone Link can go");
+Eq(SRec("Microsoft.YourPhone_8wekyb3d8bbwe", "YourPhoneStartupTask", "Telefon Bağlantısı", @"C:\x\PhoneExperienceHost.exe", "Microsoft Corporation"), "off", "Phone Link in any display language");
 Eq(SRec("TelegramMessengerLLP.TelegramDesktop_t4vj0pshhgkwm", "Telegram", "Telegram Desktop"), "off", "Telegram can go");
 Eq(SRec("RealtekSemiconductorCorp.RealtekAudioControl_dt26b99r8h8gj", "RtkUWP", "Realtek Audio Console", "", "Realtek Semiconductor Corp"), "on", "Realtek Audio Console stays");
 Eq(SRec("DolbyLaboratories.DolbyAccess_rz1tebttyb220", "DolbyStartup", "Dolby Access", "", "Dolby Laboratories"), "on", "Dolby stays");

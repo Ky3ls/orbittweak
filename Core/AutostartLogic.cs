@@ -86,10 +86,10 @@ public static class AutostartLogic
     // ---------- Store apps ----------
 
     /// <summary>The StartupTaskState Windows writes: 0 disabled (by the app or never enabled), 1 disabled by the user,
-    /// 2 enabled, 3 disabled by policy, 4 enabled by policy. No value: the manifest's Enabled decides (a desktop app may
-    /// start enabled, a UWP app always starts disabled and asks first).</summary>
-    public static bool StoreOn(int? state, bool enabledInManifest)
-        => state switch { 2 or 4 => true, 0 or 1 or 3 => false, _ => enabledInManifest };
+    /// 2 enabled, 3 disabled by policy, 4 enabled by policy. No value means the task is not registered yet and does not
+    /// run: Windows registers it only when the app is opened for the first time (also with Enabled="true" in the
+    /// manifest, a UWP app even asks first), and the Task Manager shows it as disabled until then.</summary>
+    public static bool StoreOn(int? state) => state is 2 or 4;
 
     /// <summary>3 and 4 come from a group policy: Windows ignores the user's choice, so the switch is locked.</summary>
     public static bool StoreLocked(int? state) => state is 3 or 4;
@@ -121,8 +121,9 @@ public static class AutostartLogic
     }
 
     /// <summary>One startup task from an AppxManifest.xml: the app it belongs to, the exe it starts (relative to the
-    /// package folder, "" for a UWP app), its id, whether the manifest enables it, its display name (may be an
-    /// "ms-resource:" reference) and the app's small logo (relative path, may be "").</summary>
+    /// package folder), its id, what the manifest asks for (Windows applies Enabled only after the first launch, so it
+    /// does not decide what the page shows), its display name (may be an "ms-resource:" reference) and the app's small
+    /// logo (relative path, may be "").</summary>
     public sealed record StoreTask(string AppId, string Executable, string TaskId, bool Enabled, string DisplayName, string Logo);
 
     /// <summary>The startup tasks a package manifest declares (desktop:Extension or uap5:Extension with the category
@@ -133,7 +134,12 @@ public static class AutostartLogic
         var list = new List<StoreTask>();
         if (string.IsNullOrWhiteSpace(xml)) return list;
         System.Xml.Linq.XDocument doc;
-        try { doc = System.Xml.Linq.XDocument.Parse(xml); }   // DTDs are refused (the default), a manifest has none
+        try
+        {
+            // a manifest has no DTD: one is refused outright (XDocument.Parse alone would expand its entities)
+            using var r = System.Xml.XmlReader.Create(new System.IO.StringReader(xml), new System.Xml.XmlReaderSettings { DtdProcessing = System.Xml.DtdProcessing.Prohibit, XmlResolver = null });
+            doc = System.Xml.Linq.XDocument.Load(r);
+        }
         catch { return list; }
         if (doc.Root == null) return list;
         static string A(System.Xml.Linq.XElement? e, string name) => ((string?)e?.Attribute(name) ?? "").Trim();
@@ -196,6 +202,7 @@ public static class AutostartLogic
         foreach (var raw in qualifiers.Split('_', StringSplitOptions.RemoveEmptyEntries))
         {
             var q = raw.ToLowerInvariant();
+            if (q == "contrast-standard") continue;   // the normal look, written out
             if (q.StartsWith("contrast-") || q == "theme-light" || q == "altform-lightunplated") return -1;
             if (q == "altform-unplated") score += 40;
             else if (q.StartsWith("altform-")) return -1;
@@ -373,7 +380,7 @@ public static class AutostartLogic
         (R(@"epic ?games ?launcher|\beadesktop\b|\bealauncher\b|\bea (app|desktop)\b|\beadm\b|\borigin\b|ubisoft|\bupc\b|\buplay\b|battle\.net|rockstar|gog galaxy|galaxyclient|riot ?client|amazon games|bethesda\.net|wargaming|microsoft\.gamingapp"), "off", WhyLauncher),
         (R(@"autolaunch|browser ?assistant|browser_assistant|--auto-launch|--no-startup-window"), "off", WhyBrowser),
         (R(@"adobe ?arm\b|acrobat update|adobe updater|creative cloud|\bccxprocess\b|\badobe ?gc|\bacrotray\b|\bjusched\b|java update|google update|\bccleaner\b"), "off", WhyUpdater),
-        (R(@"spotify|\bteams\b|ms-teams|\bskype\b|itunes|whatsapp|\btelegram\b|\bmessenger\b|phone ?link|smartphone-link|\byourphone\b|\bcopilot\b|\bzoom\b|amazon music|\bdeezer\b|\btidal\b|overwolf"), "off", WhyApp),
+        (R(@"spotify|\bteams\b|ms-teams|\bskype\b|itunes|whatsapp|\btelegram\b|\bmessenger\b|phone ?link|smartphone-link|microsoft\.yourphone|\byourphone\b|\bcopilot\b|\bzoom\b|amazon music|\bdeezer\b|\btidal\b|overwolf"), "off", WhyApp),
     };
 
     /// <summary>The advice for one entry, from its names, exe, publisher and arguments.</summary>
