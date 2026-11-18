@@ -1390,6 +1390,7 @@ public partial class MainWindow : Window
         // 2.27: features that live in their own partial files (MainWindow.Stats.cs, MainWindow.Autostart.cs)
         if (cmd.StartsWith("stats.", StringComparison.Ordinal)) return await StatsCmd(cmd, a);
         if (cmd.StartsWith("autostart.", StringComparison.Ordinal)) return await AutostartCmd(cmd, a);
+        if (cmd.StartsWith("og.", StringComparison.Ordinal)) return await OgCmd(cmd, a);   // 2.30: MainWindow.OtherGames.cs
         throw new InvalidOperationException("Unbekannter Befehl: " + cmd);
     }
 
