@@ -3802,6 +3802,12 @@ document.addEventListener('click', async e => {
 
 /* ======================= WHAT'S NEW: shown once after an update ======================= */
 const CHANGES = {
+  '2.29.0': [
+    ['gauge', 'FPS-Limit für FiveM', 'Unter Grafik & Farben deckelt der NVIDIA-Treiber auf Wunsch die Bildrate nur für FiveM. Das bringt meist gleichmäßigere Frametimes, weniger Hitze und weniger Lüfterlärm. Der Vorschlag liegt knapp unter der Bildwiederholrate deines Monitors.'],
+    ['layers', 'Texturbudget', 'Gegen fehlende oder matschige Texturen auf Servern mit vielen Add-on-Autos: OrbitTweak stellt FiveMs „Extended Texture Budget“ ein und schlägt einen Wert passend zu deinem Grafikspeicher vor.'],
+    ['sliders', 'Voice macht nichts mehr leiser', 'Neuer Tweak unter System: Windows dreht Musik und Spielsound nicht mehr um 80 % leiser, sobald Discord, Teams oder eine andere App einen Anruf öffnet.'],
+    ['shield', 'Speicherintegrität in der Diagnose', 'Aktuelle Windows-Updates schalten sie auf vielen PCs ein. Die Diagnose zeigt jetzt, ob sie läuft, was sie schützt und was sie in Spielen kosten kann. OrbitTweak schaltet sie nie selbst um.'],
+  ],
   '2.28.1': [
     ['sliders', 'Grafik-Presets wirken in FiveM', 'Die Presets unter Grafik & Farben landen jetzt in der Datei, die FiveM wirklich liest, meist FiveMs eigene gta5_settings.xml. Bisher schrieben sie in die Einstellungen von GTA V, die FiveM nicht liest. „Backup wiederherstellen“ holt diese GTA-V-Einstellungen einmal zurück.'],
     ['zap', 'Boost nur noch mit Nutzen', 'Alle 21 Tweaks wurden geprüft. Der Boost schaltet nur noch, was deinem PC hilft: Höchstleistung und LAN-Energiesparen bleiben, wie sie sind, die Game-Bar-Aufnahme geht nur aus, wenn „Im Hintergrund aufnehmen“ lief, und USB-Energiesparen nur noch am Desktop. Den Rest schaltest du einzeln ein.'],
