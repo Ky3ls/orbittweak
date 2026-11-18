@@ -496,6 +496,107 @@ TweakTexts.Run(Check);
     Check(GfxFile.BackupOf(fx) != GfxFile.BackupOf(gta) && GfxFile.BackupOf(gta).EndsWith("settings.xml.orbit-backup"), "two files, two backups; the old backup name stays");
 }
 
+// ---------- graphics: FPS limit in the NVIDIA driver profile ----------
+{
+    // NVAPI structs as nvapi.h lays them out (MAKE_NVAPI_VERSION = size | version << 16)
+    Check(FpsLimitLogic.SettingSize == 12320 && FpsLimitLogic.SettingVer == 0x13020u, "NVDRS_SETTING_V1 is 12320 bytes, version 0x13020");
+    Check(FpsLimitLogic.SetId == 4100 && FpsLimitLogic.SetLocation == 4108 && FpsLimitLogic.SetIsCurPredefined == 4112 && FpsLimitLogic.SetCurrent == 8220,
+        "NVDRS_SETTING_V1: settingId after the name, the current value after the 4100-byte predefined union");
+    Check(FpsLimitLogic.AppSize == 20492 && FpsLimitLogic.AppVer == 0x4500Cu && FpsLimitLogic.AppFriendly == 4104, "NVDRS_APPLICATION_V4 is 20492 bytes, version 4");
+    Check(FpsLimitLogic.ProfileSize == 4116 && FpsLimitLogic.ProfileVer == 0x11014u, "NVDRS_PROFILE_V1 is 4116 bytes, version 1");
+    Check(FpsLimitLogic.FrlFpsId == 0x10835002u, "the limit is FRL_FPS, the setting behind the Control Panel's Max Frame Rate");
+
+    // values
+    Check(FpsLimitLogic.Valid(0) && FpsLimitLogic.Valid(30) && FpsLimitLogic.Valid(141) && FpsLimitLogic.Valid(500), "off and 30 to 500 FPS are allowed");
+    Check(!FpsLimitLogic.Valid(29) && !FpsLimitLogic.Valid(501) && !FpsLimitLogic.Valid(-1) && !FpsLimitLogic.Valid(1), "below 30, above 500 and negative are not");
+    Check(FpsLimitLogic.Suggestion(144) == 141 && FpsLimitLogic.Suggestion(60) == 57 && FpsLimitLogic.Suggestion(240) == 237, "suggestion: 3 below the refresh rate");
+    Check(FpsLimitLogic.Suggestion(540) == 500 && FpsLimitLogic.Suggestion(0) == 0 && FpsLimitLogic.Suggestion(1) == 0 && FpsLimitLogic.Suggestion(30) == 0,
+        "suggestion stays inside 30 to 500, none for an unknown refresh rate");
+
+    // which exes: FiveM's game processes, one name per build
+    string Sub(string n) => Path.Combine("C:", "FiveM", "FiveM.app", "data", "cache", "subprocess", n);
+    var exes = FpsLimitLogic.GameExes(new[] { Path.Combine("C:", "FiveM", "FiveM.exe"), Sub("FiveM_b3095_GTAProcess.exe"), Sub("FiveM_b2802_GTAProcess.exe"),
+        Sub("FiveM_ChromeBrowser.exe"), Sub("FiveM_GTAProcess.exe"), Sub("fivem_b3095_gtaprocess.exe") }, "FiveM_b3258_GTAProcess");
+    Check(exes.SequenceEqual(new[] { "FiveM_b2802_GTAProcess.exe", "FiveM_b3095_GTAProcess.exe", "FiveM_b3258_GTAProcess.exe", "FiveM_GTAProcess.exe" }),
+        $"game exes: every build once, the running one too, not FiveM.exe or the browser ({string.Join(", ", exes)})");
+    Check(FpsLimitLogic.GameExes(Array.Empty<string>(), "FiveM_ChromeBrowser").Count == 0 && FpsLimitLogic.GameExes(Array.Empty<string>(), "FiveM_b3095_GTAProcess.exe").Count == 1,
+        "a running process counts only when it is the game, with or without .exe");
+
+    // a new build is the only reason to ask the driver again
+    var known = new[] { "FiveM_b3095_GTAProcess.exe" };
+    Check(FpsLimitLogic.NeedsSync(known, null), "first look since the start: the profiles are checked once");
+    Check(!FpsLimitLogic.NeedsSync(new[] { "fivem_b3095_gtaprocess.exe" }, known), "the same exes: nothing to do (names are case-insensitive)");
+    Check(FpsLimitLogic.NeedsSync(new[] { "FiveM_b3095_GTAProcess.exe", "FiveM_b3258_GTAProcess.exe" }, known), "a new build: the profiles are checked");
+    Check(!FpsLimitLogic.NeedsSync(Array.Empty<string>(), null) && !FpsLimitLogic.NeedsSync(Array.Empty<string>(), known), "no exe: nothing to check");
+
+    // where the limit goes
+    var plan = FpsLimitLogic.Decide(new (string, string?)[] { ("FiveM_b3095_GTAProcess.exe", null), ("FiveM_b2802_GTAProcess.exe", "Grand Theft Auto V"),
+        ("FiveM_b3258_GTAProcess.exe", "grand theft auto v"), ("FiveM_b2699_GTAProcess.exe", FpsLimitLogic.OwnProfile), ("FiveM_b3095_GTAProcess.exe", null) });
+    Check(plan.AddToOwn.SequenceEqual(new[] { "FiveM_b3095_GTAProcess.exe" }) && plan.Own, "an exe in no profile goes into OrbitTweak's own profile, once");
+    Check(plan.Foreign.Count == 1 && plan.Foreign[0] == "Grand Theft Auto V", "an exe of someone else's profile stays there; that profile once");
+    var mine = FpsLimitLogic.Decide(new (string, string?)[] { ("FiveM_b3095_GTAProcess.exe", "orbittweak fivem") });
+    Check(mine.Own && mine.AddToOwn.Count == 0 && mine.Foreign.Count == 0, "an exe already in the own profile: only the limit is set");
+    var theirs = FpsLimitLogic.Decide(new (string, string?)[] { ("FiveM_b3095_GTAProcess.exe", "FiveM") });
+    Check(!theirs.Own && theirs.AddToOwn.Count == 0, "all exes in someone else's profile: no own profile is made");
+    Check(FpsLimitLogic.FriendlyName("FiveM_b3095_GTAProcess.exe") == "FiveM b3095" && FpsLimitLogic.FriendlyName("FiveM_GTAProcess.exe") == "FiveM", "names in the Control Panel");
+
+    // backup of someone else's profile: its own value, or "-" (delete gives back the predefined or inherited value)
+    Check(FpsLimitLogic.Backup(true, 0, false, 100) == "100", "a profile's own limit is kept as it was");
+    Check(FpsLimitLogic.Backup(false, 0, false, 0) == "-" && FpsLimitLogic.Backup(true, 1, false, 60) == "-" && FpsLimitLogic.Backup(true, 2, false, 0) == "-",
+        "no setting of its own (not found, from the global or base profile): absent");
+    Check(FpsLimitLogic.Backup(true, 0, true, 0) == "-", "NVIDIA's predefined value: absent, deleting the setting brings it back");
+    Check(FpsLimitLogic.RestoreValue("100") == 100u && FpsLimitLogic.RestoreValue("0") == 0u, "a kept value is set back");
+    Check(FpsLimitLogic.RestoreValue("-") == null && FpsLimitLogic.RestoreValue(null) == null && FpsLimitLogic.RestoreValue("-5") == null, "absent: the setting is deleted");
+    Check(FpsLimitLogic.ProfileLimit(true, 0, 141) == 141 && FpsLimitLogic.ProfileLimit(true, 1, 141) == 0 && FpsLimitLogic.ProfileLimit(false, 0, 141) == 0,
+        "the limit a profile has itself");
+    Check(FpsLimitLogic.ShouldRestore(141, 141) && !FpsLimitLogic.ShouldRestore(90, 141) && FpsLimitLogic.ShouldRestore(90, 0),
+        "Aus puts a profile back while it still has OrbitTweak's limit, a value the user changed since stays");
+}
+
+// ---------- graphics: texture budget in fivem.cfg ----------
+{
+    Check(TexBudgetLogic.Multiplier(0) == 1 && TexBudgetLogic.Multiplier(12) == 2 && Math.Abs(TexBudgetLogic.Multiplier(8) - 5 / 3.0) < 1e-9, "multiplier value / 12 + 1: 0 default, 12 double");
+    Check(TexBudgetLogic.Percent(8) == 40 && TexBudgetLogic.Percent(TexBudgetLogic.Max) == 100, "the slider: 8 is 40 %, 20 is 100 %");
+    Check(TexBudgetLogic.CapMb(8) == 6575 && TexBudgetLogic.CapMb(0) == 3945, "texture cap estimate: 6575 MB at 8 as Cfx.re staff gave it");
+    Check(TexBudgetLogic.Valid(0) && TexBudgetLogic.Valid(20) && !TexBudgetLogic.Valid(-1) && !TexBudgetLogic.Valid(21), "0 to 20");
+
+    // VRAM → suggestion: the texture cap stays within half of the card
+    Check(TexBudgetLogic.Suggestion(0) == 0 && TexBudgetLogic.Suggestion(4096) == 0 && TexBudgetLogic.Suggestion(6144) == 0 && TexBudgetLogic.Suggestion(8192) == 0,
+        "up to 8 GB: FiveM's default 0");
+    Check(TexBudgetLogic.Suggestion(10240) == 3 && TexBudgetLogic.Suggestion(12288) == 6 && TexBudgetLogic.Suggestion(12079) == 6, "10 GB: 15 %, 12 GB: 30 %");
+    Check(TexBudgetLogic.Suggestion(16384) == 12 && TexBudgetLogic.Suggestion(24576) == 20 && TexBudgetLogic.Suggestion(49152) == 20, "16 GB: double, 24 GB and more: 100 %");
+    for (long mb = 0; mb <= 40000; mb += 256)
+    {
+        int s = TexBudgetLogic.Suggestion(mb);
+        if (TexBudgetLogic.CapMb(s) * 2 > Math.Max(mb, 7890) || s < 0 || s > TexBudgetLogic.Max || (mb > 0 && TexBudgetLogic.Suggestion(mb + 256) < s))
+        { Check(false, $"suggestion for {mb} MB ({s}) keeps half the VRAM free, stays in range and grows with the VRAM"); break; }
+    }
+
+    // reading the file FiveM writes
+    const string cfg = "// generated by CitizenFX\r\nbind keyboard \"F8\" \"toggleconsole\"\r\nseta \"cl_drawfps\" \"true\"\r\nseta \"vid_budgetScale\" \"8\"\r\nseta \"voice_mode\" \"2\"\r\n";
+    var r = TexBudgetLogic.Read(cfg);
+    Check(r.present && r.raw == "8" && r.value == 8, "the value FiveM wrote is read");
+    Check(TexBudgetLogic.Read("// generated by CitizenFX\r\nseta \"cl_drawfps\" \"true\"\r\n") == (false, null, 0), "no line: FiveM's default 0");
+    Check(TexBudgetLogic.Read("seta vid_budgetScale 4\nset \"VID_BUDGETSCALE\" \"6\" // mine\n").value == 6, "unquoted, other case, set and a comment: the last line wins");
+    Check(TexBudgetLogic.Read("// seta \"vid_budgetScale\" \"9\"\nseta \"vid_budgetScale2\" \"9\"\nseta \"vid_budgetScale\" \"x\"\n") == (true, "x", 0),
+        "comments and other convars do not count, a value that is no number is 0");
+    Check(TexBudgetLogic.Words("seta \"a b\" c // d").SequenceEqual(new[] { "seta", "a b", "c" }), "console words: quotes keep spaces, // ends the line");
+
+    // writing: only the one line changes
+    var w = TexBudgetLogic.Write(cfg, "4");
+    Check(w == cfg.Replace("\"vid_budgetScale\" \"8\"", "\"vid_budgetScale\" \"4\""), "the value is replaced in place, every other line and line end as before");
+    Check(TexBudgetLogic.Line("12") == "seta \"vid_budgetScale\" \"12\"", "the line as FiveM writes it");
+    var noLine = "// generated by CitizenFX\r\nseta \"cl_drawfps\" \"true\"\r\n";
+    Check(TexBudgetLogic.Write(noLine, "6") == noLine + "seta \"vid_budgetScale\" \"6\"\r\n", "a file without the line gets it at the end, with FiveM's \\r\\n");
+    Check(TexBudgetLogic.Write("seta \"a\" \"1\"", "6") == "seta \"a\" \"1\"\r\nseta \"vid_budgetScale\" \"6\"\r\n" && TexBudgetLogic.Write("x\ny\n", "2") == "x\ny\nseta \"vid_budgetScale\" \"2\"\n",
+        "a last line without line end gets one first; a file with \\n keeps \\n");
+    Check(TexBudgetLogic.Write(TexBudgetLogic.Write(noLine, "6"), null) == noLine, "back to before: the added line goes again, the file is as it was");
+    Check(TexBudgetLogic.Write(noLine, null) == noLine && TexBudgetLogic.Write("", "3") == "seta \"vid_budgetScale\" \"3\"\r\n", "nothing to take out; an empty file gets the line");
+    var twice = "seta \"vid_budgetScale\" \"2\"\nbind x y\n  seta \"vid_budgetScale\" \"5\"\nz";
+    Check(TexBudgetLogic.Write(twice, "9") == "seta \"vid_budgetScale\" \"2\"\nbind x y\n  seta \"vid_budgetScale\" \"9\"\nz", "two lines: the last one (the one that counts) changes, its indent stays");
+    Check(TexBudgetLogic.Write("a\rseta vid_budgetScale 1\rb\r", "7") == "a\rseta \"vid_budgetScale\" \"7\"\rb\r", "old Mac line ends stay too");
+}
+
 // ---------- play time (Spielzeit) ----------
 {
     var cet = TimeSpan.FromHours(1);

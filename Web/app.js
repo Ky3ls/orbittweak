@@ -326,7 +326,7 @@ function go(p) {
   $$('.nav').forEach(n => n.classList.toggle('active', n.dataset.p === (NAV_OF[p] || p)));
   $$('.page').forEach(s => s.classList.toggle('show', s.id === 'p-' + p));
   moveInd(); enterPage($('#p-' + p));
-  ({ servers: () => S.servers.length || loadServers(), gfx: () => { S.gfx?.found || loadGfx(); gwRefresh(); }, f8: () => loadF8().then(renderF8), admin: () => admShow(admTab), minimap: modsRefresh, clip: () => { clipList(); hlLoad(); }, mods: modsRefresh, settings: () => { setTab($('#setTabs .tab.on')?.dataset.st || 'account'); spProfile(); }, xhair: () => setTimeout(xhPlace, 30), cleaner: () => S.clean.length || scan(),
+  ({ servers: () => S.servers.length || loadServers(), gfx: () => { S.gfx?.found || loadGfx(); gwRefresh(); drvLoad(); }, f8: () => loadF8().then(renderF8), admin: () => admShow(admTab), minimap: modsRefresh, clip: () => { clipList(); hlLoad(); }, mods: modsRefresh, settings: () => { setTab($('#setTabs .tab.on')?.dataset.st || 'account'); spProfile(); }, xhair: () => setTimeout(xhPlace, 30), cleaner: () => S.clean.length || scan(),
      diag: () => { S.health ? renderHealth(S.health) : runHealth(); loadLogs(); }, launcher: renderCmd, home: refreshCache })[p]?.();
   PAGE_SHOW[p]?.();
 }
@@ -849,6 +849,135 @@ async function gfxRestore() {
   if (r.kind === 'gtaOld') toast('GTA-V-Einstellungen zurückgeholt', 'Story-Modus und GTA Online haben wieder deine alten Grafikwerte. FiveM war davon nie betroffen.');
   else toast('Backup wiederhergestellt', r.old ? 'Original-Grafikeinstellungen aktiv, auch die alten von GTA V sind zurück' : 'Original-Grafikeinstellungen aktiv');
 }
+
+/* ======================= FPS LIMIT + TEXTURE BUDGET ======================= */
+// Two settings for the next start that are no GTA settings and need no "Speichern": NVIDIA's frame limit in the driver
+// profile of FiveM's game processes (fps.*, Core/FpsTex.cs) and FiveM's texture budget vid_budgetScale in fivem.cfg (tex.*).
+const FPS_COMMON = [60, 120, 144, 240];
+const nf2 = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const gdStat = (k, v, s, cls = '') => `<div class="gl-st"><span class="gl-k">${k}</span><b class="gl-v${cls}">${v}</b><span class="gl-s">${s}</span></div>`;
+function drvLoad() { fpsLoad(); texLoad(); }
+async function fpsLoad() {
+  try { S.fps = await api('fps.get'); } catch { S.fps = { available: false, reason: 'error' }; }
+  renderFps();
+}
+function renderFps() {
+  const f = S.fps, chip = $('#fpsChip'), body = $('#fpsBody');
+  if (!f || !body) return;
+  if (!f.available) {
+    // AMD, Intel or no driver: the card only says so
+    const [t, d] = f.reason === 'nofivem' ? ['FiveM nicht gefunden', 'Wähl im Launcher deinen FiveM-Ordner, dann kann OrbitTweak das Limit für FiveM setzen.']
+      : f.reason === 'nonvidia' ? ['Nur mit NVIDIA-Grafikkarte', 'Auf diesem PC gibt es keinen NVIDIA-Treiber, deshalb ändert OrbitTweak hier nichts. AMD und Intel bieten teils eigene Begrenzer in ihrer Treiber-App an.']
+      : ['Treiber nicht erreichbar', 'Der NVIDIA-Treiber hat nicht geantwortet. Versuch es später noch einmal.'];
+    chip.className = 'chip'; chip.textContent = f.reason === 'nofivem' ? 'FiveM fehlt' : 'Nicht verfügbar';
+    body.innerHTML = `<div class="gd-note">${ico('alert')}<div><b>${t}</b><span>${esc(d)}</span></div></div>`;
+    return;
+  }
+  const lim = f.limit || 0, sug = f.suggestion || 0;
+  const vals = [...new Set([sug, ...FPS_COMMON, lim].filter(v => v >= 30))].sort((a, b) => a - b);
+  chip.className = 'chip' + (lim ? ' g' : ''); chip.textContent = lim ? lim + ' FPS' : 'Aus';
+  // the profile the driver uses for FiveM: OrbitTweak's own one, or one that already had FiveM in it (then only its limit changes)
+  // (someone else's profile can hold more than FiveM, e.g. NVIDIA's own one for GTA V: the limit then counts for all of it)
+  const profS = !f.profile ? (f.exes && !f.ours ? 'OrbitTweak legt beim Setzen eins an' : 'Kommt beim nächsten FiveM-Start dazu')
+    : f.profile === 'OrbitTweak FiveM' ? 'Von OrbitTweak angelegt, „Aus“ löscht es wieder' : 'Gab es schon, Limit gilt fürs ganze Profil';
+  body.innerHTML = `<div class="gd-ctl"><span class="gd-l">Limit</span>
+      <div class="seg" id="fpsSeg"><button data-fps="0" class="${lim ? '' : 'on'}">Aus</button>${vals.map(v => `<button data-fps="${v}" class="${v === lim ? 'on' : ''}">${v}${v === sug ? '<small>Vorschlag</small>' : ''}</button>`).join('')}</div>
+      <span class="sp"></span>
+      <label class="gd-own"><input class="in" id="fpsOwn" type="number" min="30" max="500" step="1" placeholder="Eigener Wert" aria-label="Eigenes Limit in FPS"><span>FPS</span></label>
+      <button class="btn" id="fpsGo">Setzen</button></div>
+    <div class="gl-stats">
+      ${gdStat('Jetzt', lim ? `${lim}<small>FPS</small>` : 'Aus', lim ? (f.ours ? 'Ab dem nächsten FiveM-Start' : 'Steht so im Treiberprofil, nicht von OrbitTweak') : 'Kein Limit im Treiberprofil')}
+      ${gdStat('Monitor', f.hz ? `${f.hz}<small>Hz</small>` : '—', sug ? `Vorschlag ${sug} FPS für G-Sync und FreeSync` : 'Bildwiederholrate unbekannt')}
+      ${gdStat('Treiberprofil', esc(f.profile || 'Noch keins'), profS, ' gd-name')}
+    </div>`;
+}
+async function fpsSet(limit) {
+  const r = await api('fps.set', { limit }).catch(e => ({ error: e.message }));
+  if (r.error) return toast('FPS-Limit nicht gesetzt', r.error, false);
+  toast(r.limit ? `FPS-Limit ${r.limit} FPS` : 'FPS-Limit aus', r.limit ? 'Gilt ab dem nächsten FiveM-Start' : 'Das Treiberprofil ist wieder wie vorher');
+  fpsLoad();
+}
+function fpsOwn() {
+  const v = Math.round(+$('#fpsOwn').value);
+  if (!(v >= 30 && v <= 500)) return toast('Kein gültiger Wert', 'Erlaubt sind 30 bis 500 FPS', false);
+  fpsSet(v);
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('#fpsSeg button');
+  if (b) {
+    if (b.classList.contains('on')) return;
+    // "Aus" puts back what OrbitTweak changed; a limit OrbitTweak did not set is not its to take away
+    if (b.dataset.fps === '0' && !S.fps?.ours)
+      return toast('Nicht von OrbitTweak', 'Dieses Limit steht schon vorher im Treiberprofil. Ändern kannst du es dort, wo es gesetzt wurde, zum Beispiel in der NVIDIA-Systemsteuerung.', false);
+    fpsSet(+b.dataset.fps); return;
+  }
+  if (e.target.closest('#fpsGo')) fpsOwn();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'fpsOwn') fpsOwn(); });
+
+async function texLoad(keepEdit) {
+  const dirty = keepEdit && S.tex && S.texEdit !== S.tex.value;
+  try { S.tex = await api('tex.get'); } catch { S.tex = { found: false }; }
+  if (!dirty) S.texEdit = S.tex.value || 0;
+  renderTex();
+}
+function renderTex() {
+  const t = S.tex, chip = $('#texChip'), body = $('#texBody');
+  if (!t || !body) return;
+  chip.className = 'chip' + (t.found && t.value ? ' g' : '');
+  chip.textContent = t.found ? t.value * 5 + ' %' : 'fivem.cfg fehlt';
+  if (!t.found) {
+    body.innerHTML = `<div class="gd-note">${ico('file')}<div><b>fivem.cfg fehlt noch</b><span>Starte FiveM einmal, dann legt FiveM die Datei an. Danach kannst du das Budget hier setzen.</span></div></div>`;
+    return;
+  }
+  const max = t.max || 20, gb = t.vramMb ? Math.round(t.vramMb / 1024) : 0, sp = max ? t.suggestion / max * 100 : 0;
+  body.innerHTML = `<div class="gd-ctl"><span class="gd-l">Budget</span>
+      <div class="gd-rng"><input type="range" id="texRng" min="0" max="${max}" step="1" value="${S.texEdit}" aria-label="Texturbudget"><i class="gd-mark" style="left:calc(9px + (100% - 18px) * ${sp / 100})" title="Vorschlag"></i></div>
+      <b class="gd-val" id="texVal"></b>
+      <button class="btn gh" id="texSug">Vorschlag</button>
+      ${t.before != null ? '<button class="btn gh" id="texBack" title="Den Wert von vor der ersten Änderung zurückholen">Wie vorher</button>' : ''}
+      <button class="btn" id="texGo">Übernehmen</button></div>
+    <p class="gd-hint" id="texHint"></p>
+    <div class="gl-stats">
+      ${gdStat('In fivem.cfg', `${t.value * 5}<small>%</small>`, t.value ? `Budget ×${nf2.format(t.value / 12 + 1)} · vid_budgetScale ${t.value}` : 'FiveM-Standard')}
+      ${gdStat('Vorschlag', `${t.suggestion * 5}<small>%</small>`, !gb ? 'Grafikspeicher unbekannt' : t.suggestion ? `Die Hälfte deiner ${gb} GB bleibt frei` : `Bei ${gb} GB lieber FiveMs Standard`)}
+      ${gdStat('Grafikspeicher', gb ? `${gb}<small>GB</small>` : '—', 'VRAM deiner Grafikkarte')}
+    </div>`;
+  texPreview();
+}
+/** The slider's value, what it means, and whether "Übernehmen" has something to do. */
+function texPreview() {
+  const t = S.tex, v = S.texEdit, r = $('#texRng'), max = t.max || 20;
+  if (!r) return;
+  r.style.setProperty('--p', v / max * 100 + '%');
+  $('#texVal').innerHTML = `${v * 5}<small>%</small>`;
+  const h = $('#texHint'), over = v > t.suggestion;
+  h.classList.toggle('warn', over && !t.running);
+  h.textContent = t.running ? 'Schließ FiveM, dann kannst du das Budget ändern. Solange FiveM läuft, schreibt es die Datei selbst neu.'
+    : over ? `Über dem Vorschlag: Wird der Grafikspeicher voll, ruckelt das Spiel. Budget ×${nf2.format(v / 12 + 1)}.`
+    : `Budget ×${nf2.format(v / 12 + 1)}${v ? '' : ', FiveM-Standard'} · gilt ab dem nächsten FiveM-Start`;
+  $('#texGo').disabled = t.running || v === t.value;
+  $('#texSug').disabled = v === t.suggestion;
+  const back = $('#texBack'); if (back) back.disabled = t.running || t.before === t.value;
+}
+async function texSet(args) {
+  const r = await api('tex.set', args).catch(e => ({ error: e.message }));
+  if (r.error) return toast('Texturbudget nicht gesetzt', r.error, false);
+  toast(args.restore ? 'Texturbudget wie vorher' : `Texturbudget ${r.value * 5} %`, 'Gilt ab dem nächsten FiveM-Start');
+  texLoad();
+}
+document.addEventListener('input', e => { if (e.target.id !== 'texRng') return; S.texEdit = +e.target.value; texPreview(); });
+document.addEventListener('click', e => {
+  if (e.target.closest('#texGo')) texSet({ value: S.texEdit });
+  else if (e.target.closest('#texBack')) texSet({ restore: true });
+  else if (e.target.closest('#texSug')) { S.texEdit = S.tex.suggestion; $('#texRng').value = S.texEdit; texPreview(); }
+});
+// FiveM started or closed: the texture card follows (writing only works while FiveM is closed)
+setInterval(async () => {
+  if (curPage !== 'gfx' || !S.tex || document.hidden) return;
+  const r = await api('tex.get').catch(() => null);
+  if (r && (r.running !== S.tex.running || r.found !== S.tex.found || r.value !== S.tex.value)) texLoad(true);
+}, 5000);
 
 /* ======================= INPUT LAB ======================= */
 // The tester shows what the game would see: with both keys of a pair held the game cancels them out and the figure
@@ -3172,6 +3301,26 @@ const Mock = {
       default: return { ok: true, freed: 3.4e8, count: 0, applied: true };
     }
   }
+};
+/* FPS limit and texture budget (Core/FpsTex.cs), shapes as the host gives them; ?nonvidia: a PC without NVIDIA driver */
+const DRV_MOCK = { fps: 0, tex: 4, texBefore: null };
+MOCK_EXT['fps.get'] = async () => /nonvidia/.test(location.search)
+  ? { available: false, reason: 'nonvidia', limit: 0, hz: 144, suggestion: 141, profile: null, ours: false, exes: 0 }
+  : { available: true, reason: null, limit: DRV_MOCK.fps, hz: 144, suggestion: 141, profile: DRV_MOCK.fps ? 'OrbitTweak FiveM' : null, ours: DRV_MOCK.fps > 0, exes: 2 };
+MOCK_EXT['fps.set'] = async a => {
+  const l = a.limit;
+  if (!(l === 0 || (l >= 30 && l <= 500))) return { error: 'Erlaubt sind Aus oder 30 bis 500 FPS.' };
+  DRV_MOCK.fps = l; return { ok: true, limit: l };
+};
+MOCK_EXT['tex.get'] = async () => ({ found: true, value: DRV_MOCK.tex, max: 20, suggestion: 6, vramMb: 12282, running: false, before: DRV_MOCK.texBefore, path: 'C:\\Users\\Max\\AppData\\Roaming\\CitizenFX\\fivem.cfg' });
+MOCK_EXT['tex.set'] = async a => {
+  if (a.restore) {
+    if (DRV_MOCK.texBefore == null) return { error: 'Es gibt noch kein Backup.' };
+    DRV_MOCK.tex = DRV_MOCK.texBefore; DRV_MOCK.texBefore = null; return { ok: true, value: DRV_MOCK.tex };
+  }
+  if (!(a.value >= 0 && a.value <= 20)) return { error: 'Erlaubt ist 0 bis 20.' };
+  if (DRV_MOCK.texBefore == null) DRV_MOCK.texBefore = DRV_MOCK.tex;
+  DRV_MOCK.tex = a.value; return { ok: true, value: a.value };
 };
 
 boot();

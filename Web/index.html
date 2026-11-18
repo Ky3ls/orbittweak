@@ -349,6 +349,23 @@
         <div class="row gt-head"><div class="gt-t"><b>Feintuning</b><p>Jede Einstellung einzeln, ein Preset oben setzt alle auf einmal.</p></div><span class="sp"></span><span class="chip a hidden" id="gfxDirty">Ungespeichert</span></div>
         <div class="gctl" id="gctl"></div>
       </div>
+      <div class="gsec" id="gfxDrv"><b>FiveM und Grafiktreiber</b><span>Ohne Speichern, gilt ab dem nächsten FiveM-Start</span></div>
+      <div class="card gdrv" id="fpsCard">
+        <div class="gl-head">
+          <span class="gl-ic"><svg class="i"><use href="#gauge"/></svg></span>
+          <div class="gl-t"><b>FPS-Limit für FiveM</b><p>Nur mit NVIDIA-Grafikkarte: FiveM hat keinen eigenen Begrenzer, deshalb deckelt der Treiber die Bildrate nur für FiveM. Das bringt meist gleichmäßigere Frametimes, weniger Hitze und weniger Lüfterlärm. Ein zu niedriges Limit kostet FPS.</p></div>
+          <span class="chip" id="fpsChip">…</span>
+        </div>
+        <div class="gd-body" id="fpsBody"></div>
+      </div>
+      <div class="card gdrv" id="texCard">
+        <div class="gl-head">
+          <span class="gl-ic"><svg class="i"><use href="#layers"/></svg></span>
+          <div class="gl-t"><b>Texturbudget</b><p>Hilft gegen fehlende oder matschige Texturen auf Servern mit vielen Add-on-Autos und MLOs. Zu hoch gestellt ruckelt das Spiel, sobald der Grafikspeicher voll ist. Derselbe Wert wie FiveMs Regler „Extended Texture Budget“.</p></div>
+          <span class="chip" id="texChip">…</span>
+        </div>
+        <div class="gd-body" id="texBody"></div>
+      </div>
       <div class="savebar">
         <span class="sb-path"><svg class="i"><use href="#file"/></svg><span id="gfxPath">—</span></span><span class="sp"></span>
         <button class="btn" onclick="gfxRestore()"><svg class="i"><use href="#undo"/></svg>Backup wiederherstellen</button>

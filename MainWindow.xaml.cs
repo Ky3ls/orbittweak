@@ -676,6 +676,28 @@ public partial class MainWindow : Window
                     return new { ok = true, kind, path, old };
                 }
                 catch (Exception ex) { return new { error = ex.Message }; }
+            // FPS limit in the NVIDIA driver profile of FiveM's game processes (Core/FpsTex.cs)
+            case "fps.get": return await Task.Run(FpsLimit.Get);
+            case "fps.set":
+            {
+                if (!(a.ValueKind == JsonValueKind.Object && a.TryGetProperty("limit", out var l) && l.ValueKind == JsonValueKind.Number)) return new { error = "Kein Wert angegeben" };
+                int limit = Int(a, "limit");
+                var (ok, err) = await Task.Run(() => FpsLimit.SetLimit(limit));
+                if (!ok) return new { error = err };
+                Log(limit == 0 ? "↺ FPS-Limit für FiveM aus, Treiberprofil wie vorher" : $"🎯 FPS-Limit für FiveM: {limit} FPS ab dem nächsten Start");
+                return new { ok = true, limit };
+            }
+            // texture budget: vid_budgetScale in FiveM's fivem.cfg
+            case "tex.get": return await Task.Run(TexBudget.Get);
+            case "tex.set":
+            {
+                bool restore = Bool(a, "restore");
+                if (!restore && !(a.ValueKind == JsonValueKind.Object && a.TryGetProperty("value", out var v) && v.ValueKind == JsonValueKind.Number)) return new { error = "Kein Wert angegeben" };
+                var (value, err) = await Task.Run(() => TexBudget.Set(Int(a, "value"), restore));
+                if (err != null) return new { error = err };
+                Log(restore ? $"↺ Texturbudget wie vorher ({TexBudgetLogic.Percent(value)} %)" : $"🧱 Texturbudget {TexBudgetLogic.Percent(value)} % (vid_budgetScale {value}) ab dem nächsten Start");
+                return new { ok = true, value };
+            }
 
             // ---------- crosshair ----------
             case "xhair.set":
@@ -2072,6 +2094,10 @@ public partial class MainWindow : Window
                         int added = Catalog.PrefUpkeep();
                         if (added > 0) Log($"🖥 Grafikeinstellung für {added} neue FiveM-Datei(en) übernommen");
                     }
+                    // the FPS limit too, on every look: a new build's exe should be in the driver profile before the game
+                    // process makes its graphics device (cheap until the list of exes changes)
+                    if (_authed && procs.Length > 0)
+                        try { if (FpsLimit.Upkeep(game?.ProcessName) is > 0 and var fps) Log($"🎯 FPS-Limit für {fps} neue FiveM-Datei(en) übernommen"); } catch { }
                     if (_authed && game != null && S.AutoBorderless)
                     {
                         try
