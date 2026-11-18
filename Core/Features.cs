@@ -11,12 +11,28 @@ using System.Xml.Linq;
 namespace OrbitTweak.Core;
 
 // =====================================================================
-//  GTA V settings.xml – graphics presets
+//  GTA V graphics settings – presets. Written into the file FiveM really reads (GfxFile): its own
+//  gta5_settings.xml, or the Documents settings.xml on installs from before June 2020.
 // =====================================================================
 internal static class Gfx
 {
-    public static string FilePath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Rockstar Games", "GTA V", "settings.xml");
-    private static string Backup => FilePath + ".orbit-backup";
+    public static string GtaPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Rockstar Games", "GTA V", "settings.xml");
+    /// <summary>FiveM's fxd:/gta5_settings.xml; fxd:/ is %AppData%\CitizenFX\.</summary>
+    public static string FiveMPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CitizenFX", "gta5_settings.xml");
+
+    /// <summary>The file FiveM reads on its next start, and its kind (<see cref="GfxFile.FiveMKind"/> or <see cref="GfxFile.GtaKind"/>).</summary>
+    public static (string kind, string path) Target()
+    {
+        bool? fresh = null;
+        if (FiveM.AppDir is { } a && Directory.Exists(a))
+        {
+            var crashes = Path.Combine(a, "crashes");
+            fresh = GfxFile.IsNewInstall(Path.Exists(Path.Combine(a, "citizen", "new_vid_behavior.txt")),
+                Directory.Exists(crashes) ? Directory.GetCreationTimeUtc(crashes) : null);
+        }
+        var kind = GfxFile.Pick(fresh, File.Exists(FiveMPath), File.Exists(GtaPath));
+        return (kind, kind == GfxFile.FiveMKind ? FiveMPath : GtaPath);
+    }
 
     private static readonly HashSet<string> Floats = new(StringComparer.OrdinalIgnoreCase)
     { "LodScale", "CityDensity", "MotionBlurStrength", "PedLodBias", "VehicleLodBias", "Shadow_Distance", "PedVarietyMultiplier", "VehicleVarietyMultiplier", "MaxLodScale" };
@@ -26,24 +42,31 @@ internal static class Gfx
 
     public static object Get()
     {
-        if (!File.Exists(FilePath)) return new { found = false, path = FilePath, values = new Dictionary<string, string>(), hasBackup = false };
-        var doc = XDocument.Load(FilePath);
+        var (kind, path) = Target();
+        var hasBackup = File.Exists(GfxFile.BackupOf(path));
+        if (!File.Exists(path)) return new { found = false, kind, path, values = new Dictionary<string, string>(), hasBackup };
+        var doc = XDocument.Load(path);
         var g = doc.Root?.Element("graphics");
         var values = g?.Elements().Where(e => e.Attribute("value") != null)
                       .ToDictionary(e => e.Name.LocalName, e => e.Attribute("value")!.Value) ?? new();
         if (doc.Root?.Element("video")?.Element("Windowed")?.Attribute("value")?.Value is { } win) values["Windowed"] = win;
-        return new { found = true, path = FilePath, values, hasBackup = File.Exists(Backup) };
+        return new { found = true, kind, path, values, hasBackup };
     }
 
-    public static void Save(JsonElement values)
+    /// <summary>Writes the values into the file FiveM reads and returns which one that was.</summary>
+    public static (string kind, string path) Save(JsonElement values)
     {
-        if (!File.Exists(FilePath)) throw new InvalidOperationException("settings.xml nicht gefunden – starte GTA V / FiveM einmal.");
+        var (kind, path) = Target();
+        if (!File.Exists(path)) throw new InvalidOperationException(kind == GfxFile.FiveMKind
+            ? "gta5_settings.xml nicht gefunden. Starte FiveM einmal, dann legt FiveM die Datei an."
+            : "settings.xml nicht gefunden. Starte FiveM einmal, dann legt das Spiel die Datei an.");
         if (FiveM.IsRunning) throw new InvalidOperationException("Bitte FiveM zuerst schließen, sonst überschreibt das Spiel die Datei.");
-        if (!File.Exists(Backup)) File.Copy(FilePath, Backup);
-        var attr = File.GetAttributes(FilePath);
-        if (attr.HasFlag(FileAttributes.ReadOnly)) File.SetAttributes(FilePath, attr & ~FileAttributes.ReadOnly);
+        var backup = GfxFile.BackupOf(path);
+        if (!File.Exists(backup)) File.Copy(path, backup);
+        var attr = File.GetAttributes(path);
+        if (attr.HasFlag(FileAttributes.ReadOnly)) File.SetAttributes(path, attr & ~FileAttributes.ReadOnly);
 
-        var doc = XDocument.Load(FilePath);
+        var doc = XDocument.Load(path);
         var g = doc.Root!.Element("graphics") ?? new XElement("graphics");
         if (g.Parent == null) doc.Root.Add(g);
         foreach (var p in values.EnumerateObject())
@@ -68,14 +91,19 @@ internal static class Gfx
             if (el == null) sec.Add(new XElement(p.Name, new XAttribute("value", v)));
             else el.SetAttributeValue("value", v);
         }
-        doc.Save(FilePath);
+        doc.Save(path);
+        return (kind, path);
     }
 
-    public static void Restore()
+    /// <summary>Puts back the backup of the file FiveM reads now (each file has its own, right next to it).</summary>
+    public static (string kind, string path) Restore()
     {
-        if (!File.Exists(Backup)) throw new InvalidOperationException("Es existiert noch kein Backup.");
-        if (FiveM.IsRunning) throw new InvalidOperationException("Bitte FiveM zuerst schließen.");
-        File.Copy(Backup, FilePath, true);
+        var (kind, path) = Target();
+        var backup = GfxFile.BackupOf(path);
+        if (!File.Exists(backup)) throw new InvalidOperationException($"Für {Path.GetFileName(path)} gibt es noch kein Backup.");
+        if (FiveM.IsRunning) throw new InvalidOperationException("Bitte FiveM zuerst schließen, sonst überschreibt das Spiel die Datei.");
+        File.Copy(backup, path, true);
+        return (kind, path);
     }
 }
 
