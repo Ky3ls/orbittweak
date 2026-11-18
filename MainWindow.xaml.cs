@@ -666,10 +666,10 @@ public partial class MainWindow : Window
             // ---------- graphics ----------
             case "gfx.get": return await Task.Run(Gfx.Get);
             case "gfx.save":
-                try { Gfx.Save(a.GetProperty("values")); Log("🎨 Grafik-Einstellungen gespeichert"); return new { ok = true }; }
+                try { var (kind, path) = Gfx.Save(a.GetProperty("values")); Log($"🎨 Grafik-Einstellungen gespeichert ({Path.GetFileName(path)})"); return new { ok = true, kind, path }; }
                 catch (Exception ex) { return new { error = ex.Message }; }
             case "gfx.restore":
-                try { Gfx.Restore(); Log("↺ Grafik-Backup wiederhergestellt"); return new { ok = true }; }
+                try { var (kind, path) = Gfx.Restore(); Log($"↺ Grafik-Backup wiederhergestellt ({Path.GetFileName(path)})"); return new { ok = true, kind, path }; }
                 catch (Exception ex) { return new { error = ex.Message }; }
 
             // ---------- crosshair ----------

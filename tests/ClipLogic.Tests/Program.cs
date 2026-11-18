@@ -458,6 +458,35 @@ TweakTexts.Run(Check);
     Check(!TweakLogic.IsDualCcdX3D("13th Gen Intel(R) Core(TM) i7-13700K"), "Intel is not X3D");
 }
 
+// ---------- graphics: the settings file FiveM really reads ----------
+{
+    DateTime U(int y, int mo, int d, int h = 0, int mi = 0, int s = 0) => new(y, mo, d, h, mi, s, DateTimeKind.Utc);
+    // FiveM's IsNewInstall(): crashes folder created after 2020-06-03 07:30:25 UTC, or the marker file
+    Check(GfxFile.IsNewInstall(false, U(2026, 7, 1)) == true, "a crashes folder from 2026 is a new install");
+    Check(GfxFile.IsNewInstall(false, U(2019, 3, 1)) == false, "a crashes folder from 2019 is an old install");
+    Check(GfxFile.IsNewInstall(false, U(2020, 6, 3, 7, 30, 25)) == false && GfxFile.IsNewInstall(false, U(2020, 6, 3, 7, 30, 26)) == true,
+        "the cutoff is FiveM's own moment, and only later counts as new");
+    Check(DateTime.FromFileTimeUtc(GfxFile.NewInstallCutoff) == U(2020, 6, 3, 7, 30, 25), "the cutoff FILETIME is 2020-06-03 07:30:25 UTC");
+    Check(GfxFile.IsNewInstall(true, U(2019, 3, 1)) == true && GfxFile.IsNewInstall(true, null) == true, "the marker file always means new");
+    Check(GfxFile.IsNewInstall(false, null) == null, "no marker and no crashes folder cannot be told");
+
+    // which file
+    Check(GfxFile.Pick(true, true, true) == GfxFile.FiveMKind, "new install with both files: FiveM's gta5_settings.xml");
+    Check(GfxFile.Pick(true, false, true) == GfxFile.FiveMKind, "new install that has not started yet still uses FiveM's file (it is made from the old one)");
+    Check(GfxFile.Pick(false, true, true) == GfxFile.GtaKind, "old install keeps the Documents settings.xml, even with a stray gta5_settings.xml");
+    Check(GfxFile.Pick(false, false, true) == GfxFile.GtaKind && GfxFile.Pick(false, false, false) == GfxFile.GtaKind, "old install: Documents settings.xml as before");
+    Check(GfxFile.Pick(null, true, true) == GfxFile.FiveMKind && GfxFile.Pick(null, true, false) == GfxFile.FiveMKind, "unknown install: FiveM's file when it exists");
+    Check(GfxFile.Pick(null, false, true) == GfxFile.GtaKind, "unknown install with only the Documents file: that one, as before");
+    Check(GfxFile.Pick(null, false, false) == GfxFile.FiveMKind, "no file at all: FiveM's file, it appears after the first start");
+
+    // backups sit next to their own file
+    var fx = Path.Combine("C:", "Users", "Max", "AppData", "Roaming", "CitizenFX", "gta5_settings.xml");
+    var gta = Path.Combine("C:", "Users", "Max", "Documents", "Rockstar Games", "GTA V", "settings.xml");
+    Check(Path.GetDirectoryName(GfxFile.BackupOf(fx)) == Path.GetDirectoryName(fx) && Path.GetDirectoryName(GfxFile.BackupOf(gta)) == Path.GetDirectoryName(gta),
+        "each backup lies next to its file");
+    Check(GfxFile.BackupOf(fx) != GfxFile.BackupOf(gta) && GfxFile.BackupOf(gta).EndsWith("settings.xml.orbit-backup"), "two files, two backups; the old backup name stays");
+}
+
 // ---------- play time (Spielzeit) ----------
 {
     var cet = TimeSpan.FromHours(1);

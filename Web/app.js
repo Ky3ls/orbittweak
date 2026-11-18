@@ -326,7 +326,7 @@ function go(p) {
   $$('.nav').forEach(n => n.classList.toggle('active', n.dataset.p === (NAV_OF[p] || p)));
   $$('.page').forEach(s => s.classList.toggle('show', s.id === 'p-' + p));
   moveInd(); enterPage($('#p-' + p));
-  ({ servers: () => S.servers.length || loadServers(), gfx: () => { S.gfx || loadGfx(); gwRefresh(); }, f8: () => loadF8().then(renderF8), admin: () => admShow(admTab), minimap: modsRefresh, clip: () => { clipList(); hlLoad(); }, mods: modsRefresh, settings: () => { setTab($('#setTabs .tab.on')?.dataset.st || 'account'); spProfile(); }, xhair: () => setTimeout(xhPlace, 30), cleaner: () => S.clean.length || scan(),
+  ({ servers: () => S.servers.length || loadServers(), gfx: () => { S.gfx?.found || loadGfx(); gwRefresh(); }, f8: () => loadF8().then(renderF8), admin: () => admShow(admTab), minimap: modsRefresh, clip: () => { clipList(); hlLoad(); }, mods: modsRefresh, settings: () => { setTab($('#setTabs .tab.on')?.dataset.st || 'account'); spProfile(); }, xhair: () => setTimeout(xhPlace, 30), cleaner: () => S.clean.length || scan(),
      diag: () => { S.health ? renderHealth(S.health) : runHealth(); loadLogs(); }, launcher: renderCmd, home: refreshCache })[p]?.();
   PAGE_SHOW[p]?.();
 }
@@ -803,9 +803,14 @@ const num = v => v === 'true' ? 1 : v === 'false' ? 0 : parseFloat(v);
 async function loadGfx() {
   try { S.gfx = await api('gfx.get'); } catch { S.gfx = { found: false, values: {} }; }
   S.gfxEdit = { ...S.gfx.values };
-  $('#gfxState').className = 'chip ' + (S.gfx.found ? 'g' : 'r');
-  $('#gfxState').textContent = S.gfx.found ? 'settings.xml gefunden' : 'settings.xml fehlt';
-  $('#gfxPath').textContent = S.gfx.found ? S.gfx.path : 'GTA V settings.xml nicht gefunden. Starte GTA V oder FiveM einmal.';
+  // kind 'fivem': FiveM's own gta5_settings.xml (every install since June 2020), 'gta': the Documents settings.xml of older installs
+  const g = S.gfx, gta = g.kind === 'gta', file = gta ? 'settings.xml' : 'gta5_settings.xml', of = gta ? 'von GTA V' : 'von FiveM';
+  $('#gfxState').className = 'chip ' + (g.found ? 'g' : 'r');
+  $('#gfxState').textContent = file + (g.found ? ' gefunden' : ' fehlt');
+  $('#gfxWhere').textContent = `Wird in ${file} ${of} gespeichert, mit Backup`;
+  const line = g.found ? g.path : `${file} ${of} nicht gefunden. Starte FiveM einmal, dann legt ${gta ? 'das Spiel' : 'FiveM'} die Datei an.`;
+  $('#gfxPath').textContent = line;
+  $('#gfxPath').title = g.found || !g.path ? line : line + '\n' + g.path; // the line is cut on narrow windows
   $('#presets').innerHTML = Object.entries(PRESETS).map(([k, p]) => `<div class="card hov preset" data-pr="${k}"><div class="pr-h"><span class="pr-ic">${ico(PRESET_ICO[k] || 'sliders')}</span><span class="ck">${ico('check')}Aktiv</span></div><div class="pt">${p.n}</div><p>${p.d}</p><div class="meter"><span>FPS</span><div class="pips">${pips(p.fps)}</div><span>Optik</span><div class="pips">${pips(p.q)}</div></div></div>`).join('');
   $('#presets').onclick = e => { const c = e.target.closest('[data-pr]'); if (!c) return; Object.assign(S.gfxEdit, PRESETS[c.dataset.pr].v); renderGfx(true); };
   renderGfx(false);
@@ -827,8 +832,13 @@ function renderGfx(dirty) {
 document.addEventListener('click', e => { const b = e.target.closest('.gc .seg button'); if (!b) return; S.gfxEdit[b.parentElement.dataset.g] = isNaN(b.dataset.v) ? b.dataset.v : +b.dataset.v; renderGfx(true); });
 document.addEventListener('input', e => { const r = e.target.closest('[data-r]'); if (!r) return; r.style.setProperty('--p', r.value + '%'); r.nextElementSibling.textContent = r.value + '%'; S.gfxEdit[r.dataset.r] = r.value / 100; $('#gfxDirty').classList.remove('hidden'); });
 document.addEventListener('change', e => { if (e.target.closest('[data-r]')) renderGfx(true); });
-async function gfxSave() { const r = await api('gfx.save', { values: S.gfxEdit }); if (r.error) return toast('Nicht gespeichert', r.error, false); S.gfx.values = { ...S.gfxEdit }; renderGfx(false); toast('Grafik gespeichert', 'Backup erstellt · gilt beim nächsten Start'); }
-async function gfxRestore() { const r = await api('gfx.restore'); if (r.error) return toast('Kein Backup', r.error, false); await loadGfx(); toast('Backup wiederhergestellt', 'Original-Grafikeinstellungen aktiv'); }
+async function gfxSave() {
+  const r = await api('gfx.save', { values: S.gfxEdit }); if (r.error) return toast('Nicht gespeichert', r.error, false);
+  // FiveM may have made its own file since the page was loaded: then show that one
+  if (r.path && r.path !== S.gfx.path) await loadGfx(); else { S.gfx.values = { ...S.gfxEdit }; renderGfx(false); }
+  toast('Grafik gespeichert', 'Backup erstellt · gilt beim nächsten Start');
+}
+async function gfxRestore() { const r = await api('gfx.restore'); if (r.error) return toast('Nicht wiederhergestellt', r.error, false); await loadGfx(); toast('Backup wiederhergestellt', 'Original-Grafikeinstellungen aktiv'); }
 
 /* ======================= INPUT LAB ======================= */
 // The tester shows what the game would see: with both keys of a pair held the game cancels them out and the figure
@@ -3136,7 +3146,13 @@ const Mock = {
         { code: 'r2', name: '^4Blue^7Line ^5PvP ^7Arena', desc: 'Gangwar · FFA · Ranked', players: 64, max: 128, online: true, ping: 31, locale: 'DE', tags: ['pvp'] },
         { code: 'aa', name: '^2Green^7Valley RP', desc: 'Whitelist-Server', players: 0, max: 64, online: false, ping: null, locale: 'EN', tags: ['whitelist'] }];
       case 'cfx.status': return [{ name: 'Server-Liste', ok: true, ms: 41 }, { name: 'Cfx.re Web', ok: true, ms: 57 }, { name: 'Content-CDN', ok: true, ms: 23 }, { name: 'Cfx.re Forum', ok: true, ms: 64 }];
-      case 'gfx.get': return { found: true, path: 'C:\\Users\\Max\\Documents\\Rockstar Games\\GTA V\\settings.xml', values: { ...PRESETS.bal.v, Windowed: 2 } };
+      case 'gfx.get': case 'gfx.save': {
+        // ?gfx=gta: an install from before June 2020 (Documents settings.xml), ?gfx=none: FiveM never started
+        const q = new URLSearchParams(location.search).get('gfx'), kind = q === 'gta' ? 'gta' : 'fivem';
+        const path = kind === 'gta' ? 'C:\\Users\\Max\\Documents\\Rockstar Games\\GTA V\\settings.xml' : 'C:\\Users\\Max\\AppData\\Roaming\\CitizenFX\\gta5_settings.xml';
+        if (cmd === 'gfx.save') return q === 'none' ? { error: 'gta5_settings.xml nicht gefunden. Starte FiveM einmal, dann legt FiveM die Datei an.' } : { ok: true, kind, path };
+        return q === 'none' ? { found: false, kind, path, values: {}, hasBackup: false } : { found: true, kind, path, values: { ...PRESETS.bal.v, Windowed: 2 }, hasBackup: false };
+      }
       case 'ini.get': return { channel: 'production' };
       case 'clean.scan': return [['fm', 'FiveM Cache', 'cache, server-cache, server-cache-priv', 'gamepad', 3.2e9], ['logs', 'FiveM Logs & Crashes', 'Alte Logs und Crashdumps', 'file', 2.1e8], ['temp', 'Temporäre Dateien', 'Benutzer- und System-Temp', 'folder', 1.6e9], ['shader', 'Shader-Cache', 'DirectX / NVIDIA / AMD', 'monitor', 7.4e8], ['wu', 'Windows-Update Reste', 'Bereits installierte Pakete', 'download', 9.1e8], ['bin', 'Papierkorb', 'Endgültig leeren', 'trash', 2.4e8]].map(([id, name, desc, icon, size], i) => ({ id, name, desc, icon, size, sel: i < 5 }));
       case 'health': return { score: 74, items: [{ name: 'FiveM installiert', value: 'C:\\Users\\Max\\AppData\\Local\\FiveM', st: 'ok' }, { name: 'Arbeitsspeicher', value: '32 GB, perfekt für FiveM', st: 'ok' }, { name: 'Auslagerungsdatei', value: 'Von Windows verwaltet', st: 'ok' }, { name: 'Energieplan', value: 'Ausbalanciert – Höchstleistung möglich', st: 'warn', fix: 'tweak:ult' }, { name: 'Game-Bar-Hintergrundaufnahme', value: 'Läuft – kostet FPS', st: 'bad', fix: 'tweak:dvr' }, { name: 'Verbindung', value: 'WLAN – für FiveM ist ein LAN-Kabel der größte Hebel', st: 'warn', fix: 'tweak:wifiscan' }, { name: 'GPU-Treiber', value: 'NVIDIA 566.36 · 4 Monate alt', st: 'ok' }, { name: 'FiveM-Cache', value: '3.2 GB, leeren empfohlen', st: 'warn', fix: 'cache' }] };
