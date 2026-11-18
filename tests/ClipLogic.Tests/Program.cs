@@ -510,8 +510,11 @@ TweakTexts.Run(Check);
         Check(HealthLogic.HvciRow(h) is { st: "info" or "ok" }, $"{h}: never warn or bad");
     Check(HealthLogic.HvciRow(HealthLogic.Hvci.Off) is ("Aus", "ok", null), "off: \"Aus\", fine, no button");
     Check(HealthLogic.HvciRow(HealthLogic.Hvci.Unsupported) is ("Nicht verfügbar", "ok", null), "not possible on this PC: \"Nicht verfügbar\", fine");
-    Check(HealthLogic.HvciRow(HealthLogic.Hvci.Pending) is { st: "info", fix: "coreisolation" } p && p.value.StartsWith("Eingeschaltet") && p.value.Contains("Neustart") && p.value.Contains("5 %"),
-        "switched on, not running yet (a Windows update before the restart): the same note and way to Windows Security");    Check(HealthLogic.HvciRow(HealthLogic.Hvci.Unknown) == null, "unknown: the row is left out");
+    Check(HealthLogic.HvciRow(HealthLogic.Hvci.Pending) is { st: "info", fix: "coreisolation" } p && p.value.StartsWith("Eingeschaltet, läuft aber nicht")
+        && p.value.Contains("meist fehlt ein Neustart") && p.value.Contains("Hypervisor") && p.value.Contains("5 %"),
+        "switched on, not running: says only what WMI knows (usually a restart, else e.g. the hypervisor is off), the same note and way to Windows Security");
+    Check(HealthLogic.HvciRow(HealthLogic.Hvci.Pending) is { } pw && !pw.value.Contains("wartet"), "pending does not claim it only waits for a restart");
+    Check(HealthLogic.HvciRow(HealthLogic.Hvci.Unknown) == null, "unknown: the row is left out");
     Check(HealthLogic.HvciQuery.Contains("root\\Microsoft\\Windows\\DeviceGuard") && HealthLogic.HvciQuery.Contains("Win32_DeviceGuard") && !HealthLogic.HvciQuery.Contains('"'),
         "the query reads Win32_DeviceGuard and has no double quote that would end the -Command argument");
 }
@@ -555,6 +558,8 @@ TweakTexts.Run(Check);
         "NVDRS_SETTING_V1: settingId after the name, the current value after the 4100-byte predefined union");
     Check(FpsLimitLogic.AppSize == 20492 && FpsLimitLogic.AppVer == 0x4500Cu && FpsLimitLogic.AppFriendly == 4104, "NVDRS_APPLICATION_V4 is 20492 bytes, version 4");
     Check(FpsLimitLogic.ProfileSize == 4116 && FpsLimitLogic.ProfileVer == 0x11014u, "NVDRS_PROFILE_V1 is 4116 bytes, version 1");
+    Check(FpsLimitLogic.ProfNumOfApps == 4108, "NVDRS_PROFILE_V1.numOfApps after version, the name, gpuSupport and isPredefined");
+    Check(FpsLimitLogic.IdEnumApplications == 0x7FA2173Au && FpsLimitLogic.EndEnumeration == -7, "NvAPI_DRS_EnumApplications and NVAPI_END_ENUMERATION as nvapi_interface.h and nvapi_lite_common.h give them");
     Check(FpsLimitLogic.FrlFpsId == 0x10835002u, "the limit is FRL_FPS, the setting behind the Control Panel's Max Frame Rate");
 
     // values
@@ -602,6 +607,53 @@ TweakTexts.Run(Check);
         "the limit a profile has itself");
     Check(FpsLimitLogic.ShouldRestore(141, 141) && !FpsLimitLogic.ShouldRestore(90, 141) && FpsLimitLogic.ShouldRestore(90, 0),
         "Aus puts a profile back while it still has OrbitTweak's limit, a value the user changed since stays");
+
+    // the entry per profile of someone else: "<backup>|<written>"
+    Check(FpsLimitLogic.Entry("-", 141) == "-|141" && FpsLimitLogic.Entry("100", 60) == "100|60", "entry: the backup, then what OrbitTweak wrote");
+    Check(FpsLimitLogic.ParseEntry("-|141", 120) == ("-", 141) && FpsLimitLogic.ParseEntry("100|60", 0) == ("100", 60), "entry read back, the stored limit does not count");
+    Check(FpsLimitLogic.ParseEntry("100", 120) == ("100", 120) && FpsLimitLogic.ParseEntry("-", 141) == ("-", 141), "an entry without '|' was written with the stored limit");
+    Check(FpsLimitLogic.ParseEntry("-|x", 120) == ("-", 120) && FpsLimitLogic.ParseEntry(null, 90) == ("-", 90), "an unreadable written value or no entry: the stored limit");
+    foreach (var (b, w) in new[] { ("-", 141), ("100", 30), ("0", 500) })
+        Check(FpsLimitLogic.ParseEntry(FpsLimitLogic.Entry(b, w), 7) == (b, w), $"entry round trip {b}|{w}");
+    Check(FpsLimitLogic.RestoreValue(FpsLimitLogic.ParseEntry("100|141", 0).backup) == 100u && FpsLimitLogic.RestoreValue(FpsLimitLogic.ParseEntry("-|141", 0).backup) == null,
+        "the backup part restores as before");
+
+    // "Aus" per profile of someone else
+    var R = FpsLimitLogic.OffStep.Restore; var D = FpsLimitLogic.OffStep.Drop; var K = FpsLimitLogic.OffStep.Keep;
+    Check(FpsLimitLogic.OffDecision(true, 141, "-|141", 0) == R, "still has what OrbitTweak wrote: put back");
+    Check(FpsLimitLogic.OffDecision(true, 141, "-|141", 120) == R,
+        "the exe left FiveM's cache, the limit changed to 120 elsewhere: the profile still has OrbitTweak's 141 and is put back (not left capped)");
+    Check(FpsLimitLogic.OffDecision(true, 100, "-|141", 141) == K, "changed to 100 outside OrbitTweak: stays, with its entry");
+    Check(FpsLimitLogic.OffDecision(true, 0, "-|141", 141) == D && FpsLimitLogic.OffDecision(true, 60, "60|141", 141) == D,
+        "already back to its value from before: only the entry goes");
+    Check(FpsLimitLogic.OffDecision(false, 0, "-|141", 141) == D, "the profile is gone: nothing to put back, the entry goes");
+    Check(FpsLimitLogic.OffDecision(true, 141, "-", 141) == R && FpsLimitLogic.OffDecision(true, 100, "-", 141) == K,
+        "an entry without '|': OrbitTweak wrote the stored limit");
+    Check(FpsLimitLogic.OffDecision(true, 100, "-", 0) == R, "no record of OrbitTweak's limit at all: the backup alone counts, as before");
+
+    // a new limit follows to profiles that left the cache only while they still have OrbitTweak's value
+    Check(FpsLimitLogic.Follows(141, 141) && !FpsLimitLogic.Follows(100, 141) && !FpsLimitLogic.Follows(0, 0), "a profile with OrbitTweak's value follows a new limit, a changed one not");
+
+    // the FiveM probe only adds what is new
+    var up = FpsLimitLogic.UpkeepPlan(new (string, string?)[] { ("FiveM_b3258_GTAProcess.exe", null), ("FiveM_b3095_GTAProcess.exe", FpsLimitLogic.OwnProfile),
+        ("FiveM_b2802_GTAProcess.exe", "FiveM"), ("FiveM_b2699_GTAProcess.exe", "Grand Theft Auto V") }, new[] { "fivem" }, ownExists: true);
+    Check(up.AddToOwn.SequenceEqual(new[] { "FiveM_b3258_GTAProcess.exe" }), "upkeep: an exe in no profile goes into the own profile");
+    Check(!up.Own, "upkeep: the own profile exists, its limit is not written again (a value changed in the Control Panel stays)");
+    Check(up.Foreign.SequenceEqual(new[] { "Grand Theft Auto V" }), "upkeep: a profile with an entry is not written again, a new one gets the limit");
+    var fresh = FpsLimitLogic.UpkeepPlan(new (string, string?)[] { ("FiveM_b3258_GTAProcess.exe", null) }, Array.Empty<string>(), ownExists: false);
+    Check(fresh.Own && fresh.AddToOwn.Count == 1, "upkeep: the own profile made right now gets the kept limit");
+    var none = FpsLimitLogic.UpkeepPlan(new (string, string?)[] { ("FiveM_b3095_GTAProcess.exe", FpsLimitLogic.OwnProfile), ("FiveM_b2802_GTAProcess.exe", "FiveM") },
+        new[] { "FiveM" }, ownExists: true);
+    Check(none.AddToOwn.Count == 0 && !none.Own && none.Foreign.Count == 0, "upkeep after the app starts with nothing new: nothing is written");
+
+    // what else is in the profile gets the limit too
+    Check(FpsLimitLogic.OtherApps(new[] { "FiveM_b3095_GTAProcess.exe", "GTA5.exe", @"C:\Games\GTAV\PlayGTAV.exe", "gta5.exe", "FiveM.exe", "FiveM_ChromeBrowser.exe" })
+        .SequenceEqual(new[] { "GTA5.exe", "PlayGTAV.exe" }), "other apps: file names once, FiveM's own exes are not others");
+    Check(FpsLimitLogic.OtherApps(new[] { "FiveM_b3095_GTAProcess.exe", "FiveM_b2802_GTAProcess.exe" }).Count == 0, "only FiveM's exes: no others");
+    Check(FpsLimitLogic.IsFiveMApp("FiveM.exe") && FpsLimitLogic.IsFiveMApp("fivem_b3095_gtaprocess.exe") && !FpsLimitLogic.IsFiveMApp("FiveMods.exe") && !FpsLimitLogic.IsFiveMApp("GTA5.exe"),
+        "FiveM's own exes by name");
+    Check(FpsLimitLogic.OthersFromCount(1) == 0 && FpsLimitLogic.OthersFromCount(0) == 0 && FpsLimitLogic.OthersFromCount(3) == null,
+        "without the list: one app is FiveM alone, more is unknown");
 }
 
 // ---------- graphics: texture budget in fivem.cfg ----------

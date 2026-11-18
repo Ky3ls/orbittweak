@@ -36,7 +36,7 @@ internal static class HealthLogic
 
     /// <summary>
     /// The state from <see cref="HvciQuery"/>'s output. SecurityServicesRunning has 2 = memory integrity runs;
-    /// SecurityServicesConfigured has 2 = it is switched on but does not run yet (usually a restart is missing);
+    /// SecurityServicesConfigured has 2 = it is switched on but does not run (usually a restart is missing, see HvciRow);
     /// AvailableSecurityProperties without 1 = no hypervisor support, so it cannot run on this PC.
     /// Anything that is not that output (an error, "Timeout", no instance) is <see cref="Hvci.Unknown"/>.
     /// </summary>
@@ -78,14 +78,16 @@ internal static class HealthLogic
 
     /// <summary>
     /// The Diagnose row: never a fault. On is an "info" row with a button to Windows Security; so is switched on but not
-    /// running yet (what a Windows update that turns it on leaves until the restart): the trade-off is the same, and
-    /// whether it then really runs is not certain (drivers, hardware), so the row says what is, not what will be.
-    /// null = not shown.
+    /// running: the trade-off is the same. WMI only tells that it is configured and not running, not why: usually the
+    /// restart after a Windows update that turned it on is missing, but it also stays like that for good when Windows
+    /// cannot start it (the hypervisor switched off with bcdedit, missing DMA protection), so the row says what is
+    /// known and names both, not "waits for a restart". null = not shown.
     /// </summary>
     public static (string value, string st, string? fix)? HvciRow(Hvci h) => h switch
     {
         Hvci.On => ("An – " + HvciTradeOff, "info", "coreisolation"),
-        Hvci.Pending => ("Eingeschaltet, wartet auf einen Neustart – " + HvciTradeOff, "info", "coreisolation"),
+        Hvci.Pending => ("Eingeschaltet, läuft aber nicht (meist fehlt ein Neustart; läuft sie auch danach nicht, ist zum Beispiel der Hypervisor aus) – "
+            + HvciTradeOff, "info", "coreisolation"),
         Hvci.Off => ("Aus", "ok", null),
         Hvci.Unsupported => ("Nicht verfügbar", "ok", null),
         _ => null,

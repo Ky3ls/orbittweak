@@ -34,9 +34,10 @@ internal static class FpsLimitLogic
     public const uint IdInitialize = 0x0150E828, IdCreateSession = 0x0694D52E, IdDestroySession = 0xDAD9CFF8,
         IdLoadSettings = 0x375DBD6B, IdSaveSettings = 0xFCBC7E14, IdCreateProfile = 0xCC176068, IdDeleteProfile = 0x17093206,
         IdGetProfileInfo = 0x61CD6FD6, IdFindProfileByName = 0x7E4A9A0B, IdCreateApplication = 0x4347A9DE,
-        IdFindApplicationByName = 0xEEE566B2, IdSetSetting = 0x577DD202, IdGetSetting = 0x73BF8338, IdDeleteProfileSetting = 0xE4A26362;
+        IdFindApplicationByName = 0xEEE566B2, IdSetSetting = 0x577DD202, IdGetSetting = 0x73BF8338, IdDeleteProfileSetting = 0xE4A26362,
+        IdEnumApplications = 0x7FA2173A;
 
-    public const int OK = 0, SettingNotFound = -160, ProfileNotFound = -163, ExecutableNotFound = -166,
+    public const int OK = 0, EndEnumeration = -7, SettingNotFound = -160, ProfileNotFound = -163, ExecutableNotFound = -166,
         ExecutableAlreadyInUse = -167, InvalidUserPrivilege = -137, PathAmbiguous = -182;
 
     /// <summary>NvAPI_UnicodeString: NvU16[2048].</summary>
@@ -54,8 +55,9 @@ internal static class FpsLimitLogic
     /// the isMetro/isCommandLine bits, commandLine.</summary>
     public const int AppName = 8, AppFriendly = AppName + StrBytes, AppSize = 8 + 4 * StrBytes + 4 + StrBytes;
 
-    /// <summary>NVDRS_PROFILE_V1: version, profileName, gpuSupport, isPredefined, numOfApps, numOfSettings.</summary>
-    public const int ProfName = 4, ProfileSize = 4 + StrBytes + 4 * 4;
+    /// <summary>NVDRS_PROFILE_V1: version, profileName, gpuSupport (NVDRS_GPU_SUPPORT, 32 one-bit fields in one NvU32),
+    /// isPredefined, numOfApps ("Total number of applications that belong to this profile. Read-only"), numOfSettings.</summary>
+    public const int ProfName = 4, ProfNumOfApps = ProfName + StrBytes + 2 * 4, ProfileSize = 4 + StrBytes + 4 * 4;
 
     /// <summary>MAKE_NVAPI_VERSION(struct, ver): the struct's size with the version in the high word.</summary>
     public static uint Ver(int size, int ver) => (uint)size | ((uint)ver << 16);
@@ -115,6 +117,20 @@ internal static class FpsLimitLogic
         return new Plan(add, foreign, own);
     }
 
+    /// <summary>
+    /// What the FiveM probe does on its own (Upkeep, on the first look after the app started and for each new game build):
+    /// it only adds what is new and never writes a profile again that OrbitTweak already set, so a value changed in the
+    /// NVIDIA Control Panel stays. Exes in no profile go into the own profile; the own profile gets the limit only when
+    /// it is made right now (<see cref="Plan.Own"/>), else the new exe takes the value the profile has. Of someone else's
+    /// profiles only those without a backup entry yet (<paramref name="withEntry"/>) get the limit.
+    /// </summary>
+    public static Plan UpkeepPlan(IEnumerable<(string exe, string? profile)> found, IEnumerable<string> withEntry, bool ownExists)
+    {
+        var p = Decide(found);
+        var set = new HashSet<string>(withEntry, StringComparer.OrdinalIgnoreCase);
+        return new Plan(p.AddToOwn, p.Foreign.Where(f => !set.Contains(f)).ToList(), p.AddToOwn.Count > 0 && !ownExists);
+    }
+
     /// <summary>"FiveM b3095": the name the NVIDIA Control Panel shows for an exe in the own profile.</summary>
     public static string FriendlyName(string exe)
     {
@@ -122,7 +138,33 @@ internal static class FpsLimitLogic
         return build == null ? "FiveM" : "FiveM " + build;
     }
 
+    // ---------- what else is in the profile ----------
+    /// <summary>FiveM's own exes (FiveM.exe and its FiveM_… subprocesses): a limit on them is still a limit only for FiveM.</summary>
+    public static bool IsFiveMApp(string name) =>
+        name.Equals("FiveM.exe", StringComparison.OrdinalIgnoreCase) || name.StartsWith("FiveM_", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The applications of a driver profile that are not FiveM's (NvAPI_DRS_EnumApplications' appName, which can be a
+    /// full path): each file name once, in the driver's order. These get the limit too, e.g. GTA5.exe in NVIDIA's GTA V profile.
+    /// </summary>
+    public static List<string> OtherApps(IEnumerable<string> appNames)
+    {
+        var r = new List<string>();
+        foreach (var a in appNames)
+        {
+            var n = a[(a.LastIndexOfAny(new[] { '\\', '/' }) + 1)..].Trim();
+            if (n.Length > 0 && !IsFiveMApp(n) && !r.Contains(n, StringComparer.OrdinalIgnoreCase)) r.Add(n);
+        }
+        return r;
+    }
+
+    /// <summary>Without the list of applications (an old driver without EnumApplications): NVDRS_PROFILE's numOfApps tells
+    /// only that the FiveM exe is alone (0 others); with more apps it is unknown which they are (null).</summary>
+    public static int? OthersFromCount(uint numOfApps) => numOfApps <= 1 ? 0 : null;
+
     // ---------- backup of a profile of someone else ----------
+    // One registry value per such profile: "<backup>|<written>", the value before OrbitTweak's first change and the value
+    // OrbitTweak wrote there last. An entry without '|' (2.29.0 before release) means written = the stored limit.
     /// <summary>
     /// What a foreign profile had before OrbitTweak set its limit: its own value, or "-" when it had none (the setting
     /// was not found, or only inherited from the global or base profile) or NVIDIA's predefined value (deleting the
@@ -142,6 +184,40 @@ internal static class FpsLimitLogic
     /// changed since stays. When OrbitTweak's own record of its limit is gone (<paramref name="set"/> 0) the backup alone
     /// counts.</summary>
     public static bool ShouldRestore(int live, int set) => set == 0 || live == set;
+
+    /// <summary>The registry value for a profile of someone else: its backup and what OrbitTweak wrote there.</summary>
+    public static string Entry(string backup, int written) => backup + "|" + written.ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>Backup and written value of an entry; an entry without '|' was written with the stored limit
+    /// (<paramref name="stored"/>), one without a readable written value too.</summary>
+    public static (string backup, int written) ParseEntry(string? entry, int stored)
+    {
+        if (entry == null) return ("-", stored);
+        int i = entry.LastIndexOf('|');
+        if (i < 0) return (entry, stored);
+        return (entry[..i], int.TryParse(entry[(i + 1)..], NumberStyles.None, CultureInfo.InvariantCulture, out var w) ? w : stored);
+    }
+
+    /// <summary>A new limit set on the card also goes to a profile OrbitTweak set before whose exe is no longer in FiveM's
+    /// cache (cleaned, another build), as long as that profile still has OrbitTweak's value: so "Aus" later finds it as
+    /// OrbitTweak left it. A profile with a value changed since is not OrbitTweak's to change.</summary>
+    public static bool Follows(int live, int written) => written > 0 && live == written;
+
+    public enum OffStep { Restore, Drop, Keep }
+
+    /// <summary>
+    /// What "Aus" does with a profile of someone else that has an entry: <see cref="OffStep.Restore"/> its value from
+    /// before while it still has what OrbitTweak wrote there (then the entry goes), <see cref="OffStep.Drop"/> only the
+    /// entry when the profile is gone or already has its value from before, <see cref="OffStep.Keep"/> it as it is, entry
+    /// included, when its limit was changed outside OrbitTweak since (the card and the toast say which and why).
+    /// </summary>
+    public static OffStep OffDecision(bool exists, int live, string? entry, int stored)
+    {
+        if (!exists) return OffStep.Drop;
+        var (backup, written) = ParseEntry(entry, stored);
+        if (ShouldRestore(live, written)) return OffStep.Restore;
+        return live == (int)Math.Min(RestoreValue(backup) ?? 0, (uint)int.MaxValue) ? OffStep.Drop : OffStep.Keep;
+    }
 }
 
 /// <summary>

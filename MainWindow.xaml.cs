@@ -682,10 +682,12 @@ public partial class MainWindow : Window
             {
                 if (!(a.ValueKind == JsonValueKind.Object && a.TryGetProperty("limit", out var l) && l.ValueKind == JsonValueKind.Number)) return new { error = "Kein Wert angegeben" };
                 int limit = Int(a, "limit");
-                var (ok, err) = await Task.Run(() => FpsLimit.SetLimit(limit));
+                var (ok, err, stayed) = await Task.Run(() => FpsLimit.SetLimit(limit));
                 if (!ok) return new { error = err };
-                Log(limit == 0 ? "↺ FPS-Limit für FiveM aus, Treiberprofil wie vorher" : $"🎯 FPS-Limit für FiveM: {limit} FPS ab dem nächsten Start");
-                return new { ok = true, limit };
+                Log(limit != 0 ? $"🎯 FPS-Limit für FiveM: {limit} FPS ab dem nächsten Start"
+                    : stayed.Count == 0 ? "↺ FPS-Limit für FiveM aus, Treiberprofil wie vorher"
+                    : $"↺ FPS-Limit für FiveM aus; außerhalb von OrbitTweak geändert und so gelassen: {string.Join(", ", stayed.Select(x => $"„{x.profile}“ ({(x.limit > 0 ? x.limit + " FPS" : "kein Limit")})"))}");
+                return new { ok = true, limit, stayed = stayed.Select(x => new { x.profile, x.limit }).ToArray() };
             }
             // texture budget: vid_budgetScale in FiveM's fivem.cfg
             case "tex.get": return await Task.Run(TexBudget.Get);
