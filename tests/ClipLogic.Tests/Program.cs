@@ -465,6 +465,57 @@ TweakTexts.Run(Check);
     Check(!TweakLogic.IsDualCcdX3D("13th Gen Intel(R) Core(TM) i7-13700K"), "Intel is not X3D");
 }
 
+// ---------- tweaks: communication ducking (UserDuckingPreference) ----------
+{
+    Check(TweakLogic.DuckingMode(null) == TweakLogic.DUCK_80, "no value is Windows' default: other sounds 80 % quieter");
+    Check(TweakLogic.DuckingMode(0) == 0 && TweakLogic.DuckingMode(1) == 1 && TweakLogic.DuckingMode(2) == 2 && TweakLogic.DuckingMode(3) == 3, "the four modes are read as they are");
+    Check(TweakLogic.DuckingMode(7) == TweakLogic.DUCK_80 && TweakLogic.DuckingMode(-1) == TweakLogic.DUCK_80, "a value outside 0 to 3 is the default");
+    Check(TweakLogic.DuckingMode("3") == TweakLogic.DUCK_80, "a text value is not the DWORD Windows reads: default");
+    Check(TweakLogic.DuckingMode(3) == TweakLogic.DUCK_NONE && TweakLogic.DuckingMode(null) != TweakLogic.DUCK_NONE, "only a DWORD 3 is the tweak's state");
+    Check(TweakLogic.DuckingHint(TweakLogic.DUCK_MUTE)?.Contains("stumm") == true && TweakLogic.DuckingHint(TweakLogic.DUCK_50)?.Contains("50 %") == true,
+        "a choice of the user's own (mute, 50 %) is named before the tweak replaces it");
+    Check(TweakLogic.DuckingHint(TweakLogic.DUCK_80) == null && TweakLogic.DuckingHint(TweakLogic.DUCK_NONE) == null, "no note for the default or for the tweak's own state");
+    // the backup: the value as it was, "-" (missing) when there was none, nothing new when it already is 3
+    Check(TweakLogic.ShouldBackup(null, "3") && TweakLogic.ShouldBackup("0", "3") && !TweakLogic.ShouldBackup("3", "3"), "the value before the tweak is saved, also a missing one");
+}
+
+// ---------- diagnose: score and memory integrity ----------
+{
+    Check(HealthLogic.Score(new[] { "ok", "ok", "warn" }) == 83 && HealthLogic.Score(new[] { "ok", "warn", "bad" }) == 50, "ok 100, warn 50, bad 0, averaged and rounded");
+    Check(HealthLogic.Score(new[] { "ok", "warn", "info" }) == HealthLogic.Score(new[] { "ok", "warn" }), "an info row does not change the score");
+    Check(HealthLogic.Score(new[] { "ok", "info" }) == 100, "an info row is no fault");
+    Check(HealthLogic.Score(new[] { "info" }) == 100 && HealthLogic.Score(Array.Empty<string>()) == 100, "no rated row is 100");
+    Check(HealthLogic.Score(new[] { "ok", "ok", "ok", "ok", "ok", "warn", "warn", "bad", "info" }) == 75, "the browser preview's rows give its 75");
+
+    const string on = "running=2\r\nconfigured=2\r\nprops=1,2,3,5,7\r\n";
+    Check(HealthLogic.ParseHvci(on) == HealthLogic.Hvci.On, "SecurityServicesRunning with 2: memory integrity runs");
+    Check(HealthLogic.ParseHvci("running=1,2,3\nconfigured=1,2\nprops=1,2") == HealthLogic.Hvci.On, "2 among other services counts");
+    Check(HealthLogic.ParseHvci("running=0\nconfigured=2\nprops=1,2,3") == HealthLogic.Hvci.Pending, "switched on but not running yet: after a restart");
+    Check(HealthLogic.ParseHvci("running=0\nconfigured=0\nprops=1,2,3,5") == HealthLogic.Hvci.Off, "neither running nor switched on: off");
+    Check(HealthLogic.ParseHvci("running=0\nconfigured=0\nprops=") == HealthLogic.Hvci.Off, "no properties listed: plain off, not \"not available\"");
+    Check(HealthLogic.ParseHvci("running=0\nconfigured=0\nprops=0") == HealthLogic.Hvci.Unsupported, "no hypervisor support: not available");
+    Check(HealthLogic.ParseHvci("running=0\nconfigured=2\nprops=2,5") == HealthLogic.Hvci.Unsupported, "switched on without hypervisor support still cannot run");
+    Check(HealthLogic.ParseHvci("running=3\nconfigured=3\nprops=1,2") == HealthLogic.Hvci.Off, "Secure Launch alone is not memory integrity");
+    Check(HealthLogic.ParseHvci("running=12\nconfigured=12\nprops=1") == HealthLogic.Hvci.Off, "a 12 is not a 2");
+    Check(HealthLogic.ParseHvci(null) == HealthLogic.Hvci.Unknown && HealthLogic.ParseHvci("") == HealthLogic.Hvci.Unknown, "no output: unknown");
+    Check(HealthLogic.ParseHvci("Timeout") == HealthLogic.Hvci.Unknown, "a timeout: unknown");
+    Check(HealthLogic.ParseHvci("Get-CimInstance : Ungültige Klasse\r\n+ CategoryInfo : ObjectNotFound") == HealthLogic.Hvci.Unknown, "a PowerShell error: unknown");
+    Check(HealthLogic.ParseHvci("running=\nconfigured=\nprops=") == HealthLogic.Hvci.Unknown, "no instance (empty fields): unknown");
+    Check(HealthLogic.ParseHvci("running=x\nconfigured=2") == HealthLogic.Hvci.Unknown, "a field that is not a list of numbers: unknown");
+
+    var row = HealthLogic.HvciRow(HealthLogic.Hvci.On);
+    Check(row is { st: "info", fix: "coreisolation" } r && r.value.StartsWith("An") && r.value.Contains("5 %") && r.value.Contains("10 %"),
+        "on: a note with the trade-off and the way to Windows Security, not a fault");
+    foreach (var h in new[] { HealthLogic.Hvci.On, HealthLogic.Hvci.Pending, HealthLogic.Hvci.Off, HealthLogic.Hvci.Unsupported })
+        Check(HealthLogic.HvciRow(h) is { st: "info" or "ok" }, $"{h}: never warn or bad");
+    Check(HealthLogic.HvciRow(HealthLogic.Hvci.Off) is ("Aus", "ok", null), "off: \"Aus\", fine, no button");
+    Check(HealthLogic.HvciRow(HealthLogic.Hvci.Unsupported) is ("Nicht verfügbar", "ok", null), "not possible on this PC: \"Nicht verfügbar\", fine");
+    Check(HealthLogic.HvciRow(HealthLogic.Hvci.Pending) is { st: "ok", fix: null } p && p.value.StartsWith("Aus"), "switched on, not running yet: still off until the restart");
+    Check(HealthLogic.HvciRow(HealthLogic.Hvci.Unknown) == null, "unknown: the row is left out");
+    Check(HealthLogic.HvciQuery.Contains("root\\Microsoft\\Windows\\DeviceGuard") && HealthLogic.HvciQuery.Contains("Win32_DeviceGuard") && !HealthLogic.HvciQuery.Contains('"'),
+        "the query reads Win32_DeviceGuard and has no double quote that would end the -Command argument");
+}
+
 // ---------- graphics: the settings file FiveM really reads ----------
 {
     DateTime U(int y, int mo, int d, int h = 0, int mi = 0, int s = 0) => new(y, mo, d, h, mi, s, DateTimeKind.Utc);

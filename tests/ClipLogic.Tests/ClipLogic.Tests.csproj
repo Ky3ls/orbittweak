@@ -16,5 +16,6 @@
     <Compile Include="../../Core/TweakLogic.cs" Link="Core/TweakLogic.cs" />
     <Compile Include="../../Core/PlayStats.cs" Link="Core/PlayStats.cs" />
     <Compile Include="../../Core/GfxFile.cs" Link="Core/GfxFile.cs" />
+    <Compile Include="../../Core/HealthLogic.cs" Link="Core/HealthLogic.cs" />
   </ItemGroup>
 </Project>

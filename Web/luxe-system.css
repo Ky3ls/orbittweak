@@ -110,6 +110,9 @@
 #p-diag .hc .st.ok{background:rgba(95,212,163,.09);color:var(--good)}
 #p-diag .hc .st.warn{background:rgba(242,196,107,.1);color:var(--warn)}
 #p-diag .hc .st.bad{background:rgba(242,139,139,.11);color:var(--bad)}
+/* a note (memory integrity): neutral, never a colour of its own; its trade-off may take more than one line */
+#p-diag .hc .st.info{background:rgba(255,255,255,.05);color:var(--sub)}
+#p-diag .hc.info .tx p{white-space:normal}
 #p-diag .hc .tx b{font-size:14px;font-weight:550;letter-spacing:-.008em}
 #p-diag .hc.ok .tx b{color:#C9CED8}
 #p-diag .hc .tx p{font-size:12.5px;color:var(--mute);margin-top:3px}

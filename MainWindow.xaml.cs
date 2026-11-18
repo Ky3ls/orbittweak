@@ -1348,6 +1348,8 @@ public partial class MainWindow : Window
                         if (fix == "cache") { if (FiveM.IsRunning) return false; Cleaner.Clean(Target("fm")); return true; }
                         if (fix == "killbg") { FiveM.KillBackgroundApps(); return true; }
                         if (fix == "clean") { Cleaner.Clean(Target("temp")); Cleaner.Clean(Target("wu")); return true; }
+                        // only opens Windows Security › Gerätesicherheit › Kernisolierung: memory integrity is the user's call there
+                        if (fix == "coreisolation") { using var _ = Process.Start(new ProcessStartInfo("windowsdefender://coreisolation/") { UseShellExecute = true }); return true; }
                     }
                     catch { }
                     return false;

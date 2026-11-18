@@ -420,6 +420,8 @@ internal static class Health
     {
         var items = new List<Item>();
         bool T(string id) => tweaks.FirstOrDefault(t => t.Id == id)?.SafeCheck() ?? false;
+        // PowerShell takes a moment to start: it reads while the other checks run
+        var hvci = Task.Run(MemoryIntegrity);
 
         items.Add(FiveM.Root is { } r ? new("FiveM installiert", r, "ok") : new("FiveM installiert", "Nicht gefunden – Pfad im Launcher wählen", "bad"));
 
@@ -480,8 +482,23 @@ internal static class Health
         if (FiveM.Root != null)
             items.Add(iv != null && Directory.Exists(iv) ? new("GTA V Installation", iv, "ok") : new("GTA V Installation", "Pfad in CitizenFX.ini fehlt oder ungültig", "warn"));
 
-        var score = (int)Math.Round(items.Sum(i => i.st == "ok" ? 100 : i.st == "warn" ? 50 : 0) / (double)items.Count);
-        return new { score, items };
+        // memory integrity: a security feature Windows 11 updates switch on, with a small cost in games. Only a note with
+        // the trade-off and the way to Windows Security, never a fault: OrbitTweak never switches it itself
+        if (HealthLogic.HvciRow(hvci.Result) is var (hv, hst, hfix))
+            items.Add(new("Speicherintegrität", hv, hst, hfix));
+
+        return new { score = HealthLogic.Score(items.Select(i => i.st)), items };
+    }
+
+    /// <summary>Running memory integrity cannot change before a restart: once read as on or as not possible, that stays.</summary>
+    private static HealthLogic.Hvci? _hvci;
+
+    private static HealthLogic.Hvci MemoryIntegrity()
+    {
+        if (_hvci is { } known) return known;
+        var h = HealthLogic.ParseHvci(Proc.Run("powershell", $"-NoProfile -NonInteractive -Command \"{HealthLogic.HvciQuery}\"", 20_000));
+        if (h is HealthLogic.Hvci.On or HealthLogic.Hvci.Unsupported) _hvci = h;
+        return h;
     }
 
     private static (string, string, DateTime?) GpuDriver()
