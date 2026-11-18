@@ -71,7 +71,7 @@ public static class FortniteLogic
     /// <summary>The one line for the page.</summary>
     public static string Note(bool installed, bool configFound, bool running)
     {
-        if (running) return "Fortnite läuft gerade. Schließ das Spiel ganz, bevor du hier etwas änderst.";
+        if (running) return "Fortnite läuft gerade. Schließ das Spiel ganz, bevor du seine Einstellungen änderst.";
         if (!installed && !configFound) return "Fortnite wurde auf diesem PC nicht gefunden. Ist es installiert, starte es einmal und schließ es wieder.";
         if (!configFound) return MsgNoConfig;
         if (!installed) return "Installationsordner nicht gefunden. Die Spieleinstellungen gehen trotzdem, nur „Starke Grafikkarte erzwingen“ braucht ihn.";
@@ -86,17 +86,18 @@ public static class FortniteLogic
     {
         new("render", "Rendermodus",
             "Leistung bringt meist mehr FPS, DirectX 12 das schönere Bild.",
-            "Seit Update 40.10 (April 2026) hat Fortnite nur noch zwei Rendermodi: DirectX 12 und Leistung. Der Leistungsmodus läuft seit 37.00 "
-            + "ebenfalls über DirectX 12, rechnet aber mit einfacher Grafik: kein Lumen, kein Nanite, keine Schatten und einfachere Modelle. "
+            "Seit Update 40.10 (April 2026) gibt es in Fortnite kein DirectX 11 mehr, die Wahl ist DirectX 12 oder Leistung. Der Leistungsmodus "
+            + "rechnet mit einfacher Grafik: kein Lumen, kein Nanite, keine Schatten und einfachere Modelle. Über welches DirectX er läuft, wählt "
+            + "Fortnite seit Update 40.40 selbst passend zu deinem PC. "
             + "Auf schwächeren Grafikkarten, Laptops und Onboard-Grafik bringt das deutlich mehr FPS und weniger Ruckler durch Shader-Kompilierung. "
             + "DirectX 12 sieht viel besser aus, kostet aber mehr Leistung, und nach Spiel- oder Treiber-Updates ruckeln dort die ersten Runden, "
             + "solange Fortnite seine Shader neu baut. Wie groß der Unterschied auf deinem PC ist, hängt von Hardware und Treiber ab. "
             + "Vergleich beide Modi am besten selbst mit „FPS anzeigen“. Die Änderung wirkt ab dem nächsten Start von Fortnite.",
             "choice", "fps",
-            "Epic: Patchnotes 37.00 (DX12-Leistungsmodus) und 40.10 (DX11 entfernt); die Unreal Engine liest den Modus aus [D3DRHIPreference].",
+            "Epic: Patchnotes 37.00 (DX12-Leistungsmodus), 40.10 (DX11 entfernt) und 40.40 (Leistungsmodus wählt DirectX selbst); die Unreal Engine liest den Modus aus [D3DRHIPreference].",
             false, true),
         new("reflex", "NVIDIA Reflex",
-            "Senkt die Eingabeverzögerung deutlich, die FPS bleiben praktisch gleich.",
+            "Senkt die Eingabeverzögerung, vor allem bei voll ausgelasteter Grafikkarte.",
             "Reflex hält die Warteschlange zwischen Prozessor und Grafikkarte leer, damit deine Eingabe schneller auf dem Bildschirm landet. "
             + "Am meisten bringt es, wenn die Grafikkarte voll ausgelastet ist. In einem Test von GameGPU (Oktober 2026, RTX 5090, Epic-Grafik, 1440p) "
             + "sank die Systemlatenz in Fortnite von 41 auf 21 ms. Hängen deine FPS an einem Limit fest oder bremst der Prozessor, ist der Gewinn klein. "
@@ -128,7 +129,7 @@ public static class FortniteLogic
         new("shadows", "Schatten",
             "In DirectX 12 einer der größten FPS-Fresser: Aus bringt viel.",
             "Auf hohen Stufen nutzt Fortnite in DirectX 12 virtuelle Schattenkarten (Virtual Shadow Maps), die die Grafikkarte stark belasten. "
-            + "In einer Community-Messung aus Kapitel 4 (2023) kosteten Schatten auf „Episch“ rund 40 % der FPS. Mit Schatten aus fällt diese Arbeit "
+            + "In einer Community-Messung aus Kapitel 4 (2023) kosteten Schatten auf „Episch“ gut 40 % der FPS. Mit Schatten aus fällt diese Arbeit "
             + "fast ganz weg, und viele Profis spielen so. Der Preis: Das Bild wirkt flacher, und kein Schatten verrät dir mehr einen Gegner hinter einer Kante. "
             + "Die Voreinstellung im Spiel springt danach auf „Benutzerdefiniert“, das ist normal. Im Leistungsmodus gibt es keine Schatten-Einstellung.",
             "choice", "fps",
@@ -173,17 +174,19 @@ public static class FortniteLogic
     // ---------- reading ----------
 
     /// <summary>
-    /// "perf" (Leistung), "dx12" or null (not set: Fortnite picks by hardware on its first start). es31 is the
-    /// Performance mode, also the old "dx11 + es31"; PreferredRHI=dx11 alone is the DirectX 11 mode Epic removed in 40.10
-    /// and moves to Leistung. Without PreferredFeatureLevel UE still reads the legacy bPreferFeatureLevelES31.
+    /// "perf" (Leistung), "dx12" or null (not set or not known: Fortnite picks by hardware at its next start). es31 is the
+    /// Performance mode on either RHI (dx12 + es31 since 37.00, the legacy dx11 + es31; since 40.40 Fortnite picks the
+    /// DirectX path of the Performance mode itself). dx11 with sm5/sm6 is the DirectX 11 mode Epic removed in 40.10:
+    /// Fortnite moves such a file to a mode that fits the PC at its next start, so it reads as not known. Without
+    /// PreferredFeatureLevel UE still reads the legacy bPreferFeatureLevelES31. UE compares the names without case.
     /// </summary>
     public static string? Render(string? ini)
     {
         var lvl = IniText.Get(ini, SecRhi, "PreferredFeatureLevel")?.ToLowerInvariant();
         var rhi = IniText.Get(ini, SecRhi, "PreferredRHI")?.ToLowerInvariant();
         if (rhi is not (null or "dx12" or "dx11")) return null;   // vulkan, opengl: no Fortnite mode
-        if (lvl == "es31" || rhi == "dx11") return "perf";
-        if (lvl is "sm6" or "sm5") return "dx12";
+        if (lvl == "es31") return "perf";
+        if (lvl is "sm6" or "sm5") return rhi == "dx11" ? null : "dx12";
         if (lvl == null && Bool(IniText.Get(ini, SecRhi, "bPreferFeatureLevelES31")) == true) return "perf";
         return null;
     }
@@ -279,19 +282,30 @@ public static class FortniteLogic
 
     // ---------- writing ----------
 
-    /// <summary>The key lines for a value from the page, exactly as Fortnite writes them (True/False, lowercase RHI names,
-    /// FrameRateLimit with six decimals). Throws InvalidOperationException with a German message for anything else.</summary>
-    public static List<(string Section, string Key, string Value)> Writes(string id, JsonElement value)
+    /// <summary>
+    /// The key lines for a value from the page, exactly as Fortnite writes them (True/False, lowercase RHI names,
+    /// FrameRateLimit with six decimals). Throws InvalidOperationException with a German message for anything else.
+    /// ini (the file now) and levelBefore (the PreferredFeatureLevel backup) only matter for "render": Leistung keeps a
+    /// dx11/dx12 RHI that is there (since 40.40 Fortnite picks the DirectX path of the Performance mode itself), DirectX
+    /// 12 keeps an sm5 that was there before. UE keeps the SM5-preferring GPUs (GTX 10 series) on sm5 by default, and
+    /// back at the old value nothing of OrbitTweak's is left. Without either, DirectX 12 is sm6, like a current PC writes it.
+    /// </summary>
+    public static List<(string Section, string Key, string Value)> Writes(string id, JsonElement value, string? ini = null, string? levelBefore = null)
     {
         switch (id)
         {
             case "render":
+            {
+                var rhi = IniText.Get(ini, SecRhi, "PreferredRHI");
+                var lvl = IniText.Get(ini, SecRhi, "PreferredFeatureLevel");
+                static bool Sm(string? l) => l?.Trim().ToLowerInvariant() is "sm5" or "sm6";
                 return Choice(value) switch
                 {
-                    "perf" => new() { (SecRhi, "PreferredRHI", "dx12"), (SecRhi, "PreferredFeatureLevel", "es31") },
-                    "dx12" => new() { (SecRhi, "PreferredRHI", "dx12"), (SecRhi, "PreferredFeatureLevel", "sm6") },
+                    "perf" => new() { (SecRhi, "PreferredRHI", rhi?.Trim().ToLowerInvariant() is "dx11" or "dx12" ? rhi : "dx12"), (SecRhi, "PreferredFeatureLevel", "es31") },
+                    "dx12" => new() { (SecRhi, "PreferredRHI", "dx12"), (SecRhi, "PreferredFeatureLevel", Sm(lvl) ? lvl! : Sm(levelBefore) ? levelBefore! : "sm6") },
                     _ => throw Bad(MsgBadValue),
                 };
+            }
             case "reflex":
             {
                 var v = Choice(value);
@@ -442,11 +456,14 @@ public static class FortniteLogic
 
     private const string BaseDirTag = "LogInit: Base Directory:";
     private const string BinRel = @"\FortniteGame\Binaries\Win64";
+    /// <summary>How far into the log the "Base Directory" line is looked for. It comes after every plugin and pak mount
+    /// line (line 106, 132 and 195 in Fortnite 3.1, 5.40 and 11.20 logs; UE5 builds mount far more plugins).</summary>
+    public const int LogScanLines = 20000;
 
     /// <summary>
     /// The install folder from the start of FortniteGame.log: Unreal's line "LogInit: Base Directory: C:/…/Fortnite/FortniteGame/Binaries/Win64/"
-    /// (with or without the [time][frame] prefix). Nothing else of the log is read. Null when the line is missing or
-    /// the folder is not a Fortnite layout.
+    /// (with or without the [time][frame] prefix). The lines are read only up to the first such line. Null when the
+    /// line is missing or the folder is not a Fortnite layout.
     /// </summary>
     public static string? LogRoot(IEnumerable<string> lines)
     {

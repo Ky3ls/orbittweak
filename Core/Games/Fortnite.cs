@@ -51,8 +51,9 @@ internal sealed class FortniteTweaks : IGameTweaks
 
     /// <summary>
     /// The install folder: Epic Games Launcher manifests, then LauncherInstalled.dat, then the "Base Directory" line of
-    /// FortniteGame.log (covers the new launcher, Legendary and Heroic; read only while Fortnite is closed, and only that
-    /// line, since tournament rules ban tools that read live game state), then the default folder. A folder counts only
+    /// FortniteGame.log (covers the new launcher, Legendary and Heroic; read only while Fortnite is closed, only up to
+    /// that line and only that line is used, since tournament rules ban tools that read live game state), then the
+    /// default folder. A folder counts only
     /// with FortniteClient-Win64-Shipping.exe in it.
     /// </summary>
     public static string? Root(bool running)
@@ -73,7 +74,7 @@ internal sealed class FortniteTweaks : IGameTweaks
         foreach (var r in LauncherInstalledRoots(ReadSmall(Path.Combine(ProgramData, "Epic", "UnrealEngineLauncher", "LauncherInstalled.dat"))))
             yield return r;
 
-        if (!running && LogRoot(LogHead(LogPath, 100)) is { } fromLog) yield return fromLog;
+        if (!running && FromLog() is { } fromLog) yield return fromLog;
 
         yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Epic Games", "Fortnite");
     }
@@ -85,19 +86,20 @@ internal sealed class FortniteTweaks : IGameTweaks
         catch { return null; }
     }
 
-    /// <summary>The first lines of the log (shared read: the launcher may hold it open).</summary>
-    private static List<string> LogHead(string f, int max)
+    /// <summary>The install folder from the start of the log; read line by line only up to the "Base Directory" line,
+    /// which comes after the plugin and pak mount lines (line 100 to 200 in 2018-2019 logs, later in UE5 builds).</summary>
+    private static string? FromLog()
     {
-        var lines = new List<string>();
-        try
-        {
-            if (!File.Exists(f)) return lines;
-            using var s = new FileStream(f, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-            using var r = new StreamReader(s, detectEncodingFromByteOrderMarks: true);
-            for (int i = 0; i < max && r.ReadLine() is { } l; i++) lines.Add(l);
-        }
-        catch { }
-        return lines;
+        try { return File.Exists(LogPath) ? LogRoot(LogLines(LogPath).Take(LogScanLines)) : null; }
+        catch { return null; }
+    }
+
+    /// <summary>The lines of the log, read lazily (shared read: the launcher may hold it open).</summary>
+    private static IEnumerable<string> LogLines(string f)
+    {
+        using var s = new FileStream(f, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        using var r = new StreamReader(s, detectEncodingFromByteOrderMarks: true);
+        while (r.ReadLine() is { } l) yield return l;
     }
 
     // ---------- the hardware ----------
@@ -198,13 +200,14 @@ internal sealed class FortniteTweaks : IGameTweaks
             if (Find(itemId) == null) throw new InvalidOperationException(MsgUnknown);
             if (itemId == "gpu") return SetGpu(FortniteLogic.Switch(value));
 
-            var writes = Writes(itemId, value);   // a value that is not allowed is refused before anything is read
+            Writes(itemId, value);   // a value that is not allowed is refused before anything is read
             if (IsRunning()) throw new InvalidOperationException(MsgRunning);
             var cfg = ConfigPath;
             if (!File.Exists(cfg)) throw new InvalidOperationException(MsgNoConfig);
             var (text, enc) = LoadOrThrow(cfg);
             if (itemId == "reflex" && !Nvidia) throw new InvalidOperationException(MsgNoNvidia);
             if (itemId == "shadows" && !ShadowsAvailable(text)) throw new InvalidOperationException(MsgPerfShadows);
+            var writes = Writes(itemId, value, text, Reg.Get(Bk.User, BackupKey("PreferredFeatureLevel")) as string);
 
             var (next, backups) = PlanSet(text, writes, k => Bk.Has(k));
             foreach (var (k, before) in backups) Reg.SetStr(Bk.User, k, before);   // the backup is there before the file changes

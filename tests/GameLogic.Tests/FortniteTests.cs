@@ -105,7 +105,9 @@ internal static class FortniteTests
         Check(Render(Rhi("PreferredRHI=dx12\r\nPreferredFeatureLevel=es31\r\n")) == "perf", "render: dx12 + es31 is Leistung");
         Check(Render(Rhi("PreferredRHI=dx12\r\nPreferredFeatureLevel=sm5\r\n")) == "dx12", "render: sm5 is DirectX 12");
         Check(Render(Rhi("PreferredRHI=dx11\r\nPreferredFeatureLevel=es31\r\n")) == "perf", "render: old dx11 + es31 Performance is Leistung");
-        Check(Render(Rhi("PreferredRHI=dx11\r\nPreferredFeatureLevel=sm5\r\n")) == "perf", "render: removed DX11 mode reads as Leistung (Epic moves it there)");
+        Check(Render(Rhi("PreferredRHI=dx11\r\nPreferredFeatureLevel=sm5\r\n")) == null && Render(Rhi("PreferredRHI=dx11\r\nPreferredFeatureLevel=sm6\r\n")) == null,
+            "render: the removed DX11 mode is not known (Fortnite moves it to a mode that fits the PC)");
+        Check(Render(Rhi("PreferredRHI=dx11\r\n")) == null && Render(Rhi("PreferredRHI=dx11\r\nbPreferFeatureLevelES31=True\r\n")) == "perf", "render: dx11 alone is not known, with the legacy ES31 flag it is Leistung");
         Check(Render(Rhi("PreferredRHI=DX12\r\nPreferredFeatureLevel=SM6\r\n")) == "dx12", "render: values without case");
         Check(Render(Rhi("PreferredRHI=dx12\r\n")) == null, "render: RHI without feature level is not known");
         Check(Render(Rhi("PreferredRHI=dx12\r\nPreferredFeatureLevel=sm7\r\n")) == null, "render: unknown level is not known");
@@ -160,6 +162,14 @@ internal static class FortniteTests
         Check(W("render", "perf") == "D3DRHIPreference:PreferredRHI=dx12|D3DRHIPreference:PreferredFeatureLevel=es31", "render: Leistung = dx12 + es31");
         Check(W("render", "dx12") == "D3DRHIPreference:PreferredRHI=dx12|D3DRHIPreference:PreferredFeatureLevel=sm6", "render: DirectX 12 = dx12 + sm6");
         Check(Throws(() => Writes("render", J("dx11")), MsgBadValue) && Throws(() => Writes("render", J(12)), MsgBadValue) && Throws(() => Writes("render", J(true)), MsgBadValue), "render: no DX11, nothing else");
+        string WR(string v, string ini, string? before = null) => string.Join("|", Writes("render", J(v), ini, before).Select(w => $"{w.Key}={w.Value}"));
+        Check(WR("perf", Rhi("PreferredRHI=dx11\r\nPreferredFeatureLevel=sm5\r\n")) == "PreferredRHI=dx11|PreferredFeatureLevel=es31", "render: Leistung keeps a dx11 RHI (Fortnite picks the path itself)");
+        Check(WR("perf", Rhi("PreferredRHI=DX12\r\nPreferredFeatureLevel=sm6\r\n")) == "PreferredRHI=DX12|PreferredFeatureLevel=es31", "render: Leistung keeps the dx12 RHI as it is written");
+        Check(WR("perf", Rhi("PreferredRHI=vulkan\r\n")) == "PreferredRHI=dx12|PreferredFeatureLevel=es31" && WR("perf", "") == "PreferredRHI=dx12|PreferredFeatureLevel=es31", "render: Leistung without a DirectX RHI is dx12");
+        Check(WR("dx12", Rhi("PreferredRHI=dx11\r\nPreferredFeatureLevel=sm5\r\n")) == "PreferredRHI=dx12|PreferredFeatureLevel=sm5", "render: DirectX 12 keeps the sm5 in the file");
+        Check(WR("dx12", Rhi("PreferredRHI=dx12\r\nPreferredFeatureLevel=es31\r\n"), "sm5") == "PreferredRHI=dx12|PreferredFeatureLevel=sm5", "render: DirectX 12 goes back to the sm5 from before");
+        Check(WR("dx12", Rhi("PreferredRHI=dx12\r\nPreferredFeatureLevel=es31\r\n"), NotThere) == "PreferredRHI=dx12|PreferredFeatureLevel=sm6"
+              && WR("dx12", Rhi("PreferredRHI=dx12\r\nPreferredFeatureLevel=es31\r\n"), "es31") == "PreferredRHI=dx12|PreferredFeatureLevel=sm6", "render: DirectX 12 is sm6 without an sm level from before");
         Check(W("reflex", "2") == "/Script/FortniteGame.FortGameUserSettings:LatencyTweak2=2" && W("reflex", 1) == "/Script/FortniteGame.FortGameUserSettings:LatencyTweak2=1", "reflex: text or number");
         Check(Throws(() => Writes("reflex", J("3")), MsgBadValue) && Throws(() => Writes("reflex", J("-1"))) && Throws(() => Writes("reflex", J(1.5))) && Throws(() => Writes("reflex", J(null))), "reflex: only 0, 1, 2");
         Check(W("vsync", false) == "/Script/FortniteGame.FortGameUserSettings:bUseVSync=False" && W("vsync", true) == "/Script/FortniteGame.FortGameUserSettings:bUseVSync=True", "vsync: True/False");
@@ -227,6 +237,22 @@ internal static class FortniteTests
         Check(store3["og.fortnite.bShowFPS"] == NotThere && store3["og.fortnite.LatencyTweak2"] == NotThere, "cycle: keys that were not there");
         Check(RevertVia(s3, store3) == missing, "cycle: revert removes keys that were not there");
 
+        // a GTX 10 PC on DirectX 12 with sm5: Leistung and back leaves the file as it was and no backup
+        const string sm5 = ";METADATA=(Diff=true, UseCommands=true)\r\n[D3DRHIPreference]\r\nPreferredRHI=dx12\r\nPreferredFeatureLevel=sm5\r\n";
+        var store5 = new Dictionary<string, string>();
+        string SetR(string ini, string v, Dictionary<string, string> st)
+        {
+            var w = Writes("render", J(v), ini, st.TryGetValue(BackupKey("PreferredFeatureLevel"), out var b) ? b : null);
+            var (next, made) = PlanSet(ini, w, st.ContainsKey);
+            foreach (var (k, x) in made) st[k] = x;
+            foreach (var k in Settled(w, k => st.TryGetValue(k, out var y) ? y : null)) st.Remove(k);
+            return next;
+        }
+        var s5 = SetR(sm5, "perf", store5);
+        Check(Read("render", s5) as string == "perf" && store5.Count == 1 && store5["og.fortnite.PreferredFeatureLevel"] == "sm5", "cycle: sm5 to Leistung backs up sm5");
+        s5 = SetR(s5, "dx12", store5);
+        Check(s5 == sm5 && store5.Count == 0, "cycle: back to DirectX 12 is sm5 again, nothing of ours is left");
+
         var store4 = new Dictionary<string, string>();
         var s4 = SetVia(Gus, "fpslimit", 144, store4);
         s4 = s4.Replace("FrameRateLimit=144.000000", "FrameRateLimit=90.000000");   // Fortnite or the player changed it since
@@ -286,6 +312,14 @@ internal static class FortniteTests
         Check(LogRoot(new[] { "[2026.11.18-20.00.00:000][  0]LogInit: Base Directory: D:/FN/FortniteGame/Binaries/Win64/" }) == @"D:\FN", "log: with the time prefix");
         Check(LogRoot(new[] { "LogInit: Base Directory: C:/Games/Other/Binaries/Win64/" }) == null, "log: another game's layout does not count");
         Check(LogRoot(new[] { "LogInit: Display: nothing here" }) == null && LogRoot(Array.Empty<string>()) == null, "log: no line, no folder");
+        static IEnumerable<string> LongLog()
+        {
+            for (int i = 0; i < 1500; i++) yield return $"LogPluginManager: Mounting Engine plugin Plugin{i}";
+            yield return "LogInit: Base Directory: E:/Epic/Fortnite/FortniteGame/Binaries/Win64/";
+            throw new InvalidOperationException("read past the Base Directory line");
+        }
+        Check(LogRoot(LongLog().Take(LogScanLines)) == @"E:\Epic\Fortnite", "log: the line after many plugin lines is found, nothing after it is read");
+        Check(LogScanLines >= 5000, "log: the scan reaches well past the plugin mount lines");
 
         Check(ExePath(@"C:\Program Files\Epic Games\Fortnite") == @"C:\Program Files\Epic Games\Fortnite\FortniteGame\Binaries\Win64\FortniteClient-Win64-Shipping.exe", "exe: the Shipping exe renders");
         Check(ExePath(@"D:\FN\") == @"D:\FN\FortniteGame\Binaries\Win64\FortniteClient-Win64-Shipping.exe" && ExePath("D:/FN") == ExePath(@"D:\FN"), "exe: any slash style");
