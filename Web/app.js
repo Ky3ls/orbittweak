@@ -3642,6 +3642,13 @@ document.addEventListener('click', async e => {
 
 /* ======================= WHAT'S NEW: shown once after an update ======================= */
 const CHANGES = {
+  '2.28.1': [
+    ['sliders', 'Grafik-Presets wirken in FiveM', 'Die Presets unter Grafik & Farben landen jetzt in FiveMs eigener Datei gta5_settings.xml. Bisher schrieben sie in die Einstellungen von GTA V, die FiveM seit 2020 nicht mehr liest.'],
+    ['zap', 'Boost nur noch mit Nutzen', 'Alle 21 Tweaks wurden geprüft. Der Boost schaltet nur noch, was deinem PC hilft: Höchstleistung und LAN-Energiesparen bleiben, wie sie sind, die Game-Bar-Aufnahme geht nur aus, wenn „Im Hintergrund aufnehmen“ lief, und USB-Energiesparen nur noch am Desktop. Den Rest schaltest du einzeln ein.'],
+    ['power', 'Energiesparmodus geht wieder', 'Der Höchstleistungsplan übernimmt jetzt deine Zeiten für Bildschirm und Energiesparmodus. Lief er schon, bekommt er sie einmal von deinem vorherigen Plan, damit der PC wieder von selbst schlafen geht.'],
+    ['shield', 'Auslagerungsdatei richtig erkannt', 'Bei 16 GB RAM galt eine gesunde Auslagerungsdatei als zu klein und wurde ersetzt. Das passiert nicht mehr.'],
+    ['keyboard', 'Kleinere Korrekturen', 'Die kürzere Wiederholverzögerung ändert nur noch die Verzögerung, ausgebremste Programme laufen nach dem Abmelden sofort wieder normal, und mehrere Tweak-Texte sagen jetzt ehrlicher, was sie bringen.'],
+  ],
   '2.28.0': [
     ['bag', 'Store-Apps im Autostart', 'Die Autostart-Seite zeigt jetzt auch Store-Apps wie das neue Teams, WhatsApp oder Spotify aus dem Store. Du schaltest sie an und aus wie in den Windows-Einstellungen, gelöscht wird nichts, und „Empfohlene ausschalten“ nimmt sie mit.'],
     ['padlock', 'Richtlinien sichtbar', 'Legt eine Richtlinie deiner Firma oder Schule fest, ob eine App mit Windows startet, steht das dabei und der Schalter bleibt, wie er ist.'],

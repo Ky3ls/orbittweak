@@ -1041,6 +1041,26 @@ internal static class Catalog
             Proc.Run("powercfg", $"/changename {g} \"OrbitTweak Höchstleistung\"");
             if (Power.Active() == g) Marks.Set("ult");   // "Alle zurücksetzen" goes back to "Ausbalanciert", as before
         });
+        Step(() =>
+        {
+            // 2.28.1: before, our copy of High performance/Ultimate kept the template's timeouts, which never sleep on AC, so a
+            // desktop that Boost switched to it stopped going to sleep by itself. Once: where our plan says "never" and the
+            // plan before it had a time, that time comes back (a time the user set in our plan since then is not "never" and stays)
+            if (Reg.Is(OWN, "UltTimeouts", 1)) return;
+            var g = Reg.Get(OWN, "UltScheme") as string;
+            var prev = Reg.Get(OWN, "UltPrev") as string;
+            if (g == null || prev == null || !Power.Exists(g) || !Power.Exists(prev)) return;
+            int n = 0;
+            foreach (var (sub, set) in Timeouts)
+                foreach (var ac in new[] { true, false })
+                {
+                    int was = Power.Read(prev, sub, set, ac);
+                    if (was > 0 && Power.Read(g, sub, set, ac) == 0) { Power.Write(g, sub, set, ac, was); n++; }
+                }
+            if (n > 0 && Power.Active() == g) Proc.Run("powercfg", $"/setactive {g}");   // the active plan takes new values on activation
+            if (n > 0) r.Log.Add("↺ Energieplan „OrbitTweak Höchstleistung“: Bildschirm- und Energiespar-Zeiten deines vorherigen Plans übernommen");
+            Reg.Set(OWN, "UltTimeouts", 1);
+        });
 
         if (upgrade)
         {
