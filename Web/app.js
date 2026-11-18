@@ -634,7 +634,10 @@ document.addEventListener('keydown', e => {
 });
 async function applyCat(cat) {
   const list = S.tweaks.filter(t => t.cat === cat && t.rec && t.usable !== false && !t.applied);
-  if (!list.length) return toast('Schon optimal', `Alle empfohlenen ${CATS[cat][0]}-Tweaks sind aktiv`);
+  // a tab can have nothing recommended for this PC (Netzwerk on a cable without Wi-Fi): then it is all optional
+  if (!list.length) return S.tweaks.some(t => t.cat === cat && t.rec && t.usable !== false)
+    ? toast('Schon optimal', `Alle empfohlenen ${CATS[cat][0]}-Tweaks sind aktiv`)
+    : toast('Nichts empfohlen', 'Für deinen PC ist hier keiner empfohlen, die optionalen schaltest du einzeln ein');
   for (const t of list) {
     try { const r = await api('tweak.set', { id: t.id, on: true }); t.applied = r.applied; const cur = S.tweaks.find(x => x.id === t.id); if (cur) cur.applied = r.applied; } catch { }
     renderTweaks();
