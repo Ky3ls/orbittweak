@@ -38,8 +38,9 @@ public static class R6Logic
     public const string SettingsFile = "GameSettings.ini";
 
     /// <summary>Process names that mean "the game is running" (names only, the process itself is never opened).
-    /// RainbowSix_Vulkan is gone since Y9S3 but is still checked for old installs.</summary>
-    public static readonly string[] ProcessNames = { "RainbowSix", "RainbowSix_BE", "RainbowSix_Vulkan" };
+    /// RainbowSixHelper.exe ships next to RainbowSix.exe as a byte-identical copy (Ubisoft manifests of 2026), so it is the
+    /// game too. RainbowSix_Vulkan is gone since Y9S3 but is still checked for old installs.</summary>
+    public static readonly string[] ProcessNames = { "RainbowSix", "RainbowSix_BE", "RainbowSixHelper", "RainbowSix_Vulkan" };
 
     public const string BkPrefix = "og.r6.";
     /// <summary>The full path of the GameSettings.ini the backups belong to.</summary>
@@ -51,6 +52,8 @@ public static class R6Logic
     public const string RunningError = "Schließ Rainbow Six Siege zuerst, sonst überschreibt das Spiel die Einstellung beim Beenden.";
     public const string NoConfig = "Starte Rainbow Six Siege einmal, dann legt es seine Einstellungen an";
     public const string NoNvidia = "Nur mit NVIDIA-Grafikkarte (ab GeForce GTX 10)";
+    /// <summary>Two GPUs and the game last ran on the other one (an Optimus laptop on the processor graphics …).</summary>
+    public const string NoNvidiaHybrid = "Siege lief zuletzt nicht auf einer NVIDIA-Grafikkarte: hast du eine, schalte „Starke Grafikkarte für Siege“ ein und starte Siege einmal";
     public const string OneGpu = "Nur eine Grafikkarte erkannt: hier ändert sich nichts";
     public const string NoExe = "Spielordner nicht gefunden: OrbitTweak kennt den Pfad zu RainbowSix.exe nicht";
     public const string FpsRange = "Das FPS-Limit ist 0 (aus) oder mindestens 30.";
@@ -58,10 +61,13 @@ public static class R6Logic
     public const string FpsWhole = "Das FPS-Limit ist eine ganze Zahl.";
     public const string ReadOnly = "Deine GameSettings.ini ist schreibgeschützt (das raten manche Anleitungen). Nimm in den Dateieigenschaften den Haken bei „Schreibgeschützt“ raus, dann klappt es.";
     public const string Locked = "Die GameSettings.ini ist gerade gesperrt. Schließ Rainbow Six Siege und versuch es noch mal.";
+    /// <summary>Access denied while nothing holds the file: Windows' ransomware protection guards Documents, or the file's permissions.</summary>
+    public const string NoAccess = "Windows lässt OrbitTweak nicht an die GameSettings.ini. Ist im Windows-Sicherheitscenter der „Überwachte Ordnerzugriff“ an, erlaube OrbitTweak dort und versuch es noch mal.";
 
     public const string AntiCheat = "BattlEye und seit 2026 Ubisofts eigenes Kernel-Anti-Cheat. OrbitTweak ändert nur die GameSettings.ini, "
         + "die auch das Einstellungsmenü des Spiels schreibt, und den Windows-Grafikeintrag für RainbowSix.exe. Spieldateien "
-        + "und das laufende Spiel fasst es nie an, und deine Eingaben bleiben unberührt. Geschrieben wird nur, wenn Siege geschlossen ist.";
+        + "und das laufende Spiel fasst es nie an, und es steuert nie Maus oder Tastatur. Die GameSettings.ini schreibt es nur, "
+        + "wenn Siege geschlossen ist.";
 
     private const int FpsMin = 30, FpsTop = 500;
 
@@ -99,14 +105,14 @@ public static class R6Logic
         new("fpslimit", "number", "DISPLAY", "FPSLimit",
             "FPS-Limit",
             "Deckelt die Bildrate: gleichmäßiger, kühler, weniger Prozessorlast",
-            "Setzt das eingebaute Bildraten-Limit von Siege. Ubisoft hat es eingeführt, weil Siege ohne Limit und ohne V-Sync den "
+            "Setzt das eingebaute Bildraten-Limit von Siege. Ubisoft rät selbst dazu, weil Siege ohne Limit und ohne V-Sync den "
             + "Prozessor bis zum Anschlag auslasten kann. Mit Limit nutzt es nur so viel, wie es für die Ziel-FPS braucht. Das "
             + "ergibt gleichmäßigere Bildzeiten, weniger Hitze und leisere Lüfter. Mit G-Sync oder FreeSync ist ein Limit ein paar "
             + "FPS unter der Bildwiederholrate sinnvoll (z. B. 141 bei 144 Hz), damit der Monitor im variablen Bereich bleibt. "
             + "Erreichst du das Limit nie, ändert es nichts. Liegt es weit unter dem, was dein PC schafft, kostet es FPS und ein "
             + "wenig Reaktionszeit. 0 schaltet das Limit aus, sonst nimmt das Spiel mindestens 30.",
             "stability",
-            "Ubisoft-Entwicklerbeitrag „100% CPU usage“: FPSLimit in [DISPLAY] senkt die Prozessorlast; Mindestwert 30 laut Kommentar in der Datei",
+            "Ubisoft-Beitrag „100% CPU usage“ (2018): FPSLimit in [DISPLAY] senkt die Prozessorlast; Mindestwert 30 laut Kommentar in der Datei",
             Min: 0, Max: FpsTop, Step: 1, Unit: "FPS"),
 
         new("rawinput", "switch", "INPUT", "RawInputMouseKeyboard",
@@ -242,14 +248,15 @@ public static class R6Logic
     }
 
     // ------------------------------------------------------------------ availability
-    /// <summary>Why an INI item cannot be set with this file ("" = it can).</summary>
-    public static string WhyNot(R6Spec s, string? text)
+    /// <summary>Why an INI item cannot be set with this file ("" = it can). switchable: Windows can choose between two GPUs,
+    /// so a non-NVIDIA vendor may only mean the game last ran on the weaker chip.</summary>
+    public static string WhyNot(R6Spec s, string? text, bool switchable = false)
     {
         if (s.IsGpu) return "";
         if (text == null) return NoConfig;
         if (!HasSection(text, s.Section!))
             return $"In deiner GameSettings.ini fehlt der Abschnitt [{s.Section}]: starte Rainbow Six Siege einmal und beende es wieder";
-        if (s.Id == "reflex" && !MaybeNvidia(text)) return NoNvidia;
+        if (s.Id == "reflex" && !MaybeNvidia(text)) return switchable ? NoNvidiaHybrid : NoNvidia;
         return "";
     }
 
@@ -379,7 +386,7 @@ public static class R6Logic
     {
         if (!exeFound && !configFound) return "Rainbow Six Siege nicht gefunden (Ubisoft Connect, Steam und Epic geprüft)";
         if (!configFound) return NoConfig;
-        if (running) return "Siege läuft gerade: schließ es, dann kannst du die Einstellungen ändern";
+        if (running) return "Siege läuft gerade: schließ es, dann kannst du die Spieleinstellungen ändern";
         if (older) return "OrbitTweak bleibt beim Ubisoft-Profil, das es zuerst geändert hat: für ein anderes setz erst zurück";
         if (profiles > 1) return $"{profiles} Ubisoft-Profile gefunden: OrbitTweak ändert nur das zuletzt gespielte";
         return "Änderungen wirken ab dem nächsten Start von Siege";

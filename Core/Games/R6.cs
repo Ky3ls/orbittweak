@@ -42,15 +42,16 @@ internal sealed class R6Tweaks : IGameTweaks
     public List<GameItem> Items()
     {
         var t = Pick();
-        string? text = null;
-        if (t.File != null) try { text = Read(t.File).text; } catch { }
+        string? text = null, unreadable = null;
+        if (t.File != null) try { text = Read(t.File).text; } catch (InvalidOperationException e) { unreadable = e.Message.TrimEnd('.'); }
         var exe = ExePath();
+        bool two = Hw.SwitchableGpus;
         var list = new List<GameItem>();
         foreach (var s in R6Logic.Specs)
         {
             if (s.IsGpu)
             {
-                var why = exe == null ? R6Logic.NoExe : !Hw.SwitchableGpus ? R6Logic.OneGpu : "";
+                var why = exe == null ? R6Logic.NoExe : !two ? R6Logic.OneGpu : "";
                 list.Add(Make(s, exe != null && GpuPrefs.Get(exe, GpuField) == "2", why, GpuChanged()));
             }
             else
@@ -58,7 +59,8 @@ internal sealed class R6Tweaks : IGameTweaks
                 var raw = text == null ? null : IniText.Get(text, s.Section!, s.Key!);
                 // the backups belong to one file: only that one shows "changed"
                 bool changed = t.Backed && R6Logic.IsChanged(Reg.Get(Bk.User, R6Logic.BkKey(s)) as string, raw);
-                list.Add(Make(s, R6Logic.ToPage(s, raw), R6Logic.WhyNot(s, text), changed));
+                // a file that is there but cannot be read says why, not "start the game once"
+                list.Add(Make(s, R6Logic.ToPage(s, raw), unreadable ?? R6Logic.WhyNot(s, text, two), changed));
             }
         }
         return list;
@@ -101,7 +103,7 @@ internal sealed class R6Tweaks : IGameTweaks
         var t = Pick();
         if (t.File == null) throw Err(R6Logic.NoConfig);
         var (text, bom) = Read(t.File);
-        var why = R6Logic.WhyNot(s, text);
+        var why = R6Logic.WhyNot(s, text, Hw.SwitchableGpus);
         if (why != "") throw Err(why);
         var cur = IniText.Get(text, s.Section!, s.Key!);
         if (R6Logic.Same(cur, target)) return R6Logic.ToPage(s, cur);
@@ -244,7 +246,14 @@ internal sealed class R6Tweaks : IGameTweaks
         return list;
     }
 
-    private static (string text, bool bom) Read(string file) => R6Logic.Decode(File.ReadAllBytes(file));
+    /// <summary>The file's text; a file that cannot be read comes back as a German error, not as the system's message.</summary>
+    private static (string text, bool bom) Read(string file)
+    {
+        try { return R6Logic.Decode(File.ReadAllBytes(file)); }
+        catch (IOException e) when (e is FileNotFoundException or DirectoryNotFoundException) { throw Err(R6Logic.NoConfig); }
+        catch (UnauthorizedAccessException) { throw Err(R6Logic.NoAccess); }
+        catch (IOException) { throw Err(R6Logic.Locked); }
+    }
 
     /// <summary>All at once: the new text goes to a temp file next to it, which then replaces the file (CRLF, encoding and
     /// every other byte stay). A read-only file is not unlocked: the user set that on purpose.</summary>
@@ -262,7 +271,8 @@ internal sealed class R6Tweaks : IGameTweaks
             File.Replace(tmp, file, null);
         }
         catch (IOException e) when (e is FileNotFoundException or DirectoryNotFoundException) { throw Err(R6Logic.NoConfig); }
-        catch (UnauthorizedAccessException) { throw Err(R6Logic.Locked); }
+        // access denied while the file is not read-only: Windows' ransomware protection or the permissions, not a lock
+        catch (UnauthorizedAccessException) { throw Err(R6Logic.NoAccess); }
         catch (IOException) { throw Err(R6Logic.Locked); }
         finally { try { if (File.Exists(tmp)) File.Delete(tmp); } catch { } }
     }

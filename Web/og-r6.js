@@ -19,7 +19,7 @@
       configFound: true,
       configPath: 'C:\\Users\\Max\\Documents\\My Games\\Rainbow Six - Siege\\3f2c9a1e-7b4d-4c8a-9e21-0a5b6c7d8e9f\\GameSettings.ini',
       note: '2 Ubisoft-Profile gefunden: OrbitTweak ändert nur das zuletzt gespielte',
-      antiCheat: 'BattlEye und seit 2026 Ubisofts eigenes Kernel-Anti-Cheat. OrbitTweak ändert nur die GameSettings.ini, die auch das Einstellungsmenü des Spiels schreibt, und den Windows-Grafikeintrag für RainbowSix.exe. Spieldateien und das laufende Spiel fasst es nie an, und deine Eingaben bleiben unberührt. Geschrieben wird nur, wenn Siege geschlossen ist.',
+      antiCheat: 'BattlEye und seit 2026 Ubisofts eigenes Kernel-Anti-Cheat. OrbitTweak ändert nur die GameSettings.ini, die auch das Einstellungsmenü des Spiels schreibt, und den Windows-Grafikeintrag für RainbowSix.exe. Spieldateien und das laufende Spiel fasst es nie an, und es steuert nie Maus oder Tastatur. Die GameSettings.ini schreibt es nur, wenn Siege geschlossen ist.',
     },
     items: [
       item({
@@ -42,8 +42,8 @@
         id: 'fpslimit', kind: 'number', value: 0, min: 0, max: 500, step: 1, unit: 'FPS', effect: 'stability',
         title: 'FPS-Limit',
         sum: 'Deckelt die Bildrate: gleichmäßiger, kühler, weniger Prozessorlast',
-        desc: 'Setzt das eingebaute Bildraten-Limit von Siege. Ubisoft hat es eingeführt, weil Siege ohne Limit und ohne V-Sync den Prozessor bis zum Anschlag auslasten kann. Mit Limit nutzt es nur so viel, wie es für die Ziel-FPS braucht. Das ergibt gleichmäßigere Bildzeiten, weniger Hitze und leisere Lüfter. Mit G-Sync oder FreeSync ist ein Limit ein paar FPS unter der Bildwiederholrate sinnvoll (z. B. 141 bei 144 Hz), damit der Monitor im variablen Bereich bleibt. Erreichst du das Limit nie, ändert es nichts. Liegt es weit unter dem, was dein PC schafft, kostet es FPS und ein wenig Reaktionszeit. 0 schaltet das Limit aus, sonst nimmt das Spiel mindestens 30.',
-        source: 'Ubisoft-Entwicklerbeitrag „100% CPU usage“: FPSLimit in [DISPLAY] senkt die Prozessorlast; Mindestwert 30 laut Kommentar in der Datei',
+        desc: 'Setzt das eingebaute Bildraten-Limit von Siege. Ubisoft rät selbst dazu, weil Siege ohne Limit und ohne V-Sync den Prozessor bis zum Anschlag auslasten kann. Mit Limit nutzt es nur so viel, wie es für die Ziel-FPS braucht. Das ergibt gleichmäßigere Bildzeiten, weniger Hitze und leisere Lüfter. Mit G-Sync oder FreeSync ist ein Limit ein paar FPS unter der Bildwiederholrate sinnvoll (z. B. 141 bei 144 Hz), damit der Monitor im variablen Bereich bleibt. Erreichst du das Limit nie, ändert es nichts. Liegt es weit unter dem, was dein PC schafft, kostet es FPS und ein wenig Reaktionszeit. 0 schaltet das Limit aus, sonst nimmt das Spiel mindestens 30.',
+        source: 'Ubisoft-Beitrag „100% CPU usage“ (2018): FPSLimit in [DISPLAY] senkt die Prozessorlast; Mindestwert 30 laut Kommentar in der Datei',
       }),
       item({
         id: 'rawinput', kind: 'switch', value: false, rec: true, recValue: true, effect: 'comfort',

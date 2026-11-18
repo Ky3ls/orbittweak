@@ -127,6 +127,7 @@ internal static class R6Tests
         Check(S("fpslimit").Min == 0 && S("fpslimit").Max == 500 && S("fpslimit").Step == 1 && S("fpslimit").Unit == "FPS", "r6: FPS limit 0–500 in steps of 1");
         Check(R6Logic.ProcessNames.Contains("RainbowSix") && R6Logic.ProcessNames.Contains("RainbowSix_BE"), "r6: the game and its BattlEye launcher count as running");
         Check(R6Logic.AntiCheat.Contains("BattlEye") && R6Logic.AntiCheat.Contains("GameSettings.ini"), "r6: the anti-cheat line names BattlEye and what is changed");
+        Check(R6Logic.AntiCheat.Contains("Die GameSettings.ini schreibt es nur, wenn Siege geschlossen ist"), "r6: the anti-cheat line limits \"only while closed\" to the INI (the GPU item works while Siege runs)");
     }
 
     // ------------------------------------------------------------------ values
@@ -251,6 +252,16 @@ internal static class R6Tests
         Check(R6Logic.HasSection("[A]\r\n[B]\r\n", "b") && R6Logic.HasSection(" [ DISPLAY ] \r\n", "DISPLAY") && R6Logic.HasSection("\uFEFF[GENERAL]\r\n", "GENERAL"), "r6: sections are found also without keys, with spaces, after a BOM");
         Check(!R6Logic.HasSection(";[DISPLAY]\r\n", "DISPLAY") && !R6Logic.HasSection(null, "DISPLAY") && !R6Logic.HasSection("DISPLAY=1", "DISPLAY"), "r6: comments and keys are no sections");
         Check(R6Logic.MaybeNvidia(Sample) && R6Logic.MaybeNvidia("") && !R6Logic.MaybeNvidia("[HARDWARE_INFO]\nGPUVendor=AMD\n"), "r6: MaybeNvidia");
+
+        // two GPUs (Optimus laptop): a non-NVIDIA vendor may only mean Siege last ran on the processor graphics
+        var intel = Sample.Replace("GPUVendor=NVIDIA", "GPUVendor=INTEL");
+        Check(R6Logic.WhyNot(reflex, intel, switchable: true) == R6Logic.NoNvidiaHybrid && R6Logic.WhyNot(reflex, intel) == R6Logic.NoNvidia, "r6: two GPUs: Reflex points to the GPU item instead of \"NVIDIA only\"");
+        Check(R6Logic.WhyNot(reflex, Sample, switchable: true) == "" && R6Logic.WhyNot(reflex, Sample.Replace("GPUVendor=NVIDIA\r\n", ""), switchable: true) == "", "r6: two GPUs, NVIDIA or unknown vendor: Reflex available");
+        Check(R6Logic.WhyNot(S("vsync"), intel, switchable: true) == "", "r6: two GPUs: only Reflex cares about the vendor");
+        Check(R6Logic.NoNvidiaHybrid.Contains("Starke Grafikkarte für Siege") && R6Logic.NoNvidiaHybrid.Contains(S("gpu").Title) && !R6Logic.NoNvidiaHybrid.EndsWith('.'), "r6: the hint names the GPU item by its title, one line without full stop");
+        foreach (var why in new[] { R6Logic.NoNvidia, R6Logic.NoNvidiaHybrid, R6Logic.OneGpu, R6Logic.NoExe, R6Logic.NoConfig })
+            Check(!why.EndsWith('.') && !why.Contains(" Sie ") && !why.Contains('\n'), $"r6: reason is one du-line without full stop: {why}");
+        Check(R6Logic.NoAccess.Contains("Überwachte Ordnerzugriff") && R6Logic.ReadOnly.Contains("Schreibgeschützt") && R6Logic.Locked.Contains("Schließ"), "r6: the write errors say what to do");
     }
 
     // ------------------------------------------------------------------ the Windows graphics setting
@@ -287,6 +298,7 @@ internal static class R6Tests
     private static void Finding(Action<bool, string> Check)
     {
         Check(R6Logic.IsGameProcess("RainbowSix") && R6Logic.IsGameProcess("rainbowsix_be") && R6Logic.IsGameProcess("RainbowSix_Vulkan"), "r6: game, BattlEye launcher and old Vulkan exe count as running");
+        Check(R6Logic.IsGameProcess("RainbowSixHelper"), "r6: RainbowSixHelper (a byte-identical copy of the game since 2026) counts as running");
         Check(!R6Logic.IsGameProcess("upc") && !R6Logic.IsGameProcess("UbisoftConnect") && !R6Logic.IsGameProcess("RainbowSixExtraction") && !R6Logic.IsGameProcess(null), "r6: other processes do not");
 
         Check(R6Logic.IsProfileFolder("3f2c9a1e-7b4d-4c8a-9e21-0a5b6c7d8e9f") && R6Logic.IsProfileFolder("3F2C9A1E-7B4D-4C8A-9E21-0A5B6C7D8E9F"), "r6: a Ubisoft profile GUID is a profile folder");
@@ -332,7 +344,7 @@ internal static class R6Tests
         Check(R6Logic.Note(false, false, false, 0, false).Contains("nicht gefunden"), "r6: note: not found");
         Check(R6Logic.Note(true, false, false, 0, false) == R6Logic.NoConfig, "r6: note: installed, never started");
         Check(R6Logic.NoConfig == "Starte Rainbow Six Siege einmal, dann legt es seine Einstellungen an", "r6: the exact German line for a missing file");
-        Check(R6Logic.Note(true, true, true, 1, false).Contains("läuft"), "r6: note: running");
+        Check(R6Logic.Note(true, true, true, 1, false).Contains("läuft") && R6Logic.Note(true, true, true, 1, false).Contains("Spieleinstellungen"), "r6: note: running (only the game's own settings wait for it)");
         Check(R6Logic.Note(true, true, false, 2, false).StartsWith("2 Ubisoft-Profile") && R6Logic.Note(true, true, false, 2, false).Contains("zuletzt gespielte"), "r6: note: several profiles, only the last played one changes");
         Check(R6Logic.Note(true, true, false, 2, true).Contains("zuerst geändert"), "r6: note: OrbitTweak stays with the profile it changed");
         Check(R6Logic.Note(true, true, false, 1, false).Contains("nächsten Start"), "r6: note: one profile, all fine");
