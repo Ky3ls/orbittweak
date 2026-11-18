@@ -881,26 +881,40 @@ function renderFps() {
   chip.className = 'chip' + (changed ? ' w' : lim ? ' g' : ''); chip.textContent = lim ? lim + ' FPS' : 'Aus';
   // the profile the driver uses for FiveM's newest build: OrbitTweak's own one, or one that already had FiveM in it (then
   // the limit goes into that one and counts for everything in it, e.g. NVIDIA's GTA V profile with GTA5.exe)
-  const n = f.others, apps = f.otherApps || [];
-  const profS = !f.profile ? (kept ? 'Kommt beim nächsten FiveM-Start dazu' : f.exes ? 'OrbitTweak legt beim Setzen eins an' : 'Kommt mit einem Limit beim FiveM-Start')
+  const n = f.others;
+  const profS = !f.profile ? (kept ? 'Kommt beim nächsten FiveM-Start dazu' : f.exes ? 'OrbitTweak legt beim Setzen eins an' : 'Mit Limit kommt es beim nächsten FiveM-Start')
     : own ? 'Von OrbitTweak angelegt, „Aus“ löscht es wieder'
     : n > 0 ? `Gab es schon, gilt auch für ${n === 1 ? 'ein anderes Programm' : n + ' andere Programme'}`
     : n === 0 ? 'Gab es schon, darin ist nur FiveM' : 'Gab es schon, Limit gilt fürs ganze Profil';
   const hint = [];
   if (changed) hint.push(`Das Treiberprofil hat jetzt ${lim ? lim + ' FPS' : 'kein Limit'} statt der ${f.written} FPS von OrbitTweak, wurde also außerhalb geändert, etwa in der NVIDIA-Systemsteuerung. OrbitTweak übernimmt das nicht von selbst: Wähl einen Wert, um ihn wieder zu setzen. ${own ? '„Aus“ löscht das Profil von OrbitTweak.' : '„Aus“ lässt dieses Profil dann so.'}`);
-  if (f.profile && n > 0) {
-    const gta = apps.some(a => /^(gta5|gta5_enhanced|playgtav|gtavlauncher)\.exe$/i.test(a)) ? ', damit auch für den Story-Modus und GTA Online' : '';
-    const who = `also auch für ${fpsApps(apps, n)}${gta}`;
-    hint.push(!f.ours ? `Setzt du ein Limit, gilt es für das ganze Profil „${f.profile}“, ${who}.`
-      : f.pending ? `Beim nächsten FiveM-Start setzt OrbitTweak das Limit im ganzen Profil „${f.profile}“, ${who}.`
-      : `Das Limit gilt für das ganze Profil „${f.profile}“, ${who}.`);
-  } else if (f.profile && !own && n == null) hint.push(`Das Limit gilt für das ganze Profil „${f.profile}“, also auch für jedes andere Programm darin.`);
+  // every profile of someone else a limit writes (any cached build's, not only the newest's, and the ones it follows to):
+  // the limit counts for everything in it, e.g. GTA5.exe in NVIDIA's GTA V profile where an older build sits
+  const foreign = f.foreign || [];
+  let named = 0;
+  for (const p of foreign) {
+    const pn = p.others, pa = p.otherApps || [], b = p.builds || [];
+    if (pn === 0) continue;
+    const gta = pa.some(a => /^(gta5|gta5_enhanced|playgtav|gtavlauncher)\.exe$/i.test(a)) ? ', damit auch für den Story-Modus und GTA Online' : '';
+    const who = pn > 0 ? `also auch für ${fpsApps(pa, pn)}${gta}` : 'also auch für jedes andere Programm darin';
+    // the newest build's profile is the one below; any other says why the limit goes there
+    const lead = p.name === f.profile;
+    const prof = `„${p.name}“` + (lead ? '' : b.length === 1 ? `, in dem ${b[0]} steckt` : b.length ? `, in dem ${b.length} FiveM-Builds stecken` : ', in dem OrbitTweak es früher für FiveM gesetzt hat');
+    // changed outside OrbitTweak since: for the newest build's profile the hint above says so
+    const moved = p.written > 0 && p.limit !== p.written;
+    hint.push(!f.ours ? `${named ? 'Ebenso gilt es' : 'Setzt du ein Limit, gilt es'} für das ganze Profil ${prof}, ${who}.`
+      : p.pending ? `Beim nächsten FiveM-Start setzt OrbitTweak das Limit im ganzen Profil ${prof}, ${who}.`
+      : moved && !lead ? `Das Profil ${prof}, hat jetzt ${p.limit ? p.limit + ' FPS' : 'kein Limit'} statt der ${p.written} FPS von OrbitTweak, „Aus“ lässt es so. Wählst du einen Wert, gilt er für das ganze Profil, ${who}.`
+      : moved ? `Wählst du einen Wert, gilt er für das ganze Profil ${prof}, ${who}.`
+      : `Das Limit gilt für das ganze Profil ${prof}, ${who}.`);
+    named++;
+  }
   body.innerHTML = `<div class="gd-ctl"><span class="gd-l">Limit</span>
       <div class="seg" id="fpsSeg"><button data-fps="0" class="${!lim && !kept ? 'on' : ''}">Aus</button>${vals.map(v => `<button data-fps="${v}" class="${v === lim && !changed ? 'on' : ''}">${v}${v === sug ? '<small>Vorschlag</small>' : ''}</button>`).join('')}</div>
       <span class="sp"></span>
       <label class="gd-own"><input class="in" id="fpsOwn" type="number" min="30" max="500" step="1" placeholder="Eigener Wert" aria-label="Eigenes Limit in FPS"><span>FPS</span></label>
       <button class="btn" id="fpsGo">Setzen</button></div>
-    ${hint.length ? `<p class="gd-hint${changed || n > 0 ? ' warn' : ''}" id="fpsHint">${esc(hint.join(' '))}</p>` : ''}
+    ${hint.length ? `<p class="gd-hint${changed || foreign.some(p => p.others > 0) ? ' warn' : ''}" id="fpsHint">${esc(hint.join(' '))}</p>` : ''}
     <div class="gl-stats">
       ${gdStat('Jetzt', lim ? `${lim}<small>FPS</small>` : 'Aus', changed ? 'Außerhalb von OrbitTweak geändert' : lim ? (f.ours ? 'Ab dem nächsten FiveM-Start' : 'Steht so im Treiberprofil, nicht von OrbitTweak') : 'Kein Limit im Treiberprofil')}
       ${gdStat('Monitor', f.hz ? `${f.hz}<small>Hz</small>` : '—', sug ? `Vorschlag ${sug} FPS für G-Sync und FreeSync` : 'Bildwiederholrate unbekannt')}
@@ -3336,16 +3350,19 @@ const Mock = {
 /* FPS limit and texture budget (Core/FpsTex.cs), shapes as the host gives them. Query flags: ?nonvidia a PC without
    NVIDIA driver; ?fpsforeign FiveM's newest build sits in NVIDIA's GTA V profile next to GTA5.exe and PlayGTAV.exe;
    ?fpsdrift OrbitTweak keeps 141, the profile has 100 since (Control Panel; with ?fpsforeign "Aus" leaves that profile);
-   ?fpsnoexe no game exe in FiveM's cache yet */
+   ?fpsnoexe no game exe in FiveM's cache yet; ?fpsolder the newest build is in no profile, an older one (b2802) in NVIDIA's
+   GTA V profile */
 const DRV_Q = new URLSearchParams(location.search), FPS_CHANGED = DRV_Q.has('fpsdrift');
 const DRV_MOCK = { fps: FPS_CHANGED ? 141 : 0, live: FPS_CHANGED ? 100 : 0, wrote: FPS_CHANGED ? 141 : 0, tex: 4, texBefore: null };
 MOCK_EXT['fps.get'] = async () => {
-  if (DRV_Q.has('nonvidia')) return { available: false, reason: 'nonvidia', limit: 0, kept: 0, written: 0, hz: 144, suggestion: 141, profile: null, ours: false, pending: false, others: 0, otherApps: [], exes: 0 };
-  const exes = DRV_Q.has('fpsnoexe') ? 0 : 2, foreign = DRV_Q.has('fpsforeign') && exes > 0;
+  if (DRV_Q.has('nonvidia')) return { available: false, reason: 'nonvidia', limit: 0, kept: 0, written: 0, hz: 144, suggestion: 141, profile: null, ours: false, pending: false, others: 0, otherApps: [], foreign: [], exes: 0 };
+  const exes = DRV_Q.has('fpsnoexe') ? 0 : 2, foreign = DRV_Q.has('fpsforeign') && exes > 0, older = DRV_Q.has('fpsolder') && exes > 0 && !foreign;
   const profile = !exes ? null : foreign ? 'Grand Theft Auto V' : DRV_MOCK.fps || DRV_MOCK.live ? 'OrbitTweak FiveM' : null;
   const pending = DRV_MOCK.fps > 0 && !profile;
+  // NVIDIA's GTA V profile with the newest build (?fpsforeign) or an older one (?fpsolder)
+  const gta = { name: 'Grand Theft Auto V', limit: DRV_MOCK.live, written: DRV_MOCK.wrote, pending: false, others: 2, otherApps: ['GTA5.exe', 'PlayGTAV.exe'], builds: [older ? 'FiveM b2802' : 'FiveM b3095'] };
   return { available: true, reason: null, limit: pending ? DRV_MOCK.fps : profile ? DRV_MOCK.live : 0, kept: DRV_MOCK.fps, written: profile ? DRV_MOCK.wrote : 0,
-    hz: 144, suggestion: 141, profile, ours: DRV_MOCK.fps > 0, pending, others: foreign ? 2 : 0, otherApps: foreign ? ['GTA5.exe', 'PlayGTAV.exe'] : [], exes };
+    hz: 144, suggestion: 141, profile, ours: DRV_MOCK.fps > 0, pending, others: foreign ? 2 : 0, otherApps: foreign ? gta.otherApps : [], foreign: foreign || older ? [gta] : [], exes };
 };
 MOCK_EXT['fps.set'] = async a => {
   const l = a.limit, stayed = [];
@@ -3353,7 +3370,7 @@ MOCK_EXT['fps.set'] = async a => {
   if (l) DRV_MOCK.live = DRV_MOCK.wrote = l;
   else {
     // someone else's profile whose value was changed outside OrbitTweak stays as it is; the own profile goes
-    if (DRV_Q.has('fpsforeign') && DRV_MOCK.wrote && DRV_MOCK.live !== DRV_MOCK.wrote) stayed.push({ profile: 'Grand Theft Auto V', limit: DRV_MOCK.live });
+    if ((DRV_Q.has('fpsforeign') || DRV_Q.has('fpsolder')) && DRV_MOCK.wrote && DRV_MOCK.live !== DRV_MOCK.wrote) stayed.push({ profile: 'Grand Theft Auto V', limit: DRV_MOCK.live });
     else DRV_MOCK.live = 0;
     DRV_MOCK.wrote = 0;
   }
@@ -3846,7 +3863,7 @@ document.addEventListener('click', async e => {
 /* ======================= WHAT'S NEW: shown once after an update ======================= */
 const CHANGES = {
   '2.29.0': [
-    ['gauge', 'FPS-Limit für FiveM', 'Unter Grafik & Farben deckelt der NVIDIA-Treiber auf Wunsch die Bildrate von FiveM. Das bringt meist gleichmäßigere Frametimes, weniger Hitze und weniger Lüfterlärm. Der Vorschlag liegt knapp unter der Bildwiederholrate deines Monitors. Steckt FiveM schon in einem Treiberprofil mit anderen Spielen, etwa dem von GTA V, sagt dir die Karte vorher, dass das Limit dann für das ganze Profil gilt.'],
+    ['gauge', 'FPS-Limit für FiveM', 'Unter Grafik & Farben deckelt der NVIDIA-Treiber auf Wunsch die Bildrate von FiveM. Das bringt meist gleichmäßigere Frametimes, weniger Hitze und weniger Lüfterlärm. Der Vorschlag liegt knapp unter der Bildwiederholrate deines Monitors. Steckt FiveM in einem Treiberprofil mit anderen Spielen, etwa dem von GTA V, gilt das Limit für das ganze Profil. Die Karte zeigt dir, welche Profile und Programme es betrifft.'],
     ['layers', 'Texturbudget', 'Gegen fehlende oder matschige Texturen auf Servern mit vielen Add-on-Autos: OrbitTweak stellt FiveMs „Extended Texture Budget“ ein und schlägt einen Wert passend zu deinem Grafikspeicher vor.'],
     ['sliders', 'Voice macht nichts mehr leiser', 'Neuer Tweak unter System: Windows dreht Musik und Spielsound nicht mehr um 80 % leiser, sobald Discord, Teams oder eine andere App einen Anruf öffnet.'],
     ['shield', 'Speicherintegrität in der Diagnose', 'Aktuelle Windows-Updates schalten sie auf vielen PCs ein. Die Diagnose zeigt jetzt, ob sie läuft, was sie schützt und was sie in Spielen kosten kann. OrbitTweak schaltet sie nie selbst um.'],

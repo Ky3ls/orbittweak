@@ -2099,9 +2099,17 @@ public partial class MainWindow : Window
                         if (added > 0) Log($"🖥 Grafikeinstellung für {added} neue FiveM-Datei(en) übernommen");
                     }
                     // the FPS limit too, on every look: a new build's exe should be in the driver profile before the game
-                    // process makes its graphics device (cheap until the list of exes changes)
+                    // process makes its graphics device (cheap until the list of exes changes or FiveM starts again)
                     if (_authed && procs.Length > 0)
-                        try { if (FpsLimit.Upkeep(game?.ProcessName) is > 0 and var fps) Log($"🎯 FPS-Limit für {fps} neue FiveM-Datei(en) übernommen"); } catch { }
+                        try
+                        {
+                            var (fps, profs) = FpsLimit.Upkeep(game?.ProcessName);
+                            if (fps > 0) Log($"🎯 FPS-Limit für {fps} neue FiveM-Datei(en) übernommen");
+                            // a profile of someone else caps everything in it: the log names each one OrbitTweak set on its own
+                            if (profs.Count > 0) Log($"🎯 FPS-Limit jetzt auch {(profs.Count == 1 ? "im Treiberprofil" : "in den Treiberprofilen")} {string.Join(", ", profs.Select(p => $"„{p}“"))}, es gilt {(profs.Count == 1 ? "dort" : "jeweils")} für das ganze Profil");
+                        }
+                        catch (Exception ex) { Log($"✖ FPS-Limit nicht übernommen: {ex.Message}"); }   // once per start of FiveM, then again on the next
+                    if (procs.Length == 0) FpsLimit.Rearm();
                     if (_authed && game != null && S.AutoBorderless)
                     {
                         try

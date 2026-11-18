@@ -617,34 +617,85 @@ TweakTexts.Run(Check);
         Check(FpsLimitLogic.ParseEntry(FpsLimitLogic.Entry(b, w), 7) == (b, w), $"entry round trip {b}|{w}");
     Check(FpsLimitLogic.RestoreValue(FpsLimitLogic.ParseEntry("100|141", 0).backup) == 100u && FpsLimitLogic.RestoreValue(FpsLimitLogic.ParseEntry("-|141", 0).backup) == null,
         "the backup part restores as before");
+    // pending: the backup goes in before the driver writes, the written value only once it saved
+    Check(FpsLimitLogic.PendingEntry("-") == "-|0" && FpsLimitLogic.PendingEntry("100") == "100|0", "pending entry: the backup, nothing written yet");
+    Check(FpsLimitLogic.Written("-|0", 141) == 0 && FpsLimitLogic.Written("100|0", 0) == 0 && FpsLimitLogic.Written(null, 141) == 0,
+        "pending entry or none: OrbitTweak wrote nothing there");
+    Check(FpsLimitLogic.Written("-|141", 0) == 141 && FpsLimitLogic.Written("-", 120) == 120, "written: from the entry, an old one without '|' the stored limit");
+    Check(FpsLimitLogic.CardState("-|0", 141) == (0, true), "card: a pending entry while a limit is kept comes with the next start, not changed outside OrbitTweak");
+    Check(FpsLimitLogic.CardState(null, 141) == (0, true) && FpsLimitLogic.CardState(null, 0) == (0, false) && FpsLimitLogic.CardState("-|0", 0) == (0, false),
+        "card: no entry while a limit is kept is pending; without a kept limit nothing is");
+    Check(FpsLimitLogic.CardState("-|141", 141) == (141, false) && FpsLimitLogic.CardState("-|141", 120) == (141, false),
+        "card: a written entry is set, its written value is what the card compares");
 
     // "Aus" per profile of someone else
     var R = FpsLimitLogic.OffStep.Restore; var D = FpsLimitLogic.OffStep.Drop; var K = FpsLimitLogic.OffStep.Keep;
     Check(FpsLimitLogic.OffDecision(true, 141, "-|141", 0) == R, "still has what OrbitTweak wrote: put back");
     Check(FpsLimitLogic.OffDecision(true, 141, "-|141", 120) == R,
         "the exe left FiveM's cache, the limit changed to 120 elsewhere: the profile still has OrbitTweak's 141 and is put back (not left capped)");
-    Check(FpsLimitLogic.OffDecision(true, 100, "-|141", 141) == K, "changed to 100 outside OrbitTweak: stays, with its entry");
+    Check(FpsLimitLogic.OffDecision(true, 100, "-|141", 141) == K, "changed to 100 outside OrbitTweak: stays as the user set it");
     Check(FpsLimitLogic.OffDecision(true, 0, "-|141", 141) == D && FpsLimitLogic.OffDecision(true, 60, "60|141", 141) == D,
         "already back to its value from before: only the entry goes");
     Check(FpsLimitLogic.OffDecision(false, 0, "-|141", 141) == D, "the profile is gone: nothing to put back, the entry goes");
     Check(FpsLimitLogic.OffDecision(true, 141, "-", 141) == R && FpsLimitLogic.OffDecision(true, 100, "-", 141) == K,
         "an entry without '|': OrbitTweak wrote the stored limit");
     Check(FpsLimitLogic.OffDecision(true, 100, "-", 0) == R, "no record of OrbitTweak's limit at all: the backup alone counts, as before");
+    // a pending entry (backup taken, the driver never saved): Aus sets the backup, which such a profile still has
+    Check(FpsLimitLogic.OffDecision(true, 100, "100|0", 141) == R && FpsLimitLogic.RestoreValue(FpsLimitLogic.ParseEntry("100|0", 141).backup) == 100u,
+        "pending entry, profile still at its 100: Aus writes the same 100 (harmless), never reported as changed");
+    Check(FpsLimitLogic.OffDecision(true, 0, "-|0", 141) == R && FpsLimitLogic.RestoreValue(FpsLimitLogic.ParseEntry("-|0", 141).backup) == null,
+        "pending entry, no limit of its own: Aus deletes a setting the profile does not have (harmless)");
+    Check(FpsLimitLogic.OffDecision(false, 0, "-|0", 141) == D, "pending entry of a profile that is gone: only the entry goes");
+
+    // Aus over all profiles: every entry goes, also of a profile it leaves as the user set it
+    var off = FpsLimitLogic.OffPlan(new (string, bool, int, string?)[] { ("Grand Theft Auto V", true, 100, "-|141"), ("FiveM", true, 141, "-|141"),
+        ("Gone", false, 0, "-|141"), ("Before", true, 60, "60|141"), ("Pending", true, 0, "-|0") }, 141);
+    Check(off.steps.Select(x => x.step).SequenceEqual(new[] { K, R, D, D, R }), "Aus: kept, put back, gone, already as before, pending");
+    Check(off.stayed.SequenceEqual(new[] { ("Grand Theft Auto V", 100) }), "Aus: only the profile changed outside OrbitTweak is named, with its limit");
+    Check(off.drop.SequenceEqual(new[] { "Grand Theft Auto V", "FiveM", "Gone", "Before", "Pending" }),
+        "Aus: every entry goes, the kept profile's too (it is the user's again)");
+    // why: the user changed P from OrbitTweak's 141 to 100, then Aus. With its entry gone the next limit backs up the 100,
+    // so a later Aus gives the 100 back instead of reusing the stale "-" and wiping it
+    Check(FpsLimitLogic.Written(null, 141) == 0 && FpsLimitLogic.Backup(true, 0, false, 100) == "100" && FpsLimitLogic.PendingEntry("100") == "100|0",
+        "after Aus the next limit takes a fresh backup of the user's 100, stored as pending first");
+    Check(FpsLimitLogic.OffDecision(true, 141, FpsLimitLogic.Entry("100", 141), 141) == R && FpsLimitLogic.RestoreValue(FpsLimitLogic.ParseEntry(FpsLimitLogic.Entry("100", 141), 141).backup) == 100u,
+        "and the Aus after that puts the user's 100 back");
+    Check(FpsLimitLogic.RestoreValue(FpsLimitLogic.ParseEntry("-|141", 141).backup) == null, "(a stale \"-|141\" would have deleted it)");
 
     // a new limit follows to profiles that left the cache only while they still have OrbitTweak's value
     Check(FpsLimitLogic.Follows(141, 141) && !FpsLimitLogic.Follows(100, 141) && !FpsLimitLogic.Follows(0, 0), "a profile with OrbitTweak's value follows a new limit, a changed one not");
 
     // the FiveM probe only adds what is new
     var up = FpsLimitLogic.UpkeepPlan(new (string, string?)[] { ("FiveM_b3258_GTAProcess.exe", null), ("FiveM_b3095_GTAProcess.exe", FpsLimitLogic.OwnProfile),
-        ("FiveM_b2802_GTAProcess.exe", "FiveM"), ("FiveM_b2699_GTAProcess.exe", "Grand Theft Auto V") }, new[] { "fivem" }, ownExists: true);
+        ("FiveM_b2802_GTAProcess.exe", "FiveM"), ("FiveM_b2699_GTAProcess.exe", "Grand Theft Auto V") }, new (string, string?)[] { ("fivem", "-|141") }, 141, ownExists: true);
     Check(up.AddToOwn.SequenceEqual(new[] { "FiveM_b3258_GTAProcess.exe" }), "upkeep: an exe in no profile goes into the own profile");
     Check(!up.Own, "upkeep: the own profile exists, its limit is not written again (a value changed in the Control Panel stays)");
     Check(up.Foreign.SequenceEqual(new[] { "Grand Theft Auto V" }), "upkeep: a profile with an entry is not written again, a new one gets the limit");
-    var fresh = FpsLimitLogic.UpkeepPlan(new (string, string?)[] { ("FiveM_b3258_GTAProcess.exe", null) }, Array.Empty<string>(), ownExists: false);
+    var fresh = FpsLimitLogic.UpkeepPlan(new (string, string?)[] { ("FiveM_b3258_GTAProcess.exe", null) }, Array.Empty<(string, string?)>(), 141, ownExists: false);
     Check(fresh.Own && fresh.AddToOwn.Count == 1, "upkeep: the own profile made right now gets the kept limit");
     var none = FpsLimitLogic.UpkeepPlan(new (string, string?)[] { ("FiveM_b3095_GTAProcess.exe", FpsLimitLogic.OwnProfile), ("FiveM_b2802_GTAProcess.exe", "FiveM") },
-        new[] { "FiveM" }, ownExists: true);
+        new (string, string?)[] { ("FiveM", "-|141") }, 141, ownExists: true);
     Check(none.AddToOwn.Count == 0 && !none.Own && none.Foreign.Count == 0, "upkeep after the app starts with nothing new: nothing is written");
+    var changedUp = FpsLimitLogic.UpkeepPlan(new (string, string?)[] { ("FiveM_b2802_GTAProcess.exe", "FiveM") }, new (string, string?)[] { ("FiveM", "-|141") }, 120, ownExists: true);
+    Check(changedUp.Foreign.Count == 0, "upkeep: a profile OrbitTweak wrote stays as it is, also after the kept limit changed");
+    var oldUp = FpsLimitLogic.UpkeepPlan(new (string, string?)[] { ("FiveM_b2802_GTAProcess.exe", "FiveM") }, new (string, string?)[] { ("FiveM", "-") }, 141, ownExists: true);
+    Check(oldUp.Foreign.Count == 0, "upkeep: an entry without '|' counts as written with the stored limit");
+    var retry = FpsLimitLogic.UpkeepPlan(new (string, string?)[] { ("FiveM_b2802_GTAProcess.exe", "Grand Theft Auto V"), ("FiveM_b2699_GTAProcess.exe", "FiveM") },
+        new (string, string?)[] { ("grand theft auto v", "-|0"), ("FiveM", "60|141") }, 141, ownExists: true);
+    Check(retry.Foreign.SequenceEqual(new[] { "Grand Theft Auto V" }), "upkeep: a pending entry (the driver refused to save) is written again, a written one not");
+
+    // the card names every profile of someone else a limit writes, not only the newest build's
+    var fo = FpsLimitLogic.ForeignOf(new (string, string?)[] { ("FiveM_b2802_GTAProcess.exe", "Grand Theft Auto V"), ("FiveM_b3095_GTAProcess.exe", null),
+        ("FiveM_GTAProcess.exe", "grand theft auto v"), ("FiveM_b3258_GTAProcess.exe", FpsLimitLogic.OwnProfile) }, "FiveM_b3095_GTAProcess.exe");
+    Check(fo.Count == 1 && fo[0].profile == "Grand Theft Auto V" && fo[0].exes.SequenceEqual(new[] { "FiveM_b2802_GTAProcess.exe", "FiveM_GTAProcess.exe" }),
+        "an older build in NVIDIA's GTA V profile is named although the newest build is in no profile");
+    var fo2 = FpsLimitLogic.ForeignOf(new (string, string?)[] { ("FiveM_b2802_GTAProcess.exe", "Grand Theft Auto V"), ("FiveM_b3095_GTAProcess.exe", "FiveM"),
+        ("FiveM_b2699_GTAProcess.exe", "FiveM") }, "fivem_b3095_gtaprocess.exe");
+    Check(fo2.Select(x => x.profile).SequenceEqual(new[] { "FiveM", "Grand Theft Auto V" }), "the newest build's profile first, then the others");
+    Check(fo2.Select(x => x.profile).SequenceEqual(FpsLimitLogic.Decide(new (string, string?)[] { ("FiveM_b2802_GTAProcess.exe", "Grand Theft Auto V"),
+        ("FiveM_b3095_GTAProcess.exe", "FiveM"), ("FiveM_b2699_GTAProcess.exe", "FiveM") }).Foreign.OrderBy(x => x != "FiveM")), "the same profiles the card's set writes");
+    Check(FpsLimitLogic.ForeignOf(new (string, string?)[] { ("FiveM_b3095_GTAProcess.exe", FpsLimitLogic.OwnProfile), ("FiveM_b2802_GTAProcess.exe", null) }, null).Count == 0,
+        "only the own profile or none: nothing of someone else");
 
     // what else is in the profile gets the limit too
     Check(FpsLimitLogic.OtherApps(new[] { "FiveM_b3095_GTAProcess.exe", "GTA5.exe", @"C:\Games\GTAV\PlayGTAV.exe", "gta5.exe", "FiveM.exe", "FiveM_ChromeBrowser.exe" })

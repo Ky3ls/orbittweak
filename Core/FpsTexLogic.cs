@@ -118,17 +118,34 @@ internal static class FpsLimitLogic
     }
 
     /// <summary>
-    /// What the FiveM probe does on its own (Upkeep, on the first look after the app started and for each new game build):
-    /// it only adds what is new and never writes a profile again that OrbitTweak already set, so a value changed in the
-    /// NVIDIA Control Panel stays. Exes in no profile go into the own profile; the own profile gets the limit only when
-    /// it is made right now (<see cref="Plan.Own"/>), else the new exe takes the value the profile has. Of someone else's
-    /// profiles only those without a backup entry yet (<paramref name="withEntry"/>) get the limit.
+    /// What the FiveM probe does on its own (Upkeep, once per start of FiveM and for each new game build): it only adds
+    /// what is new and never writes a profile again that OrbitTweak already set, so a value changed in the NVIDIA Control
+    /// Panel stays. Exes in no profile go into the own profile; the own profile gets the limit only when it is made right
+    /// now (<see cref="Plan.Own"/>), else the new exe takes the value the profile has. Of someone else's profiles only
+    /// those OrbitTweak has not written yet get the limit: without an entry, or with one that still waits for the driver
+    /// to save (<see cref="Written"/> 0, e.g. the driver refused last time).
     /// </summary>
-    public static Plan UpkeepPlan(IEnumerable<(string exe, string? profile)> found, IEnumerable<string> withEntry, bool ownExists)
+    public static Plan UpkeepPlan(IEnumerable<(string exe, string? profile)> found, IEnumerable<(string name, string? entry)> entries, int stored, bool ownExists)
     {
         var p = Decide(found);
-        var set = new HashSet<string>(withEntry, StringComparer.OrdinalIgnoreCase);
+        var set = new HashSet<string>(entries.Where(e => Written(e.entry, stored) > 0).Select(e => e.name), StringComparer.OrdinalIgnoreCase);
         return new Plan(p.AddToOwn, p.Foreign.Where(f => !set.Contains(f)).ToList(), p.AddToOwn.Count > 0 && !ownExists);
+    }
+
+    /// <summary>
+    /// For the card: every profile of someone else a limit set there (or the probe) writes because a game exe belongs to it,
+    /// the same ones as <see cref="Decide"/> over all exes, not only the newest build's; each with its exes, the one of
+    /// <paramref name="first"/> (the newest build) first. An older build in NVIDIA's GTA V profile caps that whole profile
+    /// too, also when the newest build is in no profile.
+    /// </summary>
+    public static List<(string profile, List<string> exes)> ForeignOf(IEnumerable<(string exe, string? profile)> found, string? first)
+    {
+        var list = found.ToList();
+        var r = Decide(list).Foreign.Select(f => (profile: f, exes: list.Where(x => f.Equals(x.profile, StringComparison.OrdinalIgnoreCase))
+            .Select(x => x.exe).Distinct(StringComparer.OrdinalIgnoreCase).ToList())).ToList();
+        int i = r.FindIndex(x => x.exes.Contains(first ?? "", StringComparer.OrdinalIgnoreCase));
+        if (i > 0) { var lead = r[i]; r.RemoveAt(i); r.Insert(0, lead); }
+        return r;
     }
 
     /// <summary>"FiveM b3095": the name the NVIDIA Control Panel shows for an exe in the own profile.</summary>
@@ -164,7 +181,9 @@ internal static class FpsLimitLogic
 
     // ---------- backup of a profile of someone else ----------
     // One registry value per such profile: "<backup>|<written>", the value before OrbitTweak's first change and the value
-    // OrbitTweak wrote there last. An entry without '|' (2.29.0 before release) means written = the stored limit.
+    // OrbitTweak wrote there last. The backup goes in before the driver writes anything, with written 0 ("not written
+    // yet", PendingEntry); the written value follows only once the driver has saved. An entry without '|' (2.29.0 before
+    // release) means written = the stored limit.
     /// <summary>
     /// What a foreign profile had before OrbitTweak set its limit: its own value, or "-" when it had none (the setting
     /// was not found, or only inherited from the global or base profile) or NVIDIA's predefined value (deleting the
@@ -181,12 +200,33 @@ internal static class FpsLimitLogic
     public static int ProfileLimit(bool found, uint location, uint value) => found && location == 0 ? (int)Math.Min(value, (uint)int.MaxValue) : 0;
 
     /// <summary>"Aus" puts a foreign profile back only while it still has the limit OrbitTweak set: a value the user
-    /// changed since stays. When OrbitTweak's own record of its limit is gone (<paramref name="set"/> 0) the backup alone
-    /// counts.</summary>
+    /// changed since stays. Without a record of OrbitTweak's limit (<paramref name="set"/> 0: none, or a pending entry)
+    /// the backup alone counts: a profile the driver never saved still has the value of its backup, so setting it again
+    /// changes nothing, and one the driver saved before the app could note it gets its value back.</summary>
     public static bool ShouldRestore(int live, int set) => set == 0 || live == set;
 
     /// <summary>The registry value for a profile of someone else: its backup and what OrbitTweak wrote there.</summary>
     public static string Entry(string backup, int written) => backup + "|" + written.ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>The entry stored before the first write to a profile of someone else: the backup, nothing written yet. A
+    /// driver that then refuses to save leaves the profile as it was and the entry like this, so the profile still counts
+    /// as not set (<see cref="Written"/> 0): the probe and the next limit set on the card write it again.</summary>
+    public static string PendingEntry(string backup) => Entry(backup, 0);
+
+    /// <summary>What OrbitTweak wrote to a profile of someone else by its entry; 0 = nothing yet (no entry, or a pending
+    /// one). Never a value "changed outside OrbitTweak": the card compares only a written value above 0.</summary>
+    public static int Written(string? entry, int stored) => entry == null ? 0 : ParseEntry(entry, stored).written;
+
+    /// <summary>
+    /// A profile of someone else as the card shows it, by its entry and the kept limit: written as above, pending = it
+    /// gets the kept limit on the next start of FiveM (the probe writes every profile not written yet, <see cref="UpkeepPlan"/>),
+    /// so the card shows that limit for it.
+    /// </summary>
+    public static (int written, bool pending) CardState(string? entry, int kept)
+    {
+        int w = Written(entry, kept);
+        return (w, kept > 0 && w == 0);
+    }
 
     /// <summary>Backup and written value of an entry; an entry without '|' was written with the stored limit
     /// (<paramref name="stored"/>), one without a readable written value too.</summary>
@@ -207,9 +247,10 @@ internal static class FpsLimitLogic
 
     /// <summary>
     /// What "Aus" does with a profile of someone else that has an entry: <see cref="OffStep.Restore"/> its value from
-    /// before while it still has what OrbitTweak wrote there (then the entry goes), <see cref="OffStep.Drop"/> only the
-    /// entry when the profile is gone or already has its value from before, <see cref="OffStep.Keep"/> it as it is, entry
-    /// included, when its limit was changed outside OrbitTweak since (the card and the toast say which and why).
+    /// before while it still has what OrbitTweak wrote there, <see cref="OffStep.Drop"/> nothing when the profile is gone
+    /// or already has its value from before, <see cref="OffStep.Keep"/> it as it is when its limit was changed outside
+    /// OrbitTweak since (the toast names it). The entry goes in every case: after "Aus" the profile is the user's again,
+    /// so a limit set later takes a fresh backup of what it has then (<see cref="PendingEntry"/>).
     /// </summary>
     public static OffStep OffDecision(bool exists, int live, string? entry, int stored)
     {
@@ -217,6 +258,27 @@ internal static class FpsLimitLogic
         var (backup, written) = ParseEntry(entry, stored);
         if (ShouldRestore(live, written)) return OffStep.Restore;
         return live == (int)Math.Min(RestoreValue(backup) ?? 0, (uint)int.MaxValue) ? OffStep.Drop : OffStep.Keep;
+    }
+
+    /// <summary>
+    /// "Aus" over every profile of someone else with an entry (its name, whether it still exists, its limit now, the
+    /// entry): the step for each (<see cref="OffDecision"/>), the ones left as they are because their limit was changed
+    /// outside OrbitTweak, with that limit (the toast names them), and the entries that go. That is every one, the kept
+    /// ones too: a stale entry would make the next limit reuse its old backup, and a later "Aus" would then wipe the
+    /// value the user set.
+    /// </summary>
+    public static (List<(string name, OffStep step)> steps, List<(string name, int live)> stayed, List<string> drop) OffPlan(
+        IEnumerable<(string name, bool exists, int live, string? entry)> profiles, int stored)
+    {
+        var steps = new List<(string, OffStep)>(); var stayed = new List<(string, int)>(); var drop = new List<string>();
+        foreach (var (name, exists, live, entry) in profiles)
+        {
+            var step = OffDecision(exists, live, entry, stored);
+            steps.Add((name, step));
+            if (step == OffStep.Keep) stayed.Add((name, live));
+            drop.Add(name);
+        }
+        return (steps, stayed, drop);
     }
 }
 
