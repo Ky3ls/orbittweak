@@ -17,21 +17,18 @@ internal static class GfxFile
     public const long NewInstallCutoff = 132356430250000000L;
 
     /// <summary>
-    /// FiveM's IsNewInstall(): the marker FiveM.app\citizen\new_vid_behavior.txt, or FiveM.app\crashes created after
-    /// the cutoff. Null when it cannot be told from here: no marker and no crashes folder (FiveM itself would say
-    /// "old" then, but the folder may still appear before the game reads its settings).
+    /// FiveM's IsNewInstall() as it answers on the next start: the marker FiveM.app\citizen\new_vid_behavior.txt, or
+    /// FiveM.app\crashes created after the cutoff. A missing crashes folder (<paramref name="crashesCreatedUtc"/> null)
+    /// also means new: every FiveM process makes that folder early on start (client/launcher/MiniDump.Shared.cpp,
+    /// InitializeExceptionHandler), before the game reads its settings, so it is created after the cutoff.
     /// </summary>
-    public static bool? IsNewInstall(bool marker, DateTime? crashesCreatedUtc)
-    {
-        if (marker) return true;
-        if (crashesCreatedUtc is not { } c) return null;
-        return c.ToFileTimeUtc() > NewInstallCutoff;
-    }
+    public static bool IsNewInstall(bool marker, DateTime? crashesCreatedUtc) =>
+        marker || crashesCreatedUtc is not { } c || c.ToFileTimeUtc() > NewInstallCutoff;
 
     /// <summary>
     /// The file FiveM reads on its next start. <paramref name="newInstall"/> is <see cref="IsNewInstall"/>, or null
-    /// when the FiveM folder was not found. Without a clear answer FiveM's own file wins when it exists (every install
-    /// since June 2020 has one), the old Documents file only when it is the one there.
+    /// when the FiveM.app folder was not found. Then FiveM's own file wins when it exists (every install since June
+    /// 2020 has one), the old Documents file only when it is the one there.
     /// </summary>
     public static string Pick(bool? newInstall, bool fivemFileExists, bool gtaFileExists) => newInstall switch
     {

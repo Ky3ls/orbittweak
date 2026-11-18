@@ -3146,12 +3146,13 @@ const Mock = {
         { code: 'r2', name: '^4Blue^7Line ^5PvP ^7Arena', desc: 'Gangwar · FFA · Ranked', players: 64, max: 128, online: true, ping: 31, locale: 'DE', tags: ['pvp'] },
         { code: 'aa', name: '^2Green^7Valley RP', desc: 'Whitelist-Server', players: 0, max: 64, online: false, ping: null, locale: 'EN', tags: ['whitelist'] }];
       case 'cfx.status': return [{ name: 'Server-Liste', ok: true, ms: 41 }, { name: 'Cfx.re Web', ok: true, ms: 57 }, { name: 'Content-CDN', ok: true, ms: 23 }, { name: 'Cfx.re Forum', ok: true, ms: 64 }];
-      case 'gfx.get': case 'gfx.save': {
+      case 'gfx.get': case 'gfx.save': case 'gfx.restore': {
         // ?gfx=gta: an install from before June 2020 (Documents settings.xml), ?gfx=none: FiveM never started
         const q = new URLSearchParams(location.search).get('gfx'), kind = q === 'gta' ? 'gta' : 'fivem';
         const path = kind === 'gta' ? 'C:\\Users\\Max\\Documents\\Rockstar Games\\GTA V\\settings.xml' : 'C:\\Users\\Max\\AppData\\Roaming\\CitizenFX\\gta5_settings.xml';
         if (cmd === 'gfx.save') return q === 'none' ? { error: 'gta5_settings.xml nicht gefunden. Starte FiveM einmal, dann legt FiveM die Datei an.' } : { ok: true, kind, path };
-        return q === 'none' ? { found: false, kind, path, values: {}, hasBackup: false } : { found: true, kind, path, values: { ...PRESETS.bal.v, Windowed: 2 }, hasBackup: false };
+        if (cmd === 'gfx.restore') return q === 'none' ? { error: 'Für gta5_settings.xml gibt es noch kein Backup.' } : { ok: true, kind, path };
+        return q === 'none' ? { found: false, kind, path, values: {}, hasBackup: false } : { found: true, kind, path, values: { ...PRESETS.bal.v, Windowed: 2 }, hasBackup: true };
       }
       case 'ini.get': return { channel: 'production' };
       case 'clean.scan': return [['fm', 'FiveM Cache', 'cache, server-cache, server-cache-priv', 'gamepad', 3.2e9], ['logs', 'FiveM Logs & Crashes', 'Alte Logs und Crashdumps', 'file', 2.1e8], ['temp', 'Temporäre Dateien', 'Benutzer- und System-Temp', 'folder', 1.6e9], ['shader', 'Shader-Cache', 'DirectX / NVIDIA / AMD', 'monitor', 7.4e8], ['wu', 'Windows-Update Reste', 'Bereits installierte Pakete', 'download', 9.1e8], ['bin', 'Papierkorb', 'Endgültig leeren', 'trash', 2.4e8]].map(([id, name, desc, icon, size], i) => ({ id, name, desc, icon, size, sel: i < 5 }));

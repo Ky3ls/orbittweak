@@ -468,7 +468,9 @@ TweakTexts.Run(Check);
         "the cutoff is FiveM's own moment, and only later counts as new");
     Check(DateTime.FromFileTimeUtc(GfxFile.NewInstallCutoff) == U(2020, 6, 3, 7, 30, 25), "the cutoff FILETIME is 2020-06-03 07:30:25 UTC");
     Check(GfxFile.IsNewInstall(true, U(2019, 3, 1)) == true && GfxFile.IsNewInstall(true, null) == true, "the marker file always means new");
-    Check(GfxFile.IsNewInstall(false, null) == null, "no marker and no crashes folder cannot be told");
+    Check(GfxFile.IsNewInstall(false, null), "no crashes folder: FiveM makes it on its next start, so that start counts as new");
+    Check(GfxFile.Pick(GfxFile.IsNewInstall(false, null), false, true) == GfxFile.FiveMKind,
+        "FiveM.app without crashes folder and only the Documents file: FiveM's file (FiveM makes it from that one on start)");
 
     // which file
     Check(GfxFile.Pick(true, true, true) == GfxFile.FiveMKind, "new install with both files: FiveM's gta5_settings.xml");
