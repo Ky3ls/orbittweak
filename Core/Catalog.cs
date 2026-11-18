@@ -90,8 +90,8 @@ internal static class Catalog
             new Tweak
             {
                 Id = "winopt", Cat = "fivem", Icon = "max", Recommended = false, Name = "Fenster-Optimierung für FiveM",
-                Sum = "Weniger Verzögerung im Randlos- und Fenstermodus",
-                Desc = "Schaltet die Windows-11-„Optimierungen für Spiele im Fenstermodus“ nur für FiveM ein, damit die Bildausgabe im Randlos- oder Fenstermodus mit weniger Verzögerung läuft und G-Sync/FreeSync greifen kann – im echten Vollbild und bei FiveM für GTA V Enhanced (DirectX 12) bringt es nichts, und wenn Alt-Tab oder das Umschalten danach hakt, schalte es wieder aus.",
+                Sum = "Kann im Randlosmodus Verzögerung sparen – bei FiveM nicht belegt",
+                Desc = "Schaltet die Windows-11-„Optimierungen für Spiele im Fenstermodus“ nur für FiveM ein, was in DirectX-11-Spielen im Randlos- oder Fenstermodus oft die Verzögerung senkt und G-Sync/FreeSync erlaubt; ob es bei FiveM greift, ist nicht belegt (Spieler berichten, dass G-Sync im Randlosmodus trotzdem nicht anspringt) – im echten Vollbild und bei FiveM für GTA V Enhanced (DirectX 12) bringt es nichts, und wenn Alt-Tab oder das Umschalten danach hakt, schalte es wieder aus.",
                 Hint = () => WinOptByWindows() ? "Windows hat die Optimierung schon für alle Spiele eingeschaltet"
                            : Hw.SwitchableGpus ? "Laptop oder PC mit zwei Grafikchips: hier hakt das Umschalten am ehesten" : null,
                 Check = () =>
@@ -117,8 +117,8 @@ internal static class Catalog
             new Tweak
             {
                 Id = "nothrottle", Cat = "fivem", Icon = "gauge", Badge = "LIVE", Name = "Kein Energiesparen fürs Spiel",
-                Sum = "Am Akku schickt Windows FiveM nicht mehr in den Sparmodus",
-                Desc = "Verhindert auf Laptops am Akku, dass Windows FiveM in den Sparmodus schickt, wenn das Spiel nicht im Vordergrund ist oder du eine Weile nichts drückst – am Netzteil mit dem Spiel vorne ändert sich nichts, und die CPU-Priorität bleibt bewusst auf „Normal“, weil „Hoch“ laut Cfx.re Ladehänger und Voice-Lag auslösen kann.",
+                Sum = "Am Akku bremst Windows FiveM im Hintergrund nicht mehr aus",
+                Desc = "Verhindert auf Laptops am Akku, dass Windows FiveM drosselt, wenn das Spiel nicht im Vordergrund ist oder du eine Weile nichts drückst – am Netzteil mit dem Spiel vorne ändert sich nichts, den Windows-Energiesparmodus schaltet das nicht ab, und die CPU-Priorität bleibt bewusst auf „Normal“, weil „Hoch“ laut erfahrenen Helfern im Cfx.re-Forum Ladehänger und Voice-Probleme auslösen kann.",
                 RecWhen = () => Hw.HasBattery,
                 Check = () => s.GameNoThrottle,
                 Apply = () => { s.GameNoThrottle = true; s.Save(); },
@@ -150,10 +150,10 @@ internal static class Catalog
             // ============================== SYSTEM ==============================
             new Tweak
             {
-                Id = "ult", Cat = "system", Icon = "zap", Name = "Energieplan Höchstleistung",
+                // optional: on current CPUs the gain is hardly measurable and none is shown for FiveM
+                Id = "ult", Cat = "system", Icon = "zap", Recommended = false, Name = "Energieplan Höchstleistung",
                 Sum = "CPU muss nicht erst hochtakten, der Effekt ist meist klein",
-                Desc = "Wechselt auf einen eigenen Höchstleistungs-Energieplan, damit die CPU nicht erst hochtakten muss, und holt beim Ausschalten deinen bisherigen Plan zurück – auf aktuellen Desktops ist der Effekt klein, und im Leerlauf braucht der PC etwas mehr Strom.",
-                RecWhen = () => !Hw.DualCcdX3D && !Hw.HasBattery && !Hw.ModernStandby,
+                Desc = "Wechselt auf einen eigenen Höchstleistungs-Energieplan, damit die CPU nicht erst hochtakten muss, und nimmt deine Zeiten für Bildschirm, Festplatte, Energiesparmodus und Ruhezustand mit; beim Ausschalten kommt dein bisheriger Plan zurück – auf aktuellen CPUs ist der Effekt meist kaum messbar, ein FPS-Gewinn in FiveM ist nicht belegt, und im Leerlauf braucht der PC etwas mehr Strom.",
                 Usable = () => !Hw.DualCcdX3D && !Hw.ModernStandby,
                 Hint = () => Hw.DualCcdX3D ? "Ryzen X3D mit zwei Chiplets: Der AMD-Treiber braucht „Ausbalanciert“"
                            : Hw.ModernStandby ? "Dein Gerät erlaubt nur „Ausbalanciert“: stell unter Einstellungen › Energie den Energiemodus auf „Beste Leistung“"
@@ -185,9 +185,11 @@ internal static class Catalog
                 Id = "dvr", Cat = "system", Icon = "videooff", Name = "Game-Bar-Aufnahme aus",
                 Sum = "Keine Game-Bar-Aufnahme mehr, auch nicht im Hintergrund",
                 Desc = "Schaltet die Aufnahme der Xbox Game Bar samt „Im Hintergrund aufnehmen“ ab – mehr FPS gibt es nur, wenn die Hintergrundaufnahme vorher lief, und wenn du Clips mit der Game Bar aufnimmst, lass diesen Schalter aus.",
-                RecWhen = () => s.Clip.Recorder != "gamebar",
+                // only worth it while background recording runs (Windows' default is off); with OrbitTweak's backup it stays recommended once it is on
+                RecWhen = () => s.Clip.Recorder != "gamebar" && (Reg.Is(GDVR, "HistoricalCaptureEnabled", 1) || Reg.ValueNames(DVR_BK).Length > 0),
                 Usable = () => s.Clip.Recorder != "gamebar",
-                Hint = () => s.Clip.Recorder == "gamebar" ? "Dein Clipper nimmt über die Game Bar auf: erst dort einen anderen Recorder wählen" : null,
+                Hint = () => s.Clip.Recorder == "gamebar" ? "Dein Clipper nimmt über die Game Bar auf: erst dort einen anderen Recorder wählen"
+                           : Hw.DualCcdX3D ? "Ryzen X3D: nur „Im Hintergrund aufnehmen“ geht aus – die Game Bar bleibt an, weil der AMD-Treiber Spiele über sie erkennt" : null,
                 Check = () => !Reg.Is(GDVR, "HistoricalCaptureEnabled", 1)
                               && (Hw.DualCcdX3D || (Reg.Is(GCS, "GameDVR_Enabled", 0) && !Reg.Is(GDVR, "AppCaptureEnabled", 1))),
                 Owned = () => Reg.ValueNames(DVR_BK).Length > 0,
@@ -214,7 +216,7 @@ internal static class Catalog
             {
                 Id = "hags", Cat = "system", Icon = "monitor", Badge = "NEUSTART", Recommended = false, Name = "Hardware-GPU-Planung",
                 Sum = "Grafikkarte plant selbst – meist kein spürbarer Unterschied",
-                Desc = "Schaltet die Windows-Einstellung „Hardwarebeschleunigte GPU-Planung“ ein, wenn Grafikkarte und Treiber sie unterstützen – laut Microsoft merkt man meist keinen Unterschied, in Tests waren es 0–4 % mehr FPS, und bei Abstürzen oder Rucklern schaltest du sie besser wieder aus.",
+                Desc = "Schaltet die Windows-Einstellung „Hardwarebeschleunigte GPU-Planung“ ein, wenn Grafikkarte und Treiber sie unterstützen – laut Microsoft merkt man meist keinen Unterschied, in Tests lag es zwischen leicht weniger und rund 4 % mehr FPS; für DLSS Frame Generation in GTA V Enhanced ist sie Pflicht, und bei Abstürzen oder Rucklern schaltest du sie besser wieder aus.",
                 // the setting exists since Windows 10 2004 (build 19041); on older builds the value is read by nothing
                 Usable = () => SysInfo.Build >= 19041 && Hw.Hags() is var h && (!h.known || h.supported),
                 Hint = () =>
@@ -255,8 +257,8 @@ internal static class Catalog
             {
                 Id = "vfx", Cat = "system", Icon = "sparkle", Recommended = false, Name = "Windows-Animationen aus",
                 Sum = "Fenster und Menüs ohne Animation – im Spiel ändert sich nichts",
-                Desc = "Schaltet Fenster-, Menü- und Taskleisten-Animationen von Windows ab, damit sich der Desktop direkter anfühlt (Taskleiste erst nach Ab- und Anmelden) – im Spiel selbst bringt das keine FPS.",
-                Check = () => Spi.GetMinAnimate() == 0 && Spi.Get(0x1002) == 0 && Spi.Get(0x1016) == 0 && Spi.Get(0x1004) == 0 && Reg.Is(ADV, "TaskbarAnimations", 0),
+                Desc = "Schaltet die Animationen von Fenstern, Menüs, QuickInfos, Aufklapplisten und der Taskleiste sowie das weiche Scrollen in Listen ab, damit sich der Desktop direkter anfühlt (Taskleiste erst nach Ab- und Anmelden) – im Spiel selbst bringt das keine FPS.",
+                Check = () => Spi.GetMinAnimate() == 0 && Anims.All(a => Spi.Get(a.get) == 0) && Reg.Is(ADV, "TaskbarAnimations", 0),
                 Owned = () => Reg.Get(VFX_BK, "Saved") != null,
                 Apply = VfxApply,
                 Revert = VfxRevert
@@ -288,9 +290,9 @@ internal static class Catalog
             // ============================== NETWORK ==============================
             new Tweak
             {
-                Id = "nic", Cat = "network", Icon = "wifi", Badge = "NEUSTART", Name = "LAN-Energiesparen aus",
+                Id = "nic", Cat = "network", Icon = "wifi", Badge = "NEUSTART", Recommended = false, Name = "LAN-Energiesparen aus",
                 Sum = "Netzwerkkarte schläft nicht mehr ein – am Ping kaum spürbar",
-                Desc = "Schaltet Energy Efficient Ethernet und ähnliche Stromsparmodi deiner Netzwerkkarte ab, damit sie zwischen Paketen nicht kurz einschläft und die von Intel dokumentierten EEE-Geschwindigkeitseinbrüche beim I225-V ausbleiben; am Ping merkst du das kaum, und es wirkt erst nach einem Neustart.",
+                Desc = "Schaltet Energy Efficient Ethernet und ähnliche Stromsparmodi deiner Netzwerkkarte ab, damit sie zwischen Paketen nicht kurz einschläft; spürbar hilft das vor allem bei Intels I225-V und I226-V mit älteren Treibern gegen die von Intel bestätigten EEE-Einbrüche und Verbindungsabbrüche (neuere Intel-Treiber schalten EEE dort schon selbst ab), am Ping merkst du das kaum, und es wirkt erst nach einem Neustart.",
                 Usable = () => NicTargets().Any() || NicOwned(),
                 Hint = () => NicTargets().Any() ? null : "Deine Netzwerkkarte hat keinen dieser Stromsparmodi",
                 Check = () => { var t = NicTargets().ToList(); return t.Count > 0 && t.All(x => x.cur == x.off); },
@@ -327,7 +329,7 @@ internal static class Catalog
             {
                 Id = "wifiscan", Cat = "network", Icon = "wifi", Badge = "LIVE", Name = "WLAN-Scans im Spiel aus",
                 Sum = "Kann Ping-Zacken über WLAN verringern, solange FiveM läuft",
-                Desc = "Solange FiveM läuft, sucht Windows über WLAN nicht mehr im Hintergrund nach anderen Netzen, was die typischen periodischen Ping-Zacken über WLAN verringern kann; nach dem Spiel ist alles wie vorher, und mit LAN-Kabel passiert gar nichts.",
+                Desc = "Solange FiveM läuft, sucht Windows über WLAN nicht mehr im Hintergrund nach anderen Netzen und schaltet den WLAN-Treiber in den Streaming-Modus, was die typischen periodischen Ping-Zacken über WLAN verringern kann; nach dem Spiel ist alles wie vorher, und mit LAN-Kabel passiert gar nichts.",
                 RecWhen = NetLink.HasWifi,
                 Hint = () => NetLink.DefaultIsWifi() == false ? "Du bist per Kabel verbunden: hier ändert sich nichts" : null,
                 Check = () => s.WifiGameMode,
@@ -337,8 +339,8 @@ internal static class Catalog
             new Tweak
             {
                 Id = "delopt", Cat = "network", Icon = "download", Recommended = false, Name = "Update-Verteilung im Heimnetz aus",
-                Sum = "Dein PC verteilt keine Windows-Updates mehr an andere Geräte",
-                Desc = "Dein PC gibt Windows-Updates nicht mehr an andere Geräte weiter; standardmäßig teilt Windows ohnehin nur im eigenen Heimnetz, das lohnt sich also vor allem, wenn mehrere Windows-PCs bei dir im WLAN hängen oder du „Geräte im Internet“ erlaubt hattest.",
+                Sum = "Dein PC tauscht keine Windows-Updates mehr mit anderen Geräten aus",
+                Desc = "Dein PC gibt Windows-Updates nicht mehr an andere Geräte weiter und lädt sie nur noch direkt von Microsoft; standardmäßig teilt Windows ohnehin nur im eigenen Heimnetz, das lohnt sich also vor allem, wenn mehrere Windows-PCs bei dir im WLAN hängen oder du „Geräte im Internet“ erlaubt hattest. Weil das als Richtlinie gesetzt wird, ist der Schalter unter „Übermittlungsoptimierung“ in den Einstellungen danach ausgegraut, und Windows meldet, er werde von deiner Organisation verwaltet – das kommt nur von diesem Tweak.",
                 Check = () => Reg.Is(DO, "DODownloadMode", 0),
                 // a policy 0 without a backup can be an admin's or another tool's: "Alle zurücksetzen" leaves it
                 Owned = () => Reg.Get(OWN, "DoModeBak") != null,
@@ -402,7 +404,7 @@ internal static class Catalog
             {
                 Id = "winkey", Cat = "input", Icon = "ban", Badge = "LIVE", Recommended = false, Name = "Windows-Taste im Spiel sperren",
                 Sum = "Startmenü öffnet sich im Spiel nicht mehr",
-                Desc = "Solange FiveM im Vordergrund ist, öffnet ein versehentlicher Druck auf die Windows-Taste neben Strg und Alt nicht mehr das Startmenü und wirft dich nicht aus dem Vollbild; außerhalb des Spiels funktioniert sie ganz normal.",
+                Desc = "Solange FiveM im Vordergrund ist, öffnet ein versehentlicher Druck auf die Windows-Taste neben Strg und Alt nicht mehr das Startmenü und wirft dich nicht aus dem Vollbild; außerhalb des Spiels funktioniert sie ganz normal. Im Spiel gehen dann auch Win-Kürzel wie Win+Shift+S oder Win+D nicht, die Game-Bar-Kürzel wie Win+G schon.",
                 Check = () => s.BlockWinKey,
                 Apply = () => { s.BlockWinKey = true; s.Save(); },
                 Revert = () => { s.BlockWinKey = false; s.Save(); }
@@ -432,6 +434,9 @@ internal static class Catalog
                 Id = "usb", Cat = "input", Icon = "usb", Name = "USB-Energiesparen aus (Netzbetrieb)",
                 Sum = "Hilft, wenn Headset oder Empfänger kurz aussetzen",
                 Desc = "Im aktiven Energieplan schickt Windows am Netzteil keine USB-Geräte mehr in den Stromsparmodus; das hilft, wenn Headset, Funk-Empfänger oder USB-Hub nach kurzer Pause kurz aussetzen, Maus und Tastatur legt Windows ohnehin meist nicht schlafen.",
+                // only on desktops: Microsoft advises keeping selective suspend on (a device that never suspends blocks deeper
+                // idle states), which only matters where idle power and Modern Standby count
+                RecWhen = () => !Hw.HasBattery && !Hw.ModernStandby,
                 Usable = () => Power.Active() is { } a && UsbAc(a) >= 0,
                 Hint = () => Power.Active() is { } a && UsbAc(a) >= 0 ? null : "Diese Einstellung gibt es in deinem Energieplan nicht",
                 Check = () => Power.Active() is { } a && UsbAc(a) == 0,
@@ -445,23 +450,24 @@ internal static class Catalog
                 Sum = "Tasten wiederholen sich nach etwa 250 statt 500 ms",
                 Desc = "Gehaltene Tasten wiederholen sich schon nach etwa 250 statt 500 ms, praktisch beim Löschen im Chat oder im Handy-Menü; aufs Laufen und Zielen im Spiel hat das keinen Einfluss.",
                 Hint = () => WasdTweak.Lag().on ? "Solange die schnelle Tastenwiederholung an ist, gilt deren Timing" : null,
-                Check = () => Spi.Get(0x0016) == 0 && Spi.Get(0x000A) == 31,
+                // the delay only: your repeat rate stays as it is
+                Check = () => Spi.Get(0x0016) == 0,
+                // kbd.speed: versions 2.26 to 2.28 also set the repeat rate to the maximum
                 Owned = () => Bk.Has("kbd.delay") || Bk.Has("kbd.speed"),
                 Apply = () =>
                 {
-                    uint d = Spi.Get(0x0016), sp = Spi.Get(0x000A);   // SPI_GETKEYBOARDDELAY, SPI_GETKEYBOARDSPEED
+                    uint d = Spi.Get(0x0016);   // SPI_GETKEYBOARDDELAY
                     if (d != uint.MaxValue) Bk.Keep("kbd.delay", d.ToString(), "0");
-                    if (sp != uint.MaxValue) Bk.Keep("kbd.speed", sp.ToString(), "31");
                     Spi.SetParam(0x0017, 0);    // SPI_SETKEYBOARDDELAY: about 250 ms
-                    Spi.SetParam(0x000B, 31);   // SPI_SETKEYBOARDSPEED: about 30 per second (Windows default)
                 },
                 Revert = () =>
                 {
-                    // a value without a backup already was at the target before Apply (Bk.Keep skips those): it stays;
-                    // with no backup at all (set by hand or by an older version) both go back to Windows' defaults
+                    // a delay without a backup already was 0 before Apply (Bk.Keep skips those): it stays;
+                    // with no backup at all (set by hand or by an older version) it goes back to Windows' default
                     bool any = Bk.Has("kbd.delay") || Bk.Has("kbd.speed");
                     if (!any || Bk.Has("kbd.delay")) Spi.SetParam(0x0017, uint.TryParse(Bk.Take("kbd.delay"), out var d) ? d : 1);
-                    if (!any || Bk.Has("kbd.speed")) Spi.SetParam(0x000B, uint.TryParse(Bk.Take("kbd.speed"), out var sp) ? sp : 31);
+                    // the repeat rate only comes back from a backup of versions 2.26 to 2.28: a rate of your own is never reset
+                    if (uint.TryParse(Bk.Take("kbd.speed"), out var sp)) Spi.SetParam(0x000B, sp);   // SPI_SETKEYBOARDSPEED
                     Bk.Drop("kbd.delay"); Bk.Drop("kbd.speed");
                 }
             },
@@ -560,7 +566,11 @@ internal static class Catalog
         }
         // Apply only runs while another plan is active (see Check): that plan is the real "before", also over an older backup
         // (the user may have picked another plan since the last time)
-        if (cur != null && cur != g) Reg.SetStr(OWN, "UltPrev", cur);
+        if (cur != null && cur != g)
+        {
+            Reg.SetStr(OWN, "UltPrev", cur);
+            CopyTimeouts(cur, g);   // also into a plan made before: the user may have changed them since
+        }
         Proc.Run("powercfg", $"/setactive {g}");
         if (Power.Active() != g) throw new InvalidOperationException("Energieplan ließ sich nicht aktivieren");
         if (UsbOwned()) try { UsbApplyTo(g); } catch { }   // USB power saving stays off in the new plan
@@ -582,6 +592,29 @@ internal static class Catalog
             Reg.Del(OWN, "UltScheme"); Reg.Del(OWN, "UltPrev");
         }
         if (!TweakRun.All && usbOn) try { UsbApplyTo(prev); } catch { }
+    }
+
+    /// <summary>
+    /// Screen off, disk off, sleep and hibernate after (subgroup, setting). The copied High performance and Ultimate plans
+    /// never sleep on AC: without the user's own times a desktop would stop going to sleep by itself.
+    /// </summary>
+    private static readonly (string sub, string set)[] Timeouts =
+    {
+        ("7516b95f-f776-4464-8c53-06167f40cc99", "3c0bc021-c8a8-4e07-a973-6b14cbcb2b7e"),   // SUB_VIDEO, VIDEOIDLE
+        ("0012ee47-9041-4b5d-9b77-535fba8b1442", "6738e2c4-e8a5-4a42-b16a-e040e769756e"),   // SUB_DISK, DISKIDLE
+        ("238c9fa8-0aad-41ed-83f4-97be242c8f20", "29f6c1db-86da-48c5-9fdb-f2b67b1f44da"),   // SUB_SLEEP, STANDBYIDLE
+        ("238c9fa8-0aad-41ed-83f4-97be242c8f20", "9d7815a6-7ee4-497e-8888-515a05f02364"),   // SUB_SLEEP, HIBERNATEIDLE
+    };
+
+    /// <summary>The user's timeouts (AC and battery) from one plan into another; a value that cannot be read stays as it is.</summary>
+    private static void CopyTimeouts(string from, string to)
+    {
+        foreach (var (sub, set) in Timeouts)
+            foreach (var ac in new[] { true, false })
+            {
+                int v = Power.Read(from, sub, set, ac);
+                if (v >= 0 && Power.Read(to, sub, set, ac) != v) Power.Write(to, sub, set, ac, v);
+            }
     }
 
     /// <summary>Plans of Windows itself (Balanced, High performance, Ultimate, Power saver): never deleted.</summary>
@@ -687,7 +720,8 @@ internal static class Catalog
     }
 
     // ---------- page file ----------
-    public static bool PagefileOk() => TweakLogic.PagefileOk(Reg.Get(MEM, "PagingFiles") as string[], Native.Memory().total / 1048576.0);
+    public static bool PagefileOk()
+        => TweakLogic.PagefileOk(Reg.Get(MEM, "PagingFiles") as string[], TweakLogic.InstalledRamMb(Native.InstalledKb(), Native.Memory().total / 1048576.0));
 
     // ---------- network adapter ----------
     /// <summary>Network adapters (class keys). lanOnly: Ethernet only; Wi-Fi power settings stay at their defaults (Intel advises against changing them).</summary>

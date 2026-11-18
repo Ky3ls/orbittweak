@@ -333,7 +333,7 @@ public partial class MainWindow : Window
     private void Lock()
     {
         _authed = false; S.AuthToken = null; S.AuthRole = null; S.AuthOkUntil = null; S.AuthExp = null; S.AuthDays = null; S.Save();
-        _snap.Apply(false, false, 0, 0); _autoClip.Enable(false); _killFeed.Enable(false); _killMark.Enable(false); GameTimer.Release(); WlanGame.Restore(); LiveTick();
+        _snap.Apply(false, false, 0, 0); _autoClip.Enable(false); _killFeed.Enable(false); _killMark.Enable(false); GameTimer.Release(); WlanGame.Restore(); BgThrottle.Restore(); LiveTick();
     }
 
     // =====================================================================
@@ -2017,11 +2017,11 @@ public partial class MainWindow : Window
                         build = game.ProcessName.Split('_').FirstOrDefault(x => x.Length > 1 && x[0] == 'b' && char.IsDigit(x[1]));
                         try
                         {
-                            // the old "Auto-Priorität Hoch" (before 2.26) left the game at High; Cfx.re: FiveM needs Normal
+                            // the old "Auto-Priorität Hoch" (before 2.26) left the game at High; helpers in the Cfx.re forum advise Normal
                             if (S.PrioWasAuto && !_prioLooked && game.PriorityClass == ProcessPriorityClass.High)
                             {
                                 game.PriorityClass = ProcessPriorityClass.Normal;
-                                Log("↺ GTA-Prozess wieder auf normaler Priorität (Cfx.re rät von „Hoch“ ab)");
+                                Log("↺ GTA-Prozess wieder auf normaler Priorität (im Cfx.re-Forum wird von „Hoch“ abgeraten)");
                             }
                             // tagged "full speed" once per game start; the CPU priority is never touched
                             if (_authed && S.GameNoThrottle && game.Id != _qosPid)
@@ -2052,8 +2052,8 @@ public partial class MainWindow : Window
                     }
                     _prioLooked = true;   // only the first look after the update (S.PrioWasAuto stays for the note of Catalog.Migrate)
                     if (game == null || !S.GameNoThrottle) _qosPid = 0;
-                    // the game is gone (or the tweak was switched off): every program gets back what it had
-                    if (BgThrottle.Active && (game == null || !S.BgThrottle))
+                    // the game is gone (or the tweak was switched off, or you signed out): every program gets back what it had
+                    if (BgThrottle.Active && (game == null || !S.BgThrottle || !_authed))
                     {
                         int back = BgThrottle.Restore();
                         if (back > 0) Log($"⚡ Hintergrund wieder normal: {back} Prozesse zurückgestellt");

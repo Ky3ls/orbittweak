@@ -438,6 +438,13 @@ Check(!KillLogic.SameText("ZM Blaze killed Kronos77", "ZM Blaze killed Viper_12"
     Check(!TweakLogic.PagefileOk(new[] { @"C:\pagefile.sys 1024 2048" }, 16384), "16 GB RAM with a 2 GB page file is too small");
     Check(TweakLogic.PagefileOk(new[] { @"C:\pagefile.sys 8192 8192" }, 32768), "a fixed 8 GB page file on a 32 GB PC is kept");
     Check(TweakLogic.PagefileOk(new[] { @"C:\pagefile.sys 4096 8192", @"D:\pagefile.sys 4096 8192" }, 16384), "two page files count together");
+    // a real 16 GB PC: Windows reports about 16 250 MB usable, the installed RAM counts
+    Check(TweakLogic.InstalledRamMb(16 * 1024 * 1024, 16250) == 16384, "the installed RAM comes from the firmware");
+    Check(TweakLogic.InstalledRamMb(0, 16250) == 16384, "without it the usable RAM is rounded to whole GB");
+    Check(TweakLogic.InstalledRamMb(0, 7900) == 8192, "an 8 GB PC is 8 GB");
+    Check(TweakLogic.PagefileOk(new[] { @"C:\pagefile.sys 16384 16384" }, TweakLogic.InstalledRamMb(0, 16250)), "a 16 GB PC with a fixed 16 GB page file is fine");
+    Check(TweakLogic.PagefileOk(new[] { @"C:\pagefile.sys 16384 16384" }, TweakLogic.InstalledRamMb(16 * 1024 * 1024, 16250)), "the same with the firmware's figure");
+    Check(!TweakLogic.PagefileOk(new[] { @"C:\pagefile.sys 1024 2048" }, TweakLogic.InstalledRamMb(0, 16250)), "a 16 GB PC with a 2 GB page file is not");
 }
 
 // ---------- tweaks: the short line of every row, and the browser preview's copy of the list ----------
