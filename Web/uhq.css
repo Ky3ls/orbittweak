@@ -79,8 +79,9 @@ body::before{display:none}
 /* ---------- side bar: no panel, just the list on the window base ---------- */
 .side{background:transparent;border-right:0;padding:4px 14px 14px}
 .side-nav{margin:0 -4px;padding:0 4px}
-/* a tighter rhythm (30 px rows, 28 px group gaps): all four groups and the start button fit a 1280 × 800 window */
-.nav-h{position:relative;display:block;padding:12px 10px 4px;font-size:11.5px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--mute)}
+/* a tighter rhythm (29 px rows, 27 px group gaps): all four groups and the start button fit a 1280 × 800 window, also with
+   "Andere Spiele" (2.30) */
+.nav-h{position:relative;display:block;padding:11px 10px 4px;font-size:11.5px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--mute)}
 .nav-ind+.nav-h{padding-top:4px}
 /* in a lower window the list scrolls: the last row fades out while there is more below (scroll-linked, opacity only).
    The timeline is the list itself (nearest scroller; "self" would be the pseudo element, which never scrolls); the fade
@@ -95,7 +96,7 @@ body::before{display:none}
 .nav-h::before{position:absolute;right:12px;top:50%;margin-top:1px;width:5px;height:5px;opacity:0;transition:opacity .2s,transform .3s var(--ease)}
 .nav-h:hover::before,.nav-h.cl::before{opacity:.7}
 .nav-h:hover{color:var(--sub)}
-.nav{height:30px;gap:11px;padding:0 10px;border-radius:10px;font-size:13.5px;font-weight:450;color:var(--sub);letter-spacing:-.003em}
+.nav{height:29px;gap:11px;padding:0 10px;border-radius:10px;font-size:13.5px;font-weight:450;color:var(--sub);letter-spacing:-.003em}
 .nav svg.i{width:18px;height:18px;padding:0;border:0;border-radius:0;background:none;box-shadow:none;color:var(--mute);filter:none;stroke-width:1.7}
 .nav:hover{color:var(--text)}
 .nav:hover svg.i{transform:none;border-color:transparent;color:var(--sub)}

@@ -3888,6 +3888,11 @@ document.addEventListener('click', async e => {
 
 /* ======================= WHAT'S NEW: shown once after an update ======================= */
 const CHANGES = {
+  '2.30.0': [
+    ['target', 'Andere Spiele', 'Neue Seite für Fortnite, Counter-Strike 2 und Rainbow Six Siege: NVIDIA Reflex, V-Sync, FPS-Limit, Rendermodus, Raw Input, Spielerkontrast und mehr, jeweils mit ehrlicher Erklärung, Quelle und „Empfohlene anwenden“. Alles lässt sich zurücksetzen.'],
+    ['shield', 'Nur, was das Spiel selbst speichert', 'OrbitTweak ändert dabei nur die Einstellungen, die das Spiel auch in seinem eigenen Menü speichert, und Windows-Einstellungen. Spieldateien und das laufende Spiel fasst es nie an.'],
+    ['monitor', 'Starke Grafikkarte', 'Auf Laptops mit zwei Grafikchips läuft jedes der drei Spiele auf Wunsch sicher auf der starken Karte.'],
+  ],
   '2.29.0': [
     ['gauge', 'FPS-Limit für FiveM', 'Unter Grafik & Farben deckelt der NVIDIA-Treiber auf Wunsch die Bildrate von FiveM. Das bringt meist gleichmäßigere Frametimes, weniger Hitze und weniger Lüfterlärm. Der Vorschlag liegt knapp unter der Bildwiederholrate deines Monitors. Steckt FiveM in einem Treiberprofil mit anderen Spielen, etwa dem von GTA V, gilt das Limit für das ganze Profil. Die Karte zeigt dir, welche Profile und Programme es betrifft.'],
     ['layers', 'Texturbudget', 'Gegen fehlende oder matschige Texturen auf Servern mit vielen Add-on-Autos: OrbitTweak stellt FiveMs „Extended Texture Budget“ ein und schlägt einen Wert passend zu deinem Grafikspeicher vor.'],
