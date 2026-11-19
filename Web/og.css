@@ -1,1 +1,216 @@
-/* 2.30 – Andere Spiele (og.js). Placeholder, filled in by the page. */
+/* =====================================================================
+   ANDERE SPIELE (2.30, og.js): three game tiles, the chosen game's head with its one main action, then its settings
+   as rows like on the Tweaks page. Luxe tokens of uhq.css; the scene themes (luxe-themes.css) only change those tokens.
+   The accent is only on "Empfohlene anwenden". Only transforms and opacity move; no backdrop blur.
+   ===================================================================== */
+
+#p-og [hidden]{display:none!important}
+
+/* ---------- the games: one quiet tile each, the chosen one raised ---------- */
+#p-og .og-games{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:20px;min-height:66px}
+#p-og .og-g{display:flex;align-items:center;gap:12px;min-width:0;padding:14px 16px;border-radius:18px;text-align:left;
+  background:rgba(255,255,255,.018);box-shadow:inset 0 0 0 1px rgba(196,210,255,.05);transition:background .3s,box-shadow .3s}
+#p-og .og-g:hover{background:rgba(255,255,255,.035)}
+#p-og .og-g.on{background:var(--plat);box-shadow:var(--edge),var(--lift)}
+#p-og .og-g:focus-visible{outline:2px solid rgba(var(--a-rgb),.75);outline-offset:2px}
+#p-og .og-gt{display:block;min-width:0}
+#p-og .og-gt b{display:block;font-size:13.5px;font-weight:550;letter-spacing:-.008em;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .25s}
+#p-og .og-g.on .og-gt b,#p-og .og-g:hover .og-gt b{color:var(--text)}
+#p-og .og-gs{display:flex;align-items:center;gap:6px;margin-top:3px;font-size:12px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#p-og .og-gs i{flex:none;width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.8}
+#p-og .og-gs.ok i{background:var(--good);opacity:1}
+#p-og .og-gs.run i{background:var(--warn);opacity:1;box-shadow:0 0 0 3px rgba(242,196,107,.14)}
+#p-og .og-gs.cfg i{background:none;box-shadow:inset 0 0 0 1.5px var(--warn);opacity:1}
+#p-og .og-gs.miss i{background:none;box-shadow:inset 0 0 0 1.5px currentColor}
+#p-og .og-gs.part i{background:var(--sub)}
+.page.enter#p-og .og-games{animation:luxIn .55s var(--ease) both}
+#p-og .og-games:empty{display:none}
+/* placeholders while the games are read */
+#p-og .og-g.og-sk{pointer-events:none}
+#p-og .og-sk .og-mk{opacity:.5}
+#p-og .og-sk .og-gt i{display:block;height:9px;border-radius:5px;background:rgba(255,255,255,.06)}
+#p-og .og-sk .og-gt i:first-child{width:104px}
+#p-og .og-sk .og-gt i+i{width:68px;margin-top:9px}
+
+/* the mark: a monogram on a tile with a breath of its own colour, never a logo */
+#p-og .og-mk{--h:150,160,184;flex:none;width:36px;height:36px;display:grid;place-items:center;border-radius:11px;
+  background:linear-gradient(180deg,rgba(var(--h),.2),rgba(var(--h),.07));box-shadow:inset 0 1px 0 rgba(255,255,255,.08),inset 0 0 0 1px rgba(var(--h),.16);
+  font-family:var(--disp);font-size:13px;font-weight:650;letter-spacing:-.03em;color:color-mix(in oklab,rgb(var(--h)) 42%,#fff);transition:opacity .25s}
+#p-og .og-mk[data-ogmk=fortnite]{--h:164,136,255}
+#p-og .og-mk[data-ogmk=cs2]{--h:232,176,96}
+#p-og .og-mk[data-ogmk=r6]{--h:120,168,238}
+#p-og .og-g:not(.on) .og-mk{opacity:.62}
+#p-og .og-g:not(.on):hover .og-mk{opacity:.85}
+#p-og .og-mk.lg{width:52px;height:52px;border-radius:16px;font-size:18px}
+
+/* ---------- the game's head: who it is and what is found on the left, the main action on the right ---------- */
+#p-og .og-head{display:grid;grid-template-columns:minmax(0,1fr) 296px;padding:0;margin-bottom:20px;overflow:hidden}
+#p-og .og-main{min-width:0;padding:22px 24px 20px}
+#p-og .og-id{display:flex;align-items:center;gap:16px;min-width:0}
+#p-og .og-idt{min-width:0}
+#p-og .og-nm{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px}
+#p-og .og-nm h2{font-family:var(--disp);font-size:20px;font-weight:580;letter-spacing:-.022em;line-height:1.2;color:var(--text)}
+#p-og .og-note{margin-top:5px;font-size:13px;line-height:1.5;color:var(--sub);text-wrap:pretty}
+
+/* the state: a small capsule with a dot */
+#p-og .og-st{flex:none;display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px 0 8px;border-radius:99px;font-size:11.5px;font-weight:550;
+  background:rgba(255,255,255,.055);color:var(--sub)}
+#p-og .og-st i{width:6px;height:6px;border-radius:50%;background:currentColor}
+#p-og .og-st.ok{background:rgba(95,212,163,.1);color:var(--good)}
+#p-og .og-st.run,#p-og .og-st.cfg{background:rgba(242,196,107,.1);color:var(--warn)}
+#p-og .og-st.cfg i,#p-og .og-st.miss i{background:none;box-shadow:inset 0 0 0 1.5px currentColor}
+
+/* what was found: a quiet sheet of facts under a hairline */
+#p-og .og-facts{display:grid;gap:7px;margin-top:18px;padding-top:15px;border-top:1px solid var(--line)}
+#p-og .og-facts>div{display:grid;grid-template-columns:96px minmax(0,1fr);align-items:baseline;gap:12px;min-width:0}
+#p-og .og-facts dt{font-size:12px;font-weight:500;color:var(--mute)}
+#p-og .og-facts dd{display:flex;align-items:baseline;gap:8px;min-width:0;font-size:12.5px;color:var(--sub)}
+#p-og .og-path{display:flex;min-width:0;font-family:var(--mono);font-size:11.5px;color:var(--sub);white-space:nowrap;user-select:text;cursor:text}
+#p-og .og-path span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis}
+#p-og .og-path span+span{flex:none;max-width:70%;overflow:hidden;text-overflow:ellipsis}
+#p-og .og-none{flex:none;font-size:12px;color:var(--mute)}
+#p-og .og-acs{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:help}
+#p-og .og-acx{display:flex;gap:10px;margin-top:12px;padding:12px 14px;border-radius:12px;background:var(--well);box-shadow:var(--well-edge);
+  font-size:12.5px;line-height:1.6;color:var(--sub);text-wrap:pretty}
+#p-og .og-acx.og-fx{animation:ogIn .3s var(--ease) both}
+#p-og .og-acx svg.i{flex:none;width:15px;height:15px;margin-top:2px;color:var(--good)}
+
+/* the action: a line that names what is open, the accent button, the quiet way back */
+#p-og .og-go{display:flex;flex-direction:column;justify-content:center;gap:12px;min-width:0;padding:20px 22px;
+  background:radial-gradient(120% 110% at 100% 0,rgba(var(--a-rgb),.075),transparent 68%);box-shadow:inset 1px 0 0 var(--line)}
+#p-og .og-go.done{background:radial-gradient(120% 110% at 100% 0,rgba(95,212,163,.055),transparent 68%)}
+#p-og .og-gx{min-width:0}
+#p-og .og-gk{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:500;color:var(--mute)}
+#p-og .og-okc{width:20px;height:20px;display:grid;place-items:center;border-radius:50%;background:rgba(95,212,163,.1);color:var(--good)}
+#p-og .og-okc svg.i{width:12px;height:12px;stroke-width:2.2}
+#p-og .og-gp{margin-top:6px;font-size:13px;line-height:1.45;color:var(--sub);text-wrap:pretty}
+#p-og .og-gp b{font-weight:550;color:var(--text)}
+#p-og .og-go.done .og-gp b{display:block;margin-bottom:1px}
+#p-og .og-go .btn.p{justify-content:center;height:40px;border-radius:12px}
+#p-og .og-go .og-rv{align-self:flex-start}
+/* the count in a button: Geist, a small capsule */
+#p-og .og-cnt{font-style:normal;margin-left:2px;min-width:20px;height:20px;padding:0 6px;display:inline-grid;place-items:center;border-radius:99px;
+  background:rgba(0,0,0,.16);font-family:var(--disp);font-size:12px;font-weight:600;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+#p-og .og-cnt.q{height:18px;min-width:18px;padding:0 5px;background:rgba(255,255,255,.08);color:var(--sub);font-size:11px}
+/* a button that waits for something keeps its focus: it only looks and acts disabled */
+#p-og .btn[aria-disabled=true]{opacity:.45;cursor:default}
+#p-og .btn[aria-disabled=true]:active{transform:none}
+#p-og .btn[aria-disabled=true]:hover{background:rgba(255,255,255,.055)}
+#p-og .btn.p[aria-disabled=true],#p-og .btn.p[aria-disabled=true]:hover{opacity:1;filter:none;background:rgba(255,255,255,.05);color:var(--mute);box-shadow:var(--edge)}
+#p-og .btn.p[aria-disabled=true] svg.i{color:var(--mute)}
+#p-og .btn.p[aria-disabled=true] .og-cnt{background:rgba(255,255,255,.07);color:var(--sub)}
+#p-og .og-rl.og-ld svg.i{animation:ogSpin .9s linear infinite}
+
+/* ---------- one strip when something holds the rows (the game runs, its settings are not made yet) ---------- */
+#p-og .og-ban{display:flex;align-items:center;gap:14px;margin:0 0 20px;padding:12px 12px 12px 12px;border-radius:16px;font-size:13px;line-height:1.5;color:var(--sub);
+  background:linear-gradient(180deg,rgba(242,196,107,.055),rgba(242,196,107,.03));box-shadow:inset 0 1px 0 rgba(255,236,190,.05),inset 0 0 0 1px rgba(242,196,107,.1)}
+#p-og .og-ban>svg.i{flex:none;width:16px;height:16px;padding:9px;box-sizing:content-box;border-radius:50%;background:rgba(242,196,107,.1);color:var(--warn)}
+#p-og .og-ban p{flex:1;min-width:0;text-wrap:pretty}
+#p-og .og-ban p span{color:var(--mute)}
+#p-og .og-ban .btn{flex:none}
+#p-og .og-ban.cfg{background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.018));box-shadow:inset 0 1px 0 rgba(255,255,255,.05),inset 0 0 0 1px rgba(196,210,255,.06)}
+#p-og .og-ban.cfg>svg.i{background:rgba(255,255,255,.06);color:var(--sub)}
+
+/* ---------- the settings ---------- */
+#p-og .og-list{padding:6px 8px 8px}
+#p-og .og-lh{display:flex;align-items:baseline;gap:16px;min-width:0;padding:14px 14px 8px}
+#p-og .og-lh b{flex:none;font-family:var(--disp);font-size:15.5px;font-weight:580;letter-spacing:-.015em;color:var(--text)}
+#p-og .og-lh p{min-width:0;margin-left:auto;font-size:12.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+html.th-anime #p-og .og-lh b{font-family:var(--head);font-weight:800;letter-spacing:-.004em}
+
+/* a row: name with its tags, one short line and "Details" | the control. A hairline starts at the text */
+#p-og .og-row{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:24px;padding:15px 14px;border-radius:14px;transition:background .2s}
+#p-og .og-row+.og-row::before{content:'';position:absolute;left:14px;right:14px;top:0;height:1px;background:var(--line);transition:opacity .2s}
+#p-og .og-row:is(:hover,:has(:focus-visible)){background:rgba(255,255,255,.028)}
+#p-og .og-row.open{background:rgba(255,255,255,.022)}
+#p-og .og-row:is(:hover,:has(:focus-visible),.open)::before,#p-og .og-row:is(:hover,:has(:focus-visible),.open)+.og-row::before{opacity:0}
+#p-og .og-tx{min-width:0}
+#p-og .og-n{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;min-height:22px}
+#p-og .og-n b{font-size:14px;font-weight:550;letter-spacing:-.008em;color:var(--text)}
+#p-og .og-n>span{flex:none;display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:99px;font-size:11px;font-weight:550;letter-spacing:0;cursor:default}
+#p-og .og-eff{background:rgba(255,255,255,.055);color:var(--sub)}
+#p-og .og-rec{background:rgba(242,196,107,.1);color:var(--warn)}
+#p-og .og-chg{background:none;box-shadow:inset 0 0 0 1px var(--line2);color:var(--mute)}
+#p-og .og-n>.og-ok{width:20px;padding:0;justify-content:center;background:rgba(95,212,163,.09);color:color-mix(in oklab,var(--good) 80%,var(--sub))}
+#p-og .og-ok svg.i{width:12px;height:12px;stroke-width:2.2}
+#p-og .og-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+#p-og .og-s{margin-top:3px;font-size:12.5px;line-height:1.5;color:var(--sub);text-wrap:pretty}
+#p-og .og-more{display:inline-block;margin-left:4px;padding:0 3px;border:0;border-radius:6px;background:none;font:inherit;font-size:12px;font-weight:500;
+  line-height:inherit;color:var(--mute);white-space:nowrap;cursor:pointer;transition:color .2s}
+#p-og .og-more svg.i{width:13px;height:13px;margin-right:4px;vertical-align:-2px;transition:transform .3s var(--ease)}
+#p-og .og-more[aria-expanded=true] svg.i{transform:rotate(90deg)}
+#p-og .og-more:hover{color:var(--text)}
+#p-og .og-more:focus-visible{outline:2px solid rgba(var(--a-rgb),.75);outline-offset:1px}
+#p-og .og-acb{flex:none;margin-left:0}
+/* why it is not available: last, small, with an amber dot */
+#p-og .og-why{display:flex;align-items:baseline;gap:8px;margin-top:6px;font-size:12px;line-height:1.45;color:rgba(242,196,107,.88)}
+#p-og .og-why::before{content:'';flex:none;width:4px;height:4px;border-radius:50%;background:currentColor;opacity:.75;transform:translateY(-3px)}
+#p-og .og-row.na .og-n,#p-og .og-row.na .og-s{opacity:.7}
+
+/* the full text and where it comes from: a sunken panel to read */
+#p-og .og-det{grid-column:1/-1;max-width:760px;margin-top:12px;padding:12px 14px;border-radius:12px;background:var(--well);box-shadow:var(--well-edge);
+  font-size:12.5px;line-height:1.6;color:var(--sub);text-wrap:pretty;user-select:text;cursor:auto}
+#p-og .og-row.og-fx .og-det{animation:ogIn .32s var(--ease) both}
+#p-og .og-src{display:flex;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:12px;line-height:1.5;color:var(--mute)}
+#p-og .og-src svg.i{flex:none;width:13px;height:13px;margin-top:2px}
+#p-og .og-src b{font-weight:550;color:var(--sub);margin-right:4px}
+@keyframes ogIn{from{opacity:0;transform:translateY(-4px)}}
+
+/* ---------- the controls ---------- */
+#p-og .og-ctl{position:relative;display:flex;align-items:center;justify-content:flex-end;gap:10px;min-width:0}
+#p-og .og-ctl .tg{flex:none}
+#p-og .og-ctl .tg[aria-disabled=true]{opacity:.45;cursor:not-allowed}
+#p-og .og-ctl .tg[aria-disabled=true]:hover:not(.on){background:rgba(255,255,255,.085)}
+#p-og .og-seg{display:inline-flex;flex-wrap:nowrap}
+#p-og .og-seg button{height:28px;padding:0 11px;font-size:12px;white-space:nowrap}
+#p-og .og-seg button[aria-disabled=true]{cursor:not-allowed}
+#p-og .og-seg:has(button[aria-disabled=true]){opacity:.5}
+#p-og .og-seg button[aria-disabled=true]:hover:not(.on){background:none;color:var(--sub)}
+#p-og select.og-sel{width:auto;min-width:150px;max-width:280px;height:34px;padding:0 32px 0 12px;border:0;border-radius:10px;font-size:12.5px;
+  background-color:var(--well);background-position:right 11px center;box-shadow:var(--well-edge);text-overflow:ellipsis}
+#p-og select.og-sel:hover{background-color:rgba(0,0,0,.32)}
+#p-og select.og-sel:focus{outline:0;box-shadow:var(--well-edge),0 0 0 2px rgba(var(--a-rgb),.6)}
+#p-og select.og-sel:disabled{opacity:.5;cursor:not-allowed}
+/* a number: the value in Geist, the unit quiet beside it */
+#p-og .og-num{display:inline-flex;align-items:center;height:34px;padding:0 12px 0 6px;border-radius:10px;background:var(--well);box-shadow:var(--well-edge);cursor:text;transition:background-color .2s}
+#p-og .og-num:hover{background-color:rgba(0,0,0,.32)}
+#p-og .og-num:focus-within{box-shadow:var(--well-edge),0 0 0 2px rgba(var(--a-rgb),.6)}
+#p-og .og-num input{width:5ch;height:100%;padding:0 2px;border:0;outline:0;background:none;text-align:right;user-select:text;
+  font-family:var(--disp);font-size:14px;font-weight:450;letter-spacing:-.01em;color:var(--text);font-variant-numeric:tabular-nums}
+#p-og .og-num span{margin-left:6px;font-size:12px;font-weight:500;color:var(--mute)}
+#p-og .og-num.off{opacity:.5;cursor:not-allowed}
+#p-og .og-num.off input{cursor:not-allowed}
+/* waiting for the host: the control steps back, a small ring turns beside it */
+#p-og .og-row.busy .og-ctl>:not(.og-spin){opacity:.55}
+#p-og .og-spin{flex:none;display:inline-block;width:14px;height:14px;border-radius:50%;box-shadow:inset 0 0 0 2px rgba(255,255,255,.12);
+  border:2px solid transparent;border-top-color:var(--sub);box-sizing:border-box;animation:ogSpin .8s linear infinite}
+#p-og .btn .og-spin{border-top-color:currentColor}
+@keyframes ogSpin{to{transform:rotate(360deg)}}
+
+/* ---------- empty, waiting and error states: a round mark, one line, one quiet line below ---------- */
+#p-og .og-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:44px 16px 52px;text-align:center}
+#p-og .og-empty>svg.i{width:20px;height:20px;padding:12px;box-sizing:content-box;border-radius:50%;background:rgba(255,255,255,.05);color:var(--sub);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+#p-og .og-empty.wait>svg.i{background:rgba(255,255,255,.06);color:var(--sub)}
+#p-og .og-empty.bad>svg.i{background:rgba(242,139,139,.1);color:var(--bad)}
+#p-og .og-empty b{margin-top:14px;font-size:14px;font-weight:550;letter-spacing:-.008em;color:var(--text)}
+#p-og .og-empty>span{margin-top:5px;font-size:12.5px;line-height:1.55;color:var(--mute);max-width:460px;text-wrap:pretty}
+#p-og .og-then{margin-top:12px;font-size:12.5px;line-height:1.5;color:var(--sub);max-width:460px;text-wrap:pretty}
+#p-og .og-empty .btn{margin-top:18px}
+
+@media (max-width:1100px){
+  #p-og .og-head{grid-template-columns:minmax(0,1fr) 256px}
+  #p-og .og-main{padding:20px 20px 18px}
+  #p-og .og-go{padding:18px}
+  #p-og .og-row{column-gap:18px}
+}
+@media (max-width:980px){
+  #p-og .og-head{grid-template-columns:minmax(0,1fr)}
+  #p-og .og-go{flex-direction:row;flex-wrap:wrap;align-items:center;gap:12px 16px;padding:14px 20px;box-shadow:inset 0 1px 0 var(--line)}
+  #p-og .og-gx{flex:1 1 240px}
+  #p-og .og-go .og-rv{align-self:center;order:1}
+  #p-og .og-go .og-ap{order:2}
+}
+@media (prefers-reduced-motion:reduce){
+  #p-og .og-acx.og-fx,#p-og .og-row.og-fx .og-det,.page.enter#p-og .og-games{animation:none}
+  #p-og .og-more svg.i{transition:none}
+}
