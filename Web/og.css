@@ -99,7 +99,7 @@
 #p-og .btn.p[aria-disabled=true],#p-og .btn.p[aria-disabled=true]:hover{opacity:1;filter:none;background:rgba(255,255,255,.05);color:var(--mute);box-shadow:var(--edge)}
 #p-og .btn.p[aria-disabled=true] svg.i{color:var(--mute)}
 #p-og .btn.p[aria-disabled=true] .og-cnt{background:rgba(255,255,255,.07);color:var(--sub)}
-#p-og .og-rl.spin svg.i{animation:ogSpin .9s linear infinite}
+#p-og .og-rl.og-ld svg.i{animation:ogSpin .9s linear infinite}
 
 /* ---------- one strip when something holds the rows (the game runs, its settings are not made yet) ---------- */
 #p-og .og-ban{display:flex;align-items:center;gap:14px;margin:0 0 20px;padding:12px 12px 12px 12px;border-radius:16px;font-size:13px;line-height:1.5;color:var(--sub);

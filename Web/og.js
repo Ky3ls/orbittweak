@@ -73,6 +73,8 @@ const ogVal = (game, it) => OG.pend.has(game + '|' + it.id) ? OG.pend.get(game +
 /** What "Empfohlene anwenden" sets: the host's rule (MainWindow.OtherGames.cs og.apply). */
 const ogOpenRecs = items => items.filter(i => i.rec && i.available && !ogSame(i.value, i.recValue));
 const ogNum = v => String(v).replace('.', ',');
+/** Names in running text: all of them up to max, else the first ones "und N weitere" (never "und 1 weitere"). */
+const ogList = (t, max = 3) => t.length <= max + 1 ? ogNames(t) : `${t.slice(0, max).join(', ')} und ${t.length - max} weitere`;
 
 function ogRemember(id) { OG.game = id; try { sessionStorage.setItem(OG_KEY, id); } catch { } }
 function ogMark(g, cls = '') {
@@ -179,13 +181,13 @@ function ogGo(g, items) {
   const name = ogShort(g);
   if (!items) {
     const err = OG.data[g.id] && OG.data[g.id].err;
-    return [`<div class="og-gx"><span class="og-gk">Empfohlen für ${esc(name)}</span><p class="og-gp">${err ? 'Die Einstellungen sind gerade nicht gelesen.' : 'Wird gelesen…'}</p></div>`, false];
+    return [`<div class="og-gx"><span class="og-gk">Empfohlen für ${esc(name)}</span><p class="og-gp">${err ? 'Die Einstellungen ließen sich gerade nicht lesen.' : 'Wird gelesen…'}</p></div>`, false];
   }
   const recs = items.filter(i => i.rec && i.available), open = ogOpenRecs(items), changed = items.filter(i => i.changed);
   const busy = !!OG.bulk || ogPending(g.id), miss = ogMissing(g);
   const runApply = g.running && open.some(i => i.needsClosed), runRevert = g.running && changed.some(i => i.needsClosed);
   const canApply = !miss && open.length > 0 && !runApply && !busy, canRevert = changed.length > 0 && !runRevert && !busy;
-  const names = open.length <= 2 ? `<b>${esc(ogNames(open.map(i => i.title)))}</b>`
+  const names = open.length <= 3 ? `<b>${esc(ogNames(open.map(i => i.title)))}</b>`
     : `<b>${esc(open.slice(0, 2).map(i => i.title).join(', '))}</b> und ${open.length - 2} weitere`;
   let line;
   if (miss) line = `Sobald OrbitTweak ${esc(name)} findet, stehen hier die Empfehlungen.`;
@@ -249,7 +251,7 @@ function ogCtl(g, it, v, off, busy) {
   }
   if (it.kind === 'number') {
     const range = it.min != null && it.max != null ? `, ${ogNum(it.min)} bis ${ogNum(it.max)}${it.unit ? ' ' + it.unit : ''}` : '';
-    return `<label class="og-num${off ? ' off' : ''}"${tip}><input type="text" inputmode="decimal" role="spinbutton" spellcheck="false" autocomplete="off" placeholder="–" value="${esc(v ?? '')}"`
+    return `<label class="og-num${off ? ' off' : ''}"${tip}><input type="text" inputmode="decimal" role="spinbutton" spellcheck="false" autocomplete="off" placeholder="–" value="${v == null || v === '' ? '' : esc(ogNum(v))}"`
       + ` data-ognum="${id}" data-ogk="num:${id}" aria-label="${lab}${esc(range)}"${it.min != null ? ` aria-valuemin="${it.min}"` : ''}${it.max != null ? ` aria-valuemax="${it.max}"` : ''}${v != null && v !== '' ? ` aria-valuenow="${esc(v)}"` : ''}`
       + `${off ? ' disabled' : ''}${busy || OG.bulk ? ' readonly' : ''}>${it.unit ? `<span>${esc(it.unit)}</span>` : ''}</label>`;
   }
@@ -292,7 +294,7 @@ function ogBody() {
     ogPut(rows, err ? ogEmpty('alert', 'Einstellungen nicht gelesen', err, 'bad', OG_RETRY) : ogEmpty('sliders', `Lese ${g ? g.name : 'das Spiel'}`, 'Einstellungsdatei und Windows-Grafikeinstellung', 'wait'));
   } else if (ogMissing(g)) {
     const t = items.map(i => i.title);
-    const then = t.length ? `<p class="og-then">Danach kannst du hier ${esc(t.length <= 3 ? ogNames(t) : t.slice(0, 3).join(', ') + ` und ${t.length - 3} weitere`)} einstellen.</p>` : '';
+    const then = t.length ? `<p class="og-then">Danach kannst du hier ${esc(ogList(t))} einstellen.</p>` : '';
     ogPut(rows, ogEmpty('search', `${g.name} nicht gefunden`, (OG_GAME[g.id] || {}).look || g.note || '', '', then + OG_RECHECK));
   } else if (!items.length) ogPut(rows, ogEmpty('sliders', 'Keine Einstellungen', `Für ${g.name} gibt es auf diesem PC gerade nichts einzustellen.`));
   else {
@@ -311,7 +313,8 @@ function ogRender() {
   ogTabs(); ogHead(); ogBody();
   OG.fx = '';
   const rl = $('#ogReload');
-  if (rl) { const l = !!OG.loading; rl.classList.toggle('spin', l); l ? rl.setAttribute('aria-disabled', 'true') : rl.removeAttribute('aria-disabled'); }
+  // (not the global .spin of style.css: that turns the whole button)
+  if (rl) { const l = !!OG.loading; rl.classList.toggle('og-ld', l); l ? rl.setAttribute('aria-disabled', 'true') : rl.removeAttribute('aria-disabled'); }
   if (mine && !mine.isConnected) {
     const n = $('#p-og').querySelector(`[data-ogk="${CSS.escape(mine.dataset.ogk)}"]`);
     if (n && !n.disabled) {
@@ -349,6 +352,7 @@ async function ogItems(quiet, game = OG.game) {
 async function ogLoad(quiet) {
   if (OG.loading) return OG.loading;
   OG.loading = (async () => {
+    await null;   // OG.loading is set before the first drawing, so "Neu prüfen" turns from the start
     ogRender();
     try {
       const r = await api('og.games');
@@ -402,7 +406,7 @@ function ogSet(id, value) {
       const r = await api('og.set', { game, id, value });
       const now = r && 'value' in r ? r.value : value;
       const live = OG.data[game] && OG.data[game].items && OG.data[game].items.find(i => i.id === id);   // (the list may be read anew meanwhile)
-      if (live) live.value = now;
+      if (live) { live.value = now; OG.data[game].raw = ''; }   // the next read always draws, even if it brings the old answer back
       toast(`${it.title}: ${ogShown(it, now)}`, `Wirkt ab dem nächsten Start von ${ogShort(g)}`);
     } catch (e) {
       toast('Nicht geändert', `${it.title}: ${ogMsg(e)}`, false);
@@ -469,12 +473,12 @@ function ogNumCommit(inp) {
   const cur = ogCur(), it = cur && cur.items.find(i => i.id === inp.dataset.ognum);
   delete inp.dataset.dirty;
   if (!it || inp.readOnly || inp.disabled) return;
-  const now = ogVal(OG.game, it), back = () => { inp.value = now ?? ''; };
+  const now = ogVal(OG.game, it), has = now != null && now !== '', back = () => { inp.value = has ? ogNum(now) : ''; };
   const raw = inp.value.trim().replace(',', '.');
   if (raw === '') return back();
   const v = Number(raw);
   if (!Number.isFinite(v)) { back(); return toast('Nicht geändert', `${it.title}: Gib eine Zahl ein.`, false); }
-  if (v === Number(now)) return back();
+  if (has && v === Number(now)) return back();   // (an empty field that gets 0 is a change)
   if ((it.min != null && v < it.min) || (it.max != null && v > it.max)) {
     back(); return toast('Nicht geändert', `${it.title}: Erlaubt sind ${ogNum(it.min)} bis ${ogNum(it.max)}${it.unit ? ' ' + it.unit : ''}.`, false);
   }
@@ -513,6 +517,8 @@ $('#p-og').addEventListener('change', e => {
   const n = e.target.closest('input[data-ognum]'); if (n) ogNumCommit(n);
 });
 $('#p-og').addEventListener('input', e => { const n = e.target.closest('input[data-ognum]'); if (n) n.dataset.dirty = '1'; });
+// a value stepped with the arrow keys fires no "change": leaving the field sends it all the same
+$('#p-og').addEventListener('focusout', e => { const n = e.target.closest('input[data-ognum]'); if (n && n.dataset.dirty && n.isConnected) ogNumCommit(n); });
 $('#p-og').addEventListener('keydown', e => {
   const tab = e.target.closest('[role="tab"][data-ogg]');
   if (tab && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
@@ -524,14 +530,14 @@ $('#p-og').addEventListener('keydown', e => {
   const n = e.target.closest('input[data-ognum]');
   if (n) {
     if (e.key === 'Enter') { e.preventDefault(); ogNumCommit(n); return; }
-    if (e.key === 'Escape') { const it = ogCur() && ogCur().items.find(i => i.id === n.dataset.ognum); if (it) { n.value = ogVal(OG.game, it) ?? ''; delete n.dataset.dirty; } return; }
+    if (e.key === 'Escape') { const it = ogCur() && ogCur().items.find(i => i.id === n.dataset.ognum); if (it) { const v = ogVal(OG.game, it); n.value = v == null || v === '' ? '' : ogNum(v); delete n.dataset.dirty; } return; }
     if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !n.readOnly) {
       const it = ogCur() && ogCur().items.find(i => i.id === n.dataset.ognum); if (!it) return;
       e.preventDefault();
       const step = (it.step || 1) * (e.shiftKey ? 10 : 1), base = Number(n.value.replace(',', '.'));
       let v = (Number.isFinite(base) ? base : Number(it.value) || 0) + (e.key === 'ArrowUp' ? step : -step);
       if (it.min != null) v = Math.max(it.min, v); if (it.max != null) v = Math.min(it.max, v);
-      n.value = String(Math.round(v * 1e6) / 1e6); n.dataset.dirty = '1';
+      n.value = ogNum(Math.round(v * 1e6) / 1e6); n.dataset.dirty = '1';
     }
     return;
   }
