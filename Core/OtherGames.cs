@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text.Json;
 
 namespace OrbitTweak.Core;
@@ -76,6 +77,24 @@ internal interface IGameTweaks
     object? Set(string itemId, JsonElement value);
     /// <summary>Restores everything OrbitTweak changed for this game; returns how many items came back.</summary>
     int Revert();
+}
+
+/// <summary>File checks the games share.</summary>
+internal static class GameFiles
+{
+    /// <summary>The file is really gone (deleted, or its folder deleted): Windows reports it as not found AND the drive or
+    /// share it lives on is there. A file on an unplugged drive, an offline share or one Windows only refuses access to is
+    /// not gone, so the backups that belong to it stay.</summary>
+    public static bool Gone(string path)
+    {
+        try { File.GetAttributes(path); return false; }
+        catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException)
+        {
+            try { return System.IO.Path.GetPathRoot(System.IO.Path.GetFullPath(path)) is { Length: > 0 } root && Directory.Exists(root); }
+            catch { return false; }
+        }
+        catch { return false; }
+    }
 }
 
 internal static class OtherGames

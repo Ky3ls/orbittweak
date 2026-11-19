@@ -221,14 +221,9 @@ internal sealed class Cs2Tweaks : IGameTweaks
         if (dir != null && !AnyFileBackup()) Bk.Drop(DirKey);
     }
 
-    /// <summary>The file is not there: Windows says so (file or folder not found). A file it only cannot get at (no
-    /// access, a path it refuses) is not gone, so its backups stay.</summary>
-    private static bool Gone(string path)
-    {
-        try { File.GetAttributes(path); return false; }
-        catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException) { return true; }
-        catch { return false; }
-    }
+    /// <summary>The file is not there (GameFiles.Gone): deleted, with its drive present. A file on an unplugged drive or
+    /// one Windows only refuses access to is not gone, so its backups stay.</summary>
+    private static bool Gone(string path) => GameFiles.Gone(path);
 
     // ================================================================== the page
 
@@ -473,6 +468,10 @@ internal sealed class Cs2Tweaks : IGameTweaks
             var files = string.IsNullOrWhiteSpace(dir)
                 ? new List<IGrouping<string, Field>>()
                 : Fields.Where(f => Bk.Has(f.Backup)).GroupBy(f => f.File).Where(g => Exists(Path.Combine(dir, g.Key))).ToList();
+            // a file only out of reach (unplugged drive, offline share) is not gone: its backups stay for later
+            if (!string.IsNullOrWhiteSpace(dir) && Fields.Where(f => Bk.Has(f.Backup)).Select(f => Path.Combine(dir, f.File)).Distinct()
+                    .Any(p => !Exists(p) && !GameFiles.Gone(p)))
+                throw new InvalidOperationException("Die Einstellungen von CS2 sind gerade nicht erreichbar, etwa weil ihr Laufwerk fehlt. Die Sicherung bleibt, versuch es später noch mal.");
             if (files.Count > 0 && Running()) throw new InvalidOperationException(Cs2Logic.CloseFirst);
 
             if (GpuPrefs.Backed(GpuBk).Length > 0)

@@ -92,7 +92,7 @@ function ogShown(it, v) {
 function ogState(g) {
   if (g.running) return ['run', 'Läuft gerade', 'Läuft gerade'];
   if (ogMissing(g)) return ['miss', 'Nicht gefunden', 'Nicht gefunden'];
-  if (!g.configFound) return ['cfg', 'Einstellungen noch nicht angelegt', 'Einstellungen fehlen noch'];
+  if (!g.configFound) return ['cfg', 'Einstellungsdatei fehlt', 'Einstellungen fehlen'];
   if (!g.installed) return ['part', 'Nur Einstellungen gefunden', 'Nur Einstellungen gefunden'];
   return ['ok', 'Installiert', 'Installiert'];
 }
@@ -191,7 +191,8 @@ function ogGo(g, items) {
     : `<b>${esc(open.slice(0, 2).map(i => i.title).join(', '))}</b> und ${open.length - 2} weitere`;
   let line;
   if (miss) line = `Sobald OrbitTweak ${esc(name)} findet, stehen hier die Empfehlungen.`;
-  else if (!recs.length && !g.configFound) line = `Sobald ${esc(name)} seine Einstellungen angelegt hat, stehen hier die Empfehlungen.`;
+  else if (!recs.length && !g.configFound) line = changed.length ? 'Erst wenn die Einstellungsdatei wieder da ist, stehen hier die Empfehlungen.'
+    : `Sobald ${esc(name)} seine Einstellungen angelegt hat, stehen hier die Empfehlungen.`;
   else if (!recs.length) line = 'Auf diesem PC gibt es hier gerade nichts zu empfehlen.';
   else if (!open.length) line = `<b>Alles gesetzt</b> Die ${recs.length === 1 ? 'empfohlene Einstellung steht' : 'empfohlenen Einstellungen stehen'} schon richtig.`;
   else if (runApply) line = `${names} ${open.length === 1 ? 'kann' : 'können'} erst nach dem Schließen von ${esc(name)} gesetzt werden.`;
@@ -216,7 +217,7 @@ function ogHead() {
   const none = t => `<span class="og-none">${t}</span>`;
   const facts = [];
   if (g.path || !ogMissing(g)) facts.push(['Spielordner', g.path ? ogPath(g.path) : none('Nicht gefunden')]);
-  if (g.configPath || !ogMissing(g)) facts.push(['Einstellungen', g.configPath ? ogPath(g.configPath) + (g.configFound ? '' : none('noch nicht angelegt')) : none('Noch nicht angelegt')]);
+  if (g.configPath || !ogMissing(g)) facts.push(['Einstellungen', g.configPath ? ogPath(g.configPath) + (g.configFound ? '' : none('fehlt')) : none('Fehlt')]);
   if (g.antiCheat) facts.push(['Anti-Cheat', `<span class="og-acs" title="${esc(g.antiCheat)}">${esc(ogAcShort(g.antiCheat))}</span>`
     + `<button class="og-more og-acb" id="ogAcb" type="button" data-ogk="ac" aria-expanded="${OG.ac}" aria-controls="ogAcx">${ico('chev')}<span>${OG.ac ? 'Weniger' : 'Was OrbitTweak ändert'}</span></button>`]);
   ogPut($('#ogMain'), `<div class="og-id">${ogMark(g, ' lg')}<div class="og-idt"><div class="og-nm"><h2>${esc(g.name)}</h2><span class="og-st ${k}"><i></i>${esc(chip)}</span></div>${note}</div></div>

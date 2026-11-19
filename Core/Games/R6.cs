@@ -179,6 +179,9 @@ internal sealed class R6Tweaks : IGameTweaks
             var keys = R6Logic.Specs.Where(s => !s.IsGpu && Reg.Get(Bk.User, R6Logic.BkKey(s)) is string).ToList();
             var file = Reg.Get(Bk.User, R6Logic.BkFile) as string;
             bool ini = keys.Count > 0 && file != null && File.Exists(file);
+            // a file only out of reach (unplugged drive, offline share) is not gone: its backups stay for later
+            if (keys.Count > 0 && file != null && !ini && !GameFiles.Gone(file))
+                throw Err("Die Einstellungsdatei von Siege ist gerade nicht erreichbar, etwa weil ihr Laufwerk fehlt. Die Sicherung bleibt, versuch es später noch mal");
             if (ini && Running()) throw Err(R6Logic.RunningError);
 
             if (ini)
@@ -233,8 +236,11 @@ internal sealed class R6Tweaks : IGameTweaks
             var file = Reg.Get(Bk.User, R6Logic.BkFile) as string;
             bool keys = HasIniBackups();
             if (!keys && file == null) return;
-            if (file == null || !keys || !File.Exists(file)) { DropIni(); return; }
+            if (file == null || !keys) { DropIni(); return; }
+            // while Siege runs nothing goes (it may replace its file in two steps on exit); a file on an unplugged drive or
+            // one Windows refuses is not gone either (GameFiles.Gone)
             if (Running()) return;
+            if (GameFiles.Gone(file)) { DropIni(); return; }
             string text;
             try { text = Read(file).text; }
             catch { return; }
