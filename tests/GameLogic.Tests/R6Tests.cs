@@ -74,6 +74,7 @@ internal static class R6Tests
         Specs(Check);
         Values(Check);
         Editing(Check);
+        Pinning(Check);
         Availability(Check);
         Gpu(Check);
         Bytes(Check);
@@ -258,6 +259,91 @@ internal static class R6Tests
         Check(R6Logic.Restore(flt2, fps, IniText.Get(flt, "DISPLAY", "FPSLimit")) == flt, "r6: revert keeps the old spelling 0.000000");
     }
 
+    // ------------------------------------------------------------------ set back, stale backups and the pinned profile
+    private static void Pinning(Action<bool, string> Check)
+    {
+        var reflex = S("reflex"); var fps = S("fpslimit"); var raw = S("rawinput"); var vsync = S("vsync");
+        string Rw(string t) => IniText.Get(t, "INPUT", "RawInputMouseKeyboard")!;
+
+        // the host's SetIni: the backup is taken before the first write (null before it), then Apply decides
+        var b0 = IniText.Get(Sample, "INPUT", "RawInputMouseKeyboard") ?? "-";
+        var (on, d1) = R6Logic.Apply(Sample, raw, R6Logic.ToIni(raw, V(true)), null);
+        Check(!d1 && Rw(on) == "1" && b0 == "0" && R6Logic.IsChanged(b0, Rw(on)), "r6: first change: written, the backup stays and the item counts as changed");
+        var (on2, d1b) = R6Logic.Apply(on, raw, R6Logic.ToIni(raw, V(true)), b0);
+        Check(!d1b && on2 == on, "r6: the same change again keeps the backup");
+        var (off, d2) = R6Logic.Apply(on, raw, R6Logic.ToIni(raw, V(false)), b0);
+        Check(d2 && off == Sample, "r6: Raw Input on and off again gives the file back byte for byte and drops the backup");
+
+        // the game's own spelling comes back too: 0.000000 → 141 → 0 is the old line, not "0"
+        var flt = Sample.Replace("FPSLimit=0\r\n", "FPSLimit=0.000000\r\n");
+        var bf = IniText.Get(flt, "DISPLAY", "FPSLimit")!;
+        var (f141, d3) = R6Logic.Apply(flt, fps, R6Logic.ToIni(fps, V(141)), null);
+        var (f0, d4) = R6Logic.Apply(f141, fps, R6Logic.ToIni(fps, V(0)), bf);
+        Check(!d3 && d4 && f0 == flt, "r6: an FPS limit set back puts back the game's spelling 0.000000 and drops the backup");
+
+        // another value than the old one keeps the backup: V-Sync 1 → 0 → 2 is still OrbitTweak's change
+        var (v0, _) = R6Logic.Apply(Sample, vsync, "0", null);
+        var (v2, d5) = R6Logic.Apply(v0, vsync, "2", "1");
+        Check(!d5 && IniText.Get(v2, "DISPLAY_SETTINGS", "VSync") == "2" && R6Logic.IsChanged("1", "2"), "r6: a third value keeps the backup");
+
+        // a key that was not there: no known meaning, so no value drops its backup; it counts as changed while the line is
+        // there, so Zurücksetzen (which removes the line) stays reachable
+        var noKey = Sample.Replace("NVReflex=2\r\n", "");
+        var (r1, d6) = R6Logic.Apply(noKey, reflex, "1", null);
+        var (r0, d7) = R6Logic.Apply(r1, reflex, "0", "-");
+        Check(!d6 && !d7 && R6Logic.IsChanged("-", IniText.Get(r0, "DISPLAY", "NVReflex")) && R6Logic.Restore(r0, reflex, "-") == noKey, "r6: a key that was not there keeps its backup and stays revertable");
+        Check(R6Logic.Apply(Sample, S("gpu"), "1", "0") == (Sample, false), "r6: Apply never touches the INI for the GPU item");
+
+        // every recommendation and then each item set back by hand: the file is the old one and no backup is left
+        var t = Sample; var bk = new Dictionary<string, string>();
+        var before = R6Logic.Specs.Where(s => !s.IsGpu).ToDictionary(s => s.Id, s => R6Logic.ToPage(s, IniText.Get(Sample, s.Section!, s.Key!)));
+        foreach (var s in R6Logic.Specs.Where(s => !s.IsGpu))
+        {
+            var cur = IniText.Get(t, s.Section!, s.Key!);
+            var target = R6Logic.ToIni(s, V(s.Rec ? R6Logic.RecFor(s, R6Logic.ToPage(s, cur)) : s.Id == "fpslimit" ? 141 : "2"));
+            if (R6Logic.Same(cur, target)) continue;
+            var (n, _) = R6Logic.Apply(t, s, target, bk.GetValueOrDefault(R6Logic.BkKey(s)));
+            bk.TryAdd(R6Logic.BkKey(s), cur ?? "-");
+            t = n;
+        }
+        Check(bk.Count == 4 && t != Sample, "r6: four items written with backups");
+        foreach (var s in R6Logic.Specs.Where(s => !s.IsGpu))
+        {
+            var key = R6Logic.BkKey(s);
+            if (!bk.TryGetValue(key, out var b)) continue;
+            var (n, drop) = R6Logic.Apply(t, s, R6Logic.ToIni(s, V(before[s.Id])), b);
+            if (drop) bk.Remove(key);
+            t = n;
+        }
+        Check(bk.Count == 0 && t == Sample, "r6: each item set back in OrbitTweak: the file byte for byte and no backup left (no pin)");
+
+        // stale backups: the file means what the backup holds again (Siege's own menu set it back)
+        Check(R6Logic.Stale(Sample, vsync, "1") && R6Logic.Stale(Sample, vsync, "1.000000"), "r6: a V-Sync backup equal in meaning to the file is stale");
+        Check(!R6Logic.Stale(Sample, vsync, "0") && !R6Logic.Stale(Sample, raw, "1"), "r6: a key that still differs keeps its backup");
+        Check(R6Logic.Stale(noKey, reflex, "-") && !R6Logic.Stale(Sample, reflex, "-"), "r6: \"was not there\" is stale only while the key is missing again");
+        Check(!R6Logic.Stale(null, vsync, "1") && !R6Logic.Stale(null, reflex, "-"), "r6: a file that could not be read keeps every backup");
+        Check(!R6Logic.Stale(Sample.Replace("[DISPLAY_SETTINGS]\r\n", ""), vsync, "-") && !R6Logic.Stale("", reflex, "-"), "r6: a file without the key's section (or empty) keeps the backup");
+        Check(!R6Logic.Stale(Sample, vsync, null) && !R6Logic.Stale(Sample, S("gpu"), "2"), "r6: no backup, or the GPU item: nothing to drop");
+        Check(R6Logic.Specs.Where(s => !s.IsGpu).All(s => R6Logic.Stale(Sample, s, IniText.Get(Sample, s.Section!, s.Key!) ?? "-")), "r6: a backup of the value the file holds is stale for every INI item");
+
+        // the pin: profile A was changed, B was played since
+        const string A = @"C:\Users\Max\Documents\My Games\Rainbow Six - Siege\aaaaaaaa-0000-0000-0000-000000000000\GameSettings.ini";
+        const string B = @"C:\Users\Max\Documents\My Games\Rainbow Six - Siege\bbbbbbbb-0000-0000-0000-000000000000\GameSettings.ini";
+        Check(R6Logic.PickFile(null, false, false, B) == (B, false, false) && R6Logic.PickFile(null, false, false, null) == (null, false, false), "r6: no backups: the profile played last");
+        Check(R6Logic.PickFile(A, true, true, B) == (A, true, true), "r6: backups of A while B played last: A, kept (older)");
+        Check(R6Logic.PickFile(A, true, true, A.ToUpperInvariant()) == (A, true, false), "r6: A is also the one played last: not older (path without case)");
+        Check(R6Logic.PickFile(A, true, false, B) == (B, false, false) && R6Logic.PickFile(A, false, true, B) == (B, false, false), "r6: a gone pinned file, or no backup left: the profile played last");
+
+        // OrbitTweak set V-Sync off on A (backup 1), then Siege's menu on A set it back on: A's file says 1 again
+        var held = new Dictionary<R6Spec, string> { [vsync] = "1" };
+        var left = held.Where(kv => !R6Logic.Stale(Sample, kv.Key, kv.Value)).ToList();
+        Check(left.Count == 0 && R6Logic.PickFile(A, left.Count > 0, true, B) == (B, false, false), "r6: a value set back in the menu unpins: OrbitTweak follows the profile played last");
+        // Raw Input still differs from its backup: A stays, and it shows as changed, so Zurücksetzen is there
+        held[raw] = "1";
+        left = held.Where(kv => !R6Logic.Stale(Sample, kv.Key, kv.Value)).ToList();
+        Check(left.Count == 1 && left[0].Key == raw && R6Logic.IsChanged(left[0].Value, Rw(Sample)) && R6Logic.PickFile(A, true, true, B) == (A, true, true), "r6: a changed key keeps the pin, and it shows as changed");
+    }
+
     // ------------------------------------------------------------------ availability
     private static void Availability(Action<bool, string> Check)
     {
@@ -376,6 +462,7 @@ internal static class R6Tests
         Check(R6Logic.Note(false, true, false, 1, false) == R6Logic.NoFolder, "r6: note: settings without the game folder say so");
         Check(R6Logic.NoFolder.Contains("Spielordner") && R6Logic.NoFolder.Contains("„" + S("gpu").Title + "“") && R6Logic.NoFolder.Contains("gehen trotzdem"), "r6: the folder note names the GPU item by its title and that the rest works");
         Check(R6Logic.Note(false, true, false, 2, false) is var n2 && n2.StartsWith("2 Ubisoft-Profile") && n2.Contains("Spielordner") && n2.Contains(S("gpu").Title), "r6: note: several profiles without the game folder says both");
+        Check(R6Logic.Note(false, true, false, 2, false).Contains("Den Spielordner hat OrbitTweak nicht gefunden") && R6Logic.Note(false, true, false, 2, true).Contains("Den Spielordner hat OrbitTweak nicht gefunden"), "r6: note: the composite line names OrbitTweak as the one that did not find the folder");
         Check(R6Logic.Note(false, true, false, 2, true) is var n3 && n3.Contains("zuerst geändert") && n3.Contains("Spielordner"), "r6: note: kept profile without the game folder says both");
         Check(R6Logic.Note(false, true, true, 1, false).Contains("läuft") && !R6Logic.Note(false, true, true, 1, false).Contains("Spielordner"), "r6: note: running wins over the missing folder");
         Check(!R6Logic.Note(true, true, false, 2, false).Contains("Spielordner") && !R6Logic.Note(true, true, false, 1, false).Contains("Spielordner"), "r6: note: with the game folder nothing about it");

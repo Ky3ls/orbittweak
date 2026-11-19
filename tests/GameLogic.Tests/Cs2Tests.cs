@@ -349,6 +349,24 @@ internal static class Cs2Tests
         Check(Cs2Logic.Note(true, true, false, null, true, false).Contains("USRLOCALCSGO"), "cs2: note for a USRLOCALCSGO folder");
         Check(Cs2Logic.Note(true, true, false, "das Steam-Konto 5", false, true).Contains("das Steam-Konto 5 geändert"), "cs2: note when the page stays with a changed account");
         Check(Cs2Logic.Note(false, true, false, "das Steam-Konto 5", false, false).Contains("Grafikkarten-Einstellung"), "cs2: note when only the settings were found");
+        // the page stays with a changed account whose file is gone now: starting CS2 (with the account in use) would not help
+        var hm = Cs2Logic.Note(true, false, false, "dein Steam-Konto „Kai“", false, true);
+        Check(hm == Cs2Logic.HeldMissing("dein Steam-Konto „Kai“", false) && hm.Contains("für dein Steam-Konto „Kai“ geändert") && hm.Contains("Setz zurück") && hm.Contains("mit diesem Konto") && !hm.Contains(Cs2Logic.StartOnce),
+            "cs2: note for a held account with a missing file says to reset or to start CS2 with that account");
+        Check(Cs2Logic.Note(true, false, true, "das Steam-Konto 5", false, true) is var hr && hr.Contains("Schließ CS2") && !hr.Contains("Setz zurück"), "cs2: the same while CS2 runs: close it first");
+        Check(Cs2Logic.HeldMissing(null, false).Contains("für ein anderes Steam-Konto geändert"), "cs2: held note without a known account");
+        Check(Cs2Logic.Note(true, false, false, "dein Steam-Konto „Kai“", false, false) == Cs2Logic.StartOnce && Cs2Logic.Note(false, false, false, "x", false, true).StartsWith(Cs2Logic.NotFound), "cs2: not held: start once; not installed: not found");
+        Check(Cs2Logic.NoFiles(true, false, true, "x") == Cs2Logic.HeldMissing("x", false) && Cs2Logic.NoFiles(true, false, false, "x") == Cs2Logic.StartOnce && Cs2Logic.NoFiles(false, false, true, "x") == Cs2Logic.NotFound,
+            "cs2: the rows' reason matches the note");
+        foreach (var n in new[] { Cs2Logic.HeldMissing("x", false), Cs2Logic.HeldMissing("x", true) })
+            Check(!n.Contains(" Sie ") && !n.Contains(" Ihr") && !n.Contains('\n') && n.EndsWith('.'), "cs2: held note speaks with du in full sentences: " + n);
+        // the browser preview ogCs2Preview('held') shows the host's words
+        string? mock = null;
+        foreach (var start in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory })
+            for (var d = new DirectoryInfo(start); d != null && mock == null; d = d.Parent)
+                if (File.Exists(Path.Combine(d.FullName, "Web", "og-cs2.js"))) mock = Path.Combine(d.FullName, "Web", "og-cs2.js");
+        if (mock != null) Check(File.ReadAllText(mock).Contains("'" + Cs2Logic.HeldMissing("dein Steam-Konto „Kai“", false) + "'"), "cs2: mock: the held note as in Cs2Logic");
+        else Console.WriteLine("note  Web/og-cs2.js not found from here, mock text check skipped");
         foreach (var n in new[] { Cs2Logic.NotFound, Cs2Logic.StartOnce, Cs2Logic.CloseFirst, Cs2Logic.FpsRange, Cs2Logic.NetBufferRange, Cs2Logic.TelemetryRange })
             Check(n.Length > 0 && char.IsUpper(n[0]) && n.EndsWith('.') && !n.Contains(" Sie ") && !n.Contains("Ihr"), "cs2: German message in du: " + n);
     }

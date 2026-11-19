@@ -588,6 +588,21 @@ public static class Cs2Logic
 
     public const string NotFound = "Counter-Strike 2 wurde auf diesem PC nicht gefunden.";
     public const string StartOnce = "Starte CS2 einmal und schließ es wieder, dann legt es seine Einstellungen an.";
+
+    /// <summary>
+    /// The page stays with an account OrbitTweak changed (heldOther), and a settings file of that account is missing now.
+    /// "Starte CS2 einmal" would not help: CS2 starts with the account in use. Zurücksetzen brings back what OrbitTweak changed
+    /// in the file that is still there and lets the page follow the account in use (Cs2Tweaks.DropStale has dropped the
+    /// backups of the missing file, but only while CS2 is closed, hence the other line while it runs).
+    /// </summary>
+    public static string HeldMissing(string? who, bool running)
+        => $"OrbitTweak hat die Einstellungen für {who ?? "ein anderes Steam-Konto"} geändert, und bei diesem Konto fehlt jetzt eine Einstellungsdatei. "
+           + (running ? "Schließ CS2 und prüf dann neu."
+                      : "Setz zurück, dann wechselt diese Seite zu deinem aktuellen Steam-Konto. Oder starte CS2 einmal mit diesem Konto, dann legt es die Datei wieder an.");
+
+    /// <summary>Why the file items cannot be set while the settings files are not both there.</summary>
+    public static string NoFiles(bool installed, bool running, bool heldOther, string? who)
+        => !installed ? NotFound : heldOther ? HeldMissing(who, running) : StartOnce;
     public const string CloseFirst = "Schließ Counter-Strike 2 zuerst, sonst überschreibt das Spiel die Einstellung beim Beenden.";
 
     /// <summary>"dein Steam-Konto „Name“" or "das Steam-Konto 12345678".</summary>
@@ -600,7 +615,7 @@ public static class Cs2Logic
     public static string Note(bool installed, bool configFound, bool running, string? who, bool fromEnv, bool heldOther)
     {
         if (!installed && !configFound) return NotFound + " Installiere es über Steam und starte es einmal.";
-        if (!configFound) return StartOnce;
+        if (!configFound) return NoFiles(installed, running, heldOther, who);
         if (running) return "CS2 läuft gerade. Schließ es, bevor du hier etwas änderst, sonst überschreibt es die Werte beim Beenden.";
         string line;
         if (heldOther) line = $"OrbitTweak hat die Einstellungen für {who ?? "ein anderes Steam-Konto"} geändert. Bis du sie zurücksetzt, bleibt diese Seite bei diesem Konto.";

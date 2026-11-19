@@ -17,11 +17,15 @@ internal sealed class R6Tweaks : IGameTweaks
 
     private const string GpuField = "GpuPreference";
     private static string GpuBkKey => $@"{Bk.User}\{R6Logic.BkGpu}";
+    /// <summary>The INI backups change only under it (SetIni, Revert, DropStale): a backup SetIni just saved for the file it
+    /// is about to write must never be taken for a stale one by a page load running at the same time.</summary>
+    private static readonly object Gate = new();
 
     // =============================================================== page
     public GameInfo Info()
     {
         var dir = InstallDir();
+        DropStale();
         var t = Pick();
         bool running = Running();
         return new GameInfo
@@ -42,6 +46,7 @@ internal sealed class R6Tweaks : IGameTweaks
 
     public List<GameItem> Items()
     {
+        DropStale();
         var t = Pick();
         string? text = null, unreadable = null;
         if (t.File != null) try { text = Read(t.File).text; } catch (InvalidOperationException e) { unreadable = e.Message.TrimEnd('.'); }
@@ -100,30 +105,47 @@ internal sealed class R6Tweaks : IGameTweaks
     private static object? SetIni(R6Spec s, JsonElement value)
     {
         var target = R6Logic.ToIni(s, value);
-        DropStale();
-        var t = Pick();
-        if (t.File == null) throw Err(R6Logic.NoConfig);
-        var (text, bom) = Read(t.File);
-        var why = R6Logic.WhyNot(s, text, Hw.SwitchableGpus);
-        if (why != "") throw Err(why);
-        var cur = IniText.Get(text, s.Section!, s.Key!);
-        if (R6Logic.Same(cur, target)) return R6Logic.ToPage(s, cur);
-        if (Running()) throw Err(R6Logic.RunningError);
-
-        // backup before the first write: the old value ("-" = not there) and which profile's file it belongs to
-        var key = R6Logic.BkKey(s);
-        bool newFile = Reg.Get(Bk.User, R6Logic.BkFile) == null, newKey = Reg.Get(Bk.User, key) == null;
-        if (newFile) Reg.SetStr(Bk.User, R6Logic.BkFile, t.File);
-        if (newKey) Reg.SetStr(Bk.User, key, cur ?? "-");
-        try { Write(t.File, IniText.Set(text, s.Section!, s.Key!, target), bom); }
-        catch
+        lock (Gate)
         {
-            // a refused write leaves no backup behind
-            if (newKey) Reg.Del(Bk.User, key);
-            if (newFile) Reg.Del(Bk.User, R6Logic.BkFile);
-            throw;
+            DropStale();
+            var t = Pick();
+            if (t.File == null) throw Err(R6Logic.NoConfig);
+            var (text, bom) = Read(t.File);
+            var why = R6Logic.WhyNot(s, text, Hw.SwitchableGpus);
+            if (why != "") throw Err(why);
+            var cur = IniText.Get(text, s.Section!, s.Key!);
+            if (R6Logic.Same(cur, target)) return R6Logic.ToPage(s, cur);
+            if (Running()) throw Err(R6Logic.RunningError);
+
+            var key = R6Logic.BkKey(s);
+            var had = Reg.Get(Bk.User, key) as string;
+            var (next, drop) = R6Logic.Apply(text, s, target, had);
+            if (drop)
+            {
+                // back to what it meant before OrbitTweak: the original bytes are in again, so the backup is done, and with
+                // the last one the pin (otherwise it would hold this profile with nothing left to reset). A refused write
+                // throws first and keeps both.
+                Write(t.File, next, bom);
+                Reg.Del(Bk.User, key);
+                if (!HasIniBackups()) Reg.Del(Bk.User, R6Logic.BkFile);
+            }
+            else
+            {
+                // backup before the first write: the old value ("-" = not there) and which profile's file it belongs to
+                bool newFile = Reg.Get(Bk.User, R6Logic.BkFile) == null, newKey = had == null;
+                if (newFile) Reg.SetStr(Bk.User, R6Logic.BkFile, t.File);
+                if (newKey) Reg.SetStr(Bk.User, key, cur ?? "-");
+                try { Write(t.File, next, bom); }
+                catch
+                {
+                    // a refused write leaves no backup behind
+                    if (newKey) Reg.Del(Bk.User, key);
+                    if (newFile) Reg.Del(Bk.User, R6Logic.BkFile);
+                    throw;
+                }
+            }
+            return R6Logic.ToPage(s, IniText.Get(Read(t.File).text, s.Section!, s.Key!));
         }
-        return R6Logic.ToPage(s, IniText.Get(Read(t.File).text, s.Section!, s.Key!));
     }
 
     /// <summary>Windows reads the field when the game starts, so the game does not need to be closed.</summary>
@@ -151,26 +173,29 @@ internal sealed class R6Tweaks : IGameTweaks
     // =============================================================== revert
     public int Revert()
     {
-        var keys = R6Logic.Specs.Where(s => !s.IsGpu && Reg.Get(Bk.User, R6Logic.BkKey(s)) is string).ToList();
-        var file = Reg.Get(Bk.User, R6Logic.BkFile) as string;
-        bool ini = keys.Count > 0 && file != null && File.Exists(file);
-        if (ini && Running()) throw Err(R6Logic.RunningError);
-
         int n = 0;
-        if (ini)
+        lock (Gate)
         {
-            var (text, bom) = Read(file!);
-            var next = text;
-            foreach (var s in keys)
+            var keys = R6Logic.Specs.Where(s => !s.IsGpu && Reg.Get(Bk.User, R6Logic.BkKey(s)) is string).ToList();
+            var file = Reg.Get(Bk.User, R6Logic.BkFile) as string;
+            bool ini = keys.Count > 0 && file != null && File.Exists(file);
+            if (ini && Running()) throw Err(R6Logic.RunningError);
+
+            if (ini)
             {
-                var b = Reg.Get(Bk.User, R6Logic.BkKey(s)) as string;
-                if (R6Logic.IsChanged(b, IniText.Get(next, s.Section!, s.Key!))) n++;
-                next = R6Logic.Restore(next, s, b);
+                var (text, bom) = Read(file!);
+                var next = text;
+                foreach (var s in keys)
+                {
+                    var b = Reg.Get(Bk.User, R6Logic.BkKey(s)) as string;
+                    if (R6Logic.IsChanged(b, IniText.Get(next, s.Section!, s.Key!))) n++;
+                    next = R6Logic.Restore(next, s, b);
+                }
+                if (next != text) Write(file!, next, bom);   // throws (locked, read-only): the backups stay for the next try
             }
-            if (next != text) Write(file!, next, bom);   // throws (locked, read-only): the backups stay for the next try
+            // the file is back (or its profile is gone, then there is nothing to restore): the backups are done
+            DropIni();
         }
-        // the file is back (or its profile is gone, then there is nothing to restore): the backups are done
-        DropIni();
 
         bool gpu = false;
         foreach (var exe in GpuPrefs.Backed(R6Logic.BkGpu))
@@ -192,13 +217,31 @@ internal sealed class R6Tweaks : IGameTweaks
         Reg.Del(Bk.User, R6Logic.BkFile);
     }
 
-    /// <summary>Backups of a profile whose file is gone (account folder deleted) can never be restored: they must not
-    /// count for the file that is written now.</summary>
+    /// <summary>
+    /// Drops the INI backups that can no longer do anything, before Pick() goes by them. All of them when their file is gone
+    /// (account folder deleted): they can never be restored and must not count for the file that is written now. And each
+    /// key whose value in the file means what its backup holds again (<see cref="R6Logic.Stale"/>: Siege's own menu set it
+    /// back); og.r6.file goes with the last one. Otherwise such a backup would keep OrbitTweak on that profile although
+    /// nothing there counts as changed, and Zurücksetzen would be greyed out. A file that cannot be read keeps its backups,
+    /// and so does everything while Siege runs: it writes the file while it closes, and a half-written file must not count
+    /// as set back.
+    /// </summary>
     private static void DropStale()
     {
-        var file = Reg.Get(Bk.User, R6Logic.BkFile) as string;
-        bool keys = HasIniBackups();
-        if ((keys || file != null) && (file == null || !keys || !File.Exists(file))) DropIni();
+        lock (Gate)
+        {
+            var file = Reg.Get(Bk.User, R6Logic.BkFile) as string;
+            bool keys = HasIniBackups();
+            if (!keys && file == null) return;
+            if (file == null || !keys || !File.Exists(file)) { DropIni(); return; }
+            if (Running()) return;
+            string text;
+            try { text = Read(file).text; }
+            catch { return; }
+            foreach (var s in R6Logic.Specs)
+                if (Reg.Get(Bk.User, R6Logic.BkKey(s)) is string b && R6Logic.Stale(text, s, b)) Reg.Del(Bk.User, R6Logic.BkKey(s));
+            if (!HasIniBackups()) Reg.Del(Bk.User, R6Logic.BkFile);
+        }
     }
 
     // =============================================================== the settings file
@@ -207,15 +250,16 @@ internal sealed class R6Tweaks : IGameTweaks
     private sealed record Target(string? File, int Profiles, bool Backed, bool Older);
 
     /// <summary>While OrbitTweak has backups it stays with that profile's file, so Zurücksetzen goes back to the same one;
-    /// otherwise the GameSettings.ini written last (the account that played last). The file times are Siege's own: Write()
-    /// keeps a file's time, so OrbitTweak's changes and Zurücksetzen never make a profile count as played last.</summary>
+    /// otherwise the GameSettings.ini written last (the account that played last): <see cref="R6Logic.PickFile"/>. Callers
+    /// run DropStale() first, so only backups that still change something hold the profile. The file times are Siege's own:
+    /// Write() keeps a file's time, so OrbitTweak's changes and Zurücksetzen never make a profile count as played last.</summary>
     private static Target Pick()
     {
         var all = Profiles();
         var newest = R6Logic.Newest(all.Select(f => (f.FullName, f.LastWriteTimeUtc)));
-        if (HasIniBackups() && Reg.Get(Bk.User, R6Logic.BkFile) is string pin && SafeExists(pin))
-            return new Target(pin, Math.Max(all.Count, 1), true, newest != null && !newest.Equals(pin, StringComparison.OrdinalIgnoreCase));
-        return new Target(newest, all.Count, false, false);
+        var pin = Reg.Get(Bk.User, R6Logic.BkFile) as string;
+        var (file, backed, older) = R6Logic.PickFile(pin, HasIniBackups(), pin != null && SafeExists(pin), newest);
+        return new Target(file, backed ? Math.Max(all.Count, 1) : all.Count, backed, older);
     }
 
     /// <summary>Every Documents\My Games\Rainbow Six - Siege\&lt;profile GUID&gt;\GameSettings.ini. Documents comes from

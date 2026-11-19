@@ -253,6 +253,42 @@ public static class R6Logic
         return backup == "-" ? IniText.Remove(text, s.Section!, s.Key!) : IniText.Set(text, s.Section!, s.Key!, backup);
     }
 
+    /// <summary>
+    /// The text after setting a key to <paramref name="target"/>; backup is the key's backup (null = none yet, "-" = the key
+    /// was not there). A target that means what the backup holds puts the file's original bytes back (<see cref="Restore"/>)
+    /// and the backup is no longer needed (<c>drop</c>), so a change set back here does not keep OrbitTweak on the profile.
+    /// A key that was not there has no meaning OrbitTweak knows: setting it never drops the backup, and since the key now
+    /// exists it counts as changed, so Zurücksetzen (which removes the line again) stays reachable.
+    /// </summary>
+    public static (string next, bool drop) Apply(string text, R6Spec s, string target, string? backup)
+    {
+        if (s.IsGpu) return (text, false);
+        if (backup is { } b && b != "-" && Same(b, target)) return (Restore(text, s, b), true);
+        return (IniText.Set(text, s.Section!, s.Key!, target), false);
+    }
+
+    /// <summary>
+    /// A key backup that can no longer do anything: its file was read (text not null), the key's section is there and the
+    /// value means what the backup holds again (Siege's own menu set it back, or Siege reset the profile). Such a backup
+    /// changes nothing on Zurücksetzen but would keep OrbitTweak on its profile (<see cref="PickFile"/>), so it goes before
+    /// the file is picked. A file that could not be read, or one without the key's section, keeps every backup.
+    /// </summary>
+    public static bool Stale(string? text, R6Spec s, string? backup)
+        => backup != null && !s.IsGpu && text != null && HasSection(text, s.Section!) && !IsChanged(backup, IniText.Get(text, s.Section!, s.Key!));
+
+    /// <summary>
+    /// The GameSettings.ini to read and write: while OrbitTweak holds backups of a file that is still there (stale ones are
+    /// dropped before, <see cref="Stale"/>), that one, so Zurücksetzen and further changes stay with the same profile;
+    /// otherwise the one played last (<see cref="Newest"/>). backed: the backups belong to the file picked. older: the kept
+    /// file is not the one played last (another account played since).
+    /// </summary>
+    public static (string? file, bool backed, bool older) PickFile(string? pin, bool anyBackup, bool pinExists, string? newest)
+    {
+        if (anyBackup && pin != null && pinExists)
+            return (pin, true, newest != null && !newest.Equals(pin, StringComparison.OrdinalIgnoreCase));
+        return (newest, false, false);
+    }
+
     // ------------------------------------------------------------------ availability
     /// <summary>Why an INI item cannot be set with this file ("" = it can). switchable: Windows can choose between two GPUs,
     /// so a non-NVIDIA vendor may only mean the game last ran on the weaker chip.</summary>
@@ -397,7 +433,7 @@ public static class R6Logic
                  : profiles > 1 ? $"{profiles} Ubisoft-Profile gefunden: OrbitTweak ändert nur das zuletzt gespielte"
                  : null;
         if (exeFound) return line ?? "Änderungen wirken ab dem nächsten Start von Siege";
-        return line == null ? NoFolder : line + ". Den Spielordner hat es nicht gefunden, deshalb geht „Starke Grafikkarte für Siege“ nicht";
+        return line == null ? NoFolder : line + ". Den Spielordner hat OrbitTweak nicht gefunden, deshalb geht „Starke Grafikkarte für Siege“ nicht";
     }
 
     // ------------------------------------------------------------------ helpers

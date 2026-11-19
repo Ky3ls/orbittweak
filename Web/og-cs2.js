@@ -1,8 +1,8 @@
 'use strict';
 /* 2.30 – Counter-Strike 2: browser preview data for the page "Andere Spiele" (og.js), the same shapes as Core/Games/Cs2.cs
    (camelCase, nulls included). The preview PC: NVIDIA card, one GPU, CS2 closed, settings found.
-   ogCs2Preview('amd' | 'oldamd' | 'oldnvidia' | 'intel' | 'running' | 'nocfg' | 'missing' | 'nvidia') switches the preview to
-   another state. */
+   ogCs2Preview('amd' | 'oldamd' | 'oldnvidia' | 'intel' | 'running' | 'nocfg' | 'held' | 'missing' | 'nvidia') switches the
+   preview to another state. */
 OG_MOCK['cs2'] = {
   info: {
     id: 'cs2', name: 'Counter-Strike 2', installed: true,
@@ -112,6 +112,8 @@ function ogCs2Preview(kind) {
   const m = OG_MOCK['cs2'], it = id => m.items.find(x => x.id === id);
   const START = 'Starte CS2 einmal und schließ es wieder, dann legt es seine Einstellungen an.';
   const MISSING = 'Counter-Strike 2 wurde auf diesem PC nicht gefunden.';
+  // Cs2Logic.HeldMissing (CS2 closed): the page stays with another account OrbitTweak changed, and one of its files is gone
+  const HELD = 'OrbitTweak hat die Einstellungen für dein Steam-Konto „Kai“ geändert, und bei diesem Konto fehlt jetzt eine Einstellungsdatei. Setz zurück, dann wechselt diese Seite zu deinem aktuellen Steam-Konto. Oder starte CS2 einmal mit diesem Konto, dann legt es die Datei wieder an.';
   Object.assign(m.info, { installed: true, running: false, configFound: true, note: 'Gilt für dein Steam-Konto „Max“. CS2 übernimmt die Werte beim nächsten Start.',
     path: 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Counter-Strike Global Offensive', configPath: 'C:\\Program Files (x86)\\Steam\\userdata\\39734273\\730\\local\\cfg' });
   for (const i of m.items) if (i.id !== 'gpu') Object.assign(i, { available: true, why: '' });
@@ -129,6 +131,14 @@ function ogCs2Preview(kind) {
   if (kind === 'nocfg') {
     Object.assign(m.info, { configFound: false, note: START });
     for (const i of m.items) if (i.id !== 'gpu') Object.assign(i, { available: false, why: START });
+  }
+  if (kind === 'held') {
+    Object.assign(m.info, { configFound: false, note: HELD, configPath: 'C:\\Program Files (x86)\\Steam\\userdata\\51234567\\730\\local\\cfg' });
+    for (const i of m.items) if (i.id !== 'gpu') Object.assign(i, { available: false, why: HELD });
+    // what OrbitTweak changed in the file that is still there shows as changed, so Zurücksetzen is there (as on the host)
+    const f = it('fpsmax');
+    if (!('orig' in f)) f.orig = f.value;
+    if (!f.changed) Object.assign(f, { value: 240, changed: true });
   }
   if (kind === 'missing') {
     Object.assign(m.info, { installed: false, configFound: false, path: null, configPath: null, note: MISSING + ' Installiere es über Steam und starte es einmal.' });

@@ -191,25 +191,43 @@ internal sealed class Cs2Tweaks : IGameTweaks
 
     /// <summary>
     /// Drops the file backups whose value means the same as the file again (<see cref="Cs2Logic.Stale"/>: CS2's own menu
-    /// set it back, or CS2 reset the file), then og.cs2.dir once no file backup is left. Otherwise such a backup would keep
-    /// the page on the account OrbitTweak changed although nothing there counts as changed, and Zurücksetzen would be
-    /// greyed out. A file that cannot be read, or that CS2 is writing right now, keeps its backups. Callers hold Gate, so a
-    /// backup Write() just saved for the file it is about to write is never taken for a stale one.
+    /// set it back, or CS2 reset the file), and the backups of a file that is gone (the account's userdata folder or
+    /// cs2_video.txt deleted: nothing left to restore, Revert() drops them the same way); then og.cs2.dir once no file
+    /// backup is left. Otherwise such a backup would keep the page on the account OrbitTweak changed although nothing
+    /// there counts as changed, and Zurücksetzen would be greyed out. A file that is there but cannot be read, or that CS2
+    /// is writing right now, keeps its backups; a gone file keeps them while CS2 runs (it may be saving it just then).
+    /// Callers hold Gate, so a backup Write() just saved for the file it is about to write is never taken for a stale one.
     /// </summary>
     private static void DropStale()
     {
         var dir = Reg.Get(Bk.User, DirKey) as string;
         if (!string.IsNullOrWhiteSpace(dir))
         {
+            bool? running = null;
             foreach (var file in Fields.Where(f => Bk.Has(f.Backup)).GroupBy(f => f.File))
             {
+                var path = Path.Combine(dir, file.Key);
+                if (Gone(path))
+                {
+                    if (!(running ??= Running())) foreach (var f in file) Bk.Drop(f.Backup);
+                    continue;
+                }
                 string? text = null;
-                try { text = ReadText(Path.Combine(dir, file.Key)).text; } catch { }
+                try { text = ReadText(path).text; } catch { }
                 foreach (var f in file)
                     if (Reg.Get(Bk.User, f.Backup) is string b && Cs2Logic.Stale(text, f.Block, f.Key, f.Convar, b)) Bk.Drop(f.Backup);
             }
         }
         if (dir != null && !AnyFileBackup()) Bk.Drop(DirKey);
+    }
+
+    /// <summary>The file is not there: Windows says so (file or folder not found). A file it only cannot get at (no
+    /// access, a path it refuses) is not gone, so its backups stay.</summary>
+    private static bool Gone(string path)
+    {
+        try { File.GetAttributes(path); return false; }
+        catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException) { return true; }
+        catch { return false; }
     }
 
     // ================================================================== the page
@@ -231,16 +249,17 @@ internal sealed class Cs2Tweaks : IGameTweaks
     {
         var w = Find();
         string? video = null, conv = null;
-        if (w.ConfigFound)
+        if (w.Cfg != null)
         {
-            try { video = ReadText(Path.Combine(w.Cfg!, Cs2Logic.VideoFile)).text; } catch { }
-            try { conv = ReadText(Path.Combine(w.Cfg!, Cs2Logic.ConvarFile)).text; } catch { }
+            // also when one of the two is missing: what OrbitTweak changed in the other one still shows as changed, so
+            // Zurücksetzen can bring it back and let the page follow the account in use again
+            try { video = ReadText(Path.Combine(w.Cfg, Cs2Logic.VideoFile)).text; } catch { }
+            try { conv = ReadText(Path.Combine(w.Cfg, Cs2Logic.ConvarFile)).text; } catch { }
         }
-        bool files = video != null && conv != null;
+        bool files = w.ConfigFound && video != null && conv != null;
         string fileWhy = files ? ""
                        : w.ConfigFound ? "Die Einstellungsdateien von CS2 lassen sich gerade nicht lesen."
-                       : w.Install == null ? Cs2Logic.NotFound
-                       : Cs2Logic.StartOnce;
+                       : Cs2Logic.NoFiles(w.Install != null, w.HeldOther && Running(), w.HeldOther, w.Who);
 
         string? V(string key) => video == null ? null : Cs2Logic.Get(video, Cs2Logic.VideoBlock, key, false);
         string? C(string key) => conv == null ? null : Cs2Logic.Get(conv, Cs2Logic.ConvarBlock, key, true);
@@ -343,7 +362,7 @@ internal sealed class Cs2Tweaks : IGameTweaks
             if (itemId == "gpu") return SetGpu(w, Bool(value));
             if (!Fields.Any(f => f.Item == itemId)) throw new InvalidOperationException("Unbekannte Einstellung.");
             if (!w.ConfigFound || w.Cfg == null)
-                throw new InvalidOperationException(w.Install == null ? Cs2Logic.NotFound : Cs2Logic.StartOnce);
+                throw new InvalidOperationException(Cs2Logic.NoFiles(w.Install != null, w.HeldOther && Running(), w.HeldOther, w.Who));
             if (Running()) throw new InvalidOperationException(Cs2Logic.CloseFirst);
 
             var videoPath = Path.Combine(w.Cfg, Cs2Logic.VideoFile);
