@@ -56,6 +56,8 @@ public static class R6Logic
     public const string NoNvidiaHybrid = "Siege lief zuletzt nicht auf einer NVIDIA-Grafikkarte: hast du eine, schalte „Starke Grafikkarte für Siege“ ein und starte Siege einmal";
     public const string OneGpu = "Nur eine Grafikkarte erkannt: hier ändert sich nichts";
     public const string NoExe = "Spielordner nicht gefunden: OrbitTweak kennt den Pfad zu RainbowSix.exe nicht";
+    /// <summary>The note when only GameSettings.ini was found (Siege uninstalled, or an install OrbitTweak does not know).</summary>
+    public const string NoFolder = "Den Spielordner hat OrbitTweak nicht gefunden: die Spieleinstellungen gehen trotzdem, nur „Starke Grafikkarte für Siege“ braucht ihn";
     public const string FpsRange = "Das FPS-Limit ist 0 (aus) oder mindestens 30.";
     public const string FpsMax = "Das FPS-Limit geht in OrbitTweak bis 500.";
     public const string FpsWhole = "Das FPS-Limit ist eine ganze Zahl.";
@@ -153,6 +155,10 @@ public static class R6Logic
     };
 
     public static R6Spec? Find(string? id) => Specs.FirstOrDefault(s => s.Id == id);
+
+    /// <summary>What "Empfohlene anwenden" sets with this page value now: the spec's RecValue, but an existing Reflex
+    /// "An + Boost" stays (the same rule as FortniteLogic.RecValue and Cs2Logic.ReflexRec).</summary>
+    public static object? RecFor(R6Spec s, object? value) => s.Id == "reflex" && value as string == "2" ? "2" : s.RecValue;
 
     // ------------------------------------------------------------------ values: file ↔ page
     /// <summary>The page value of a line in the file: bool (switch), option value (choice), int (number); null when the key
@@ -381,15 +387,17 @@ public static class R6Logic
 
     // ------------------------------------------------------------------ the page's line
     /// <summary>The one line under the game's name. older: OrbitTweak keeps to the profile it changed first, and that is
-    /// not the one played last.</summary>
+    /// not the one played last. Without the game folder (only the settings file found) it says so, like Fortnite and CS2.</summary>
     public static string Note(bool exeFound, bool configFound, bool running, int profiles, bool older)
     {
         if (!exeFound && !configFound) return "Rainbow Six Siege nicht gefunden (Ubisoft Connect, Steam und Epic geprüft)";
         if (!configFound) return NoConfig;
         if (running) return "Siege läuft gerade: schließ es, dann kannst du die Spieleinstellungen ändern";
-        if (older) return "OrbitTweak bleibt beim Ubisoft-Profil, das es zuerst geändert hat: für ein anderes setz erst zurück";
-        if (profiles > 1) return $"{profiles} Ubisoft-Profile gefunden: OrbitTweak ändert nur das zuletzt gespielte";
-        return "Änderungen wirken ab dem nächsten Start von Siege";
+        var line = older ? "OrbitTweak bleibt beim Ubisoft-Profil, das es zuerst geändert hat: für ein anderes setz erst zurück"
+                 : profiles > 1 ? $"{profiles} Ubisoft-Profile gefunden: OrbitTweak ändert nur das zuletzt gespielte"
+                 : null;
+        if (exeFound) return line ?? "Änderungen wirken ab dem nächsten Start von Siege";
+        return line == null ? NoFolder : line + ". Den Spielordner hat es nicht gefunden, deshalb geht „Starke Grafikkarte für Siege“ nicht";
     }
 
     // ------------------------------------------------------------------ helpers

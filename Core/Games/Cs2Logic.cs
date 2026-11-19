@@ -22,7 +22,7 @@ public static class Cs2Logic
     public static readonly string[] VideoBlock = { "video.cfg" };
     public static readonly string[] ConvarBlock = { "config", "convars" };
 
-    public const string KeyVendor = "VendorID", KeyReflex = "setting.r_low_latency", KeyVsync = "setting.mat_vsync";
+    public const string KeyVendor = "VendorID", KeyDevice = "DeviceID", KeyReflex = "setting.r_low_latency", KeyVsync = "setting.mat_vsync";
     public const string CvFps = "fps_max", CvContrast = "r_player_visibility_mode", CvNetBuffer = "cl_net_buffer_ticks",
         CvTeleFps = "cl_hud_telemetry_frametime_show", CvTelePing = "cl_hud_telemetry_ping_show";
 
@@ -336,6 +336,16 @@ public static class Cs2Logic
     /// </summary>
     public static bool Differs(string key, string backup, string? raw) => Canon(key, backup == Missing ? null : backup) != Canon(key, raw);
 
+    /// <summary>
+    /// A backup that is no longer needed: the value in its file means what the backup holds again (CS2's own menu set it
+    /// back, or CS2 reset the file). Such a backup changes nothing on Zurücksetzen but would keep the page on its account
+    /// (<see cref="PickCfg"/>), so it goes before the folder is picked. A file that could not be read (null: locked, gone)
+    /// or whose block is missing or not closed (CS2 is writing it right now, or a form CS2 does not write) keeps every backup:
+    /// a key that is only missing from half a file must not count as "back to the default".
+    /// </summary>
+    public static bool Stale(string? text, IReadOnlyList<string> block, string key, bool versioned, string backup)
+        => text != null && Find(Parse(text), block) is { Close: >= 0 } b && !Differs(key, backup, PairIn(b, key, versioned)?.Value);
+
     // ------------------------------------------------------------------ values
 
     /// <summary>A number of a settings file: "1", "400.000000", "true"/"false". Null when it is none.</summary>
@@ -362,19 +372,55 @@ public static class Cs2Logic
     public enum Gpu { Unknown, Nvidia, Amd, Intel }
 
     public static Gpu Vendor(string? raw)
+        => PciId(raw) switch { 0x10DE => Gpu.Nvidia, 0x1002 => Gpu.Amd, 0x8086 => Gpu.Intel, _ => Gpu.Unknown };
+
+    /// <summary>A PCI id of cs2_video.txt ("VendorID", "DeviceID"): decimal as CS2 writes it, or 0x hex. Null when it is none.</summary>
+    public static uint? PciId(string? raw)
     {
         var t = raw?.Trim() ?? "";
-        uint id;
         if (t.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
-        {
-            if (!uint.TryParse(t.AsSpan(2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out id)) return Gpu.Unknown;
-        }
-        else if (!uint.TryParse(t, NumberStyles.Integer, CultureInfo.InvariantCulture, out id)) return Gpu.Unknown;
-        return id switch { 0x10DE => Gpu.Nvidia, 0x1002 => Gpu.Amd, 0x8086 => Gpu.Intel, _ => Gpu.Unknown };
+            return uint.TryParse(t.AsSpan(2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var h) ? h : null;
+        return uint.TryParse(t, NumberStyles.Integer, CultureInfo.InvariantCulture, out var d) ? d : null;
     }
 
     /// <summary>The latency item exists with an NVIDIA card (Reflex) or an AMD card (Anti-Lag 2).</summary>
     public static bool HasLowLatency(Gpu g) => g is Gpu.Nvidia or Gpu.Amd;
+
+    /// <summary>
+    /// The card can use the latency item: Reflex needs a GeForce GTX 900 or newer, Anti-Lag 2 an RDNA chip (Radeon RX 5000
+    /// or newer, or an RDNA APU); on older cards CS2 does not offer it and the setting does nothing. On purpose only clearly
+    /// old families are ruled out, by the "DeviceID" CS2 writes next to "VendorID": NVIDIA below 0x1340 (Fermi and Kepler,
+    /// e.g. GTX 780 0x1004, GTX 760 0x1187, GT 710 0x128B; Maxwell starts at 0x1340), AMD discrete GCN, Polaris and Vega
+    /// (0x6600 to 0x6FFF, Fiji 0x7300 to 0x730F) and the Vega and older GCN APUs below. Any other or unknown id stays
+    /// available, so a new card never loses the item.
+    /// </summary>
+    public static bool LowLatencySupported(Gpu g, string? deviceIdRaw)
+    {
+        if (!HasLowLatency(g)) return false;
+        if (PciId(deviceIdRaw) is not { } id) return true;
+        if (g == Gpu.Nvidia) return id >= 0x1340;
+        return !(id is >= 0x6600 and <= 0x6FFF or >= 0x7300 and <= 0x730F || OldAmdApus.Contains(id));
+    }
+
+    /// <summary>Raven 0x15DD, Picasso/Dali 0x15D8, Renoir 0x1636, Cezanne 0x1638, Lucienne 0x164C, Barcelo 0x15E7,
+    /// Stoney 0x98E4, Carrizo 0x9874: Vega or older GCN graphics, no Anti-Lag 2.</summary>
+    private static readonly uint[] OldAmdApus = { 0x15DD, 0x15D8, 0x1636, 0x1638, 0x164C, 0x15E7, 0x98E4, 0x9874 };
+
+    /// <summary>Why the latency item is not there on this card (one line, no full stop).</summary>
+    public static string LowLatencyWhy(Gpu g) => g switch
+    {
+        Gpu.Nvidia => "Reflex gibt es erst ab GeForce GTX 900: auf dieser Grafikkarte bietet CS2 es nicht an",
+        Gpu.Amd => "Anti-Lag 2 gibt es erst ab Radeon RX 5000 (RDNA): auf diesem Grafikchip bietet CS2 es nicht an",
+        _ => "Nur mit NVIDIA- oder AMD-Grafikkarte",
+    };
+
+    /// <summary>The short line of the latency item, with what it needs (so a card the check lets through still says it).</summary>
+    public static string ReflexSum(Gpu g) => "Senkt die Verzögerung zwischen Mausklick und Bild" + g switch
+    {
+        Gpu.Nvidia => ", ab GeForce GTX 900",
+        Gpu.Amd => ", ab Radeon RX 5000",
+        _ => ", ab NVIDIA GTX 900 oder AMD RX 5000",
+    };
 
     public static string ReflexTitle(Gpu g) => g switch
     {
@@ -404,10 +450,10 @@ public static class Cs2Logic
     /// <summary>"Empfohlene anwenden" turns it on, but keeps a Boost the user chose.</summary>
     public static string ReflexRec(string shown) => shown == "2" ? "2" : "1";
 
-    /// <summary>Why a latency value is refused, or null when it may be written.</summary>
-    public static string? ReflexError(string? v, Gpu g)
+    /// <summary>Why a latency value is refused, or null when it may be written. deviceId: "DeviceID" of cs2_video.txt.</summary>
+    public static string? ReflexError(string? v, Gpu g, string? deviceId = null)
     {
-        if (!HasLowLatency(g)) return "Nur mit NVIDIA- oder AMD-Grafikkarte.";
+        if (!LowLatencySupported(g, deviceId)) return LowLatencyWhy(g) + ".";
         if (v is not ("0" or "1" or "2")) return "Wähle Aus, An oder An + Boost.";
         if (v == "2" && g == Gpu.Amd) return "AMD Anti-Lag 2 hat keinen Boost. Wähle Aus oder An.";
         return null;
@@ -522,7 +568,8 @@ public static class Cs2Logic
 
     /// <summary>
     /// The settings folder to work on: while OrbitTweak holds backups, the folder they belong to (so "Zurücksetzen" and
-    /// further changes stay with that account after a switch), else the one found now.
+    /// further changes stay with that account after a switch), else the one found now. Backups that no longer change
+    /// anything (<see cref="Stale"/>) are dropped before, so they never hold the page on an account.
     /// </summary>
     public static string? PickCfg(string? stored, bool anyBackup, string? detected)
         => anyBackup && !string.IsNullOrWhiteSpace(stored) ? stored : detected;

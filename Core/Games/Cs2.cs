@@ -66,8 +66,15 @@ internal sealed class Cs2Tweaks : IGameTweaks
             w.Exe = Path.Combine(w.Install, "game", "bin", "win64", "cs2.exe");
 
         var (detected, fromEnv) = DetectCfg(w.Steam, out var users);
-        var stored = Reg.Get(Bk.User, DirKey) as string;
-        w.Cfg = Cs2Logic.PickCfg(stored, AnyFileBackup(), detected);
+        string? stored;
+        bool backed;
+        lock (Gate)
+        {
+            DropStale();
+            stored = Reg.Get(Bk.User, DirKey) as string;
+            backed = AnyFileBackup();
+        }
+        w.Cfg = Cs2Logic.PickCfg(stored, backed, detected);
         w.FromEnv = fromEnv && string.Equals(w.Cfg, detected, StringComparison.OrdinalIgnoreCase);
         w.HeldOther = w.Cfg != null && detected != null && !string.Equals(w.Cfg, detected, StringComparison.OrdinalIgnoreCase);
         if (Cs2Logic.AccountOfCfg(w.Cfg) is { } acc) w.Who = Cs2Logic.Who(acc, users.FirstOrDefault(u => u.Account == acc)?.Persona);
@@ -182,6 +189,29 @@ internal sealed class Cs2Tweaks : IGameTweaks
 
     private static bool AnyFileBackup() => Fields.Any(f => Bk.Has(f.Backup));
 
+    /// <summary>
+    /// Drops the file backups whose value means the same as the file again (<see cref="Cs2Logic.Stale"/>: CS2's own menu
+    /// set it back, or CS2 reset the file), then og.cs2.dir once no file backup is left. Otherwise such a backup would keep
+    /// the page on the account OrbitTweak changed although nothing there counts as changed, and Zurücksetzen would be
+    /// greyed out. A file that cannot be read, or that CS2 is writing right now, keeps its backups. Callers hold Gate, so a
+    /// backup Write() just saved for the file it is about to write is never taken for a stale one.
+    /// </summary>
+    private static void DropStale()
+    {
+        var dir = Reg.Get(Bk.User, DirKey) as string;
+        if (!string.IsNullOrWhiteSpace(dir))
+        {
+            foreach (var file in Fields.Where(f => Bk.Has(f.Backup)).GroupBy(f => f.File))
+            {
+                string? text = null;
+                try { text = ReadText(Path.Combine(dir, file.Key)).text; } catch { }
+                foreach (var f in file)
+                    if (Reg.Get(Bk.User, f.Backup) is string b && Cs2Logic.Stale(text, f.Block, f.Key, f.Convar, b)) Bk.Drop(f.Backup);
+            }
+        }
+        if (dir != null && !AnyFileBackup()) Bk.Drop(DirKey);
+    }
+
     // ================================================================== the page
 
     public GameInfo Info()
@@ -218,6 +248,7 @@ internal sealed class Cs2Tweaks : IGameTweaks
             Reg.Get(Bk.User, f.Backup) is string b && Cs2Logic.Differs(f.Key, b, f.Convar ? C(f.Key) : V(f.Key)));
 
         var vendor = Cs2Logic.Vendor(V(Cs2Logic.KeyVendor));
+        bool lowLatency = Cs2Logic.LowLatencySupported(vendor, V(Cs2Logic.KeyDevice));
         var reflex = Cs2Logic.Reflex(V(Cs2Logic.KeyReflex), vendor);
         bool gpuBacked = GpuPrefs.Backed(GpuBk).Length > 0;
 
@@ -226,13 +257,13 @@ internal sealed class Cs2Tweaks : IGameTweaks
             new()
             {
                 Id = "reflex", Title = Cs2Logic.ReflexTitle(vendor), Kind = "choice",
-                Sum = "Senkt die Verzögerung zwischen Mausklick und Bild",
+                Sum = Cs2Logic.ReflexSum(vendor),
                 Desc = "Schaltet die Latenzbremse, die in CS2 eingebaut ist (Einstellungen › Video › Erweitert › Frame-Pacing). Mit einer NVIDIA-Karte ist das Reflex, mit AMD ist es Anti-Lag 2. CS2 lässt dann keine Bilder mehr in der Warteschlange der Grafikkarte warten. Das senkt die Systemlatenz vor allem, wenn deine Grafikkarte voll ausgelastet ist (NVIDIA nennt bis zu 35 %), und kostet praktisch keine FPS. Standard ist „An“. „An + Boost“ gibt es nur bei NVIDIA: Es hält den Grafiktakt zusätzlich hoch. Das drückt die Verzögerung noch etwas weiter, kann laut Valve aber mehr Strom ziehen und die FPS leicht senken. Es lohnt sich also nur, wenn dir die niedrigste Latenz wichtiger ist als die höchsten FPS. Reflex im Spiel ersetzt den „Modus für niedrige Latenz“ im NVIDIA-Treiber. Du brauchst NVIDIA ab GTX 900 oder AMD ab RX 5000 mit aktuellem Treiber; mit Intel-Grafik bietet CS2 die Option nicht an. Wenn dir damit Ruckler auffallen, schalte es testweise aus.",
                 Value = reflex, Options = Cs2Logic.ReflexOptions(vendor).Select(o => new GameOption(o.v, o.t)).ToList(),
                 Rec = true, RecValue = Cs2Logic.ReflexRec(reflex), Effect = "latency", NeedsClosed = true,
                 Source = "Eigene CS2-Einstellung (setting.r_low_latency). Tooltip von Valve: Boost kann mehr Strom ziehen und FPS kosten. NVIDIA: bis zu 35 % weniger Systemlatenz in CS2. AMD Anti-Lag 2 ist seit Treiber 24.6.1 in CS2 eingebaut.",
-                Available = files && Cs2Logic.HasLowLatency(vendor),
-                Why = !files ? fileWhy : Cs2Logic.HasLowLatency(vendor) ? "" : "Nur mit NVIDIA- oder AMD-Grafikkarte",
+                Available = files && lowLatency,
+                Why = !files ? fileWhy : lowLatency ? "" : Cs2Logic.LowLatencyWhy(vendor),
                 Changed = IsChanged("reflex"),
             },
             new()
@@ -321,9 +352,10 @@ internal sealed class Cs2Tweaks : IGameTweaks
             {
                 case "reflex":
                 {
-                    var vendor = Cs2Logic.Vendor(Cs2Logic.Get(ReadText(videoPath).text, Cs2Logic.VideoBlock, Cs2Logic.KeyVendor, false));
+                    var video = ReadText(videoPath).text;
+                    var vendor = Cs2Logic.Vendor(Cs2Logic.Get(video, Cs2Logic.VideoBlock, Cs2Logic.KeyVendor, false));
                     var v = Str(value);
-                    if (Cs2Logic.ReflexError(v, vendor) is { } e) throw new InvalidOperationException(e);
+                    if (Cs2Logic.ReflexError(v, vendor, Cs2Logic.Get(video, Cs2Logic.VideoBlock, Cs2Logic.KeyDevice, false)) is { } e) throw new InvalidOperationException(e);
                     Write(w.Cfg, F("reflex"), v);
                     return Cs2Logic.Reflex(Cs2Logic.Get(ReadText(videoPath).text, Cs2Logic.VideoBlock, Cs2Logic.KeyReflex, false), vendor);
                 }

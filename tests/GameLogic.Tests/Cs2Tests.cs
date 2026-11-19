@@ -178,6 +178,31 @@ internal static class Cs2Tests
         Check(!Cs2Logic.Differs(Cs2Logic.KeyReflex, "-", "1") && Cs2Logic.Differs(Cs2Logic.KeyReflex, "-", "2"), "cs2: a missing Reflex line and \"1\" mean the same");
         Check(!Cs2Logic.Differs(Cs2Logic.CvContrast, "1", "true") && Cs2Logic.Differs(Cs2Logic.CvContrast, "1", "0"), "cs2: contrast by meaning");
         Check(Cs2Logic.Differs(Cs2Logic.CvTelePing, "-", "2") && !Cs2Logic.Differs(Cs2Logic.CvTelePing, "-", null), "cs2: telemetry by meaning");
+
+        // stale backups: the file means what the backup holds again (CS2's menu set it back, or CS2 reset the file)
+        Check(Cs2Logic.Stale(Conv, C, Cs2Logic.CvFps, true, "400") && Cs2Logic.Stale(Conv, C, Cs2Logic.CvFps, true, "-"), "cs2: an fps_max backup equal in meaning (400 vs 400.000000, or no line) is stale");
+        Check(Cs2Logic.Stale(Video, V, Cs2Logic.KeyReflex, false, "-") && Cs2Logic.Stale(Video, V, Cs2Logic.KeyReflex, false, "1.000000"), "cs2: a Reflex backup \"-\" or 1 is stale when the file says 1");
+        Check(!Cs2Logic.Stale(Conv, C, Cs2Logic.CvFps, true, "240") && !Cs2Logic.Stale(Video, V, Cs2Logic.KeyReflex, false, "2"), "cs2: a backup that still differs is kept");
+        var noReflex = Video.Replace("\t\"setting.r_low_latency\"\t\t\"1\"\n", "");
+        Check(Cs2Logic.Stale(noReflex, V, Cs2Logic.KeyReflex, false, "-") && !Cs2Logic.Stale(noReflex, V, Cs2Logic.KeyReflex, false, "0"), "cs2: a missing Reflex line counts as its default 1");
+        Check(!Cs2Logic.Stale(null, V, Cs2Logic.KeyReflex, false, "-") && !Cs2Logic.Stale(null, C, Cs2Logic.CvFps, true, "400"), "cs2: a file that could not be read keeps its backups");
+        var half = Video[..Video.IndexOf("\t\"setting.r_low_latency\"", StringComparison.Ordinal)];
+        Check(!Cs2Logic.Stale(half, V, Cs2Logic.KeyReflex, false, "-") && !Cs2Logic.Stale("", V, Cs2Logic.KeyReflex, false, "-") && !Cs2Logic.Stale(Video, C, Cs2Logic.CvFps, true, "-"),
+            "cs2: half a file (CS2 writing it), an empty file or a missing block keep the backups");
+        var v2 = Conv.Replace("\t\t\"r_player_visibility_mode\"", "\t\t\"fps_max$2\"\t\t\"240\"\r\n\t\t\"r_player_visibility_mode\"");
+        Check(!Cs2Logic.Stale(v2, C, Cs2Logic.CvFps, true, "400.000000") && Cs2Logic.Stale(v2, C, Cs2Logic.CvFps, true, "240"), "cs2: a stale check reads the newest $N version");
+
+        // the pin follows: once every file backup is stale the page goes back to the account found now
+        var held = new Dictionary<(string text, string[] block, string key, bool conv), string>
+        {
+            [(Video, V, Cs2Logic.KeyReflex, false)] = "-",
+            [(Conv, C, Cs2Logic.CvFps, true)] = "400.000000",
+        };
+        var left = held.Where(kv => !Cs2Logic.Stale(kv.Key.text, kv.Key.block, kv.Key.key, kv.Key.conv, kv.Value)).ToList();
+        Check(left.Count == 0 && Cs2Logic.PickCfg(@"C:\a", left.Count > 0, @"C:\b") == @"C:\b", "cs2: all backups stale: the page follows the account found now");
+        held[(Conv, C, Cs2Logic.CvFps, true)] = "240";
+        left = held.Where(kv => !Cs2Logic.Stale(kv.Key.text, kv.Key.block, kv.Key.key, kv.Key.conv, kv.Value)).ToList();
+        Check(left.Count == 1 && Cs2Logic.PickCfg(@"C:\a", left.Count > 0, @"C:\b") == @"C:\a", "cs2: one backup still changes something: the page stays with its account");
     }
 
     private static void Bytes(Action<bool, string> Check)
@@ -229,6 +254,37 @@ internal static class Cs2Tests
         Check(Cs2Logic.ReflexError("2", Cs2Logic.Gpu.Nvidia) == null && Cs2Logic.ReflexError("0", Cs2Logic.Gpu.Nvidia) == null, "cs2: boost and off fine on NVIDIA");
         Check(Cs2Logic.ReflexError("3", Cs2Logic.Gpu.Nvidia) != null && Cs2Logic.ReflexError(null, Cs2Logic.Gpu.Nvidia) != null && Cs2Logic.ReflexError("1.0", Cs2Logic.Gpu.Nvidia) != null,
             "cs2: other Reflex values refused");
+
+        // Reflex from GTX 900, Anti-Lag 2 from RDNA: only clearly old families by DeviceID (decimal as CS2 writes it)
+        Check(Cs2Logic.PciId("26591") == 0x67DFu && Cs2Logic.PciId("0x15BF") == 0x15BFu && Cs2Logic.PciId(" 4487 ") == 0x1187u, "cs2: PCI ids decimal or hex");
+        Check(Cs2Logic.PciId(null) == null && Cs2Logic.PciId("") == null && Cs2Logic.PciId("0xZZ") == null && Cs2Logic.PciId("-1") == null, "cs2: no PCI id from junk");
+        Check(!Cs2Logic.LowLatencySupported(Cs2Logic.Gpu.Amd, "26591"), "cs2: RX 580 (Polaris 0x67DF) has no Anti-Lag 2");
+        Check(!Cs2Logic.LowLatencySupported(Cs2Logic.Gpu.Nvidia, "4487") && !Cs2Logic.LowLatencySupported(Cs2Logic.Gpu.Nvidia, "4100") && !Cs2Logic.LowLatencySupported(Cs2Logic.Gpu.Nvidia, "4747"),
+            "cs2: GTX 760, GTX 780 and GT 710 (Kepler) have no Reflex");
+        Check(Cs2Logic.LowLatencySupported(Cs2Logic.Gpu.Nvidia, "7171") && Cs2Logic.LowLatencySupported(Cs2Logic.Gpu.Nvidia, "11266"), "cs2: GTX 1060 and a new GeForce have Reflex");
+        Check(Cs2Logic.LowLatencySupported(Cs2Logic.Gpu.Nvidia, "4928") && !Cs2Logic.LowLatencySupported(Cs2Logic.Gpu.Nvidia, "4927"), "cs2: Maxwell from 0x1340 stays available, below is Kepler");
+        Check(Cs2Logic.LowLatencySupported(Cs2Logic.Gpu.Amd, "29772") && Cs2Logic.LowLatencySupported(Cs2Logic.Gpu.Amd, "0x15BF") && Cs2Logic.LowLatencySupported(Cs2Logic.Gpu.Amd, "29631"),
+            "cs2: RDNA cards and an RDNA APU (Phoenix) have Anti-Lag 2");
+        Check(!Cs2Logic.LowLatencySupported(Cs2Logic.Gpu.Amd, "26751") && !Cs2Logic.LowLatencySupported(Cs2Logic.Gpu.Amd, "26287") && !Cs2Logic.LowLatencySupported(Cs2Logic.Gpu.Amd, "29440"),
+            "cs2: Vega 64, Radeon VII and Fiji have no Anti-Lag 2");
+        Check(Cs2Logic.LowLatencySupported(Cs2Logic.Gpu.Amd, "29456") && !Cs2Logic.LowLatencySupported(Cs2Logic.Gpu.Amd, "29455"), "cs2: Navi 10 (0x7310) right after Fiji (up to 0x730F) has it");
+        Check(!Cs2Logic.LowLatencySupported(Cs2Logic.Gpu.Amd, "5597") && !Cs2Logic.LowLatencySupported(Cs2Logic.Gpu.Amd, "0x1638") && !Cs2Logic.LowLatencySupported(Cs2Logic.Gpu.Amd, "39140"),
+            "cs2: Vega and older GCN APUs (Raven, Cezanne, Stoney) have no Anti-Lag 2");
+        Check(Cs2Logic.LowLatencySupported(Cs2Logic.Gpu.Nvidia, null) && Cs2Logic.LowLatencySupported(Cs2Logic.Gpu.Amd, "") && Cs2Logic.LowLatencySupported(Cs2Logic.Gpu.Nvidia, "garbage"),
+            "cs2: an unknown DeviceID keeps the item available");
+        Check(!Cs2Logic.LowLatencySupported(Cs2Logic.Gpu.Intel, "7171") && !Cs2Logic.LowLatencySupported(Cs2Logic.Gpu.Unknown, null), "cs2: never without NVIDIA or AMD");
+        Check(Cs2Logic.ReflexError("1", Cs2Logic.Gpu.Nvidia, "4487") == Cs2Logic.LowLatencyWhy(Cs2Logic.Gpu.Nvidia) + "." && Cs2Logic.ReflexError("0", Cs2Logic.Gpu.Amd, "26591") != null,
+            "cs2: an old card refuses every latency value with the reason");
+        Check(Cs2Logic.ReflexError("2", Cs2Logic.Gpu.Nvidia, "7171") == null && Cs2Logic.ReflexError("1", Cs2Logic.Gpu.Amd, "29772") == null, "cs2: a supported card takes them");
+        Check(Cs2Logic.LowLatencyWhy(Cs2Logic.Gpu.Nvidia).Contains("GTX 900") && Cs2Logic.LowLatencyWhy(Cs2Logic.Gpu.Amd).Contains("RX 5000")
+              && Cs2Logic.LowLatencyWhy(Cs2Logic.Gpu.Intel) == "Nur mit NVIDIA- oder AMD-Grafikkarte", "cs2: the reason names what the card needs");
+        foreach (var g in new[] { Cs2Logic.Gpu.Nvidia, Cs2Logic.Gpu.Amd, Cs2Logic.Gpu.Intel, Cs2Logic.Gpu.Unknown })
+        {
+            var why = Cs2Logic.LowLatencyWhy(g);
+            Check(!why.EndsWith('.') && !why.Contains(" Sie ") && !why.Contains('\n'), $"cs2: reason is one du-line without full stop: {why}");
+            Check(Cs2Logic.ReflexSum(g).StartsWith("Senkt die Verzögerung") && Cs2Logic.ReflexSum(g).Contains("ab ") && !Cs2Logic.ReflexSum(g).EndsWith('.'), $"cs2: the short line says what it needs ({g})");
+        }
+        Check(Cs2Logic.Get(Video, V, Cs2Logic.KeyDevice, false) == "11266", "cs2: DeviceID is read from cs2_video.txt");
 
         Check(Cs2Logic.FpsMax(null) == 400 && Cs2Logic.FpsMax("400.000000") == 400 && Cs2Logic.FpsMax("0") == 0 && Cs2Logic.FpsMax("143.6") == 144, "cs2: fps_max read");
         Check(Cs2Logic.FpsMax("-5") == 0 && Cs2Logic.FpsMax("1e9") == 100_000, "cs2: fps_max read in range");

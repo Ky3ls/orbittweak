@@ -70,4 +70,9 @@
       }),
     ],
   };
+  // like R6Logic.RecFor: "Empfohlene anwenden" turns Reflex on but keeps a chosen boost. The getter sits on the item
+  // itself (inside item({ … }) the spread would read it once), so it follows og.set and og.revert.
+  Object.defineProperty(OG_MOCK['r6'].items.find(i => i.id === 'reflex'), 'recValue', {
+    get() { return this.value === '2' ? '2' : '1'; }, enumerable: true, configurable: true,
+  });
 }

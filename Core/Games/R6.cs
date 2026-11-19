@@ -28,8 +28,9 @@ internal sealed class R6Tweaks : IGameTweaks
         {
             Id = Id,
             Name = Name,
-            // a found settings file counts too: an install the registry does not know (Xbox app …) still gets the INI items
-            Installed = dir != null || t.File != null,
+            // the install itself: a GameSettings.ini left behind after an uninstall is "Nur Einstellungen gefunden" on the
+            // page, and its INI items still work (og.js ogMissing needs neither the folder nor the file)
+            Installed = dir != null,
             Path = dir,
             Running = running,
             ConfigFound = t.File != null,
@@ -80,7 +81,7 @@ internal sealed class R6Tweaks : IGameTweaks
         Step = s.Step,
         Unit = s.Unit,
         Rec = s.Rec,
-        RecValue = s.RecValue,
+        RecValue = R6Logic.RecFor(s, value),
         Effect = s.Effect,
         Source = s.Source,
         NeedsClosed = s.NeedsClosed,
@@ -206,7 +207,8 @@ internal sealed class R6Tweaks : IGameTweaks
     private sealed record Target(string? File, int Profiles, bool Backed, bool Older);
 
     /// <summary>While OrbitTweak has backups it stays with that profile's file, so Zurücksetzen goes back to the same one;
-    /// otherwise the GameSettings.ini written last (the account that played last).</summary>
+    /// otherwise the GameSettings.ini written last (the account that played last). The file times are Siege's own: Write()
+    /// keeps a file's time, so OrbitTweak's changes and Zurücksetzen never make a profile count as played last.</summary>
     private static Target Pick()
     {
         var all = Profiles();
@@ -256,10 +258,13 @@ internal sealed class R6Tweaks : IGameTweaks
     }
 
     /// <summary>All at once: the new text goes to a temp file next to it, which then replaces the file (CRLF, encoding and
-    /// every other byte stay). A read-only file is not unlocked: the user set that on purpose.</summary>
+    /// every other byte stay). A read-only file is not unlocked: the user set that on purpose. The file keeps the time Siege
+    /// saved it at (File.Replace takes the temp file's), because Pick() goes by it to find the profile played last.</summary>
     private static void Write(string file, string text, bool bom)
     {
-        if (new FileInfo(file).IsReadOnly) throw Err(R6Logic.ReadOnly);
+        var info = new FileInfo(file);
+        if (info.Exists && info.IsReadOnly) throw Err(R6Logic.ReadOnly);
+        DateTime? saved = info.Exists ? info.LastWriteTimeUtc : null;
         var tmp = file + ".orbittweak.tmp";
         try
         {
@@ -269,6 +274,8 @@ internal sealed class R6Tweaks : IGameTweaks
                 fs.Flush(true);
             }
             File.Replace(tmp, file, null);
+            // the new text is in: a time that cannot be put back is no reason to report the change as failed
+            if (saved is { } at) try { File.SetLastWriteTimeUtc(file, at); } catch { }
         }
         catch (IOException e) when (e is FileNotFoundException or DirectoryNotFoundException) { throw Err(R6Logic.NoConfig); }
         // access denied while the file is not read-only: Windows' ransomware protection or the permissions, not a lock

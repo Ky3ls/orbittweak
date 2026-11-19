@@ -11,6 +11,7 @@ namespace OrbitTweak;
 ///   og.set { game, id, value } → { ok, value }   (a refused change comes back as a German error)
 ///   og.apply { game } → { ok, applied, failed: [{ id, title, error }] }   ("Empfohlene anwenden": every Rec item to RecValue)
 ///   og.revert { game } → { ok, reverted }
+/// Each change goes to the activity feed in the page's words (Core/Games/GameFeedLogic.cs).
 /// </summary>
 public partial class MainWindow
 {
@@ -32,12 +33,14 @@ public partial class MainWindow
                 var g = OtherGames.Get(Str(a, "game"));
                 var id = Str(a, "id");
                 var v = a.TryGetProperty("value", out var p) ? p.Clone() : default;
-                var (now, title) = await Task.Run(() =>
+                var (now, it) = await Task.Run(() =>
                 {
-                    var t = g.Items().FirstOrDefault(i => i.Id == id)?.Title ?? id;
-                    return (g.Set(id, v), t);
+                    var item = g.Items().FirstOrDefault(i => i.Id == id);
+                    return (g.Set(id, v), item);
                 });
-                Log($"🎮 {g.Name}: {title} → {Shown(now)}");
+                // the feed says it like the page: the option's label, the number with its unit, an/aus
+                var shown = GameFeedLogic.Value(it?.Kind, it?.Options?.Select(o => (o.V, o.T)), it?.Unit, now);
+                Log($"🎮 {g.Name}: {it?.Title ?? id} → {shown}");
                 return new { ok = true, value = now };
             }
 
@@ -55,7 +58,7 @@ public partial class MainWindow
                     }
                     return (n, bad);
                 });
-                if (applied > 0) Log($"🎮 {g.Name}: {applied} empfohlene Einstellungen gesetzt");
+                if (applied > 0) Log($"🎮 {g.Name}: {GameFeedLogic.Applied(applied)}");
                 return new { ok = failed.Count == 0, applied, failed };
             }
 
@@ -63,7 +66,7 @@ public partial class MainWindow
             {
                 var g = OtherGames.Get(Str(a, "game"));
                 int n = await Task.Run(g.Revert);
-                if (n > 0) Log($"↺ {g.Name}: {n} Einstellungen zurückgesetzt");
+                if (n > 0) Log($"↺ {g.Name}: {GameFeedLogic.Reverted(n)}");
                 return new { ok = true, reverted = n };
             }
         }
@@ -76,6 +79,4 @@ public partial class MainWindow
         try { return g.Info(); }
         catch { return new GameInfo { Id = g.Id, Name = g.Name }; }
     }
-
-    private static string Shown(object? v) => v switch { null => "–", bool b => b ? "an" : "aus", _ => v.ToString() ?? "" };
 }

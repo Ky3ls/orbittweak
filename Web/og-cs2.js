@@ -1,7 +1,8 @@
 'use strict';
 /* 2.30 – Counter-Strike 2: browser preview data for the page "Andere Spiele" (og.js), the same shapes as Core/Games/Cs2.cs
    (camelCase, nulls included). The preview PC: NVIDIA card, one GPU, CS2 closed, settings found.
-   ogCs2Preview('amd' | 'intel' | 'running' | 'nocfg' | 'missing' | 'nvidia') switches the preview to another state. */
+   ogCs2Preview('amd' | 'oldamd' | 'oldnvidia' | 'intel' | 'running' | 'nocfg' | 'missing' | 'nvidia') switches the preview to
+   another state. */
 OG_MOCK['cs2'] = {
   info: {
     id: 'cs2', name: 'Counter-Strike 2', installed: true,
@@ -14,7 +15,7 @@ OG_MOCK['cs2'] = {
   items: [
     {
       id: 'reflex', title: 'NVIDIA Reflex', kind: 'choice',
-      sum: 'Senkt die Verzögerung zwischen Mausklick und Bild',
+      sum: 'Senkt die Verzögerung zwischen Mausklick und Bild, ab GeForce GTX 900',
       desc: 'Schaltet die Latenzbremse, die in CS2 eingebaut ist (Einstellungen › Video › Erweitert › Frame-Pacing). Mit einer NVIDIA-Karte ist das Reflex, mit AMD ist es Anti-Lag 2. CS2 lässt dann keine Bilder mehr in der Warteschlange der Grafikkarte warten. Das senkt die Systemlatenz vor allem, wenn deine Grafikkarte voll ausgelastet ist (NVIDIA nennt bis zu 35 %), und kostet praktisch keine FPS. Standard ist „An“. „An + Boost“ gibt es nur bei NVIDIA: Es hält den Grafiktakt zusätzlich hoch. Das drückt die Verzögerung noch etwas weiter, kann laut Valve aber mehr Strom ziehen und die FPS leicht senken. Es lohnt sich also nur, wenn dir die niedrigste Latenz wichtiger ist als die höchsten FPS. Reflex im Spiel ersetzt den „Modus für niedrige Latenz“ im NVIDIA-Treiber. Du brauchst NVIDIA ab GTX 900 oder AMD ab RX 5000 mit aktuellem Treiber; mit Intel-Grafik bietet CS2 die Option nicht an. Wenn dir damit Ruckler auffallen, schalte es testweise aus.',
       value: '1', options: [{ v: '0', t: 'Aus' }, { v: '1', t: 'An (Standard)' }, { v: '2', t: 'An + Boost (nur NVIDIA)' }],
       min: null, max: null, step: null, unit: null,
@@ -117,9 +118,13 @@ function ogCs2Preview(kind) {
   Object.assign(it('gpu'), { available: false, why: 'Nur eine Grafikkarte erkannt: hier ändert sich nichts' });
   const r = it('reflex');
   const nvidia = [{ v: '0', t: 'Aus' }, { v: '1', t: 'An (Standard)' }, { v: '2', t: 'An + Boost (nur NVIDIA)' }];
-  Object.assign(r, { title: 'NVIDIA Reflex', options: nvidia });
-  if (kind === 'amd') { Object.assign(r, { title: 'AMD Anti-Lag 2', options: nvidia.slice(0, 2) }); if (r.value === '2') r.value = '1'; }
-  if (kind === 'intel') Object.assign(r, { title: 'NVIDIA Reflex / AMD Anti-Lag 2', options: nvidia, available: false, why: 'Nur mit NVIDIA- oder AMD-Grafikkarte' });
+  // Cs2Logic.ReflexTitle, ReflexSum and LowLatencyWhy per vendor; 'old…' is a card older than GTX 900 or RDNA (by DeviceID)
+  const SUM = 'Senkt die Verzögerung zwischen Mausklick und Bild';
+  Object.assign(r, { title: 'NVIDIA Reflex', sum: SUM + ', ab GeForce GTX 900', options: nvidia });
+  if (kind === 'amd' || kind === 'oldamd') { Object.assign(r, { title: 'AMD Anti-Lag 2', sum: SUM + ', ab Radeon RX 5000', options: nvidia.slice(0, 2) }); if (r.value === '2') r.value = '1'; }
+  if (kind === 'oldamd') Object.assign(r, { available: false, why: 'Anti-Lag 2 gibt es erst ab Radeon RX 5000 (RDNA): auf diesem Grafikchip bietet CS2 es nicht an' });
+  if (kind === 'oldnvidia') Object.assign(r, { available: false, why: 'Reflex gibt es erst ab GeForce GTX 900: auf dieser Grafikkarte bietet CS2 es nicht an' });
+  if (kind === 'intel') Object.assign(r, { title: 'NVIDIA Reflex / AMD Anti-Lag 2', sum: SUM + ', ab NVIDIA GTX 900 oder AMD RX 5000', options: nvidia, available: false, why: 'Nur mit NVIDIA- oder AMD-Grafikkarte' });
   if (kind === 'running') Object.assign(m.info, { running: true, note: 'CS2 läuft gerade. Schließ es, bevor du hier etwas änderst, sonst überschreibt es die Werte beim Beenden.' });
   if (kind === 'nocfg') {
     Object.assign(m.info, { configFound: false, note: START });
