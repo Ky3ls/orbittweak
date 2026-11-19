@@ -99,6 +99,7 @@
     ['input', 'Input-Lab', 'keyboard', 'Tastatur und Maus testen', 'tastatur maus snap tap polling rate hz reaktion wasd tester'],
     ['games', 'Minigames', 'aim', 'Aim-Training vor dem Spielen', 'aim training zielen reaktion aufwärmen warm up minigame'],
     ['tweaks', 'Tweaks', 'zap', 'Windows-Einstellungen fürs Spiel', 'fps leistung boost windows optimieren schalter performance'],
+    ['og', 'Andere Spiele', 'target', 'Tweaks für Fortnite, Counter-Strike 2 und Rainbow Six Siege', 'fortnite cs2 counter-strike cs r6 rainbow six siege spiele games reflex vsync fps limit'],
     ['cleaner', 'Cleaner', 'trash', 'Caches und Reste entfernen', 'speicher platz cache temp müll aufräumen festplatte ssd voll ram arbeitsspeicher löschen'],
     ['autostart', 'Autostart', 'power', 'Programme, die mit Windows starten', 'hochfahren start langsam programme autostart windows boot store apps teams whatsapp'],
     ['diag', 'Diagnose', 'heart', 'Ursachen für Ruckler, Abstürze und Ladeprobleme', 'absturz abstürze crash ruckler ruckeln stottern fehler logs probleme check lädt laden hängt freeze'],
