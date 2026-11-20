@@ -2272,7 +2272,7 @@ window.clipDel = clipDel;
 function initClip(s) { Object.assign(CL, s.clip || {}); MO.music = CL.montageMusic ? CL.montageMusic.split(/[\\/]/).pop() : null; clipUI(); clipPush(); }
 
 /* ======================= MODS ======================= */
-const MOD_CATS = { minimap: ['Minimap', 'map', 'Eigene Karten & Farben'], kill: ['Kill-Effekte', 'crosshair', 'Effekte bei Treffern & Kills'], gfx: ['Grafik-Packs', 'sun', 'Licht, Wetter, Farben'], sound: ['Sounds', 'volume', 'Waffen & Fahrzeuge'], skin: ['Waffen-Skins', 'layers', 'Skins & Texturen für Waffen'], other: ['Sonstiges', 'puzzle', 'Alles andere'] };
+const MOD_CATS = { minimap: ['Minimap', 'map', 'Eigene Karten & Farben'], kill: ['Kill-Effekte', 'crosshair', 'Effekte bei Treffern & Kills'], gfx: ['Grafik-Packs', 'sun', 'Licht, Wetter, Farben'], sound: ['Sounds', 'volume', 'Waffen & Fahrzeuge'], skin: ['Waffen-Skins', 'brush', 'Skins & Texturen für Waffen'], other: ['Sonstiges', 'puzzle', 'Alles andere'] };
 function modCatsUI_unused() { $('#modCats').innerHTML = Object.entries(MOD_CATS).map(([k, [n, i, d]]) => `<div class="card hov mcat" onclick="modInstall('${k}')"><div class="qi">${ico(i)}</div><b>${n}</b><span>${d}</span><div class="sub" style="font-size:11.5px;margin-top:8px;color:var(--a)">+ Installieren</div></div>`).join(''); }
 async function modInstall(cat, ok, reshade) {
   if (!S.settings.modsAck && !ok) return modal(`<div class="kicker">Hinweis</div><h1 style="margin-top:10px">Mods auf eigene <span class="grad">Verantwortung</span></h1>
