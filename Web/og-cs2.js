@@ -11,6 +11,7 @@ OG_MOCK['cs2'] = {
     configPath: 'C:\\Program Files (x86)\\Steam\\userdata\\39734273\\730\\local\\cfg',
     note: 'Gilt für dein Steam-Konto „Max“. CS2 übernimmt die Werte beim nächsten Start.',
     antiCheat: 'Valve Anti-Cheat (VAC): OrbitTweak schreibt nur in cs2_video.txt und cs2_machine_convars.vcfg, also genau die Dateien, die das Einstellungsmenü von CS2 selbst schreibt, und setzt eine Windows-Grafikeinstellung. Es ändert keine Spieldateien und nichts am laufenden Spiel, setzt keine Startoptionen, und der Trusted Mode bleibt an.',
+    icon: null,   // the browser preview has no exe to read an icon from: the page draws the game's own tile
   },
   items: [
     {
