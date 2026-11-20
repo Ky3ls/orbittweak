@@ -20,6 +20,7 @@
       configPath: 'C:\\Users\\Max\\Documents\\My Games\\Rainbow Six - Siege\\3f2c9a1e-7b4d-4c8a-9e21-0a5b6c7d8e9f\\GameSettings.ini',
       note: '2 Ubisoft-Profile gefunden: OrbitTweak ändert nur das zuletzt gespielte',
       antiCheat: 'BattlEye und seit 2026 Ubisofts eigenes Kernel-Anti-Cheat. OrbitTweak ändert nur die GameSettings.ini, die auch das Einstellungsmenü des Spiels schreibt, und den Windows-Grafikeintrag für RainbowSix.exe. Spieldateien und das laufende Spiel fasst es nie an, und es steuert nie Maus oder Tastatur. Die GameSettings.ini schreibt es nur, wenn Siege geschlossen ist.',
+      icon: null,   // the browser preview has no exe to read an icon from: the page draws the game's own tile
     },
     items: [
       item({

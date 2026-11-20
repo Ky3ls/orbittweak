@@ -41,6 +41,7 @@ internal sealed class R6Tweaks : IGameTweaks
             ConfigPath = t.File,
             Note = R6Logic.Note(dir != null, t.File != null, running, t.Profiles, t.Older),
             AntiCheat = R6Logic.AntiCheat,
+            Icon = FileIcon.Game(ExePath(dir)),   // RainbowSix.exe, read only like Explorer (the game is never opened)
         };
     }
 
@@ -350,9 +351,11 @@ internal sealed class R6Tweaks : IGameTweaks
     }
 
     /// <summary>The full path of RainbowSix.exe (the DirectX 12 game, not the BattlEye launcher), null when not found.</summary>
-    private static string? ExePath()
+    private static string? ExePath() => ExePath(InstallDir());
+
+    /// <summary>RainbowSix.exe in an install folder InstallDir() found, null without one.</summary>
+    private static string? ExePath(string? d)
     {
-        var d = InstallDir();
         if (d == null) return null;
         try { return Path.GetFullPath(Path.Combine(d, R6Logic.Exe)); } catch { return null; }
     }

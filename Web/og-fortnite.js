@@ -5,7 +5,7 @@
    Fortnite in DirectX 12 with V-Sync on. Like the host, Schatten follow the Rendermodus (none in Leistung), Reflex keeps
    "An + Boost" as its recommended value once it is set, and a running game refuses every ini item with the host's text. */
 OG_MOCK['fortnite'] = {
-  info: { id: 'fortnite', name: 'Fortnite', installed: true, path: 'C:\\Program Files\\Epic Games\\Fortnite', running: false, configFound: true, configPath: 'C:\\Users\\Max\\AppData\\Local\\FortniteGame\\Saved\\Config\\WindowsClient\\GameUserSettings.ini', note: 'Die Änderungen wirken ab dem nächsten Start von Fortnite.', antiCheat: 'Fortnite nutzt Easy Anti-Cheat. OrbitTweak ändert nur Werte, die Fortnite selbst in seinem Grafikmenü speichert (in der GameUserSettings.ini und nur bei geschlossenem Spiel), und die Windows-Grafikeinstellung pro App. Spieldateien und das laufende Spiel fasst es nie an.' },
+  info: { id: 'fortnite', name: 'Fortnite', installed: true, path: 'C:\\Program Files\\Epic Games\\Fortnite', running: false, configFound: true, configPath: 'C:\\Users\\Max\\AppData\\Local\\FortniteGame\\Saved\\Config\\WindowsClient\\GameUserSettings.ini', note: 'Die Änderungen wirken ab dem nächsten Start von Fortnite.', antiCheat: 'Fortnite nutzt Easy Anti-Cheat. OrbitTweak ändert nur Werte, die Fortnite selbst in seinem Grafikmenü speichert (in der GameUserSettings.ini und nur bei geschlossenem Spiel), und die Windows-Grafikeinstellung pro App. Spieldateien und das laufende Spiel fasst es nie an.', icon: null },
   items: [
     {
       id: 'render',

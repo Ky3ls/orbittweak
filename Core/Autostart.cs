@@ -5,10 +5,6 @@ using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
 using System.Security;
 using System.Text;
-using System.Windows;
-using System.Windows.Interop;
-using System.Windows.Media.Imaging;
-using System.Windows.Threading;
 using Microsoft.Win32;
 
 namespace OrbitTweak.Core;
@@ -396,10 +392,7 @@ internal static partial class Autostart
         finally { if (o != null) try { Marshal.FinalReleaseComObject(o); } catch { } }
     }
 
-    // ---------- icons ----------
-
-    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
-    private static extern int SHDefExtractIconW(string pszIconFile, int iIndex, uint uFlags, out IntPtr phiconLarge, out IntPtr phiconSmall, uint nIconSize);
+    // ---------- icons (read with Core/FileIcon.cs, the same as Andere Spiele) ----------
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct SHFILEINFOW
@@ -431,18 +424,7 @@ internal static partial class Autostart
         try { if (!File.Exists(file)) return null; } catch { return null; }
         return Icons.GetOrAdd(file + "," + index + (shellFallback ? "" : ",own"), _ =>
         {
-            IntPtr big = IntPtr.Zero, small = IntPtr.Zero;
-            try
-            {
-                int hr = SHDefExtractIconW(file, index, 0, out big, out small, IconPx | (16u << 16));
-                if (hr == 0 && big != IntPtr.Zero) return Png(big);
-            }
-            catch { }
-            finally
-            {
-                if (big != IntPtr.Zero) DestroyIcon(big);
-                if (small != IntPtr.Zero) DestroyIcon(small);
-            }
+            if (FileIcon.TryExtract(file, index, IconPx, out var png)) return png;
             return shellFallback ? ShellIcon(file) : null;   // a file without icons of its own: the icon Explorer shows for it
         });
     }
@@ -455,44 +437,13 @@ internal static partial class Autostart
         try
         {
             var r = SHGetFileInfoW(file, 0, ref fi, (uint)Marshal.SizeOf<SHFILEINFOW>(), SHGFI_ICON | SHGFI_LARGEICON);
-            return r != IntPtr.Zero && fi.hIcon != IntPtr.Zero ? Png(fi.hIcon) : null;
+            return r != IntPtr.Zero && fi.hIcon != IntPtr.Zero ? FileIcon.Png(fi.hIcon) : null;
         }
         catch { return null; }
         finally { if (fi.hIcon != IntPtr.Zero) DestroyIcon(fi.hIcon); }
     }
 
-    /// <summary>An HICON as PNG data URL, with its alpha (WPF reads the icon, no System.Drawing).</summary>
-    private static string? Png(IntPtr hIcon)
-    {
-        try
-        {
-            var src = Imaging.CreateBitmapSourceFromHIcon(hIcon, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
-            var enc = new PngBitmapEncoder();
-            enc.Frames.Add(BitmapFrame.Create(src));
-            using var ms = new MemoryStream();
-            enc.Save(ms);
-            return "data:image/png;base64," + Convert.ToBase64String(ms.ToArray());
-        }
-        catch { return null; }
-    }
-
     // ---------- thread ----------
 
-    private static Task<T> Sta<T>(Func<T> f)
-    {
-        var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var t = new Thread(() =>
-        {
-            try { tcs.SetResult(f()); }
-            catch (Exception ex) { tcs.SetException(ex); }
-            finally
-            {
-                // WPF's bitmaps gave this thread a dispatcher (and a hidden window): close it with the thread
-                try { Dispatcher.FromThread(Thread.CurrentThread)?.InvokeShutdown(); } catch { }
-            }
-        }) { IsBackground = true, Name = "OrbitTweak autostart" };
-        t.SetApartmentState(ApartmentState.STA);
-        t.Start();
-        return tcs.Task;
-    }
+    private static Task<T> Sta<T>(Func<T> f) => FileIcon.Sta(f, "OrbitTweak autostart");
 }

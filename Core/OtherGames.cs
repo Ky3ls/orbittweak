@@ -27,6 +27,10 @@ public sealed class GameInfo
     public string Note { get; init; } = "";
     /// <summary>The game's anti-cheat, named on the page with why the tweaks are safe with it.</summary>
     public string AntiCheat { get; init; } = "";
+    /// <summary>The icon inside the installed game's own exe as "data:image/png;base64,…" (96 px, read like Explorer
+    /// does, <see cref="FileIcon.Game"/>); null when the game is not installed or its exe has none. The page draws its
+    /// own tile then.</summary>
+    public string? Icon { get; init; }
 }
 
 /// <summary>A choice of a "choice" item: v = value, t = German label.</summary>

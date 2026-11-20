@@ -150,7 +150,21 @@ internal sealed class FortniteTweaks : IGameTweaks
         {
             Id = Id, Name = Name, Installed = root != null, Path = root, Running = running,
             ConfigFound = found, ConfigPath = cfg, Note = FortniteLogic.Note(root != null, found, running), AntiCheat = FortniteLogic.AntiCheat,
+            Icon = GameIcon(root),
         };
+    }
+
+    /// <summary>The icon of the Shipping exe, else of FortniteLauncher.exe beside it (read only, like Explorer); null
+    /// without an install.</summary>
+    private static string? GameIcon(string? root)
+    {
+        if (root == null) return null;
+        try
+        {
+            var exe = ExePath(root);
+            return FileIcon.Game(exe, Path.Combine(Path.GetDirectoryName(exe) ?? "", "FortniteLauncher.exe"));
+        }
+        catch { return null; }
     }
 
     public List<GameItem> Items()

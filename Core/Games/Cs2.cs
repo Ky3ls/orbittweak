@@ -237,6 +237,7 @@ internal sealed class Cs2Tweaks : IGameTweaks
             ConfigFound = w.ConfigFound, ConfigPath = w.Cfg,
             Note = Cs2Logic.Note(w.Install != null, w.ConfigFound, running, w.Who, w.FromEnv, w.HeldOther),
             AntiCheat = AntiCheatNote,
+            Icon = FileIcon.Game(w.Exe),   // game\bin\win64\cs2.exe, read only like Explorer
         };
     }
 
