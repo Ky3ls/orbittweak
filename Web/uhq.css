@@ -124,6 +124,8 @@ body::before{display:none}
 .launch.calm:hover,html[data-page=launcher] .side-cta .launch:hover{transform:none;box-shadow:var(--edge),inset 0 0 0 1px rgba(255,255,255,.06),var(--lift)}
 .side-foot{padding:12px 4px 0;gap:4px}
 .sf-info{font-size:11px;color:var(--mute);gap:2px}
+#adminTxt{display:flex;align-items:center;gap:3px}
+#adminTxt svg.i{width:11px;height:11px;stroke-width:2.6}
 .nav.mini{width:32px;height:32px;border-radius:10px}
 .nav.mini svg.i{width:17px;height:17px;padding:0;border-radius:0}
 .nav.mini:hover{background:rgba(255,255,255,.05)}
@@ -168,6 +170,9 @@ h2{font-weight:580;letter-spacing:-.016em}
 .lbl{font-size:12.5px;font-weight:500;color:var(--sub);gap:8px}
 .lbl svg.i{width:15px;height:15px;color:var(--mute);filter:none}
 .big,.gauge .mid b{text-shadow:none}
+/* icons drawn at 12-13 px keep about the line weight of the 15 px button icons (1.1 px) instead of thinning out */
+.cl-bd svg.i,#p-stats .st-live .chip svg.i,.lcat svg.i,#p-gfx .preset .ck svg.i,.lk-id svg.i{stroke-width:2.2}
+.bn-edit svg.i,.f8p svg.i,.tw .tw-more svg.i,.il-more summary svg.i,#p-input .warnline svg.i,#chopMore svg.i,.lk-feats svg.i,#p-autostart .as-facts svg.i,#p-display .dstat>svg.i{stroke-width:2}
 
 /* buttons: quiet glass by default, the accent only for the main action */
 .btn{height:36px;padding:0 15px;border:0;border-radius:var(--r-ctl);gap:8px;font-size:13px;font-weight:500;color:var(--text);

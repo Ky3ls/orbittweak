@@ -127,7 +127,7 @@ function stLiveFill() {
   const c = ST.d.current, el = $('#stLive');
   el.classList.toggle('hidden', !c); if (!c) return;
   const srv = c.server || c.addr;
-  const chips = [c.kills ? `<span class="chip">${ico('target')}${stCount(c.kills, 'Kill', 'Kills')}</span>` : '', c.clips ? `<span class="chip">${ico('film')}${stCount(c.clips, 'Clip', 'Clips')}</span>` : ''].join('');
+  const chips = [c.kills ? `<span class="chip">${ico('crosshair')}${stCount(c.kills, 'Kill', 'Kills')}</span>` : '', c.clips ? `<span class="chip">${ico('film')}${stCount(c.clips, 'Clip', 'Clips')}</span>` : ''].join('');
   el.innerHTML = `<span class="st-dot"></span><div class="st-lt"><b>Gerade im Spiel</b><span class="st-dim"> · </span><span id="stLiveT">${stDur(c.secs + stExtra())}</span>${srv ? `<span class="st-dim"> auf </span><b>${esc(srv)}</b>` : ''}</div>
     <span class="sp"></span>${chips}<span class="st-since">seit ${stClock(c.start)}</span>`;
 }
@@ -138,7 +138,7 @@ function stSumFill() {
   const lastMon = stAddDays(stMidnight(Date.now()), -((new Date().getDay() + 6) % 7) - 7);   // Monday of last week
   const week = d.lastWeek >= 60 ? `Letzte Woche: ${stDur(d.lastWeek)}` : stPre(lastMon) ? 'Letzte Woche noch nicht gezählt' : 'Letzte Woche nicht gespielt';
   const total = d.since ? `${stCount(d.rounds, 'Runde', 'Runden')} seit ${stDate(d.since, true)}` : stCount(d.rounds, 'Runde', 'Runden');
-  $('#stSum').innerHTML = [['Heute', 'clock', d.today, today], ['Diese Woche', 'chart', d.week, week], ['Gesamt', 'timer', d.total, total]]
+  $('#stSum').innerHTML = [['Heute', 'clock', d.today, today], ['Diese Woche', 'chart', d.week, week], ['Gesamt', 'history', d.total, total]]
     .map(([k, icon, v, s], i) => `<div class="st-m"><div class="lbl">${ico(icon)}${k}</div><b class="st-v" id="stV${i}">${stBig(v + x)}</b><span class="st-s">${esc(s)}</span></div>`).join('');
 }
 
@@ -203,7 +203,7 @@ function stRecFill() {
   const streakSub = r.bestStreak > r.streak ? `Rekord: ${stCount(r.bestStreak, 'Tag', 'Tage')}` : r.streak > 1 ? 'Dein bisher längster Lauf' : 'Jeder Tag mit Spiel in Folge zählt';
   const tiles = [
     ['Längste Runde', 'timer', r.longest ? stBig(r.longest.secs) : '–', r.longest ? stDate(r.longest.at, true) + (r.longest.server ? ' · ' + r.longest.server : '') : ''],
-    ['Meiste Kills', 'target', r.mostKills ? `${r.mostKills.kills}<small>${r.mostKills.kills === 1 ? 'Kill' : 'Kills'}</small>` : '–',
+    ['Meiste Kills', 'crosshair', r.mostKills ? `${r.mostKills.kills}<small>${r.mostKills.kills === 1 ? 'Kill' : 'Kills'}</small>` : '–',
       r.mostKills ? `In einer Runde · ${stDate(r.mostKills.at, true)}` : 'Zählt, wenn die Kill-Erkennung im Clipper an ist'],
     ['Tage am Stück', 'flame', `${r.streak}<small>${r.streak === 1 ? 'Tag' : 'Tage'}</small>`, streakSub],
     ['Ø pro Runde', 'activity', stBig(r.avg), `Aus ${stCount(d.rounds, 'Runde', 'Runden')}`],
