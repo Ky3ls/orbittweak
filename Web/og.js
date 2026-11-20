@@ -6,7 +6,9 @@
    og.set { game, id, value } → { ok, value }          (a refused change rejects with a German message)
    og.apply { game } → { ok, applied, failed: [{ id, title, error }] }
    og.revert { game } → { ok, reverted }
-   GameInfo { id, name, installed, path, running, configFound, configPath, note, antiCheat }
+   GameInfo { id, name, installed, path, running, configFound, configPath, note, antiCheat, icon }
+              icon: the icon inside the installed game's own exe as "data:image/png;base64,…" (96 px, read only like Explorer,
+              Core/FileIcon.cs), null when it is not installed or has none; the page then draws its own tile (OG_GAME glyph)
    GameItem { id, title, sum, desc, kind: 'switch'|'choice'|'number', value, options: [{ v, t }], min, max, step, unit,
               rec, recValue, effect: 'fps'|'latency'|'comfort'|'stability', source, needsClosed, available, why, changed } */
 
@@ -22,15 +24,16 @@ const OG_ORDER = ['fortnite', 'cs2', 'r6'];
    because values can depend on each other (Fortnite's Schatten follow the Rendermodus).
    ===================================================================== */
 
-/** The page's own words per game: the monogram on its tile (no logos), a short name for running text and where
+/** The page's own words per game: the glyph on its tile when the host has no icon of the game's exe (a generic object
+ *  that fits the game, on a tile in its colours in og.css; never a logo), a short name for running text and where
  *  OrbitTweak looks for it (said when it is not found; the same places as Core/Games/<Game>.cs). A game without an
- *  entry gets its initials, its name and the host's note. */
+ *  entry gets a gamepad on a quiet tile, its name and the host's note. */
 const OG_GAME = {
-  fortnite: { mark: 'F', short: 'Fortnite',
+  fortnite: { glyph: 'og-g-fortnite', short: 'Fortnite',
     look: 'OrbitTweak sucht Fortnite über die Daten des Epic Games Launchers, Fortnites eigenes Protokoll und den Ordner Programme\\Epic Games\\Fortnite. Seine Einstellungen legt Fortnite beim ersten Start unter AppData\\Local\\FortniteGame an.' },
-  cs2: { mark: 'CS', short: 'CS2',
+  cs2: { glyph: 'og-g-cs2', short: 'CS2',
     look: 'OrbitTweak sucht CS2 in allen Bibliotheken deines Steam-Ordners und seine Einstellungen im userdata-Ordner deines Steam-Kontos. Die legt CS2 beim ersten Start an.' },
-  r6: { mark: 'R6', short: 'Siege',
+  r6: { glyph: 'og-g-r6', short: 'Siege',
     look: 'OrbitTweak sucht Siege bei Ubisoft Connect, Steam und Epic und seine Einstellungen unter Dokumente\\My Games\\Rainbow Six - Siege. Die legt Siege beim ersten Start an.' },
 };
 /** What an item is good for: the tag on the row and its tooltip. */
@@ -40,6 +43,16 @@ const OG_EFFECT = {
   comfort: ['Komfort', 'Wofür es gut ist: Übersicht und Bedienung, mehr FPS bringt es nicht'],
   stability: ['Stabilität', 'Wofür es gut ist: gleichmäßigere Bildzeiten und weniger Aussetzer'],
 };
+/** The glyph of a row: by what the item is (the same setting looks the same in every game), else by what it is good
+ *  for, else sliders. Within one game's list no glyph is used twice (ogGlyphs). */
+const OG_ITEM_ICON = {
+  render: 'og-render', reflex: 'timer', vsync: 'og-vsync', fpslimit: 'gauge', fpsmax: 'gauge', shadows: 'og-shadow',
+  showfps: 'og-overlay', telemetry: 'og-overlay', contrast: 'og-contrast', netbuffer: 'og-buffer', rawinput: 'mouse',
+  windowmode: 'max', gpu: 'og-gpu',
+};
+const OG_EFFECT_ICON = { fps: 'zap', latency: 'timer', comfort: 'eye', stability: 'activity' };
+/** Only a PNG as data URL from the host goes into the page (it lands in an attribute). */
+const OG_PNG = /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/;
 const OG_KEY = 'orbitOgGame';   // the chosen game, for this session
 
 const OG = {
@@ -54,6 +67,7 @@ const OG = {
   ac: false,                                     // the full anti-cheat text is shown
   fx: '',                                        // the row whose details were just opened (only a click animates)
   poll: 0,
+  badIcon: new Set(),                            // host icons that did not load (the game shows its own tile instead)
 };
 try { OG.game = sessionStorage.getItem(OG_KEY) || null; } catch { }
 
@@ -77,9 +91,26 @@ const ogNum = v => String(v).replace('.', ',');
 const ogList = (t, max = 3) => t.length <= max + 1 ? ogNames(t) : `${t.slice(0, max).join(', ')} und ${t.length - max} weitere`;
 
 function ogRemember(id) { OG.game = id; try { sessionStorage.setItem(OG_KEY, id); } catch { } }
+/** The icon of the game's exe from the host, or null (none, not a PNG data URL, or it did not load). */
+function ogIcon(g) {
+  const s = g && g.icon;
+  return typeof s === 'string' && s.length < 3e6 && OG_PNG.test(s) && !OG.badIcon.has(s) ? s : null;
+}
+/** The game's tile: the icon of its exe as it is (never clipped), else the page's own tile with the game's glyph. */
 function ogMark(g, cls = '') {
-  const m = (OG_GAME[g.id] || {}).mark || String(g.name || '?').split(/\s+/).map(w => (w.match(/[\p{L}\p{N}]/u) || [''])[0]).join('').slice(0, 2).toUpperCase();
-  return `<span class="og-mk${cls}" data-ogmk="${esc(g.id)}" aria-hidden="true">${esc(m)}</span>`;
+  const src = ogIcon(g);
+  if (src) return `<span class="og-mk og-im${cls}" aria-hidden="true"><img src="${esc(src)}" alt="" draggable="false" decoding="async"></span>`;
+  const own = OG_GAME[g.id];
+  return `<span class="og-mk${cls}"${own ? ` data-ogmk="${esc(g.id)}"` : ''} aria-hidden="true">${ico(own ? own.glyph : 'og-g-any')}</span>`;
+}
+/** item id → glyph for one game's list: by id, else by effect, else sliders; a glyph already taken falls through. */
+function ogGlyphs(items) {
+  const used = new Set(), map = new Map();
+  for (const it of items) {
+    const g = [OG_ITEM_ICON[it.id], OG_EFFECT_ICON[it.effect], 'sliders'].find(x => x && !used.has(x)) || 'sliders';
+    used.add(g); map.set(it.id, g);
+  }
+  return map;
 }
 /** A value as the page says it: An/Aus, the option's label, the number with its unit. */
 function ogShown(it, v) {
@@ -259,7 +290,7 @@ function ogCtl(g, it, v, off, busy) {
   return '';
 }
 
-function ogRow(g, it, ban) {
+function ogRow(g, it, ban, glyph) {
   const key = g.id + '|' + it.id, v = ogVal(g.id, it), busy = OG.pend.has(key);
   const na = !it.available, locked = !na && ogLocked(g, it), open = OG.open.has(key), did = `ogd-${ogDom(g.id)}-${ogDom(it.id)}`;
   const eff = OG_EFFECT[it.effect];
@@ -275,6 +306,7 @@ function ogRow(g, it, ban) {
   const more = it.desc ? ` <button class="og-more" type="button" data-ogmore="${esc(it.id)}" data-ogk="more:${esc(it.id)}" aria-expanded="${open}" aria-controls="${did}">${ico('chev')}<span>${open ? 'Weniger' : 'Details'}</span></button>` : '';
   const src = it.source ? `<p class="og-src">${ico('og-book')}<span><b>Quelle</b> ${esc(it.source)}</span></p>` : '';
   return [key, `<div class="og-row${na ? ' na' : ''}${locked ? ' lk' : ''}${busy ? ' busy' : ''}${open ? ' open' : ''}${open && OG.fx === key ? ' og-fx' : ''}" data-ogi="${esc(key)}">`
+    + `<div class="og-ti" aria-hidden="true">${ico(glyph || 'sliders')}</div>`
     + `<div class="og-tx"><div class="og-n"><b>${esc(it.title)}</b>${eff ? `<span class="og-eff" title="${esc(eff[1])}">${esc(eff[0])}</span>` : ''}${rec}${chg}</div>`
     + `<p class="og-s">${esc(it.sum)}${more}</p>${why}</div>`
     + `<div class="og-ctl"${busy ? ' aria-busy="true"' : ''}>${busy ? '<i class="og-spin" aria-hidden="true"></i>' : ''}${ogCtl(g, it, v, na || locked, busy)}</div>`
@@ -299,7 +331,8 @@ function ogBody() {
     ogPut(rows, ogEmpty('search', `${g.name} nicht gefunden`, (OG_GAME[g.id] || {}).look || g.note || '', '', then + OG_RECHECK));
   } else if (!items.length) ogPut(rows, ogEmpty('sliders', 'Keine Einstellungen', `Für ${g.name} gibt es auf diesem PC gerade nichts einzustellen.`));
   else {
-    ogPutRows(rows, items.map(it => ogRow(g, it, ban)));
+    const gl = ogGlyphs(items);
+    ogPutRows(rows, items.map(it => ogRow(g, it, ban, gl.get(it.id))));
     const ch = items.filter(i => i.changed).length, na = items.filter(i => !i.available).length;
     lh = [`${items.length} ${items.length === 1 ? 'Einstellung' : 'Einstellungen'}`, ch ? `${ch} von OrbitTweak geändert` : '', na ? `${na} hier nicht verfügbar` : ''].filter(Boolean).join(' · ');
   }
@@ -517,6 +550,12 @@ $('#p-og').addEventListener('change', e => {
   }
   const n = e.target.closest('input[data-ognum]'); if (n) ogNumCommit(n);
 });
+// a host icon that does not load: the game gets its own tile ("error" does not bubble, so it is caught on the way down)
+$('#p-og').addEventListener('error', e => {
+  const im = e.target;
+  if (!(im instanceof HTMLImageElement) || !im.closest('.og-im')) return;
+  OG.badIcon.add(im.getAttribute('src')); ogRender();
+}, true);
 $('#p-og').addEventListener('input', e => { const n = e.target.closest('input[data-ognum]'); if (n) n.dataset.dirty = '1'; });
 // a value stepped with the arrow keys fires no "change": leaving the field sends it all the same
 $('#p-og').addEventListener('focusout', e => { const n = e.target.closest('input[data-ognum]'); if (n && n.dataset.dirty && n.isConnected) ogNumCommit(n); });

@@ -27,21 +27,29 @@
 #p-og .og-games:empty{display:none}
 /* placeholders while the games are read */
 #p-og .og-g.og-sk{pointer-events:none}
-#p-og .og-sk .og-mk{opacity:.5}
+#p-og .og-sk .og-mk{opacity:.5;filter:none}
 #p-og .og-sk .og-gt i{display:block;height:9px;border-radius:5px;background:rgba(255,255,255,.06)}
 #p-og .og-sk .og-gt i:first-child{width:104px}
 #p-og .og-sk .og-gt i+i{width:68px;margin-top:9px}
 
-/* the mark: a monogram on a tile with a breath of its own colour, never a logo */
-#p-og .og-mk{--h:150,160,184;flex:none;width:36px;height:36px;display:grid;place-items:center;border-radius:11px;
-  background:linear-gradient(180deg,rgba(var(--h),.2),rgba(var(--h),.07));box-shadow:inset 0 1px 0 rgba(255,255,255,.08),inset 0 0 0 1px rgba(var(--h),.16);
-  font-family:var(--disp);font-size:13px;font-weight:650;letter-spacing:-.03em;color:color-mix(in oklab,rgb(var(--h)) 42%,#fff);transition:opacity .25s}
-#p-og .og-mk[data-ogmk=fortnite]{--h:164,136,255}
-#p-og .og-mk[data-ogmk=cs2]{--h:232,176,96}
-#p-og .og-mk[data-ogmk=r6]{--h:120,168,238}
-#p-og .og-g:not(.on) .og-mk{opacity:.62}
-#p-og .og-g:not(.on):hover .og-mk{opacity:.85}
-#p-og .og-mk.lg{width:52px;height:52px;border-radius:16px;font-size:18px}
+/* the game's tile: the icon of its own exe from the host (.og-im, shown whole), else the page's own tile: a gradient in
+   the game's colours with a white glyph of a generic object (og-g-* in index.html), never a logo. Without a known
+   game (and while the games are read) a quiet glass tile. The same in every theme: the tiles carry their own colours */
+#p-og .og-mk{flex:none;width:36px;height:36px;display:grid;place-items:center;border-radius:11px;
+  background:linear-gradient(180deg,rgba(150,160,184,.17),rgba(150,160,184,.06));box-shadow:inset 0 1px 0 rgba(255,255,255,.08),inset 0 0 0 1px rgba(150,160,184,.13);
+  color:var(--sub);transition:opacity .25s,filter .25s}
+#p-og .og-mk svg.i{width:19px;height:19px;stroke-width:1.9}
+#p-og .og-mk[data-ogmk]{color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.24),inset 0 0 0 1px rgba(255,255,255,.07),0 6px 14px -7px rgba(0,0,0,.7)}
+#p-og .og-mk[data-ogmk] svg.i{filter:drop-shadow(0 1px 1px rgba(0,0,0,.22))}
+#p-og .og-mk[data-ogmk=fortnite]{background:linear-gradient(150deg,#9C7CFF,#5A5BF2 55%,#3A6CE8)}
+#p-og .og-mk[data-ogmk=cs2]{background:radial-gradient(closest-side,rgba(255,168,64,.3),transparent),linear-gradient(165deg,#28344F,#121A2B);color:#FFC978}
+#p-og .og-mk[data-ogmk=r6]{background:linear-gradient(155deg,#94A6C0,#55667F 58%,#3A475C)}
+#p-og .og-mk.og-im{background:none;box-shadow:none}
+#p-og .og-im img{width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 3px 6px rgba(0,0,0,.4));user-select:none;-webkit-user-drag:none}
+#p-og .og-g:not(.on) .og-mk{opacity:.62;filter:saturate(.6)}
+#p-og .og-g:not(.on):hover .og-mk{opacity:.85;filter:saturate(.85)}
+#p-og .og-mk.lg{width:52px;height:52px;border-radius:16px}
+#p-og .og-mk.lg svg.i{width:27px;height:27px;stroke-width:1.75}
 
 /* ---------- the game's head: who it is and what is found on the left, the main action on the right ---------- */
 #p-og .og-head{display:grid;grid-template-columns:minmax(0,1fr) 296px;padding:0;margin-bottom:20px;overflow:hidden}
@@ -118,9 +126,15 @@
 #p-og .og-lh p{min-width:0;margin-left:auto;font-size:12.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
 html.th-anime #p-og .og-lh b{font-family:var(--head);font-weight:800;letter-spacing:-.004em}
 
-/* a row: name with its tags, one short line and "Details" | the control. A hairline starts at the text */
-#p-og .og-row{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:24px;padding:15px 14px;border-radius:14px;transition:background .2s}
-#p-og .og-row+.og-row::before{content:'';position:absolute;left:14px;right:14px;top:0;height:1px;background:var(--line);transition:opacity .2s}
+/* a row: its glyph on a tile | name with its tags, one short line and "Details" | the control. Tile and control stand
+   beside the name and the line (like the Tweaks rows), so they stay put under a note or open details. A hairline starts
+   at the text */
+#p-og .og-row{position:relative;display:grid;grid-template-columns:40px minmax(0,1fr) auto;align-items:start;column-gap:16px;padding:15px 14px;border-radius:14px;transition:background .2s}
+#p-og .og-row+.og-row::before{content:'';position:absolute;left:70px;right:14px;top:0;height:1px;background:var(--line);transition:opacity .2s}
+#p-og .og-ti{width:40px;height:40px;margin-top:2px;display:grid;place-items:center;border-radius:12px;background:rgba(255,255,255,.045);color:var(--mute);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05);transition:opacity .2s}
+#p-og .og-ti svg.i{width:18px;height:18px}
+#p-og .og-row.na .og-ti{opacity:.55}
 #p-og .og-row:is(:hover,:has(:focus-visible)){background:rgba(255,255,255,.028)}
 #p-og .og-row.open{background:rgba(255,255,255,.022)}
 #p-og .og-row:is(:hover,:has(:focus-visible),.open)::before,#p-og .og-row:is(:hover,:has(:focus-visible),.open)+.og-row::before{opacity:0}
@@ -148,7 +162,7 @@ html.th-anime #p-og .og-lh b{font-family:var(--head);font-weight:800;letter-spac
 #p-og .og-row.na .og-n,#p-og .og-row.na .og-s{opacity:.7}
 
 /* the full text and where it comes from: a sunken panel to read */
-#p-og .og-det{grid-column:1/-1;max-width:760px;margin-top:12px;padding:12px 14px;border-radius:12px;background:var(--well);box-shadow:var(--well-edge);
+#p-og .og-det{grid-column:2/-1;max-width:760px;margin-top:12px;padding:12px 14px;border-radius:12px;background:var(--well);box-shadow:var(--well-edge);
   font-size:12.5px;line-height:1.6;color:var(--sub);text-wrap:pretty;user-select:text;cursor:auto}
 #p-og .og-row.og-fx .og-det{animation:ogIn .32s var(--ease) both}
 #p-og .og-src{display:flex;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:12px;line-height:1.5;color:var(--mute)}
@@ -157,7 +171,7 @@ html.th-anime #p-og .og-lh b{font-family:var(--head);font-weight:800;letter-spac
 @keyframes ogIn{from{opacity:0;transform:translateY(-4px)}}
 
 /* ---------- the controls ---------- */
-#p-og .og-ctl{position:relative;display:flex;align-items:center;justify-content:flex-end;gap:10px;min-width:0}
+#p-og .og-ctl{position:relative;display:flex;align-items:center;justify-content:flex-end;gap:10px;min-width:0;min-height:44px;margin-left:8px}
 #p-og .og-ctl .tg{flex:none}
 #p-og .og-ctl .tg[aria-disabled=true]{opacity:.45;cursor:not-allowed}
 #p-og .og-ctl .tg[aria-disabled=true]:hover:not(.on){background:rgba(255,255,255,.085)}
@@ -201,7 +215,7 @@ html.th-anime #p-og .og-lh b{font-family:var(--head);font-weight:800;letter-spac
   #p-og .og-head{grid-template-columns:minmax(0,1fr) 256px}
   #p-og .og-main{padding:20px 20px 18px}
   #p-og .og-go{padding:18px}
-  #p-og .og-row{column-gap:18px}
+  #p-og .og-ctl{margin-left:2px}
 }
 @media (max-width:980px){
   #p-og .og-head{grid-template-columns:minmax(0,1fr)}
