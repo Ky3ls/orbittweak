@@ -48,7 +48,7 @@ const OG_EFFECT = {
 const OG_ITEM_ICON = {
   render: 'og-render', reflex: 'timer', vsync: 'og-vsync', fpslimit: 'gauge', fpsmax: 'gauge', shadows: 'og-shadow',
   showfps: 'og-overlay', telemetry: 'og-overlay', contrast: 'og-contrast', netbuffer: 'og-buffer', rawinput: 'mouse',
-  windowmode: 'max', gpu: 'og-gpu',
+  windowmode: 'max', gpu: 'gpucard',
 };
 const OG_EFFECT_ICON = { fps: 'zap', latency: 'timer', comfort: 'eye', stability: 'activity' };
 /** Only a PNG as data URL from the host goes into the page (it lands in an attribute). */
