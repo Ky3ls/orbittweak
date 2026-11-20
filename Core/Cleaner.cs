@@ -36,7 +36,7 @@ internal static class Cleaner
         },
         new CleanTarget
         {
-            Id = "shader", Name = "Shader-Cache (DirectX / GPU)", Icon = "monitor",
+            Id = "shader", Name = "Shader-Cache (DirectX / GPU)", Icon = "gpucard",
             Desc = "D3DSCache, NVIDIA & AMD Shader-Cache – wird beim nächsten Start sauber neu gebaut.",
             Dirs = () => new[]
             {

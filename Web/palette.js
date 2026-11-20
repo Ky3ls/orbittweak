@@ -97,10 +97,10 @@
     ['clip', 'Clipper', 'film', 'Kill-Clips automatisch aufnehmen', 'aufnahme clip clips video kill montage highlight aufnehmen replay teilen'],
     ['pad', 'Controller', 'gamepad', 'Controller-Anzeige als Overlay', 'gamepad controller xbox playstation ps4 ps5 dualshock dualsense overlay tasten'],
     ['input', 'Input-Lab', 'keyboard', 'Tastatur und Maus testen', 'tastatur maus snap tap polling rate hz reaktion wasd tester'],
-    ['games', 'Minigames', 'aim', 'Aim-Training vor dem Spielen', 'aim training zielen reaktion aufwärmen warm up minigame'],
+    ['games', 'Minigames', 'bullseye', 'Aim-Training vor dem Spielen', 'aim training zielen reaktion aufwärmen warm up minigame'],
     ['tweaks', 'Tweaks', 'zap', 'Windows-Einstellungen fürs Spiel', 'fps leistung boost windows optimieren schalter performance'],
-    ['og', 'Andere Spiele', 'target', 'Tweaks für Fortnite, Counter-Strike 2 und Rainbow Six Siege', 'fortnite cs2 counter-strike cs r6 rainbow six siege spiele games reflex vsync fps limit'],
-    ['cleaner', 'Cleaner', 'trash', 'Caches und Reste entfernen', 'speicher platz cache temp müll aufräumen festplatte ssd voll ram arbeitsspeicher löschen'],
+    ['og', 'Andere Spiele', 'gamestack', 'Tweaks für Fortnite, Counter-Strike 2 und Rainbow Six Siege', 'fortnite cs2 counter-strike cs r6 rainbow six siege spiele games reflex vsync fps limit'],
+    ['cleaner', 'Cleaner', 'broom', 'Caches und Reste entfernen', 'speicher platz cache temp müll aufräumen festplatte ssd voll ram arbeitsspeicher löschen'],
     ['autostart', 'Autostart', 'power', 'Programme, die mit Windows starten', 'hochfahren start langsam programme autostart windows boot store apps teams whatsapp'],
     ['diag', 'Diagnose', 'heart', 'Ursachen für Ruckler, Abstürze und Ladeprobleme', 'absturz abstürze crash ruckler ruckeln stottern fehler logs probleme check lädt laden hängt freeze'],
     ['settings', 'Einstellungen', 'settings', 'Konto, Design, Verhalten und Updates', 'optionen einstellungen settings'],
@@ -108,12 +108,12 @@
   ];
   // [id, open, title, icon, line below, words]
   const SUBS = [
-    ['st:account', () => openSet('account'), 'Konto', 'shield', 'Einstellungen › Lizenz und PC', 'lizenz key pc id hwid abmelden account'],
+    ['st:account', () => openSet('account'), 'Konto', 'key', 'Einstellungen › Lizenz und PC', 'lizenz key pc id hwid abmelden account'],
     ['st:design', () => openSet('design'), 'Design', 'sparkle', 'Einstellungen › Farbe und Hintergrund', 'farbe theme hintergrund akzent aussehen winter anime bild'],
     ['st:general', () => openSet('general'), 'Verhalten', 'sliders', 'Einstellungen › Leistung, Boost und Discord', 'leistung boost discord status standby wiederherstellungspunkt verhalten'],
     ['st:updates', () => openSet('updates'), 'Updates', 'download', 'Einstellungen › Version und Automatik', 'version aktualisieren update neu automatisch'],
-    ['st:safety', () => openSet('safety'), 'Sicherheit', 'undo', 'Einstellungen › Wiederherstellen', 'wiederherstellen zurücksetzen backup systemwiederherstellung rückgängig'],
-    ['st:about', () => openSet('about'), 'Über OrbitTweak', 'heart', 'Einstellungen › Hinweise und Credits', 'credits hinweise info lizenzen über'],
+    ['st:safety', () => openSet('safety'), 'Sicherheit', 'history', 'Einstellungen › Wiederherstellen', 'wiederherstellen zurücksetzen backup systemwiederherstellung rückgängig'],
+    ['st:about', () => openSet('about'), 'Über OrbitTweak', 'info', 'Einstellungen › Hinweise und Credits', 'credits hinweise info lizenzen über'],
     ['cl:gal', () => { go('clip'); pageTab('clip', 'gal'); }, 'Deine Clips', 'play', 'Clipper › Ansehen, teilen, Video machen', 'videos clips ansehen teilen montage highlight galerie'],
     ['cl:kills', () => { go('clip'); pageTab('clip', 'kills'); }, 'Kill-Erkennung', 'crosshair', 'Clipper › Wann ein Clip entsteht', 'kill erkennung killfeed name tod automatisch'],
     ['cl:setup', () => { go('clip'); pageTab('clip', 'setup'); }, 'Aufnahme', 'settings', 'Clipper › Recorder, Taste und Qualität', 'aufnahme recorder taste qualität obs shadowplay nvidia game bar länge'],
@@ -172,7 +172,7 @@
       : { id: 'ac:fivem', g: 'action', icon: 'play', title: 'FiveM starten', sub: noFm ? 'FiveM nicht gefunden: Pfad im Launcher wählen' : 'Mit deinem Pre-Launch-Boost', kw: 'starten spielen launch öffnen spiel los', verb: noFm ? 'Öffnen' : 'Starten', run: () => noFm ? go('launcher') : launch('') });
     add({ id: 'ac:ram', g: 'action', icon: 'ram', title: 'RAM freigeben', sub: S.settings.purgeStandby === false ? 'Working-Sets der Programme leeren' : 'Working-Sets und Standby-Liste leeren', kw: 'arbeitsspeicher speicher voll freigeben nachladen', verb: 'Ausführen', run: () => cleanRam() });
     add({ id: 'ac:cache', g: 'action', icon: 'trash', title: 'FiveM-Cache leeren', sub: 'Hilft bei Ladeproblemen, der nächste Start lädt etwas länger', kw: 'cache leeren laden ladeprobleme hängt texturen platz', verb: 'Ausführen', run: () => clearFmCache() });
-    add({ id: 'ac:health', g: 'action', icon: 'activity', title: 'Systemcheck starten', sub: 'Prüft Treiber, Energieplan, Cache und mehr', kw: 'diagnose check prüfen absturz crash ruckler fehler probleme scan', verb: 'Ausführen', run: () => { const had = !!S.health; go('diag'); if (had) return runHealth(); } });
+    add({ id: 'ac:health', g: 'action', icon: 'heart', title: 'Systemcheck starten', sub: 'Prüft Treiber, Energieplan, Cache und mehr', kw: 'diagnose check prüfen absturz crash ruckler fehler probleme scan', verb: 'Ausführen', run: () => { const had = !!S.health; go('diag'); if (had) return runHealth(); } });
     add({ id: 'ac:upd', g: 'action', icon: 'download', title: 'Nach Updates suchen', sub: 'Du nutzt ' + ($('#verCur')?.textContent || 'OrbitTweak'), kw: 'update aktualisieren version neu', verb: 'Ausführen', run: () => { openSet('updates'); return checkUpdate(true); } });
     add({ id: 'ac:xh', g: 'action', icon: 'crosshair', title: XH.on ? 'Fadenkreuz ausschalten' : 'Fadenkreuz einschalten', sub: 'Overlay über FiveM · Server-Regeln beachten', kw: 'crosshair zielen overlay an aus', st: XH.on ? 'An' : '', verb: XH.on ? 'Ausschalten' : 'Einschalten', run: () => xhToggle() });
     if (typeof gwSet === 'function') add({ id: 'ac:border', g: 'action', icon: 'max', title: 'Randloses Vollbild', sub: fm ? 'FiveM sofort randlos, ohne Neustart' : 'Geht nur, während FiveM läuft', kw: 'fenster fenstermodus vollbild randlos borderless alt tab', verb: 'Ausführen', run: () => gwSet('borderless') });

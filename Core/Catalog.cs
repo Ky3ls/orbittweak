@@ -72,7 +72,7 @@ internal static class Catalog
             // ============================== FIVEM ==============================
             new Tweak
             {
-                Id = "gpu", Cat = "fivem", Icon = "monitor", Name = "Starke Grafikkarte für FiveM",
+                Id = "gpu", Cat = "fivem", Icon = "gpucard", Name = "Starke Grafikkarte für FiveM",
                 Sum = "Bei zwei Grafikchips läuft FiveM sicher auf der starken Karte",
                 Desc = "Trägt FiveM in den Windows-Grafikeinstellungen auf „Hohe Leistung“ ein – auf Laptops und PCs mit zwei Grafikchips ein Sicherheitsnetz, das Cfx.re bei endlosem Laden oder fehlender Spiel-UI empfiehlt (FiveM wählt die starke Karte meist schon selbst), mit nur einer Grafikkarte ändert sich nichts.",
                 RecWhen = () => Hw.SwitchableGpus,
@@ -216,7 +216,7 @@ internal static class Catalog
             },
             new Tweak
             {
-                Id = "hags", Cat = "system", Icon = "monitor", Badge = "NEUSTART", Recommended = false, Name = "Hardware-GPU-Planung",
+                Id = "hags", Cat = "system", Icon = "gpucard", Badge = "NEUSTART", Recommended = false, Name = "Hardware-GPU-Planung",
                 Sum = "Grafikkarte plant selbst – meist kein spürbarer Unterschied",
                 Desc = "Schaltet die Windows-Einstellung „Hardwarebeschleunigte GPU-Planung“ ein, wenn Grafikkarte und Treiber sie unterstützen – laut Microsoft merkt man meist keinen Unterschied, in Tests lag es zwischen leicht weniger und rund 4 % mehr FPS; für DLSS Frame Generation in GTA V Enhanced ist sie Pflicht, und bei Abstürzen oder Rucklern schaltest du sie besser wieder aus.",
                 // the setting exists since Windows 10 2004 (build 19041); on older builds the value is read by nothing
@@ -291,7 +291,7 @@ internal static class Catalog
             new Tweak
             {
                 // optional: Cfx.re has not confirmed FiveM's voice as a communication stream that starts the ducking
-                Id = "ducking", Cat = "system", Icon = "sliders", Recommended = false, Name = "Andere Sounds bei Voice nicht leiser",
+                Id = "ducking", Cat = "system", Icon = "volume", Recommended = false, Name = "Andere Sounds bei Voice nicht leiser",
                 Sum = "Windows dreht Musik und Spiel bei Anrufen nicht mehr leiser",
                 Desc = "Sobald eine App einen Anruf öffnet – etwa Discord oder Teams, vielleicht auch FiveM-Voice –, dreht Windows Musik und Spielsound standardmäßig um 80 % leiser; der Tweak stellt das auf „Nichts unternehmen“ (wie Systemsteuerung › Sound › Kommunikation) und wirkt ab dem nächsten Anruf, spätestens nach einem Neustart. Dass FiveM-Voice das auslöst, hat Cfx.re nicht bestätigt – wird der Ton trotzdem leiser, liegt es an etwas anderem, etwa an Discords eigener Absenkung anderer Apps oder an „Audioverbesserungen“.",
                 Hint = () => TweakLogic.DuckingHint(TweakLogic.DuckingMode(Reg.Get(AUDIO, DUCK))),
@@ -318,7 +318,7 @@ internal static class Catalog
             // ============================== NETWORK ==============================
             new Tweak
             {
-                Id = "nic", Cat = "network", Icon = "wifi", Badge = "NEUSTART", Recommended = false, Name = "LAN-Energiesparen aus",
+                Id = "nic", Cat = "network", Icon = "lan", Badge = "NEUSTART", Recommended = false, Name = "LAN-Energiesparen aus",
                 Sum = "Netzwerkkarte schläft nicht mehr ein – am Ping kaum spürbar",
                 Desc = "Schaltet Energy Efficient Ethernet und ähnliche Stromsparmodi deiner Netzwerkkarte ab, damit sie zwischen Paketen nicht kurz einschläft; spürbar hilft das vor allem bei Intels I225-V und I226-V mit älteren Treibern gegen die von Intel bestätigten EEE-Einbrüche und Verbindungsabbrüche (neuere Intel-Treiber schalten EEE dort schon selbst ab), am Ping merkst du das kaum, und es wirkt erst nach einem Neustart.",
                 Usable = () => NicTargets().Any() || NicOwned(),
@@ -430,7 +430,7 @@ internal static class Catalog
             },
             new Tweak
             {
-                Id = "winkey", Cat = "input", Icon = "ban", Badge = "LIVE", Recommended = false, Name = "Windows-Taste im Spiel sperren",
+                Id = "winkey", Cat = "input", Icon = "padlock", Badge = "LIVE", Recommended = false, Name = "Windows-Taste im Spiel sperren",
                 Sum = "Startmenü öffnet sich im Spiel nicht mehr",
                 Desc = "Solange FiveM im Vordergrund ist, öffnet ein versehentlicher Druck auf die Windows-Taste neben Strg und Alt nicht mehr das Startmenü und wirft dich nicht aus dem Vollbild; außerhalb des Spiels funktioniert sie ganz normal. Im Spiel gehen dann auch Win-Kürzel wie Win+Shift+S oder Win+D nicht, die Game-Bar-Kürzel wie Win+G schon.",
                 Check = () => s.BlockWinKey,
@@ -439,7 +439,7 @@ internal static class Catalog
             },
             new Tweak
             {
-                Id = "accel", Cat = "input", Icon = "target", Name = "Zeigerbeschleunigung aus",
+                Id = "accel", Cat = "input", Icon = "mouse", Name = "Zeigerbeschleunigung aus",
                 Sum = "Mauszeiger folgt in Menüs und auf dem Desktop 1:1",
                 Desc = "Schaltet „Zeigerpräzision verbessern“ sofort aus, damit der Mauszeiger in FiveM-Menüs wie Inventar und Handy und auf dem Desktop 1:1 deiner Hand folgt; das Zielen mit Raw Input oder DirectInput ist ohnehin unbeschleunigt.",
                 Hint = () => "Für unbeschleunigtes Zielen in GTA: Einstellungen › Tastatur/Maus › Maus-Eingabemethode „Raw Input“",
@@ -520,7 +520,7 @@ internal static class Catalog
             },
             new Tweak
             {
-                Id = "langkey", Cat = "input", Icon = "keyboard", Recommended = false, Name = "Sprachwechsel per Alt+Shift aus",
+                Id = "langkey", Cat = "input", Icon = "globe", Recommended = false, Name = "Sprachwechsel per Alt+Shift aus",
                 Sum = "Y und Z tauschen nicht mehr plötzlich die Plätze",
                 Desc = "Alt+Shift und Strg+Shift schalten nicht mehr nebenbei die Tastatursprache um (plötzlich Y und Z vertauscht), Windows+Leertaste geht weiter; nur sinnvoll, wenn du mehr als ein Tastaturlayout installiert hast.",
                 Check = () => Reg.Is(LANG, "Language Hotkey", "3") && Reg.Is(LANG, "Layout Hotkey", "3"),
