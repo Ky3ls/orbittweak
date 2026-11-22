@@ -17,6 +17,7 @@
 <link rel="stylesheet" href="stats.css">
 <link rel="stylesheet" href="autostart.css">
 <link rel="stylesheet" href="og.css">
+<link rel="stylesheet" href="netcheck.css">
 <link rel="stylesheet" href="palette.css">
 <link rel="stylesheet" href="luxe-themes.css">
 </head>
@@ -108,6 +109,7 @@
     <symbol id="og-contrast" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" fill-opacity=".7"/></symbol>
     <symbol id="og-buffer" viewBox="0 0 24 24"><path d="M2.5 5.5h19M2.5 18.5h19"/><rect x="3.5" y="9.5" width="5" height="5" rx="1" fill="currentColor"/><rect x="9.5" y="9.5" width="5" height="5" rx="1" fill="currentColor" fill-opacity=".5"/><rect x="15.5" y="9.5" width="5" height="5" rx="1"/></symbol>
     <symbol id="usb" viewBox="0 0 24 24"><path d="M8.5 8V3.5A1.5 1.5 0 0 1 10 2h4a1.5 1.5 0 0 1 1.5 1.5V8M11 5h2"/><rect x="5" y="8" width="14" height="8.5" rx="2.5"/><path d="M10 16.5V18a2 2 0 0 0 4 0v-1.5M12 20v2"/></symbol>
+    <symbol id="nc-pulse" viewBox="0 0 24 24"><path d="M2 13h3.2l2.1-5.5 3.4 11 2.6-8.2 1.6 2.7h1.9"/><circle cx="19.6" cy="13" r="2.6"/></symbol>
   </defs>
 </svg>
 
@@ -284,7 +286,7 @@
     <section class="page" id="p-servers">
       <div class="ph">
         <div><div class="kicker">Server Hub</div><h1>Deine <span class="grad">Server</span></h1><p class="pd">Speichere deine Server und verbinde dich mit einem Klick. Mit Spielerzahl und Ping.</p></div>
-        <div class="ph-r"><button class="btn" onclick="loadServers(true)"><svg class="i"><use href="#refresh"/></svg>Aktualisieren</button></div>
+        <div class="ph-r"><button class="btn" id="nc-srvgo" type="button" onclick="ncOpen()" title="Netz-Check: zeigt in einer Minute, ob ein Lag im WLAN, bei deinem Anbieter oder beim Server anfängt"><svg class="i"><use href="#nc-pulse"/></svg>Verbindung testen</button><button class="btn" onclick="loadServers(true)"><svg class="i"><use href="#refresh"/></svg>Aktualisieren</button></div>
       </div>
       <div class="srv-wrap">
         <div class="srv-main">
@@ -1254,6 +1256,7 @@
 <script src="og-fortnite.js"></script>
 <script src="og-cs2.js"></script>
 <script src="og-r6.js"></script>
+<script src="netcheck.js"></script>
 <script src="palette.js"></script>
 </body>
 </html>
