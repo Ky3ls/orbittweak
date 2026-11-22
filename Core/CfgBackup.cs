@@ -71,8 +71,10 @@ internal static class CfgBackup
     public sealed record Item(string Name, DateTimeOffset Created, string? Kind, string KindLabel, long Size, List<ItemFile> Files, bool Ok, string? Error);
     public sealed record Skipped(string Name, string Why);
     /// <summary>Safety: the backup that holds the state from before the restore (the way back); SafetyNew: it was made
-    /// just now ("Vor dem Wiederherstellen"), otherwise it is the newest backup, which already held that state.</summary>
-    public sealed record RestoreResult(List<string> Restored, List<string> Unchanged, List<Skipped> Skipped, List<Skipped> Failed, string? Safety, bool SafetyNew);
+    /// just now ("Vor dem Wiederherstellen"), otherwise it is the newest backup, which already held that state.
+    /// Undo: the keys "Rückgängig" writes back from it (only files this restore touched). Created: files that were not
+    /// there before (the snapshot has no earlier state of them, so "Rückgängig" leaves them).</summary>
+    public sealed record RestoreResult(List<string> Restored, List<string> Unchanged, List<Skipped> Skipped, List<Skipped> Failed, string? Safety, bool SafetyNew, List<string> Undo, List<string> Created);
 
     /// <summary>The settings files as they are now (placeholder paths only: the page never sees the user name).</summary>
     public static List<SourceInfo> Sources(CfgRoots roots)
@@ -113,9 +115,10 @@ internal static class CfgBackup
         return ms.ToArray();
     }
 
-    private static (List<Current> cur, List<Skipped> skipped) ReadCurrent(CfgRoots roots)
+    /// <summary>The settings files that are there now. Unread: files that are there but could not be read (with why).</summary>
+    private static (List<Current> cur, List<(CfgFile File, string Why)> unread) ReadCurrent(CfgRoots roots)
     {
-        var cur = new List<Current>(); var skipped = new List<Skipped>();
+        var cur = new List<Current>(); var unread = new List<(CfgFile, string)>();
         foreach (var f in L.Files)
         {
             var full = L.Resolve(L.Placeholder(f), roots);
@@ -124,12 +127,12 @@ internal static class CfgBackup
             {
                 var fi = new FileInfo(full);
                 if (!fi.Exists) continue;
-                if (fi.Length > L.MaxFile) { skipped.Add(new(f.Name, "Zu groß für eine Einstellungsdatei")); continue; }
+                if (fi.Length > L.MaxFile) { unread.Add((f, "Zu groß für eine Einstellungsdatei")); continue; }
                 cur.Add(new(f, ReadShared(full, L.MaxFile), new DateTimeOffset(fi.LastWriteTime)));
             }
-            catch (Exception ex) { skipped.Add(new(f.Name, Reason(ex))); }
+            catch (Exception ex) { unread.Add((f, Reason(ex))); }
         }
-        return (cur, skipped);
+        return (cur, unread);
     }
 
     // ---------------------------------------------------------------- the zip
@@ -255,7 +258,8 @@ internal static class CfgBackup
     private static (Item item, List<Skipped> skipped) CreateLocked(string kind, CfgRoots roots, string dir, string? protect, List<Current>? read)
     {
         List<Current> cur; List<Skipped> skipped;
-        if (read != null) { cur = read; skipped = new(); } else (cur, skipped) = ReadCurrent(roots);
+        if (read != null) { cur = read; skipped = new(); }
+        else { var (c, unread) = ReadCurrent(roots); cur = c; skipped = unread.Select(u => new Skipped(u.File.Name, u.Why)).ToList(); }
         if (cur.Count == 0)
             throw new InvalidOperationException(skipped.Count > 0 ? $"{skipped[0].Name}: {skipped[0].Why}"
                 : "Keine FiveM-Einstellungen gefunden. Starte FiveM einmal, dann legt FiveM sie an.");
@@ -350,7 +354,7 @@ internal static class CfgBackup
                 try
                 {
                     if (Directory.Exists(target)) { skipped.Add(new(p.File.Name, "An der Stelle liegt ein Ordner")); continue; }
-                    if (Linked(L.RootOf(roots, p.File.Root)!, target)) { skipped.Add(new(p.File.Name, "Der Ordner ist eine Verknüpfung, OrbitTweak schreibt nicht hindurch")); continue; }
+                    if (Linked(L.RootOf(roots, p.File.Root)!, target)) { skipped.Add(new(p.File.Name, "Die Datei oder ihr Ordner ist eine Verknüpfung, OrbitTweak schreibt nicht hindurch")); continue; }
                     if (File.Exists(target) && new FileInfo(target).Length == p.Entry.Size && L.Sha256(ReadShared(target, L.MaxFile)) == p.Entry.Sha256)
                     { unchanged.Add(p.File.Name); continue; }
                 }
@@ -358,14 +362,21 @@ internal static class CfgBackup
                 catch (InvalidOperationException) { /* too big to compare: it is written */ }
                 write.Add((p, data));
             }
-            if (write.Count == 0) return new(new(), unchanged, skipped, new(), null, false);
+            if (write.Count == 0) return new(new(), unchanged, skipped, new(), null, false, new(), new());
 
-            // the state as it is now, so this restore can be undone the same way. When the newest backup already holds
-            // exactly that state, it is the way back (no second copy of the same files)
+            // the state as it is now, so this restore can be undone the same way. A file that is there but cannot be read
+            // for it (locked, too big) stays as it is: its current state would be lost for good
+            var (cur, unread) = ReadCurrent(roots);
+            var keep = L.Uncovered(write.Select(w => w.p.File.Key), unread.Select(u => u.File.Key));
+            foreach (var (f, why) in unread.Where(u => keep.Contains(u.File.Key)))
+                skipped.Add(new(f.Name, "Der jetzige Stand ließ sich nicht vorher sichern: " + why));
+            write.RemoveAll(w => keep.Contains(w.p.File.Key));
+            if (write.Count == 0) return new(new(), unchanged, skipped, new(), null, false, new(), new());
+
+            // when the newest backup already holds exactly that state, it is the way back (no second copy of the same files)
             string? safety = null; bool safetyNew = false;
             try
             {
-                var (cur, _) = ReadCurrent(roots);
                 if (cur.Count > 0)
                 {
                     var newest = ListLocked(Dir).FirstOrDefault(x => x.m != null);
@@ -379,13 +390,20 @@ internal static class CfgBackup
                     + (ex is InvalidOperationException ? ex.Message : Reason(ex)));
             }
 
-            var restored = new List<string>(); var failed = new List<Skipped>();
+            var restored = new List<string>(); var failed = new List<Skipped>(); var created = new List<string>();
+            var saved = cur.Select(c => c.File.Key).ToList();
             foreach (var (p, data) in write)
             {
-                try { WriteFile(p.Target!, data, p.Entry.Sha256); restored.Add(p.File.Name); }
+                try
+                {
+                    WriteFile(p.Target!, data, p.Entry.Sha256);
+                    restored.Add(p.File.Name);
+                    if (!saved.Contains(p.File.Key)) created.Add(p.File.Name);
+                }
                 catch (Exception ex) { failed.Add(new(p.File.Name, ex is InvalidOperationException ? ex.Message : Reason(ex))); }
             }
-            return new(restored, unchanged, skipped, failed, safety, safetyNew);
+            var undo = safety == null ? new List<string>() : L.UndoKeys(write.Select(w => w.p.File.Key), saved);
+            return new(restored, unchanged, skipped, failed, safety, safetyNew, undo, created);
         }
     }
 

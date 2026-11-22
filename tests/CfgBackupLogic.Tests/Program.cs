@@ -263,11 +263,58 @@ Check(L.Plan(m, null, new CfgRoots(null, null, null), out pe).All(p => p.Target 
 var broken = L.Parse(L.Serialize(Make()), out _)!; broken.Files[0].Path = @"C:\Windows\win.ini";
 Check(L.Plan(broken, null, roots, out pe).Count == 0 && pe != null, "plan: a broken manifest writes nothing");
 
+var dupKeys = L.Plan(m, new[] { "gfx", "gfx" }, roots, out pe);
+Check(pe == null && dupKeys.Count == 1 && dupKeys[0].File.Key == "gfx", "plan: a key chosen twice is one step");
+
+// ---------- the snapshot before a restore covers every file it writes ----------
+Check(L.Uncovered(new[] { "fivemcfg", "gfx" }, Array.Empty<string>()).Count == 0, "guard: everything was read, everything may be written");
+Check(L.Uncovered(new[] { "fivemcfg", "gfx" }, new[] { "fivemcfg" }).SequenceEqual(new[] { "fivemcfg" }), "guard: an unreadable file that would be written stays");
+Check(L.Uncovered(new[] { "gfx" }, new[] { "fivemcfg", "ini" }).Count == 0, "guard: an unreadable file that is not written does not matter");
+Check(L.Uncovered(new[] { "ini", "gfx", "fivemcfg" }, new[] { "fivemcfg", "ini" }).SequenceEqual(new[] { "ini", "fivemcfg" }), "guard: in the order of the restore");
+Check(L.Uncovered(Array.Empty<string>(), new[] { "gfx" }).Count == 0, "guard: nothing to write");
+Check(L.Uncovered(new[] { "gfx", "gfx" }, new[] { "gfx" }).SequenceEqual(new[] { "gfx" }), "guard: each file once");
+
+// ---------- what "Rückgängig" writes back ----------
+Check(L.UndoKeys(new[] { "gfx" }, new[] { "fivemcfg", "gfx", "ini" }).SequenceEqual(new[] { "gfx" }), "undo: only the file that was restored, not the ones left alone");
+Check(L.UndoKeys(new[] { "ini", "fivemcfg" }, new[] { "fivemcfg", "gfx", "ini" }).SequenceEqual(new[] { "fivemcfg", "ini" }), "undo: in the order of the known files");
+Check(L.UndoKeys(new[] { "gtaxml", "fivemcfg" }, new[] { "fivemcfg", "gfx" }).SequenceEqual(new[] { "fivemcfg" }), "undo: a file that was not there before is not in the snapshot");
+Check(L.UndoKeys(new[] { "gtaxml" }, new[] { "fivemcfg" }).Count == 0, "undo: nothing to write back (the host sends no empty list: that would be all)");
+Check(L.UndoKeys(new[] { "../evil", "fivemcfg" }, new[] { "../evil", "fivemcfg" }).SequenceEqual(new[] { "fivemcfg" }), "undo: only known keys");
+Check(L.UndoKeys(Array.Empty<string>(), new[] { "fivemcfg" }).Count == 0, "undo: nothing touched");
+// undo keys always form a valid choice for a restore from the snapshot
+var snap = Make(L.Safety, "fivemcfg", "gfx");
+var undoPlan = L.Plan(snap, L.UndoKeys(new[] { "gfx", "gtaxml" }, snap.Files.Select(f => f.Key)), roots, out pe);
+Check(pe == null && undoPlan.Count == 1 && undoPlan[0].File.Key == "gfx", "undo: its keys are a valid restore of the snapshot");
+
+// ---------- more manifest and schedule cases ----------
+Check(L.Parse(json.Replace("\"format\": 1,", "\"format\": 1, \"note\": \"from a later 1.x\","), out _) != null, "an unknown extra field is ignored");
+Check(L.Parse(json.Replace("\"sha256\"", "\"sha\""), out var e5) == null && e5 != null, "an entry without a hash");
+Check(L.Parse(json.Replace("\"kind\": \"manual\"", "\"kind\": null"), out _) == null, "a kind of null");
+Check(L.Parse(json.Replace("\"key\": \"fivemcfg\"", "\"key\": \"FIVEMCFG\""), out _) == null, "keys are exact");
+Check(!L.SameContent(new CfgManifest { Files = null! }, nowSame), "a manifest without files is never the same");
+var withNull = Make(); withNull.Files.Add(null!);
+Check(L.SameContent(withNull, nowSame), "a null entry is not counted");
+var dstLast = new DateTimeOffset(2026, 10, 25, 1, 30, 0, TimeSpan.FromHours(2));   // before the clocks went back
+Check(!L.AutoDue(dstLast, new DateTimeOffset(2026, 10, 25, 20, 0, 0, TimeSpan.FromHours(1))), "the day the clocks go back is still one day");
+Check(L.AutoDue(dstLast, new DateTimeOffset(2026, 10, 26, 0, 5, 0, TimeSpan.FromHours(1))), "the day after it is due");
+bool? seen = null; int starts = 0;
+foreach (var open in new[] { true, true, false, false, true, true, false, true })
+{
+    if (L.Started(seen, open)) starts++;
+    seen = open;
+}
+Eq(starts, 2, "probes: running at launch is no start, then two real starts");
+var mixed = Enumerable.Range(0, 7).Select(d => St(d, L.Safety)).Append(new CfgStored("fivem-backup-old.zip", L.Safety, day.AddDays(-9))).ToList();
+var delMixed = L.Prune(mixed);
+Check(delMixed.Count == 2 && !delMixed.Contains("fivem-backup-old.zip"), "a snapshot with a name that is not ours is never deleted");
+Eq(L.ToPlaceholder(@"C:\Users\Max\AppData\Local\FiveM\FiveM.app", roots), "<FiveM.app>", "FiveM.app itself, not %LOCALAPPDATA%\\…");
+
 // ---------- labels ----------
 Eq(L.KindLabel(L.Manual), "Von dir", "manual label");
 Eq(L.KindLabel(L.Auto), "Automatisch", "auto label");
 Eq(L.KindLabel(L.Safety), "Vor dem Wiederherstellen", "safety label");
 Eq(L.KindLabel(null), "Unbekannt", "unknown label");
+Eq(L.KindLabel(""), "Unbekannt", "empty label");
 
 Console.WriteLine($"{passed} passed, {failed} failed");
 return failed == 0 ? 0 : 1;

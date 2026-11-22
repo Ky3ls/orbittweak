@@ -41,11 +41,11 @@ function bkFrame() {
     <div class="bk-src" id="bkSrc"></div>
     <div class="bk-go"><span class="bk-last" id="bkLast">Wird gelesen…</span><button class="btn p" id="bkMake" type="button">${ico('bk-archive')}<span>Jetzt sichern</span></button></div>
     <div id="bkMsg"></div>
-    <div class="srow bk-auto"><div><b>Automatisch sichern</b><p>Höchstens einmal am Tag beim Start von FiveM und nur, wenn sich etwas geändert hat. Die letzten 10 automatischen bleiben, deine eigenen löscht OrbitTweak nie.</p></div>
+    <div class="srow bk-auto"><div><b>Automatisch sichern</b><p>Beim Start von FiveM, solange OrbitTweak läuft: höchstens einmal am Tag und nur, wenn sich etwas geändert hat. Die letzten 10 automatischen bleiben, deine eigenen löscht OrbitTweak nie.</p></div>
       <div class="tg" id="bkAutoTg" role="switch" tabindex="0" aria-checked="false" aria-label="Automatisch sichern"></div></div>
     <div class="bk-lh"><b>Sicherungen</b><i class="bk-n" id="bkN"></i><span class="sp"></span><button class="btn sm gh" id="bkDir" type="button">${ico('folder')}Ordner öffnen</button></div>
     <div id="bkRows"></div>
-    <p class="bk-foot" id="bkFoot">Nur auf deinem PC. Nicht dabei sind Caches, die Daten der Server und deine Rockstar-Anmeldung.</p>
+    <p class="bk-foot" id="bkFoot">Nur auf deinem PC. Von den Ständen vor dem Wiederherstellen bleiben die letzten 5. Nicht dabei sind Caches, die Daten der Server und deine Rockstar-Anmeldung.</p>
   </div>`);
 }
 
@@ -67,7 +67,7 @@ function bkRow(it) {
     <span class="bk-ic">${ico(it.ok ? (BK_KIND_ICO[it.kind] || 'bk-archive') : 'alert')}</span>
     <span class="bk-tx"><b>${esc(bkWhen(it.created))}</b><span class="bk-sub">${sub}</span>${it.ok ? `<span class="bk-fl">${esc(files.map(f => f.name).join(' · '))}</span>` : ''}</span>
     ${it.ok ? `<button class="btn sm" type="button" data-bkres="${esc(it.name)}"${any ? ' disabled' : ''}>${busyR ? '<i class="bk-ring"></i>Stelle wieder her…' : ico('undo') + 'Wiederherstellen'}</button>` : ''}
-    <button class="bk-del" type="button" data-bkdel="${esc(it.name)}" title="Sicherung löschen" aria-label="Sicherung vom ${esc(bkWhen(it.created))} löschen"${any ? ' disabled' : ''}>${busyD ? '<i class="bk-ring"></i>' : ico('trash')}</button>
+    <button class="bk-del" type="button" data-bkdel="${esc(it.name)}" title="Sicherung löschen" aria-label="Sicherung ${esc(bkOf(it.created))} löschen"${any ? ' disabled' : ''}>${busyD ? '<i class="bk-ring"></i>' : ico('trash')}</button>
   </div>`;
 }
 
@@ -119,7 +119,7 @@ function bkRender() {
 
   // the list
   const n = $('#bkN'); if (n) n.textContent = st ? String(items.length) : '';
-  const dir = $('#bkFoot'); if (dir && st) dir.innerHTML = `Nur auf deinem PC unter <code>${esc(st.dir)}</code>. Nicht dabei sind Caches, die Daten der Server und deine Rockstar-Anmeldung.`;
+  const dir = $('#bkFoot'); if (dir && st) dir.innerHTML = `Nur auf deinem PC unter <code>${esc(st.dir)}</code>. Von den Ständen vor dem Wiederherstellen bleiben die letzten 5. Nicht dabei sind Caches, die Daten der Server und deine Rockstar-Anmeldung.`;
   const rows = $('#bkRows'); if (!rows) return;
   if (!st) {
     rows.innerHTML = BK.err
@@ -139,7 +139,9 @@ function bkRender() {
   rows.querySelector('.bk-more')?.classList.toggle('open', BK.all);
 }
 
-async function bkLoad(quiet) {
+/** fresh: after an action, a read that started before it is waited for and then read again. */
+async function bkLoad(quiet, fresh) {
+  if (BK.loading && fresh) await BK.loading;
   if (BK.loading) return BK.loading;
   if (!BK.st) { BK.err = ''; bkRender(); }
   BK.loading = (async () => {
@@ -164,7 +166,7 @@ async function bkCreate() {
   } catch (e) {
     BK.msg = { ok: false, title: 'Nicht gesichert', text: (e && e.message) || 'Unbekannter Fehler' };
   }
-  BK.busy = ''; await bkLoad(true);
+  BK.busy = ''; await bkLoad(true, true);
 }
 
 /** The question before a restore: which files (all ticked), FiveM closed, what happens to the rest. */
@@ -192,24 +194,29 @@ function bkAsk(it) {
   });
 }
 
-async function bkRestore(name, undo) {
+/** undoKeys: "Rückgängig" of the last restore, only the files it wrote (an empty list would mean all files to the host). */
+async function bkRestore(name, undoKeys) {
+  const undo = Array.isArray(undoKeys);
   const it = BK.st && BK.st.items.find(i => i.name === name);
-  if (!it || BK.busy) return;
-  let keys = null;
+  if (!it || BK.busy || (undo && !undoKeys.length)) return;
+  let keys = undoKeys || null;
   if (!undo) { keys = await bkAsk(it); if (!keys || BK.busy) return; }
   BK.busy = 'restore:' + name; BK.msg = null; bkRender();
   try {
-    const r = await api('bk.restore', { name, keys: keys || [] });
+    const r = await api('bk.restore', { name, keys });
     const done = r.restored || [], same = r.unchanged || [], bad = [...(r.failed || []), ...(r.skipped || [])];
+    const back = !undo && r.safety && (r.undo || []).length ? r.undo : null, created = r.created || [];
     const notes = [];
     if (same.length) notes.push(`${bkList(same)} ${same.length === 1 ? 'war' : 'waren'} schon so`);
     if (bad.length) notes.push(`nicht geschrieben: ${bad.map(s => `${s.name} (${s.why})`).join(', ')}`);
+    // "Rückgängig" writes back what was there before; a file that was not there stays
+    if (back && created.length) notes.push(`${bkList(created)} gab es vorher nicht, „Rückgängig“ lässt sie stehen`);
     if (done.length) {
       BK.msg = { ok: !(r.failed || []).length, title: undo ? 'Rückgängig gemacht' : done.length === 1 ? `${done[0]} wiederhergestellt` : `${done.length} Dateien wiederhergestellt`,
         text: [done.length > 1 ? bkList(done) : '',
           !r.safety ? '' : r.safetyNew ? 'Dein vorheriger Stand liegt als „Vor dem Wiederherstellen“ in der Liste' : 'Dein vorheriger Stand war schon gesichert',
           ...notes].filter(Boolean).join('. ') + '. FiveM liest die Einstellungen beim nächsten Start.',
-        undo: undo ? null : r.safety };
+        undo: back ? r.safety : null, undoKeys: back };
     } else if (same.length && !bad.length) {
       BK.msg = { ok: true, title: 'Schon auf diesem Stand', text: 'Deine Einstellungen gleichen der Sicherung, es wurde nichts geändert.' };
     } else {
@@ -218,7 +225,7 @@ async function bkRestore(name, undo) {
   } catch (e) {
     BK.msg = { ok: false, title: undo ? 'Nicht rückgängig gemacht' : 'Nicht wiederhergestellt', text: (e && e.message) || 'Unbekannter Fehler' };
   }
-  BK.busy = ''; await bkLoad(true);
+  BK.busy = ''; await bkLoad(true, true);
 }
 
 async function bkDelete(name) {
@@ -232,7 +239,7 @@ async function bkDelete(name) {
     if (BK.msg && BK.msg.undo === name) BK.msg = null;   // the undo pointed at it
     toast('Sicherung gelöscht', bkWhen(it.created));
   } catch (e) { toast('Nicht gelöscht', (e && e.message) || '', false); }
-  BK.busy = ''; await bkLoad(true);
+  BK.busy = ''; await bkLoad(true, true);
 }
 
 async function bkAuto() {
@@ -253,7 +260,7 @@ $('#st-safety')?.addEventListener('click', e => {
   if (e.target.closest('#bkMake')) return bkCreate();
   const r = e.target.closest('[data-bkres]'); if (r) return bkRestore(r.dataset.bkres);
   const d = e.target.closest('[data-bkdel]'); if (d) return bkDelete(d.dataset.bkdel);
-  const u = e.target.closest('[data-bkundo]'); if (u) return bkRestore(u.dataset.bkundo, true);
+  const u = e.target.closest('[data-bkundo]'); if (u) return bkRestore(u.dataset.bkundo, (BK.msg && BK.msg.undoKeys) || []);
   if (e.target.closest('[data-bkclose]')) { BK.msg = null; return bkRender(); }
   if (e.target.closest('#bkAutoTg')) return bkAuto();
   if (e.target.closest('[data-bkmore]')) { BK.all = !BK.all; return bkRender(); }
@@ -277,9 +284,9 @@ EVENT_EXT.bkauto = () => { BK.at = 0; if (curPage === 'settings' && !$('#st-safe
 const BK_MOCK = {
   auto: true, running: false, fail: '',   // fail: 'state' | 'create' | 'restore' (preview of the error states)
   sources: [
-    { key: 'fivemcfg', name: 'fivem.cfg', what: 'Tastenbelegung und Spiel-Einstellungen', path: '%APPDATA%\\CitizenFX\\fivem.cfg', exists: true, size: 47312, modified: null, note: null },
-    { key: 'gfx', name: 'gta5_settings.xml', what: 'Grafik', path: '%APPDATA%\\CitizenFX\\gta5_settings.xml', exists: true, size: 8094, modified: null, note: null },
-    { key: 'ini', name: 'CitizenFX.ini', what: 'GTA-V-Ordner und Update-Kanal', path: '<FiveM.app>\\CitizenFX.ini', exists: true, size: 312, modified: null, note: null },
+    { key: 'fivemcfg', name: 'fivem.cfg', what: 'Tastenbelegung und Spiel-Einstellungen', path: '%APPDATA%\\CitizenFX\\fivem.cfg', exists: true, size: 47312, modified: new Date(Date.now() - 26 * 3600e3).toISOString(), note: null },
+    { key: 'gfx', name: 'gta5_settings.xml', what: 'Grafik', path: '%APPDATA%\\CitizenFX\\gta5_settings.xml', exists: true, size: 8094, modified: new Date(Date.now() - 4 * 864e5).toISOString(), note: null },
+    { key: 'ini', name: 'CitizenFX.ini', what: 'GTA-V-Ordner und Update-Kanal', path: '<FiveM.app>\\CitizenFX.ini', exists: true, size: 312, modified: new Date(Date.now() - 30 * 864e5).toISOString(), note: null },
     { key: 'gtaxml', name: 'settings.xml', what: 'Grafik älterer FiveM-Installationen', path: '%LOCALAPPDATA%\\Rockstar Games\\GTA V\\settings.xml', exists: false, size: 0, modified: null, note: null },
   ],
   items: [],
@@ -287,7 +294,13 @@ const BK_MOCK = {
 {
   const M = BK_MOCK;
   const pad = n => String(n).padStart(2, '0');
-  const nameOf = d => `fivem-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.zip`;
+  // fivem-<yyyy-MM-dd_HHmmss>.zip, "-2", "-3" … for a second one in the same second (like CfgBackupLogic.NameFor)
+  const nameOf = d => {
+    const stem = `fivem-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+    let n = stem + '.zip';
+    for (let i = 2; (M.items || []).some(x => x.name === n); i++) n = `${stem}-${i}.zip`;
+    return n;
+  };
   const LABEL = { manual: 'Von dir', auto: 'Automatisch', safety: 'Vor dem Wiederherstellen' };
   const filesNow = () => M.sources.filter(s => s.exists && !s.note).map(s => ({ key: s.key, name: s.name, what: s.what, size: s.size }));
   const item = (d, kind, files = filesNow(), extra = {}) => ({ name: nameOf(d), created: d.toISOString(), kind, kindLabel: LABEL[kind], size: Math.round(files.reduce((a, f) => a + f.size, 0) * .23) + 640, files, ok: true, error: null, ...extra });
@@ -327,9 +340,16 @@ const BK_MOCK = {
     if (keys.some(k => !it.files.some(f => f.key === k))) throw new Error('Diese Datei ist nicht in der Sicherung. Es wurde nichts geändert.');
     // the newest backup is close to what is there now: its CitizenFX.ini comes back as "unchanged"
     const same = it === M.items[0] ? it.files.filter(f => f.key === 'ini' && keys.includes(f.key)).map(f => f.name) : [];
-    const pick = it.files.filter(f => keys.includes(f.key));
-    const safety = item(new Date(), 'safety'); M.items.unshift(safety); sort();
-    return { restored: pick.filter(f => !same.includes(f.name)).map(f => f.name), unchanged: same, skipped: [], failed: [], safety: safety.name, safetyNew: true };
+    const write = it.files.filter(f => keys.includes(f.key) && !same.includes(f.name));
+    if (!write.length) return { restored: [], unchanged: same, skipped: [], failed: [], safety: null, safetyNew: false, undo: [], created: [] };
+    // first the state as it is now (when there is one), then the files are written
+    const saved = filesNow().map(f => f.key);
+    let safety = null;
+    if (saved.length) { const snap = item(new Date(), 'safety'); M.items.unshift(snap); sort(); safety = snap.name; }
+    const created = write.filter(f => !saved.includes(f.key)).map(f => f.name);
+    write.forEach(f => { const s = M.sources.find(x => x.key === f.key); if (s) Object.assign(s, { exists: true, size: f.size, modified: new Date().toISOString(), note: null }); });
+    const undo = safety ? M.sources.map(s => s.key).filter(k => write.some(f => f.key === k) && saved.includes(k)) : [];
+    return { restored: write.map(f => f.name), unchanged: same, skipped: [], failed: [], safety, safetyNew: !!safety, undo, created };
   };
   MOCK_EXT['bk.delete'] = async a => { await sleep(160); M.items = M.items.filter(i => i.name !== a.name); return { ok: true }; };
   MOCK_EXT['bk.auto'] = async a => { await sleep(120); M.auto = !!a.on; return { auto: M.auto }; };

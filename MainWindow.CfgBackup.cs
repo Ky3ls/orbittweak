@@ -43,7 +43,8 @@ public partial class MainWindow
                     return new { item, skipped };
                 }
 
-                // { name, keys?: [] } -> { restored: [], unchanged: [], skipped: [{ name, why }], failed: [{ name, why }], safety, safetyNew }
+                // { name, keys?: [] } -> { restored: [], unchanged: [], skipped: [{ name, why }], failed: [{ name, why }], safety, safetyNew,
+                //                          undo: [keys "Rückgängig" writes back from safety], created: [names that were not there before] }
                 // (FiveM running, a broken backup or one that cannot be checked: a German error, nothing written)
                 case "bk.restore":
                 {

@@ -315,6 +315,24 @@ public static class CfgBackupLogic
         return plan;
     }
 
+    /// <summary>The files of a restore that must stay as they are: there now, but not readable for the snapshot taken
+    /// first (locked, too big). Writing them would lose their current state for good. In the order of <paramref name="write"/>.</summary>
+    public static List<string> Uncovered(IEnumerable<string> write, IEnumerable<string> unread)
+    {
+        var u = new HashSet<string>(unread, StringComparer.Ordinal);
+        return write.Where(u.Contains).Distinct().ToList();
+    }
+
+    /// <summary>What "Rückgängig" writes back: only the files this restore wrote (or tried to) whose earlier state the
+    /// snapshot holds. Files it did not touch stay as they are, even if they changed since; a file that was not there
+    /// before is not in the snapshot and stays. In the order of <see cref="Files"/>.</summary>
+    public static List<string> UndoKeys(IEnumerable<string> touched, IEnumerable<string> saved)
+    {
+        var t = new HashSet<string>(touched, StringComparer.Ordinal);
+        var s = new HashSet<string>(saved, StringComparer.Ordinal);
+        return Files.Select(f => f.Key).Where(k => t.Contains(k) && s.Contains(k)).ToList();
+    }
+
     public static string KindLabel(string? kind) => kind switch
     {
         Manual => "Von dir",
