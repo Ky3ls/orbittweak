@@ -379,10 +379,15 @@
 .mbox{width:500px;max-width:calc(100vw - 48px);padding:28px 28px 24px;border:0;border-radius:24px;text-align:left;
   background:radial-gradient(90% 55% at 100% 0%,rgba(var(--a-rgb),.07),transparent 65%),linear-gradient(180deg,#121722,#0B0F16);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.085),inset 0 0 0 1px rgba(196,210,255,.06),0 2px 4px rgba(0,0,0,.45),0 50px 110px -30px rgba(0,0,0,.95);
-  animation:luxPop .42s var(--ease)}
+  animation:luxPop .42s var(--ease);max-height:calc(100vh - 32px);overflow-y:auto;overscroll-behavior:contain}
 .mbox:hover{box-shadow:inset 0 1px 0 rgba(255,255,255,.085),inset 0 0 0 1px rgba(196,210,255,.06),0 2px 4px rgba(0,0,0,.45),0 50px 110px -30px rgba(0,0,0,.95)}
 .mbox::before{display:none}
 @keyframes luxPop{from{opacity:0;transform:translateY(10px) scale(.98)}}
+/* closing: as soft as the entry, only shorter; the page underneath takes clicks again at once (closeModal sets .out) */
+.modal.out{display:grid;pointer-events:none;animation:luxFadeOut .16s ease both}
+.modal.out .mbox{animation:luxOut .16s ease both}
+@keyframes luxFadeOut{to{opacity:0}}
+@keyframes luxOut{to{opacity:0;transform:translateY(4px) scale(.99)}}
 .mbox .kicker{display:block;font-size:12.5px;font-weight:500;letter-spacing:0;color:var(--mute)}
 .mbox .kicker::before{display:none}
 .mbox h1{margin-top:6px;font-size:22px;font-weight:560;letter-spacing:-.026em;line-height:1.22}
@@ -473,6 +478,19 @@
 .toast span{display:block;margin-top:1px;font-size:12.5px;line-height:1.4;color:var(--sub);overflow-wrap:anywhere}
 .toast::after{left:16px;right:16px;width:auto;height:1px;background:rgba(255,255,255,.14);opacity:1}
 .toast.err::after{background:rgba(242,139,139,.4)}
+/* 2.32: a card waits while the pointer rests on it (hairline paused), goes with a click, and sits above the Grafik
+   savebar. The same message again replaces the newest card without a new entry (.re). "warn" is amber, not a success. */
+#toasts{transition:bottom .25s var(--ease)}
+body:has(.page.show>.savebar:not(.hidden)) #toasts{bottom:88px}
+.toast{cursor:pointer}
+.toast:hover{background:linear-gradient(180deg,#1A2030,#131824)}
+.toast:active{transform:scale(.99)}
+.toast::after{animation-duration:var(--tdur,3.6s)}
+.toast:hover::after{animation-play-state:paused}
+.toast.re:not(.out){animation:none}
+.toast.warn .ti{background:rgba(242,196,107,.13);box-shadow:inset 0 0 0 1px rgba(242,196,107,.2)}
+.toast.warn .ti svg.i{color:var(--warn)}
+.toast.warn::after{background:rgba(242,196,107,.4)}
 
 /* "Boost abgeschlossen": still the band across the window, but sentence case, big and light, no glow.
    Only opacity and transform move (the old title animated its letter spacing). */
@@ -494,4 +512,5 @@
 @media (prefers-reduced-motion:reduce){
   .sp-arc,.lk-card.busy .lk-svg{animation:none}
   .mbox,.toast,.sp-box{animation:none}
+  .modal.out{display:none}
 }

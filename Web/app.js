@@ -333,12 +333,29 @@ function go(p) {
 window.go = go;
 
 /* ======================= TOAST / FEED ======================= */
+// ok: true (done), false (failed) or 'warn' (worth a look, nothing broke). A toast stays longer the more there is to read,
+// waits while the pointer rests on it and goes with a click. The same title of the same kind within 1.5 s replaces the
+// newest card (three switches flipped in a row are one card with the last name), and at most two are on screen.
 function toast(title, text = '', ok = true) {
+  const kind = ok === 'warn' ? 'warn' : ok ? 'ok' : 'err', box = $('#toasts');
+  const dur = Math.min(7000, 3600 + Math.max(0, String(title ?? '').length + String(text || '').length - 60) * 35);
+  const old = [...box.children].filter(x => !x.classList.contains('out')).pop(), prev = old?._tst;
+  const re = !!prev && prev.title === title && prev.kind === kind && Date.now() - prev.at < 1500;
   const t = document.createElement('div');
-  t.className = 'toast' + (ok ? '' : ' err');
-  t.innerHTML = `<div class="ti">${ico(ok ? 'check' : 'alert')}</div><div><b>${esc(title)}</b>${text ? `<span>${esc(text)}</span>` : ''}</div>`;
-  $('#toasts').append(t);
-  setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 250); }, 3600);
+  t.className = 'toast' + (kind === 'ok' ? '' : ' ' + kind) + (re ? ' re' : '');
+  t.style.setProperty('--tdur', dur + 'ms');   // the hairline runs exactly as long as the card stays
+  t.innerHTML = `<div class="ti">${ico(kind === 'ok' ? 'check' : 'alert')}</div><div><b>${esc(title)}</b>${text ? `<span>${esc(text)}</span>` : ''}</div>`;
+  let left = dur, end = 0, timer = 0;
+  const dismiss = () => { if (t.classList.contains('out')) return; clearTimeout(timer); t.classList.add('out'); setTimeout(() => t.remove(), 300); };
+  const start = () => { clearTimeout(timer); end = Date.now() + left; timer = setTimeout(dismiss, left); };
+  t._tst = { title, kind, at: Date.now(), dismiss, stop: () => clearTimeout(timer) };
+  t.addEventListener('pointerenter', () => { clearTimeout(timer); left = Math.max(1200, end - Date.now()); });
+  t.addEventListener('pointerleave', start);
+  t.addEventListener('click', dismiss);
+  if (re) { prev.stop(); old.replaceWith(t); } else box.append(t);
+  start();
+  const on = [...box.children].filter(x => !x.classList.contains('out'));
+  for (let i = 0; i < on.length - 2; i++) on[i]._tst ? on[i]._tst.dismiss() : on[i].remove();
 }
 function feed(text) {
   const f = $('#feed'), d = document.createElement('div');
@@ -521,7 +538,7 @@ async function loadTweaks() {
     renderTweaks();
     const n = l.note;
     if (n && n.undone && n.undone.length) toast('Veraltete Tweaks zurückgesetzt', n.undone.join(', ') + (n.reboot ? ' · wirkt nach einem Neustart' : ''));
-    if (n && n.active) setTimeout(() => toast(n.active === 1 ? '1 alter Tweak ist noch aktiv' : `${n.active} alte Tweaks sind noch aktiv`, 'Unter Tweaks › System › Entfernte Tweaks prüfen'), n.undone && n.undone.length ? 4200 : 0);
+    if (n && n.active) setTimeout(() => toast(n.active === 1 ? '1 alter Tweak ist noch aktiv' : `${n.active} alte Tweaks sind noch aktiv`, 'Unter Tweaks › System › Entfernte Tweaks prüfen', 'warn'), n.undone && n.undone.length ? 4200 : 0);
   } catch { }
 }
 // a row: the name with its badges, one short line, the full text only under "Details" (rows that are open stay open
@@ -650,7 +667,7 @@ async function revertAll() {
   // removed tweaks are only reset here when they surely came from OrbitTweak: the rest is named, with where to reset it
   const left = (r && r.left) || [];
   if (left.length) setTimeout(() => toast(left.length === 1 ? '1 entfernter Tweak ist noch aktiv' : `${left.length} entfernte Tweaks sind noch aktiv`,
-    left.map(n => n.replace(/ \((entfernt|alte Version)\)$/, '')).join(', ') + ' · einzeln zurücksetzen unter Tweaks › System › Entfernte Tweaks'), 4200);
+    left.map(n => n.replace(/ \((entfernt|alte Version)\)$/, '')).join(', ') + ' · einzeln zurücksetzen unter Tweaks › System › Entfernte Tweaks', 'warn'), 4200);
 }
 
 /* ======================= FIVEM ACTIONS ======================= */
@@ -1331,12 +1348,27 @@ setInterval(() => { if (curPage === 'settings' && !$('#st-general')?.classList.c
 async function restorePoint() { toast('Wird erstellt…', 'Kann bis zu einer Minute dauern'); const r = await api('restore'); toast(r.ok ? 'Wiederherstellungspunkt erstellt' : 'Fehlgeschlagen', r.ok ? 'Du kannst jederzeit zurück' : 'Ist der Computerschutz aktiviert?', r.ok); }
 
 /* ======================= MODAL / WIZARD ======================= */
-function modal(html) { $('#mbox').innerHTML = html; $('#modal').classList.add('show'); }
+// A dialog fades out in .16 s (.out: still drawn, clicks already reach the page) and is gone at once with reduced motion.
+// .show goes the moment it closes, so every "is a dialog open" check stays right. A dialog opened during the fade (a
+// confirm, then the next step) cancels it, starts at the default width (callers set their own after modal()) and the top.
+let mOutT = 0, mClrT = 0;
+function modal(html) {
+  clearTimeout(mOutT); clearTimeout(mClrT);
+  const m = $('#modal'), box = $('#mbox');
+  m.classList.remove('out'); m.inert = false; box.style.width = ''; box.innerHTML = html; box.scrollTop = 0; m.classList.add('show');
+}
 function closeModal() {
-  $('#modal').classList.remove('show');
+  const m = $('#modal'), wasOpen = m.classList.contains('show');
+  m.classList.remove('show');
   // a clip that is still playing must stop with its window (picture and sound), whichever way the window was closed
   $$('#mbox video, #mbox audio').forEach(v => { try { v.pause(); v.removeAttribute('src'); v.load(); } catch { } });
-  setTimeout(() => { if (!$('#modal').classList.contains('show')) { $('#mbox').innerHTML = ''; $('#mbox').style.width = ''; } }, 400);
+  // (inert while it fades: a second Enter on the focused button must not send the same form twice)
+  if (wasOpen && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    clearTimeout(mOutT); m.classList.add('out'); m.inert = true;
+    mOutT = setTimeout(() => { m.classList.remove('out'); m.inert = false; }, 160);
+  }
+  clearTimeout(mClrT);
+  mClrT = setTimeout(() => { if (!m.classList.contains('show')) { $('#mbox').innerHTML = ''; $('#mbox').style.width = ''; } }, 400);
 }
 function confirmBox(title, text, o = {}) {
   return new Promise(res => {
@@ -2274,7 +2306,7 @@ async function clipDel(rel) {
   // the clip still playing in the window holds its file open, and Windows deletes no file in use: stop it and let go first
   const v = $('#mbox video');
   if (v) { try { v.pause(); v.removeAttribute('src'); v.load(); } catch { } await sleep(400); }
-  clDurPause(true); const r = await api('clip.delete', { rel }).catch(e => ({ ok: false, error: e.message })); clDurPause(false); closeModal(); $('#mbox').style.width = ''; toast(r.ok ? 'Clip gelöscht' : 'Löschen fehlgeschlagen', r.error || '', r.ok); clipList(); }
+  clDurPause(true); const r = await api('clip.delete', { rel }).catch(e => ({ ok: false, error: e.message })); clDurPause(false); closeModal(); toast(r.ok ? 'Clip gelöscht' : 'Löschen fehlgeschlagen', r.error || '', r.ok); clipList(); }
 window.clipDel = clipDel;
 function initClip(s) { Object.assign(CL, s.clip || {}); MO.music = CL.montageMusic ? CL.montageMusic.split(/[\\/]/).pop() : null; clipUI(); clipPush(); }
 
@@ -2977,7 +3009,7 @@ async function libAddSend() {
   const r = await srv('POST', '/api/mods', body).catch(e => ({ error: e.message }));
   b.disabled = false; b.innerHTML = `${ico('check')}Hinzufügen`;
   if (r.error) return toast('Nicht hinzugefügt', r.error, false);
-  closeModal(); $('#mbox').style.width = '';
+  closeModal();
   passed(r.status === 'live' ? 'Mod ist live' : 'Mod eingereicht', r.status === 'live' ? 'Für alle in der Bibliothek sichtbar' : 'Wartet auf Freigabe durch einen Admin');
   modsRefresh();
 }
@@ -3889,7 +3921,7 @@ document.addEventListener('click', async e => {
     const r = await api('clip.cut', { rel: CUT.rel, from: +CUT.from.toFixed(2), to: +CUT.to.toFixed(2), share: !!share }).catch(er => ({ error: er.message }));
     CUT.busy = false; b.disabled = false; b.innerHTML = was;
     if (r.error) return toast('Nicht geschnitten', r.error, false);
-    closeModal(); $('#mbox').style.width = '';
+    closeModal();
     if (r.share) toast(r.clipboard ? 'Schnitt kopiert' : 'Schnitt fertig', `${r.name} · ${bytes(r.size)}${r.clipboard ? ' · in Discord mit Strg+V einfügen' : ''}`);
     else { passed('Clip geschnitten', `${r.name} · ${bytes(r.size)}`); clipList(); }
   }
