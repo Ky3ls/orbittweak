@@ -63,6 +63,7 @@ internal static class Program
                 if (h == IntPtr.Zero) continue; // the recorder helper has no window
                 if (IsIconic(h)) ShowWindow(h, 9);
                 SetForegroundWindow(h);
+                Core.ServerShortcut.Forward(h, args);   // 2.31: "--connect <code>" from a desktop shortcut goes to the running app
                 break;
             }
         }

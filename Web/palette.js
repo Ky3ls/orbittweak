@@ -121,6 +121,9 @@
     ['md:rs', () => { go('mods'); modTab('rs'); }, 'ReShade', 'sparkle', 'Mods & ReShade › Tasten und Optionen', 'reshade shader filter looks preset schärfe'],
     ['md:mm', () => { go('mods'); modTab('mm'); }, 'Eigene Minimap', 'map', 'Mods & ReShade › Aus einem Bild', 'minimap karte map bild logo eigene'],
     ['md:files', () => { go('mods'); modTab('files'); }, 'Meine Mods', 'puzzle', 'Mods & ReShade › Installiert und Downloads', 'installiert downloads dateien entfernen meine'],
+    ['sw:alarm', () => swOpen('alarm'), 'Platz-Alarm', 'sw-bell', 'Server › Bescheid, sobald ein Platz frei ist', 'voll server platz frei slot warteschlange queue alarm benachrichtigung wieder online offline'],
+    ['sw:friends', () => swOpen('friends'), 'Freunde online', 'users', 'Server › Freunde in deinen Favoriten finden', 'freunde kumpel spieler online wo spielt name finden mitspieler'],
+    ['sw:desk', () => swOpen('desk'), 'Server auf den Desktop', 'sw-desk', 'Server › Verknüpfung, die mit einem Klick verbindet', 'verknüpfung desktop shortcut icon schnellstart lnk direkt verbinden'],
   ];
   const SCENE_SUB = { winter: 'Nordlicht, Raureif, Schnee', anime: 'Abendhimmel, Kirschblüten' };
   const SUGGEST = ['ac:boost', 'ac:fivem', 'ac:health', 'ac:ram', 'pg:tweaks', 'pg:clip'];

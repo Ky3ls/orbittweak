@@ -1,0 +1,129 @@
+/* 2.31 – Server page: Platz-Alarm, Freunde online, Server auf den Desktop (serverwatch.js). Luxe tokens from uhq.css,
+   every class prefixed sw-. Only opacity and box-shadow move; the two hint pulses run twice and stop. */
+
+/* ---------- favourites rows: the shortcut button joins "remove" in the last column (both on hover) ---------- */
+#srvList .srv:not(.skel){grid-template-columns:44px minmax(0,1fr) 88px 62px auto 58px}
+.sw-tail{display:flex;align-items:center;justify-content:flex-end;gap:2px}
+.sw-desk{width:28px;height:28px;border-radius:8px;background:none;box-shadow:none;color:var(--mute);opacity:0;transition:opacity .2s,background .2s,color .2s}
+.sw-desk svg.i{width:15px;height:15px}
+.srv:hover .sw-desk,.sw-desk:focus-visible{opacity:1}
+.sw-desk:hover{background:rgba(255,255,255,.07);color:var(--text)}
+.sw-desk[disabled]{opacity:.5;cursor:default}
+
+/* Platz-Alarm in the line under the server name */
+.sw-pa{flex:none;display:inline-flex;align-items:center;gap:4px;height:21px;padding:0 9px 0 7px;border:0;border-radius:99px;cursor:pointer;
+  background:rgba(255,255,255,.055);box-shadow:inset 0 0 0 1px rgba(255,255,255,.05);color:var(--sub);font:inherit;font-size:11.5px;font-weight:550;
+  transition:background .2s,color .2s}
+.sw-pa svg.i{width:12px;height:12px;stroke-width:2}
+.sw-pa:hover{background:rgba(255,255,255,.095);color:var(--text)}
+.sw-pa:focus-visible{outline:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05),0 0 0 3px rgba(var(--a-rgb),.28)}
+.sw-pa.sw-on{background:var(--on-fill);box-shadow:var(--on-edge);color:#fff}
+.sw-pa.sw-on:hover{filter:brightness(1.06)}
+.sw-pa[disabled]{opacity:.55;cursor:default}
+.srv.off .sw-pa{opacity:1}
+
+@keyframes sw-hint{0%,100%{box-shadow:0 0 0 0 rgba(var(--a-rgb),0)}50%{box-shadow:0 0 0 4px rgba(var(--a-rgb),.3)}}
+#srvList.sw-hint .sw-pa{animation:sw-hint 1.2s ease 2}
+#srvList.sw-hint-desk .sw-desk{opacity:1;animation:sw-hint 1.2s ease 2}
+
+/* ---------- shared ---------- */
+.sw-t{font-family:var(--disp);font-size:15.5px;font-weight:580;letter-spacing:-.015em;line-height:1.3;color:var(--text)}
+.sw-cnt{font-size:12.5px;color:var(--mute);font-variant-numeric:tabular-nums}
+.sw-sp{flex:1}
+.sw-go{height:30px;padding:0 12px}
+.sw-go svg.i,.sw-go:hover svg.i{width:11px;height:11px;color:var(--a);fill:var(--a);stroke:none}
+
+/* ---------- Platz-Alarm card (above the favourites) ---------- */
+.sw-alarm{padding:20px 22px 16px}
+.sw-ah{display:flex;align-items:baseline;gap:10px}
+.sw-sub{margin-top:4px;font-size:12.5px;line-height:1.5;color:var(--mute)}
+.sw-wl{display:flex;flex-direction:column;margin-top:8px}
+.sw-w{display:flex;align-items:center;gap:12px;padding:12px 0}
+.sw-w+.sw-w{box-shadow:inset 0 1px 0 var(--line)}
+.sw-wi{flex:none;display:grid;place-items:center;width:36px;height:36px;border-radius:11px;background:rgba(255,255,255,.045);box-shadow:var(--edge);color:var(--sub)}
+.sw-wi svg.i{width:16px;height:16px}
+.sw-fired .sw-wi{background:rgba(95,212,163,.1);box-shadow:none;color:var(--good)}
+.sw-retry .sw-wi{color:var(--warn)}
+.sw-ended .sw-wi,.sw-ended .sw-wx b{opacity:.55}
+.sw-wx{flex:1;min-width:0}
+.sw-wx b{display:block;font-size:13.5px;font-weight:550;letter-spacing:-.006em;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sw-wx>span{display:block;margin-top:3px;font-size:12.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.sw-k{color:var(--sub)}
+.sw-retry .sw-wx>span,.sw-ended .sw-wx>span{white-space:normal}
+.sw-good{color:var(--good)}
+.sw-bad{color:var(--warn)}
+.sw-auto{flex:none;display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--sub);white-space:nowrap}
+.sw-auto .tg.sm{margin-right:-7px}
+.sw-x{flex:none;width:28px;height:28px;border-radius:8px;background:none;box-shadow:none;color:var(--mute)}
+.sw-x svg.i{width:14px;height:14px}
+.sw-x:hover{background:rgba(255,255,255,.07);color:var(--text)}
+.sw-note{display:flex;gap:9px;margin-top:4px;padding-top:12px;box-shadow:inset 0 1px 0 var(--line);font-size:12px;line-height:1.5;color:var(--mute)}
+.sw-note svg.i{flex:none;width:14px;height:14px;margin-top:2px}
+
+/* ---------- Freunde online (rail) ---------- */
+.sw-friends{padding:20px 22px 18px}
+.sw-fh{display:flex;align-items:center;gap:8px}
+.sw-fh .sw-cnt{display:inline-grid;place-items:center;min-width:22px;height:20px;padding:0 7px;border-radius:99px;background:rgba(255,255,255,.06);color:var(--sub);font-size:11.5px;font-weight:600}
+.sw-fre{width:30px;height:30px;border-radius:9px}
+.sw-fre svg.i{width:14px;height:14px}
+.sw-fre[disabled]{opacity:.4;cursor:default}
+.sw-fp{margin-top:6px;font-size:12.5px;line-height:1.5;color:var(--mute)}
+.sw-none{margin-top:10px}
+.sw-fl{margin-top:8px}
+.sw-f{display:flex;align-items:center;gap:11px;padding:9px 0}
+.sw-f+.sw-f{box-shadow:inset 0 1px 0 var(--line)}
+.sw-fa{position:relative;flex:none;display:grid;place-items:center;width:32px;height:32px;border-radius:50%;
+  background:linear-gradient(180deg,rgba(255,255,255,.1),rgba(255,255,255,.04));box-shadow:var(--edge);font-family:var(--disp);font-size:13px;font-weight:600;color:var(--text)}
+.sw-fa::after{content:'';position:absolute;right:-1px;bottom:-1px;width:9px;height:9px;border-radius:50%;background:var(--good);box-shadow:0 0 0 2px var(--card)}
+.sw-fx{flex:1;min-width:0}
+.sw-fx b{display:block;font-size:13px;font-weight:550;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sw-fx b small{font-size:11.5px;font-weight:400;color:var(--mute)}
+.sw-fx>span{display:block;margin-top:2px;font-size:12px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sw-ping{font-variant-numeric:tabular-nums;color:var(--sub)}
+.sw-ping.w{color:var(--warn)}
+.sw-ping.r{color:var(--bad)}
+.sw-f .sw-go{height:28px;padding:0 11px}
+.sw-skel{pointer-events:none}
+.sw-skel .sw-fa{background:rgba(255,255,255,.045);box-shadow:none}
+.sw-skel .sw-fa::after{display:none}
+.sw-skel .sw-fx i{display:block;width:55%;height:9px;border-radius:5px;background:rgba(255,255,255,.055)}
+.sw-skel .sw-fx i+i{width:78%;height:7px;margin-top:8px;background:rgba(255,255,255,.032)}
+.sw-cov{margin-top:8px;font-size:12px;line-height:1.5;color:var(--mute)}
+.sw-why{margin-top:4px;font-size:12px;color:var(--mute)}
+.sw-why summary{display:inline-flex;align-items:center;gap:5px;cursor:pointer;color:var(--sub);list-style:none;border-radius:6px}
+.sw-why summary::-webkit-details-marker{display:none}
+.sw-why summary::after{content:'';width:5px;height:5px;margin-top:-2px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg);transition:transform .2s}
+.sw-why[open] summary::after{margin-top:2px;transform:rotate(-135deg)}
+.sw-why summary:hover{color:var(--text)}
+.sw-why summary:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(var(--a-rgb),.28)}
+.sw-why p{margin-top:6px;line-height:1.55}
+.sw-why b{font-weight:550;color:var(--sub)}
+.sw-ferr{display:flex;gap:8px;margin-top:10px;padding:10px 12px;border-radius:12px;background:rgba(242,196,107,.07);color:var(--warn);font-size:12.5px;line-height:1.45}
+.sw-ferr svg.i{flex:none;width:15px;height:15px;margin-top:1px}
+
+.sw-names{margin-top:14px;padding-top:14px;box-shadow:inset 0 1px 0 var(--line)}
+.sw-nh{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:12.5px;font-weight:550;color:var(--sub)}
+.sw-nh small{font-size:11.5px;font-weight:450;color:var(--mute);font-variant-numeric:tabular-nums}
+.sw-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.sw-chip{display:inline-flex;align-items:center;gap:2px;max-width:100%;height:26px;padding:0 3px 0 10px;border-radius:99px;
+  background:rgba(255,255,255,.055);box-shadow:inset 0 0 0 1px rgba(255,255,255,.035);font-size:12px;color:var(--text)}
+.sw-cn{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sw-chip button{flex:none;display:grid;place-items:center;width:20px;height:20px;border:0;border-radius:50%;background:none;color:var(--mute);cursor:pointer}
+.sw-chip button svg.i{width:11px;height:11px;stroke-width:2.2}
+.sw-chip button:hover{background:rgba(255,255,255,.09);color:var(--text)}
+.sw-chip button:focus-visible{outline:none;box-shadow:0 0 0 2px rgba(var(--a-rgb),.4)}
+.sw-more{height:26px;padding:0 10px;border:0;border-radius:99px;background:none;color:var(--sub);font:inherit;font-size:12px;cursor:pointer}
+.sw-more:hover{background:rgba(255,255,255,.05);color:var(--text)}
+.sw-add{display:flex;align-items:center;gap:6px;height:40px;margin-top:10px;padding:0 4px 0 0;border-radius:12px;background:var(--well);box-shadow:var(--well-edge);transition:box-shadow .25s}
+.sw-add:focus-within{box-shadow:var(--well-edge),0 0 0 3px rgba(var(--a-rgb),.2)}
+.sw-add .in,.sw-add .in:focus{flex:1;min-width:0;width:auto;height:38px;padding:0 12px;background:none;box-shadow:none}
+.sw-add .ib{flex:none;width:32px;height:32px;border-radius:9px}
+.sw-add .ib svg.i{width:15px;height:15px}
+.sw-add .ib[disabled]{opacity:.4;cursor:default}
+
+.sw-opts{display:flex;flex-direction:column;gap:12px;margin-top:14px}
+.sw-opt{display:flex;align-items:flex-start;gap:12px}
+.sw-opt>div:first-child{flex:1;min-width:0}
+.sw-opt b{display:block;font-size:12.5px;font-weight:550;color:var(--text)}
+.sw-opt p{margin-top:2px;font-size:11.5px;line-height:1.45;color:var(--mute)}
+.sw-opt .tg{flex:none;margin-top:1px;margin-right:-7px}
