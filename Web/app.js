@@ -287,6 +287,14 @@ function moveInd() {
   if (a.classList.contains('mini')) { ind.style.opacity = 0; return; }   // the small buttons at the bottom have their own highlight
   ind.style.transform = `translateY(${a.offsetTop}px)`; ind.style.opacity = 1;
 }
+/* in a low window the list scrolls: bring the open page's row into view, clear of the 34 px fades. Instant, no glide;
+   nothing happens while the row is already in view */
+function navReveal() {
+  const sn = $('.side-nav'), a = $('.side-nav .nav.active:not(.mini)'); if (!sn || !a || sn.scrollHeight <= sn.clientHeight) return;
+  const top = a.offsetTop - 34, bot = a.offsetTop + a.offsetHeight + 34;
+  if (top < sn.scrollTop) sn.scrollTop = Math.max(0, top);
+  else if (bot > sn.scrollTop + sn.clientHeight) sn.scrollTop = bot - sn.clientHeight;
+}
 function enterPage(el) {
   el.classList.remove('enter'); void el.offsetWidth;
   // only what is shown counts for the stagger (cards in hidden tabs would push the visible ones back)
@@ -325,7 +333,7 @@ function go(p) {
   curPage = p; document.documentElement.dataset.page = p;
   $$('.nav').forEach(n => n.classList.toggle('active', n.dataset.p === (NAV_OF[p] || p)));
   $$('.page').forEach(s => s.classList.toggle('show', s.id === 'p-' + p));
-  moveInd(); enterPage($('#p-' + p));
+  moveInd(); navReveal(); enterPage($('#p-' + p));
   ({ servers: () => S.servers.length || loadServers(), gfx: () => { S.gfx?.found || loadGfx(); gwRefresh(); drvLoad(); }, f8: () => loadF8().then(renderF8), admin: () => admShow(admTab), minimap: modsRefresh, clip: () => { clipList(); hlLoad(); }, mods: modsRefresh, settings: () => { setTab($('#setTabs .tab.on')?.dataset.st || 'account'); spProfile(); }, xhair: () => setTimeout(xhPlace, 30), cleaner: () => S.clean.length || scan(),
      diag: () => { S.health ? renderHealth(S.health) : runHealth(); loadLogs(); }, launcher: renderCmd, home: refreshCache })[p]?.();
   PAGE_SHOW[p]?.();
@@ -3861,7 +3869,7 @@ setInterval(() => {
     document.documentElement.style.setProperty('--dir', to >= from ? 1 : -1);
     const r = go2.apply(this, arguments);
     side.querySelectorAll('.nav-h.cl').forEach(h => groupOf(h).forEach(n => n.classList.toggle('gone', !n.classList.contains('active'))));
-    setTimeout(moveInd, 370);
+    setTimeout(() => { moveInd(); navReveal(); }, 370);   // a row in a folded group only gets its height now
     return r;
   }; window.go = go;
 }

@@ -85,13 +85,24 @@ body::before{display:none}
 .nav-ind+.nav-h{padding-top:4px}
 /* in a lower window the list scrolls: the last row fades out while there is more below (scroll-linked, opacity only).
    The timeline is the list itself (nearest scroller; "self" would be the pseudo element, which never scrolls); the fade
-   stays full until the last 34 px of the way and is gone at the end. A list that fits has no timeline, so it stays hidden */
+   stays full until the last 34 px of the way and is gone at the end. A list that fits has no timeline, so it stays hidden.
+   The top edge mirrors it (2.32): once the list has scrolled, rows fade out over 24 px instead of being cut off hard.
+   That fade is a mask, not a painted band: up there the window carries the theme's glow (ember, mono, winter, anime
+   are all lighter than --night), so a --night overlay would show as a dark strip. The mask lives only in the keyframes
+   on the list's own scroll timeline: its image is 24 px taller than the list and slides from above the edge (all
+   opaque at the top) into place (the 24 px fade) over the first 24 px of scrolling. A list that fits has no timeline,
+   so it gets no mask at all (no extra layer, its text renders exactly as before). Nothing is added to the flow */
 .side-nav::after{content:'';position:sticky;bottom:0;z-index:2;display:block;height:34px;margin-top:-34px;pointer-events:none;opacity:0;
   background:linear-gradient(180deg,transparent,var(--night) 92%)}
 @supports (animation-timeline:scroll()){
   .side-nav::after{animation:navMore linear both;animation-timeline:scroll(nearest block);animation-range:calc(100% - 34px) 100%}
+  .side-nav{animation:navTop linear both;animation-timeline:scroll(self block);animation-range:0 24px;
+    scroll-padding-block:24px 34px}   /* Tab scrolls a row clear of both fades, not under them */
 }
 @keyframes navMore{from{opacity:1}to{opacity:0}}
+@keyframes navTop{
+  from{-webkit-mask:linear-gradient(180deg,transparent,#000 24px) 0 -24px/100% calc(100% + 24px) no-repeat;mask:linear-gradient(180deg,transparent,#000 24px) 0 -24px/100% calc(100% + 24px) no-repeat}
+  to{-webkit-mask:linear-gradient(180deg,transparent,#000 24px) 0 0/100% calc(100% + 24px) no-repeat;mask:linear-gradient(180deg,transparent,#000 24px) 0 0/100% calc(100% + 24px) no-repeat}}
 .nav-h::after{display:none}
 .nav-h::before{position:absolute;right:12px;top:50%;margin-top:1px;width:5px;height:5px;opacity:0;transition:opacity .2s,transform .3s var(--ease)}
 .nav-h:hover::before,.nav-h.cl::before{opacity:.7}
@@ -195,6 +206,21 @@ h2{font-weight:580;letter-spacing:-.016em}
 .btn.p[disabled]{background:rgba(255,255,255,.05);color:var(--mute);box-shadow:var(--edge)}
 .ib{width:34px;height:34px;border:0;border-radius:10px;background:rgba(255,255,255,.045);box-shadow:var(--edge);color:var(--sub)}
 .ib:hover{color:var(--text);background:rgba(255,255,255,.075)}
+/* one calm pressed state (2.32): every control sinks half a pixel and shrinks to 98 % while held, filled ones darken,
+   glass ones dim their face; tinted ones (danger, Discord, ok, outline) keep their colour and darken like the filled
+   ones. Disabled and aria-disabled controls show no press. The press lands in 60 ms and lets go on the plain --ease
+   curve, so nothing bounces back (the old --spring overshot on release, and the main action and the boost button
+   kept their hover look instead).
+   :is() takes its strongest argument, so the transform rule (0,4,0) beats .btn.p:hover, .boostbtn:hover and
+   .launch:hover; the launcher page keeps its still start card (uhq.css .side-cta rule, 0,4,1), which only darkens.
+   Reduced motion: transitions are clamped globally (style.css), so the pressed look simply applies at once */
+.btn,.ib,.boostbtn,.launch{transition:background .2s,box-shadow .2s,filter .15s,color .2s,opacity .2s,transform .2s var(--ease)}
+:is(.btn,.ib,.boostbtn,.launch):active:not([disabled]):not([aria-disabled="true"]){transform:translateY(.5px) scale(.98);transition-duration:.06s}
+:is(.btn.p,.btn.dp,.btn.d,.btn.dc,.btn.ok,.btn.o,.boostbtn,.launch):active:not([disabled]):not([aria-disabled="true"]){filter:brightness(.92)}
+:is(.btn:not(.p,.dp,.d,.dc,.ok,.o),.ib):active:not([disabled]):not([aria-disabled="true"]){background:rgba(255,255,255,.04)}
+:is(.seg button:not(.on),.tab:not(.on),.side-nav .nav:not(.active)):active{background:rgba(255,255,255,.06);color:var(--text);transition-duration:.06s}
+/* the two tab lists with their own id-scoped hover (Tweaks category tiles, Settings side list) */
+#tabs .tab:not(.on):active,#p-settings .snav .tab:not(.on):active{background:rgba(255,255,255,.06);color:var(--text);transition-duration:.06s}
 
 /* switch: a sunken track, a lit knob; on, the track takes the softened accent and the knob turns white.
    The full accent stays for the one main action of a view, so a list of switches never outshouts it */
