@@ -7,6 +7,7 @@
 const SW = {
   watches: [], names: [], notify: false, partial: false, max: 3, maxFriends: 50,
   fr: null, frBusy: false, frErr: '', more: false, loaded: false,
+  why: null,         // "Warum keine Namen?" as the user opened or closed it (null: not touched yet)
   busy: new Set(),   // requests on their way (watch codes, 'd' + code for shortcuts, 'f' for friend edits)
 };
 const SW_CFX = /^cfx:[a-z0-9]{4,8}$/;
@@ -28,6 +29,29 @@ function swAgo(t) {
   return s < 10 ? 'gerade eben' : s < 60 ? `vor ${s} s` : s < 3600 ? `vor ${Math.floor(s / 60)} min` : `vor ${Math.floor(s / 3600)} h`;
 }
 
+/* Timers and host events draw the cards again: the focused control (found again by its data attribute) keeps the
+   focus and the name field its caret. `keep` is a control an earlier redraw took the focus from (a disabled button). */
+const SW_FK = ['swauto', 'swend', 'swjoin', 'swjoinf', 'swfre', 'swrm', 'swopt', 'swmore', 'swadd', 'swbell', 'swdesk'];
+function swFocusAt(box) {
+  const a = document.activeElement; if (!box || !a || a === box || !box.contains(a)) return null;
+  let sel = a.id === 'swName' ? '#swName' : a.matches('.sw-why > summary') ? '.sw-why > summary' : null;
+  if (!sel) { const k = SW_FK.find(x => a.dataset?.[x] !== undefined); if (!k) return null; sel = `[data-${k}="${CSS.escape(a.dataset[k])}"]`; }
+  return [sel, [...box.querySelectorAll(sel)].indexOf(a)];
+}
+function swKeep(box, keep) {
+  const a = document.activeElement;
+  let f = swFocusAt(box);
+  if (!f && keep && (!a || a === document.body)) f = keep;
+  const caret = f && a?.id === 'swName' ? [a.selectionStart, a.selectionEnd, a.selectionDirection] : null;
+  return () => {
+    if (!f || !box) return;
+    const el = box.querySelectorAll(f[0])[f[1]] || box.querySelector(f[0]);
+    if (!el || el.disabled || el === document.activeElement) return;
+    el.focus({ preventScroll: true });
+    if (caret) try { el.setSelectionRange(...caret); } catch { }
+  };
+}
+
 /* ======================= state ======================= */
 async function swLoad() {
   try {
@@ -38,46 +62,59 @@ async function swLoad() {
   } catch { }
   swRender();
 }
-function swRender() { swRenderAlarm(); swDecorate(); swRenderFriends(); }
+function swRender(keep) { swRenderAlarm(); swDecorate(keep); swRenderFriends(); }
 
 /* ======================= favourites rows ======================= */
 // app.js draws the rows; after every draw the alarm and shortcut buttons are added to the cfx rows
 { const draw = renderServers; renderServers = function () { const r = draw.apply(this, arguments); swDecorate(); return r; }; }
 
-function swDecorate() {
+function swDecorate(keep) {
   const list = $('#srvList'); if (!list) return;
+  const refocus = swKeep(list, keep);
   const rows = [...list.children].filter(r => r.classList.contains('srv') && !r.classList.contains('skel'));
   rows.forEach((row, i) => {
     const s = S.servers[i]; if (!s) return;
     const cfx = SW_CFX.test(s.code || '');
-    row.querySelectorAll('.sw-pa,.sw-st').forEach(e => e.remove());
     // shortcut button next to "remove", both shown on hover
     let tail = row.querySelector('.sw-tail');
     const rm = row.querySelector(':scope > .rm');
     if (!tail && rm) { tail = document.createElement('div'); tail.className = 'sw-tail'; rm.replaceWith(tail); tail.append(rm); }
-    tail?.querySelector('.sw-desk')?.remove();
-    if (cfx && tail) tail.insertAdjacentHTML('afterbegin', `<button class="ib sw-desk" type="button" data-swdesk="${esc(s.code)}" ${SW.busy.has('d' + s.code) ? 'disabled' : ''} title="Auf den Desktop: eine Verknüpfung, die FiveM mit deinem Boost startet und sofort verbindet. Windows fragt beim Klick wie beim normalen Start von OrbitTweak nach Adminrechten.">${ico('sw-desk')}</button>`);
-    if (!cfx) return;
-    // Platz-Alarm: in the line under the name, for full and offline servers (and while one runs)
-    const ds = row.querySelector('.ds'); if (!ds) return;
-    const w = SW.watches.find(x => x.code === s.code), on = swActive(w), busy = SW.busy.has(s.code);
-    const fired = w && w.state === 'fired';
-    let html = fired ? `<span class="chip g sw-st">${w.reason === 'online' ? 'Wieder online' : 'Platz frei'}</span>` : '';
-    // (after a fired alarm a new one can start right here when the list still shows the server full or offline)
-    if (on || (s.online && swFull(s)) || !s.online) {
-      if (s.online && swFull(s) && !on && !fired) html = '<span class="chip w sw-st">Voll</span>';
-      const tip = on ? 'Platz-Alarm läuft. Klicken beendet ihn.' : s.online ? 'Platz-Alarm: Bescheid geben, sobald ein Platz frei ist' : 'Platz-Alarm: Bescheid geben, sobald der Server wieder online ist';
-      html += `<button class="sw-pa${on ? ' sw-on' : ''}" type="button" data-swbell="${esc(s.code)}" ${busy ? 'disabled' : ''} title="${tip}">${ico('sw-bell')}${on ? 'Alarm an' : 'Platz-Alarm'}</button>`;
+    const desk = cfx && tail ? `<button class="ib sw-desk" type="button" data-swdesk="${esc(s.code)}" ${SW.busy.has('d' + s.code) ? 'disabled' : ''} title="Auf den Desktop: eine Verknüpfung, die FiveM mit deinem Boost startet und sofort verbindet. Windows fragt beim Klick wie beim normalen Start von OrbitTweak nach Adminrechten.">${ico('sw-desk')}</button>` : '';
+    // every watch event comes here: only what changed is put in again (a button that stays keeps the focus)
+    if (desk !== row._swDesk || (desk && !tail.querySelector('.sw-desk'))) {
+      tail?.querySelector('.sw-desk')?.remove();
+      if (desk) tail.insertAdjacentHTML('afterbegin', desk);
+      row._swDesk = desk;
     }
+    // Platz-Alarm: in the line under the name, for full and offline servers (and while one runs)
+    const ds = row.querySelector('.ds');
+    const html = cfx && ds ? swBell(s) : '';
+    if (html === row._swPa && (!html || row.querySelector('.sw-pa,.sw-st'))) return;
+    row.querySelectorAll('.sw-pa,.sw-st').forEach(e => e.remove());
+    row._swPa = html;
     if (!html) return;
     const after = ds.querySelector(':scope > .chip.r');   // after "Offline"
     if (after) after.insertAdjacentHTML('afterend', html); else ds.insertAdjacentHTML('afterbegin', html);
   });
+  refocus();
+}
+function swBell(s) {
+  const w = SW.watches.find(x => x.code === s.code), on = swActive(w), busy = SW.busy.has(s.code);
+  const fired = w && w.state === 'fired';
+  let html = fired ? `<span class="chip g sw-st">${w.reason === 'online' ? 'Wieder online' : 'Platz frei'}</span>` : '';
+  // (after a fired alarm a new one can start right here when the list still shows the server full or offline)
+  if (on || (s.online && swFull(s)) || !s.online) {
+    if (s.online && swFull(s) && !on && !fired) html = '<span class="chip w sw-st">Voll</span>';
+    const tip = on ? 'Platz-Alarm läuft. Klicken beendet ihn.' : s.online ? 'Platz-Alarm: Bescheid geben, sobald ein Platz frei ist' : 'Platz-Alarm: Bescheid geben, sobald der Server wieder online ist';
+    html += `<button class="sw-pa${on ? ' sw-on' : ''}" type="button" data-swbell="${esc(s.code)}" ${busy ? 'disabled' : ''} title="${tip}">${ico('sw-bell')}${on ? 'Alarm an' : 'Platz-Alarm'}</button>`;
+  }
+  return html;
 }
 
 /* ======================= Platz-Alarm ======================= */
 async function swWatch(code) {
   const s = S.servers.find(x => x.code === code); if (!s || SW.busy.has(code)) return;
+  const keep = swFocusAt($('#srvList'));   // the button is off while the host asks Cfx.re: the focus goes back on it
   SW.busy.add(code); swDecorate();
   try {
     const r = await api('sw.watch', { code, online: !!s.online, players: s.players || 0, max: s.max || 0, name: swPlain(s.name), auto: false });
@@ -85,7 +122,7 @@ async function swWatch(code) {
     if (r.ok) toast('Platz-Alarm an', s.online ? 'Du bekommst Bescheid, sobald ein Platz frei ist.' : 'Du bekommst Bescheid, sobald der Server wieder online ist.');
     else toast(r.free ? 'Gerade ist Platz' : 'Kein Platz-Alarm', r.error || '', !!r.free);
   } catch (e) { toast('Kein Platz-Alarm', e.message, false); }
-  finally { SW.busy.delete(code); swRender(); }
+  finally { SW.busy.delete(code); swRender(keep); }
 }
 async function swUnwatch(code) {
   try { const r = await api('sw.unwatch', { code }); if (r.watches) SW.watches = r.watches; } catch (e) { toast('Nicht beendet', e.message, false); }
@@ -112,7 +149,7 @@ function swWatchRow(w) {
   const cls = fired ? 'sw-fired' : w.state === 'ended' ? 'sw-ended' : w.state === 'retry' ? 'sw-retry' : '';
   return `<div class="sw-w ${cls}">
     <div class="sw-wi">${ico(fired ? 'check' : 'sw-bell')}</div>
-    <div class="sw-wx"><b>${esc(w.name)}</b><span data-swline="${esc(w.code)}"${on ? ' title="Schaut etwa alle 20 Sekunden bei Cfx.re nach, nach Fehlern seltener"' : ''}>${swLine(w)}</span></div>
+    <div class="sw-wx"><b>${esc(w.name)}</b><span data-swline="${esc(w.code)}"${on ? ' title="Schaut etwa alle 20 Sekunden bei Cfx.re nach, nach Fehlern seltener"' : ''}></span></div>
     ${on ? `<div class="sw-auto" title="Startet FiveM mit deinem Boost und verbindet, sobald der Platz frei ist. Nur wenn FiveM nicht läuft, ein laufendes FiveM wird nie angefasst."><span>Automatisch verbinden</span><div class="tg sm${w.auto ? ' on' : ''}" role="switch" tabindex="0" aria-checked="${!!w.auto}" aria-label="Automatisch verbinden" data-swauto="${esc(w.code)}"></div></div>` : ''}
     ${fired && !w.launched ? `<button class="btn sm sw-go" type="button" data-swjoin="${esc(w.code)}">${ico('play')}Verbinden</button>` : ''}
     <button class="ib sw-x" type="button" data-swend="${esc(w.code)}" title="${on ? 'Platz-Alarm beenden' : 'Aus der Liste nehmen'}" aria-label="${on ? 'Platz-Alarm beenden' : 'Aus der Liste nehmen'}">${ico('x')}</button>
@@ -122,33 +159,45 @@ function swRenderAlarm() {
   const el = $('#swAlarm'); if (!el) return;
   const ws = SW.watches;
   el.classList.toggle('hidden', !ws.length);
-  if (!ws.length) { el.innerHTML = ''; return; }
+  if (!ws.length) { el.innerHTML = ''; el._sw = ''; return; }
   const act = ws.filter(swActive).length;
-  el.innerHTML = `
+  // the host reports every check: the card is only built again when a watch changed, the lines are text (swLines)
+  const html = `
     <div class="sw-ah"><h2 class="sw-t">Platz-Alarm</h2><span class="sw-cnt">${act ? `${act} von ${SW.max} aktiv` : 'Keiner aktiv'}</span></div>
     <p class="sw-sub">Läuft, solange OrbitTweak offen ist, und wird nicht gespeichert. Endet nach 2 Stunden oder wenn FiveM startet.</p>
     <div class="sw-wl">${ws.map(swWatchRow).join('')}</div>
     <p class="sw-note">${ico('info')}<span>Ein freier Platz kann nach Sekunden wieder weg sein. Server mit eigener Warteschlange zählen anders: Die Liste zeigt dort oft „voll“, obwohl du über die Warteschlange reinkommst.</span></p>`;
+  if (html !== el._sw || !el.firstElementChild) { const refocus = swKeep(el); el.innerHTML = html; el._sw = html; refocus(); }
+  swLines();
 }
-// the countdowns: once a second, only text, only while the page is shown and something runs
+/** The line under each watch, written only when its text changed (a finished one stays as it is). */
+function swLines() {
+  for (const w of SW.watches) {
+    const el = document.querySelector(`[data-swline="${CSS.escape(w.code)}"]`); if (!el) continue;
+    const h = swLine(w); if (el._sw !== h) { el.innerHTML = h; el._sw = h; }
+  }
+}
+// the countdowns: once a second, only while the page is shown, FiveM is not in front and something runs
 setInterval(() => {
-  if (curPage !== 'servers' || document.hidden || !SW.watches.length) return;
-  for (const w of SW.watches) { const el = document.querySelector(`[data-swline="${CSS.escape(w.code)}"]`); if (el) el.innerHTML = swLine(w); }
+  if (curPage !== 'servers' || document.hidden || REST.game || !SW.watches.length) return;
+  swLines();
 }, 1000);
 
 /* ======================= Freunde online ======================= */
 async function swFriends(force) {
   if (!SW.names.length || SW.frBusy) return;
   if (!force && SW.fr && SW.fr.next && Date.now() < SW.fr.next) return;   // the host never searches more often either
+  const keep = swFocusAt($('#swFriends'));   // "Neu suchen" is off during the round: the focus goes back on it after
   SW.frBusy = true; swRenderFriends();
   try { SW.fr = swFrOk(await api('sw.friends')); SW.frErr = ''; }
   catch (e) { SW.frErr = e.message || 'Fehler'; if (SW.fr) SW.fr = { ...SW.fr, error: SW.frErr }; }
-  finally { SW.frBusy = false; swRenderFriends(); }
+  finally { SW.frBusy = false; swRenderFriends(keep); }
 }
 /** The host answers a failed command with { ok: false, error } instead of the view: that is an error, not "no favourites". */
 function swFrOk(r) { if (!r || r.ok === false || !Array.isArray(r.servers)) throw new Error(r?.error || 'Die Suche hat nicht geklappt.'); return r; }
-// only while the Server page is shown (the host looks at most every 60 s, ten servers per round)
-setInterval(() => { if (curPage === 'servers' && !document.hidden) swFriends(false); }, 10000);
+// only while the Server page is shown and FiveM is not in front (the host looks at most every 60 s, ten servers per
+// round, and not while the game is in front either): after the game the next look comes within 10 s
+setInterval(() => { if (curPage === 'servers' && !document.hidden && !REST.game) swFriends(false); }, 10000);
 
 function swCoverage(fr) {
   const c = { names: 0, anon: 0, hidden: 0, empty: 0, offline: 0, error: 0, wait: 0 };
@@ -162,7 +211,8 @@ function swCoverage(fr) {
   if (fr.ip) parts.push(fr.ip === 1 ? 'IP-Server nicht durchsuchbar' : `${fr.ip} IP-Server nicht durchsuchbar`);
   const named = (fr.servers || []).filter(s => s.listing === 'names').map(s => swPlain(s.name));
   const blind = (fr.servers || []).filter(s => s.listing === 'anon' || s.listing === 'hidden').map(s => swPlain(s.name));
-  const why = c.anon + c.hidden ? `<details class="sw-why"${!c.names ? ' open' : ''}><summary>Warum keine Namen?</summary><p>Cfx.re zeigt bei den meisten Servern statt echter Namen nur „Player“ oder „Anon1“ (Stand November 2026: bei 17 von 18 geprüften Servern), und eine leere Liste trotz Spielern verrät auch niemanden. Dort kann OrbitTweak niemanden finden, auch wenn deine Freunde gerade spielen.</p>${blind.length ? `<p><b>Ohne Namen:</b> ${esc(blind.join(', '))}</p>` : ''}${named.length ? `<p><b>Mit Namen:</b> ${esc(named.join(', '))}</p>` : ''}</details>` : '';
+  // open by itself when no server shows names, after that as the user left it (the card is drawn again every round)
+  const why = c.anon + c.hidden ? `<details class="sw-why"${(SW.why ?? !c.names) ? ' open' : ''}><summary>Warum keine Namen?</summary><p>Cfx.re zeigt bei den meisten Servern statt echter Namen nur „Player“ oder „Anon1“ (Stand November 2026: bei 17 von 18 geprüften Servern), und eine leere Liste trotz Spielern verrät auch niemanden. Dort kann OrbitTweak niemanden finden, auch wenn deine Freunde gerade spielen.</p>${blind.length ? `<p><b>Ohne Namen:</b> ${esc(blind.join(', '))}</p>` : ''}${named.length ? `<p><b>Mit Namen:</b> ${esc(named.join(', '))}</p>` : ''}</details>` : '';
   return `<p class="sw-cov">${esc(parts.join(' · '))}</p>${why}`;
 }
 function swFriendRow(f) {
@@ -174,7 +224,7 @@ function swFriendRow(f) {
     <button class="btn sm sw-go" type="button" data-swjoinf="${esc(f.code)}" title="FiveM mit deinem Boost starten und verbinden">Beitreten</button>
   </div>`;
 }
-function swRenderFriends() {
+function swRenderFriends(keep) {
   const el = $('#swFriends'); if (!el) return;
   const fr = SW.fr, n = SW.names.length;
   const cool = fr && fr.next && Date.now() < fr.next;
@@ -200,11 +250,11 @@ function swRenderFriends() {
       <div class="sw-opt"><div><b>Auch Teilnamen finden</b><p>„Max“ findet dann auch „MaxPower“. Aus: nur genau der Name (Groß- und Kleinschreibung egal).</p></div><div class="tg sm${SW.partial ? ' on' : ''}" role="switch" tabindex="0" aria-checked="${SW.partial}" aria-label="Auch Teilnamen finden" data-swopt="partial"></div></div>
       <div class="sw-opt"><div><b>Melden, wenn ein Freund online kommt</b><p>Schaut alle 3 Minuten nach, solange OrbitTweak läuft und du nicht spielst.</p></div><div class="tg sm${SW.notify ? ' on' : ''}" role="switch" tabindex="0" aria-checked="${SW.notify}" aria-label="Melden, wenn ein Freund online kommt" data-swopt="notify"></div></div>
     </div>` : '';
-  const had = document.activeElement?.id === 'swName', val = $('#swName')?.value || '';
+  const refocus = swKeep(el, keep), val = $('#swName')?.value || '';
   const looked = !!fr && (fr.servers || []).some(s => ['names', 'anon', 'hidden', 'empty'].includes(s.listing));
   el.innerHTML = `<div class="sw-fh"><h2 class="sw-t">Freunde online</h2>${n && looked ? `<span class="sw-cnt" title="Gerade gefunden">${fr.found.length}</span>` : ''}<span class="sw-sp"></span>${n ? `<button class="ib sw-fre" type="button" data-swfre ${cool || SW.frBusy ? 'disabled' : ''} title="${cool ? 'Neu suchen geht einmal pro Minute' : 'Neu suchen'}" aria-label="Neu suchen">${ico('refresh')}</button>` : ''}</div>${body}${names}${opts}`;
   if (val) $('#swName').value = val;
-  if (had) $('#swName').focus();
+  refocus();
 }
 async function swAddFriend() {
   const inp = $('#swName'); const v = (inp?.value || '').trim(); if (!v || SW.busy.has('f')) return;
@@ -234,17 +284,20 @@ async function swOpt(key, on) {
 /* ======================= Server auf den Desktop ======================= */
 async function swDesk(code) {
   const s = S.servers.find(x => x.code === code); if (SW.busy.has('d' + code)) return;
+  const keep = swFocusAt($('#srvList'));
   SW.busy.add('d' + code); swDecorate();
   try {
     const r = await api('sw.shortcut', { code, name: swPlain(s?.name) });
     if (r.ok) toast(r.replaced ? 'Verknüpfung erneuert' : 'Verknüpfung auf dem Desktop', `${r.file} · ein Doppelklick startet FiveM mit Boost und verbindet${r.serverIcon ? '' : ' (mit dem OrbitTweak-Symbol)'}`);
     else toast('Keine Verknüpfung', r.error || '', false);
   } catch (e) { toast('Keine Verknüpfung', e.message, false); }
-  finally { SW.busy.delete('d' + code); swDecorate(); }
+  finally { SW.busy.delete('d' + code); swDecorate(keep); }
 }
 
 /* ======================= clicks ======================= */
 document.addEventListener('click', e => {
+  const why = e.target.closest('.sw-why > summary');   // before the toggle: open is still the old state
+  if (why) { SW.why = !why.parentElement.open; return; }
   const t = e.target.closest('[data-swbell],[data-swdesk],[data-swend],[data-swjoin],[data-swjoinf],[data-swauto],[data-swadd],[data-swrm],[data-swopt],[data-swfre],[data-swmore]');
   if (!t || t.disabled) return;
   const d = t.dataset;

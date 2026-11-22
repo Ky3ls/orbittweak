@@ -106,8 +106,9 @@ public partial class MainWindow
                     return new { ok, watches = _sw.Views() };
                 }
 
-                // { } -> the friends view (a new round only when one may run: page shown, 60 s apart)
-                case "sw.friends": return await SwFriendsView(true);
+                // { } -> the friends view (a new round only when one may run: page shown, 60 s apart, FiveM not in
+                // front: while it is, the page gets what the last round found, as the background look waits too)
+                case "sw.friends": return await SwFriendsView(!GameFocus.IsGame());
 
                 // { name } -> { ok, names, error? }
                 case "sw.friendAdd":
