@@ -48,12 +48,12 @@ function ncOpen(key) {
   NC.sel = typeof key === 'string' && key ? key : ncDefault(list);
   NC.st = 'idle'; NC.res = null; NC.err = ''; NC.plan = null; ncClear();
   ncDraw();
-  // from Diagnose or Strg+K the favourites may not be loaded yet
-  if (!(S.servers || []).length) api('servers.list', {}).then(l => {
-    if (!Array.isArray(l) || (S.servers || []).length) return;
-    S.servers = l;
+  // from Diagnose or Strg+K the favourites may not be loaded yet: through the Server page's own loader (like Strg+K),
+  // so that page is drawn with them too (it only loads by itself while the list is empty)
+  if (!(S.servers || []).length && typeof loadServers === 'function') Promise.resolve(loadServers()).catch(() => { }).then(() => {
+    if (!(S.servers || []).length) return;
     if (NC.st === 'idle' && ncShown()) { if (!NC.sel) NC.sel = ncDefault(ncChoices()); ncDraw(); }
-  }).catch(() => { });
+  });
 }
 window.ncOpen = ncOpen;
 const ncShown = () => !!$('#nc-box') && $('#modal').classList.contains('show');
