@@ -15,7 +15,7 @@
 /* ---------- head ---------- */
 #p-diag .crs-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
 #p-diag .crs-ht{min-width:0}
-#p-diag .crs-ht p{margin-top:5px;font-size:12.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#p-diag .crs-ht p{margin-top:3px;font-size:12.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #p-diag .crs-ha{flex:none;display:flex;align-items:center;gap:8px}
 #p-diag .crs-ha .ib{width:30px;height:30px;border-radius:9px}
 #p-diag .crs-ha .ib svg.i{width:15px;height:15px}

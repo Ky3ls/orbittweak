@@ -95,10 +95,19 @@
 #p-diag .dgrid{grid-template-columns:minmax(0,1fr) 336px;gap:20px;align-items:stretch;
   grid-template-areas:"chk inst" "net crash" "log log"}
 #p-diag .lx-checks{grid-area:chk}
-#p-diag #hInst{grid-area:inst}
+/* the instrument keeps its own height and sits at the top of its row instead of stretching to the long list */
+#p-diag #hInst{grid-area:inst;align-self:start}
 #p-diag .lx-net{grid-area:net}
 #p-diag .lx-crash{grid-area:crash}
 #p-diag .lx-log{grid-area:log}
+/* the list cards under it (Abstürze, Verbindungstest, FiveM-Log) carry the same title as "Prüfpunkte";
+   only the instrument keeps the small label */
+#p-diag :is(.crs-ht,.lx-net>.lx-ih,.lx-log>.lx-ih) .lbl{font-family:var(--disp);font-size:15.5px;font-weight:580;letter-spacing:-.015em;color:var(--text);gap:10px}
+#p-diag :is(.crs-ht,.lx-net>.lx-ih,.lx-log>.lx-ih) .lbl svg.i{width:16px;height:16px;color:var(--mute)}
+/* anime: rounded card titles; "Prüfpunkte" (and "Bereiche" on the Cleaner, the same list head) go with them,
+   so the page does not show two title faces (the base rules carry an id, the theme's own list cannot reach them) */
+html.th-anime :is(#p-cleaner,#p-diag) .lx-lh b,
+html.th-anime #p-diag :is(.crs-ht,.lx-net>.lx-ih,.lx-log>.lx-ih) .lbl{font-family:var(--head);font-weight:800;letter-spacing:-.004em}
 
 /* the checks: problems first; a round status mark, the value below the name */
 #p-diag .hc{position:relative;gap:16px;padding:14px 14px;border:0;border-radius:14px;transition:background .2s}
@@ -197,7 +206,7 @@
 #p-settings .sbody .card{padding:22px}
 #p-settings .sbody .card.mt{margin-top:20px}
 #p-settings .sh{gap:12px;margin-bottom:6px;align-items:baseline}
-#p-settings .sh b{font-family:var(--disp);font-size:17px;font-weight:560;letter-spacing:-.018em}
+#p-settings .sh b{font-family:var(--disp);font-size:15.5px;font-weight:580;letter-spacing:-.015em}
 #p-settings .sh .sub{font-size:12.5px!important;color:var(--mute);text-align:right}
 #p-settings .srow{gap:16px;padding:16px 0;border-bottom:1px solid var(--line)}
 #p-settings .srow:last-child,#p-settings .srow:has(+ .hidden:last-child){border-bottom:0}
@@ -329,7 +338,7 @@
 #p-admin .tab .c{margin-left:8px;padding:1px 7px;font-size:11px;font-weight:550;background:rgba(255,255,255,.08);color:var(--sub)}
 #p-admin .tab.on .c{background:rgba(var(--a-rgb),.14);color:var(--a)}
 #p-admin .sh{display:flex;align-items:center;gap:10px;margin-bottom:4px}
-#p-admin .sh b{margin-right:0;font-family:var(--disp);font-size:17px;font-weight:560;letter-spacing:-.018em}
+#p-admin .sh b{margin-right:0;font-family:var(--disp);font-size:15.5px;font-weight:580;letter-spacing:-.015em}
 #p-admin .sh>.sub{font-size:12.5px;color:var(--mute);margin-left:auto}
 #p-admin .sh .chip{height:22px;padding:0 8px;font-variant-numeric:tabular-nums}
 
