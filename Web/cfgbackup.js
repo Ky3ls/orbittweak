@@ -194,6 +194,13 @@ function bkAsk(it) {
   });
 }
 
+/** A restore wrote files other pages hold in memory. Grafik reads its file again on the next visit (its "Speichern" sends
+ *  every value and would write the old ones back over the restored file), the launcher reads the update channel again. */
+function bkStale(keys) {
+  if (keys.some(k => k === 'gfx' || k === 'gtaxml')) S.gfx = null;
+  if (keys.includes('ini')) renderLauncher().catch(() => { });
+}
+
 /** undoKeys: "Rückgängig" of the last restore, only the files it wrote (an empty list would mean all files to the host). */
 async function bkRestore(name, undoKeys) {
   const undo = Array.isArray(undoKeys);
@@ -206,6 +213,7 @@ async function bkRestore(name, undoKeys) {
     const r = await api('bk.restore', { name, keys });
     const done = r.restored || [], same = r.unchanged || [], bad = [...(r.failed || []), ...(r.skipped || [])];
     const back = !undo && r.safety && (r.undo || []).length ? r.undo : null, created = r.created || [];
+    if (done.length) bkStale(keys);
     const notes = [];
     if (same.length) notes.push(`${bkList(same)} ${same.length === 1 ? 'war' : 'waren'} schon so`);
     if (bad.length) notes.push(`nicht geschrieben: ${bad.map(s => `${s.name} (${s.why})`).join(', ')}`);
