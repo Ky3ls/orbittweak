@@ -104,7 +104,8 @@ public partial class MainWindow
             var p = _pw;
             var done = p.Look(round, DateTimeOffset.Now, s, front);
             // a finished round at once; the one being measured every two minutes, so a crash costs at most that much
-            if (done != null || (p.Open != null && DateTime.Now - _pwSaved >= TimeSpan.FromMinutes(2))) PerfSave();
+            // (only once it is long enough to be written along at all)
+            if (done != null || (p.Open is { N: >= PerfRecorder.MinLooks } && DateTime.Now - _pwSaved >= TimeSpan.FromMinutes(2))) PerfSave();
             Emit("perf", new { live = PerfWatchLogic.Live(p), done = done != null, error = w.Error });
         }
         catch { }

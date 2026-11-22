@@ -113,7 +113,7 @@ function pwSub(mode) {
   const t = mode === 'live' ? (l.state === 'paused' ? 'Misst weiter, sobald FiveM wieder vorne ist' : 'Misst gerade mit, alle 2 Sekunden')
     : mode === 'past' ? (PW.live ? 'Die Runde läuft, hier die letzten Urteile' : 'Was deine FPS in den letzten Runden begrenzt hat')
     : mode === 'empty' ? 'Misst ab deiner nächsten Runde mit'
-    : mode === 'off' ? 'Messung aus' : mode === 'err' ? 'Gerade keine Werte von Windows' : mode === 'fail' ? 'Gerade nicht abrufbar' : '';
+    : mode === 'off' ? 'Du hast das Mitmessen ausgeschaltet' : mode === 'err' ? 'Gerade keine Werte von Windows' : mode === 'fail' ? 'Gerade nicht abrufbar' : '';
   $('#pwSub').textContent = d && d.unreadable ? 'Messwerte gerade gesperrt, diese Sitzung wird nicht gespeichert' : t;
 }
 
@@ -164,7 +164,7 @@ function pwLiveFill() {
   const l = PW.live; if (!l || !$('#pwMs')) return;
   const n = l.now, warm = l.state === 'warmup', paused = l.state === 'paused';
   $('#pwDot').className = 'pw-dot' + (l.state === 'live' ? ' on' : '');
-  $('#pwSince').textContent = warm ? 'Gleich geht’s los' : !l.since ? 'Gerade' : paused ? `Runde seit ${stClock(l.since)}` : `Gerade · seit ${stClock(l.since)}`;
+  $('#pwSince').textContent = warm ? 'Gleich geht’s los' : !l.since ? (paused ? 'Noch nichts gemessen' : 'Gerade') : paused ? `Runde seit ${stClock(l.since)}` : `Gerade · seit ${stClock(l.since)}`;
   $('#pwNowT').textContent = l.title; $('#pwNowP').textContent = l.text;
   const mixOk = l.shares && l.secs >= 10;
   $('#pwMixW').classList.toggle('hidden', !mixOk);
@@ -175,7 +175,8 @@ function pwLiveFill() {
   const hot = !paused && l.kind;
   const M = {
     gpu: ['gpucard', ['Grafikkarte', 'Grafikkarte'], n && n.gpu != null ? pwPct(n.gpu) : '–', n && n.gpu != null ? n.gpu : 0,
-      !n ? 'Kommt gleich' : n.gpu == null ? 'Keine Werte von Windows' : n.own ? '3D-Last von FiveM' : '3D-Last der ganzen Karte', hot === 'gpu', false],
+      // the whole 3D engine FiveM draws on (a video or the desktop can take a part of it), FiveM's part next to it
+      !n ? 'Kommt gleich' : n.gpu == null ? 'Keine Werte von Windows' : n.own && n.gpuOwn != null ? [`3D-Last · davon FiveM ${pwPct(n.gpuOwn)}`, `3D · FiveM ${pwPct(n.gpuOwn)}`] : ['3D-Last der ganzen Karte', '3D der Karte'], hot === 'gpu', false],
     cpu: ['cpu', ['Prozessor', 'Prozessor'], n ? pwPct(n.core) : '–', n ? n.core : 0, n ? [`Stärkster Kern · gesamt ${pwPct(n.cpu)}`, `Kern · gesamt ${pwPct(n.cpu)}`] : 'Kommt gleich', hot === 'cpu', false],
     vram: ['pw-vram', ['Grafikspeicher', 'VRAM'], n && n.vram != null ? pwGb(n.vramUsedGb) : '–', n && n.vram != null ? n.vram : 0,
       !n ? 'Kommt gleich' : n.vram == null ? 'Größe unbekannt' : `von ${pwGb(n.vramGb)}${n.vramFull ? ' · voll' : ` · ${pwPct(n.vram)}`}`, false, !!(n && n.vramFull)],
@@ -281,22 +282,20 @@ const PW_MOCK = HOST ? null : (() => {
         { text: 'Mit NVIDIA-Karte: Ein FPS-Limit knapp unter deinen üblichen FPS nimmt ihr die Spitzen. Das bringt gleichmäßigere Bilder und weniger Hitze, aber keine FPS.', go: 'fps', label: 'Zum FPS-Limit' }],
       noHelp: 'RAM freigeben, der Cleaner und Windows-Tweaks ändern daran nichts: Die Karte rechnet schon so schnell sie kann.', notes: [] },
     vram: { key: 'vram', short: 'VRAM voll', title: 'Dein Grafikspeicher war voll', text: 'In 31 % der Zeit war er zu 95 % oder mehr belegt (Spitze 11,9 GB von 12,0 GB). Dann muss Windows Texturen in den Arbeitsspeicher auslagern, das gibt oft Nachladeruckler und matschige Texturen.',
-      help: [{ text: 'Texturbudget eine Stufe runter: FiveM hält dann weniger Texturen im Grafikspeicher.', go: 'tex', label: 'Zum Texturbudget' }, { text: 'Texturen im Feintuning von „Sehr hoch“ auf „Hoch“.', go: 'tuning', label: 'Zum Feintuning' },
+      help: [{ text: 'Hast du das Texturbudget erhöht, stell es auf den Vorschlag oder darunter: FiveM hält dann weniger Texturen im Grafikspeicher.', go: 'tex', label: 'Zum Texturbudget' }, { text: 'Texturen im Feintuning von „Sehr hoch“ auf „Hoch“.', go: 'tuning', label: 'Zum Feintuning' },
         { text: 'Schließ nebenbei Programme, die Grafikspeicher belegen: Browser mit Videos, NVIDIA Broadcast, Aufnahme-Tools.', go: null, label: null }],
       noHelp: '„RAM freigeben“ im Cleaner leert den Grafikspeicher nicht.', notes: ['Daneben: Grafikkarte am Limit 60 %, Prozessor 17 %, gedeckelt 8 %, gemischt 15 %.'] },
     cpu: { key: 'cpu', short: 'Prozessor', title: 'Dein Prozessor hat gebremst', text: 'In 61 % der Zeit hat die Grafikkarte auf ihn gewartet (Grafikkarte im Schnitt 72 %, stärkster Kern 93 %). In FiveM ist das oft ein einzelner Kern, den Skripte, viele Spieler und Autos in der Nähe auslasten.',
-      help: [{ text: '„Hintergrund-Apps ausbremsen“ stellt Browser und Launcher hinter das Spiel. Das hilft genau dann, wenn der Prozessor voll ist.', go: 'bgbrake', label: 'Zum Tweak' },
-        { text: 'Bevölkerungsdichte und Distanz-Skalierung im Feintuning runter entlasten den Prozessor etwas. Auf vielen Servern bestimmt der Server die Bevölkerung aber selbst.', go: 'tuning', label: 'Zum Feintuning' },
-        { text: 'Schließ, was nebenbei rechnet: Videos im Browser, Streams, Aufnahmen.', go: null, label: null }],
-      noHelp: 'Niedrigere Auflösung, weniger Kantenglättung oder kleinere Texturen bringen hier kaum FPS, sie entlasten nur die Grafikkarte, die ohnehin wartet. Viele Skripte und Spieler auf vollen Servern kosten Prozessorzeit, daran kann kein Tool etwas ändern.', notes: [] },
+      help: [{ text: 'Bevölkerungsdichte und Distanz-Skalierung im Feintuning runter entlasten den Prozessor etwas. Auf vielen Servern bestimmt der Server die Bevölkerung aber selbst.', go: 'tuning', label: 'Zum Feintuning' }],
+      noHelp: 'Niedrigere Auflösung, weniger Kantenglättung oder kleinere Texturen bringen hier kaum FPS, sie entlasten nur die Grafikkarte, die ohnehin wartet. Auch „Hintergrund-Apps ausbremsen“ bringt kaum etwas: Gebremst hat ein einzelner Kern, der ganze Prozessor lag im Schnitt bei 52 %. Viele Skripte und Spieler auf vollen Servern kosten Prozessorzeit, daran kann kein Tool etwas ändern.', notes: [] },
     cap: { key: 'cap', short: 'Gedeckelt', title: 'Deine FPS waren gedeckelt', text: 'In 79 % der Zeit hatten Grafikkarte (im Schnitt 61 %) und Prozessor Luft. Meist hält dann ein FPS-Limit oder V-Sync die Bildrate fest, und das ist gut so: gleichmäßige Bilder, weniger Hitze und Lüfterlärm.',
       help: [{ text: 'Willst du mehr FPS, setz das Limit höher oder schalte V-Sync in den GTA-Einstellungen aus. Ohne V-Sync kann das Bild reißen.', go: 'fps', label: 'Zum FPS-Limit' }],
       noHelp: 'Tweaks, der Cleaner und ein kleineres Preset bringen hier keine FPS, solange das Limit greift.', notes: ['Hast du weder ein Limit noch V-Sync an, bremst eher ein einzelner Prozessorkern, den Windows zwischen den Kernen hin- und herschiebt. Auch Menüs und Ladebildschirme sehen so aus.'] },
     mixed: { key: 'mixed', short: 'Gemischt', title: 'Kein klarer Engpass', text: 'Mal war es die Grafikkarte, mal der Prozessor, keiner von beiden lange genug für ein klares Urteil (Grafikkarte am Limit 27 %, Prozessor 24 %, gedeckelt 16 %, gemischt 33 %).',
-      help: [{ text: 'Hier gibt es keinen einzelnen Hebel. Ruckelt es trotzdem, findet die Diagnose oft die Ursache, etwa einen alten Treiber oder einen vollen Cache.', go: 'diag', label: 'Zur Diagnose' }],
+      help: [{ text: 'Hier gibt es keinen einzelnen Hebel. Ruckelt es trotzdem, schau in die Diagnose: Sie prüft unter anderem, wie alt dein Grafiktreiber ist und wie groß der FiveM-Cache.', go: 'diag', label: 'Zur Diagnose' }],
       noHelp: 'Einzelne Tweaks bringen hier selten spürbar etwas.', notes: [] },
-    nogpu: { key: 'nogpu', short: 'Ohne GPU-Werte', title: 'Ohne Werte der Grafikkarte kein Urteil', text: 'Windows hat für deine Grafikkarte keine Auslastung geliefert, dafür braucht es einen aktuellen Treiber. Gemessen wurde trotzdem: stärkster Prozessorkern im Schnitt 78 %, Arbeitsspeicher 47 %.',
-      help: [{ text: 'Grafiktreiber aktualisieren, dann misst OrbitTweak ab der nächsten Runde auch die Grafikkarte.', go: 'diag', label: 'Zur Diagnose' }], noHelp: null, notes: [] },
+    nogpu: { key: 'nogpu', short: 'Ohne GPU-Werte', title: 'Ohne Werte der Grafikkarte kein Urteil', text: 'Windows hat für deine Grafikkarte keine Auslastung geliefert. Gemessen wurde trotzdem: stärkster Prozessorkern im Schnitt 78 %, Arbeitsspeicher 47 %.',
+      help: [{ text: 'Mit einem aktuellen Grafiktreiber liefert Windows die Werte normalerweise. Wie alt deiner ist, zeigt die Diagnose.', go: 'diag', label: 'Zur Diagnose' }], noHelp: null, notes: [] },
   };
   // [verdict, shares gpu/cpu/cap/mixed/unknown, vram full, avg gpu/core/cpu/vram/ram, peak vram GB]
   const R = [
@@ -343,6 +342,7 @@ function pwMockLook() {
   const s = { gpu: nogpu ? null : Math.round(spike ? 78 + r() * 8 : 95 + r() * 4), own: !nogpu, core: Math.round(spike ? 90 + r() * 6 : 58 + r() * 16), cpu: Math.round(31 + r() * 12),
     vramGb: 12, vramUsedGb: Math.round((7.6 + r() * .5) * 10) / 10, ramGb: 31.9, ramUsedGb: Math.round((14.4 + r() * .4) * 10) / 10 };
   s.vram = Math.round(s.vramUsedGb / s.vramGb * 100); s.ram = Math.round(s.ramUsedGb / s.ramGb * 100);
+  s.gpuOwn = s.gpu == null ? null : Math.max(0, s.gpu - Math.round(1 + r() * 3));   // the desktop and a browser take a little of the engine
   const k = pwMockKind(s);
   M.n[k]++; M.secs += 2; M.recent.push(k); if (M.recent.length > 5) M.recent.shift(); M.last = s;
   return s;
@@ -358,7 +358,7 @@ function pwMockLive() {
   const tot = Object.values(M.n).reduce((a, b) => a + b, 0), sh = k => Math.round(M.n[k] / tot * 1000) / 1000;
   const [title, text] = PW_NOW[state === 'live' ? kind : state];
   return { round: ST_MOCK.open.id, state, kind, title, text,
-    now: s ? { gpu: s.gpu, own: s.own, core: s.core, cpu: s.cpu, vram: s.vram, vramGb: s.vramGb, vramUsedGb: s.vramUsedGb, ram: s.ram, ramGb: s.ramGb, ramUsedGb: s.ramUsedGb, vramFull: s.vram >= 95, ramTight: s.ram >= 90 } : null,
+    now: s ? { gpu: s.gpu, own: s.own, gpuOwn: s.gpuOwn, core: s.core, cpu: s.cpu, vram: s.vram, vramGb: s.vramGb, vramUsedGb: s.vramUsedGb, ram: s.ram, ramGb: s.ramGb, ramUsedGb: s.ramUsedGb, vramFull: s.vram >= 95, ramTight: s.ram >= 90 } : null,
     since: state === 'warmup' ? null : ST_MOCK.open.start, secs: state === 'warmup' ? 0 : Math.round(M.secs), shares: state === 'warmup' ? null : { gpu: sh('gpu'), cpu: sh('cpu'), cap: sh('cap'), mixed: sh('mixed'), unknown: sh('unknown') } };
 }
 function pwMockGet() {
@@ -368,7 +368,7 @@ function pwMockGet() {
   const known = new Set([...(ST_MOCK ? ST_MOCK.rounds : []).map(r => r.id), ST_MOCK && ST_MOCK.open ? ST_MOCK.open.id : null]);
   const kept = M.rounds.filter(r => known.has(r.id));
   const rounds = M.state === 'empty' || M.state === 'error' ? [] : !kept.length ? kept : M.state === 'nogpu' ? [{ ...kept[0], shares: { gpu: 0, cpu: 0, cap: 0, mixed: 0, unknown: 1 }, avg: { gpu: null, core: 78, cpu: 41, vram: 70, ram: 47 }, own: false, verdict: M.V.nogpu }, ...kept.slice(1)] : kept;
-  return { on: M.on, error: M.state === 'error' ? 'Windows liefert gerade keine Leistungswerte. Meist sind die Leistungsindikatoren beschädigt: „lodctr /R“ in einer Eingabeaufforderung als Administrator repariert sie.' : null,
+  return { on: M.on, error: M.state === 'error' ? 'Windows liefert gerade keine Leistungswerte. Meist sind die Leistungsindikatoren beschädigt: „lodctr /R“ in einer Eingabeaufforderung als Administrator kann sie reparieren.' : null,
     unreadable: false, live: M.on ? pwMockLive() : null, rounds };
 }
 /** Preview another state of the card (for working on the page). */
@@ -379,5 +379,5 @@ if (!HOST) {
   MOCK_EXT['perf.get'] = async () => pwMockGet();
   MOCK_EXT['perf.set'] = async a => { PW_MOCK.on = !!a.on; if (PW_MOCK.on && PW_MOCK.state === 'off') PW_MOCK.state = 'live'; return pwMockGet(); };
   // the host sends a look every 2 s while a round is measured
-  setInterval(() => { if (curPage === 'stats' && PW_MOCK.on && ['live', 'paused', 'nogpu'].includes(PW_MOCK.state)) onEvent('perf', { live: pwMockLive(), done: false }); }, 2000);
+  setInterval(() => { if (curPage === 'stats' && PW_MOCK.on && ['live', 'paused', 'nogpu'].includes(PW_MOCK.state)) onEvent('perf', { live: pwMockLive(), done: false, error: null }); }, 2000);
 }

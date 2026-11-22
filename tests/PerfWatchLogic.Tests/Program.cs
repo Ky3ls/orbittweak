@@ -44,6 +44,13 @@ Check(c2.VramMb == null && c2.VramUsedMb == null, "VRAM in use without the card'
 Near(PerfWatchLogic.RamPct(c2), 0, "RAM % without a total");
 var c3 = PerfWatchLogic.Clean(new PerfSample(50, true, 10, 10, 8192, null, 100, 50));
 Check(c3.VramMb == null && c3.VramUsedMb == null, "the card's size without what is in use: unknown");
+var c5 = PerfWatchLogic.Clean(new PerfSample(90, true, 10, 10, null, null, 100, 50, 97));
+Near(c5.GpuOwn, 90, "the game's part is never more than the whole engine");
+var c6 = PerfWatchLogic.Clean(new PerfSample(90, false, 10, 10, null, null, 100, 50, 40));
+Check(c6.GpuOwn == null && !c6.Own, "no part of the game when it was not found on the engine");
+var c7 = PerfWatchLogic.Clean(new PerfSample(null, true, 10, 10, null, null, 100, 50, 40));
+Check(c7.GpuOwn == null && c7.Gpu == null, "no part without an engine value");
+Near(PerfWatchLogic.Clean(new PerfSample(90, true, 10, 10, null, null, 100, 50, -3)).GpuOwn, 0, "a negative part counts as 0");
 var c4 = PerfWatchLogic.Clean(new PerfSample(50, true, 10, 10, double.PositiveInfinity, 100, double.NaN, double.NaN));
 Check(c4.VramMb == null && c4.RamMb == 0 && c4.RamUsedMb == 0, "infinite and NaN sizes are dropped");
 Near(PerfWatchLogic.VramPct(S(50, 10, 10, 8192, 7782.4)), 95, "VRAM %");
@@ -75,18 +82,30 @@ var items = new List<(string, double)>
 };
 var g = PerfWatchLogic.GpuLoad(items, 4000);
 Near(g.own, 71, "the game's own 3D load");
-Near(g.total, 100, "the busiest engine over all processes adds up and is capped at 100");
+Near(g.total, 100, "the game's engine with every process on it adds up and is capped at 100");
 Eq(g.luid, L1, "the adapter of the game's busiest engine");
 var g2 = PerfWatchLogic.GpuLoad(items, 900);
 Near(g2.own, 20, "another process's load"); Eq(g2.luid, L2, "and its adapter");
+Near(g2.total, 23, "the total is the engine the game draws on, not a busier engine of another card");
 var g3 = PerfWatchLogic.GpuLoad(items, 1);
 Check(g3.own == null && g3.total != null && g3.luid == L1, "a process without 3D: no own value, the busiest adapter");
 var g4 = PerfWatchLogic.GpuLoad(new List<(string, double)>(), 1);
 Check(g4.own == null && g4.total == null && g4.luid == null, "nothing at all");
 var g5 = PerfWatchLogic.GpuLoad(new List<(string, double)> { (Eng(5, L1, 0), 40), (Eng(5, L2, 0), 62), (Eng(5, L2, 1, "3D", 1), 61) }, 5);
 Near(g5.own, 62, "the game on two adapters: its busiest engine"); Eq(g5.luid, L2, "the adapter it uses most");
+Near(g5.total, 62, "and that engine's total");
 var g6 = PerfWatchLogic.GpuLoad(new List<(string, double)> { (Eng(5, L1, 0), double.NaN), (Eng(5, L1, 0), -4) }, 5);
 Near(g6.own, 0, "NaN is skipped, negative counts as 0");
+// a full card shared with the desktop and a video: the game alone shows 91 %, the engine is at 98 %
+var shared = new List<(string, double)> { (Eng(4000, L1, 0), 91), (Eng(700, L1, 0), 4), (Eng(701, L1, 0), 3), (Eng(4000, L1, 1, "Copy"), 12) };
+var gs = PerfWatchLogic.GpuLoad(shared, 4000);
+Check(gs is { own: 91, total: 98 }, "the game's part and the whole engine");
+Eq(PerfWatchLogic.Classify(PerfWatchLogic.Clean(new PerfSample(gs.total, gs.own != null, 40, 30, null, null, 32768, 12000, gs.own))), PerfKind.Gpu,
+    "judged by the whole engine: the card is the limit although the game alone is under 95 %");
+// the game on its own engine with room while another program fills the other card's engine
+var two = new List<(string, double)> { (Eng(4000, L1, 0), 60), (Eng(900, L2, 0), 100) };
+var gt = PerfWatchLogic.GpuLoad(two, 4000);
+Check(gt is { own: 60, total: 60 } && gt.luid == L1, "a busy second card does not count for the game's card");
 
 var mem = new List<(string, double)> { ("luid_0x00000000_0x0000D1B6_phys_0", 6.0 * (1 << 30)), ("luid_0x00000000_0x0000d1b6_phys_1", 1.0 * (1 << 30)), ("luid_0x00000000_0x0000E2C7_phys_0", 0.5 * (1 << 30)), ("garbage", 1) };
 var m1 = PerfWatchLogic.AdapterUse(mem, L1);
@@ -177,6 +196,7 @@ void Sound(PerfVerdict v, string what)
     }
     Check(char.IsUpper(v.Title[0]) && !v.Title.EndsWith('.'), $"{what}: title in sentence case without a full stop");
 }
+var t0Round = new DateTimeOffset(2026, 11, 22, 18, 0, 0, TimeSpan.FromHours(1));
 var vg = PerfWatchLogic.Verdict(Round(170, 10, 10, 10));
 Eq(vg.Key, "gpu", "mostly at 95 %+ 3D: the graphics card"); Sound(vg, "gpu");
 Check(vg.Text.Contains("85" + NB + "%") && vg.Help.Any(h => h.Go == "presets") && vg.Help.Any(h => h.Go == "fps"), "gpu: share, presets, FPS limit");
@@ -187,8 +207,22 @@ Check(vg.Notes.Count == 0, "gpu: a long clean round has no notes");
 
 var vc = PerfWatchLogic.Verdict(Round(20, 140, 20, 20));
 Eq(vc.Key, "cpu", "mostly waiting on the processor"); Sound(vc, "cpu");
-Check(vc.Help[0].Go == "bgbrake" && vc.Help.Any(h => h.Go == "tuning"), "cpu: the tweak first, then the tuning");
+Check(vc.Help.All(h => h.Go != "bgbrake") && vc.Help.Any(h => h.Go == "tuning"), "cpu, one core: the tuning, not the tweak that only helps a full processor");
 Check(vc.NoHelp!.Contains("Auflösung"), "cpu: says a lower resolution does not help");
+Check(vc.NoHelp.Contains("„Hintergrund-Apps ausbremsen“ bringt kaum etwas") && vc.NoHelp.Contains("einzelner Kern"), "cpu, one core: says plainly the tweak does little");
+var allBusy = new PerfRound { Id = 5, Start = t0Round, End = t0Round.AddMinutes(20) };
+for (int i = 0; i < 600; i++) allBusy.Add(PerfWatchLogic.Clean(S(60, 97, 92)), 2);
+var vca = PerfWatchLogic.Verdict(allBusy);
+Eq(vca.Key, "cpu", "the whole processor full: the processor"); Sound(vca, "cpu all busy");
+Check(vca.Help[0].Go == "bgbrake" && vca.Help[0].Text.Contains("92" + NB + "%") && vca.Help.Any(h => h.Go == "tuning") && vca.Help.Any(h => h.Go == null),
+    "cpu, whole processor: the tweak first with the load, then the tuning and closing programs");
+Check(!vca.NoHelp!.Contains("Hintergrund-Apps"), "cpu, whole processor: the tweak is not under what does not help");
+var edgeCpu = new PerfRound { Id = 6, Start = t0Round, End = t0Round.AddMinutes(20) };
+for (int i = 0; i < 600; i++) edgeCpu.Add(PerfWatchLogic.Clean(S(60, 95, PerfWatchLogic.AllBusyPct)), 2);
+Check(PerfWatchLogic.Verdict(edgeCpu).Help[0].Go == "bgbrake", "a whole processor at exactly 70 % on average counts as busy");
+var underCpu = new PerfRound { Id = 7, Start = t0Round, End = t0Round.AddMinutes(20) };
+for (int i = 0; i < 600; i++) underCpu.Add(PerfWatchLogic.Clean(S(60, 95, 69.9)), 2);
+Check(PerfWatchLogic.Verdict(underCpu).Help.All(h => h.Go != "bgbrake"), "just under 70 % it does not");
 
 var vcap = PerfWatchLogic.Verdict(Round(10, 10, 150, 30));
 Eq(vcap.Key, "cap", "mostly with room: capped"); Sound(vcap, "cap");
@@ -209,6 +243,7 @@ var vv = PerfWatchLogic.Verdict(Round(150, 20, 20, 10, vramUsed: 8000));
 Eq(vv.Key, "vram", "VRAM full comes before the graphics card"); Sound(vv, "vram");
 Check(vv.Text.Contains("7,8" + NB + "GB von 8,0" + NB + "GB") && vv.Help[0].Go == "tex", "vram: peak of size, texture budget first");
 Check(vv.NoHelp!.Contains("RAM freigeben"), "vram: says the RAM cleaner does not empty VRAM");
+Check(vv.Help[0].Text.StartsWith("Hast du das Texturbudget erhöht"), "vram: the texture budget only if it was raised (FiveM's default is the lowest)");
 Check(vv.Notes.Any(n => n.StartsWith("Daneben: Grafikkarte am Limit 75" + NB + "%")), "vram: what held the frame rate besides");
 var vvSmall = Round(150, 20, 20, 10);
 for (int i = 0; i < 12; i++) vvSmall.Add(PerfWatchLogic.Clean(S(98, 40, 25, 8192, 8100)), 2);
@@ -228,13 +263,14 @@ Eq(vvr.Key, "vram", "both full: VRAM first"); Check(vvr.Notes.Any(n => n.Contain
 var vn = PerfWatchLogic.Verdict(Round(10, 0, 0, 0, unknown: 50));
 Eq(vn.Key, "nogpu", "mostly without GPU values: no verdict"); Sound(vn, "nogpu");
 Check(vn.NoHelp == null && vn.Help[0].Go == "diag", "nogpu: a driver hint, nothing else");
+Check(!vn.Help[0].Text.Contains("dann misst"), "nogpu: a new driver is not promised to bring the values");
 var vn2 = PerfWatchLogic.Verdict(Round(0, 0, 0, 0, unknown: 40));
 Eq(vn2.Key, "nogpu", "no GPU value at all");
 
 var vs = PerfWatchLogic.Verdict(Round(40, 0, 0, 0));
 Check(vs.Notes.Any(n => n.StartsWith("Kurze Runde")), "a short round is marked as rough");
 var vw = PerfWatchLogic.Verdict(Round(170, 10, 10, 10, own: false));
-Check(vw.Notes.Any(n => n.Contains("ganze Karte")), "GPU values of the whole card are named so");
+Check(vw.Notes.Any(n => n.Contains("keiner Grafikkarte zuordnen")), "GPU values without the game on them are named so");
 Check(!PerfWatchLogic.Item(Round(170, 10, 10, 10, own: false), null).Own, "and the item says so");
 
 // every verdict text for every kind of round stays clean
@@ -243,6 +279,10 @@ foreach (var (gp, cp, ca, mx, un, vu, ru) in new[] { (150, 30, 10, 10, 0, 4096.0
 
 // ---------- following the game ----------
 var t0 = new DateTimeOffset(2026, 11, 22, 20, 0, 0, TimeSpan.FromHours(1));
+var recBg = new PerfRecorder(new PerfLog());
+recBg.Look(10, t0, null, false);
+Check(PerfWatchLogic.Live(recBg) is { State: "paused", Now: null, Since: null } live0 && live0.Title == "Pausiert",
+    "the game started but not in front: paused, not \"values come in a few seconds\"");
 var rec = new PerfRecorder(new PerfLog());
 Check(rec.Look(11, t0, null, true) == null && rec.Open == null, "the first look brings no values: nothing opened");
 Eq(PerfWatchLogic.Live(rec)!.State, "warmup", "live: warming up");
@@ -254,6 +294,11 @@ Eq(rec.Now, PerfKind.Gpu, "right now: the graphics card");
 var live = PerfWatchLogic.Live(rec)!;
 Check(live.State == "live" && live.Kind == "gpu" && live.Title == "Grafikkarte am Limit" && live.Round == 11, "live: state, kind, title, round");
 Check(live.Now is { Gpu: 99, Core: 40, Cpu: 30, Own: true, Vram: 50, VramGb: 8, VramUsedGb: 4, RamGb: 32 } && !live.Now.VramFull && !live.Now.RamTight, "live: the values");
+var recO = new PerfRecorder(new PerfLog());
+recO.Look(13, t0, new PerfSample(97.4, true, 40, 30, null, null, 32768, 12000, 92.6), true);
+Check(PerfWatchLogic.Live(recO)!.Now is { Gpu: 97, GpuOwn: 93, Own: true }, "live: the whole engine and the game's part, rounded");
+var liveJson = JsonSerializer.Serialize(PerfWatchLogic.Live(recO), new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+Check(liveJson.Contains("\"gpuOwn\":93") && liveJson.Contains("\"state\":\"live\""), "live: camelCase for the page");
 Check(live.Shares is { Gpu: 1 } && live.Secs == 80 && live.Since == rec.Open.Start.ToUnixTimeMilliseconds(), "live: the round so far");
 // three looks of another kind do not flip "now" at once, a majority does
 rec.Look(11, t0.AddSeconds(82), S(50, 96, 40), true);
@@ -269,8 +314,12 @@ Eq(PerfWatchLogic.Live(rec)!.State, "paused", "live: paused"); Eq(PerfWatchLogic
 Eq(rec.Now, null, "right now: nothing while in the background");
 rec.Look(11, t0.AddSeconds(90), null, true);   // back in front: the first look only primes the counters
 Eq(rec.Open.N, before, "the first look after a pause brings no values");
+var back1 = PerfWatchLogic.Live(rec)!;
+Check(back1.State == "warmup" && back1.Kind == null && back1.Title == "Messung läuft an", "back in front, no values yet: warming up, not \"no GPU values\"");
+Check(back1.Now != null && back1.Since != null, "the last values and the round stay on the page meanwhile");
 rec.Look(11, t0.AddSeconds(92), gpuS, true);
 Near(rec.Open.Secs, 80 + 6 + 2, "after a pause a look counts its 2 s, not the pause");
+Check(PerfWatchLogic.Live(rec) is { State: "live", Kind: "gpu" }, "the next look with values: live again");
 rec.Look(11, t0.AddSeconds(400), gpuS, true);
 Near(rec.Open.Secs, 80 + 6 + 2 + 2, "a long gap counts as one look");
 // a new Spielzeit round (server changed): the old one is kept

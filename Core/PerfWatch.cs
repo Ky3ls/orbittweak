@@ -18,7 +18,7 @@ internal sealed unsafe class PerfWatch : IDisposable
     [DllImport("pdh.dll", ExactSpelling = true)] private static extern uint PdhCloseQuery(IntPtr query);
     [DllImport("dxgi.dll")] private static extern int CreateDXGIFactory1(ref Guid riid, out IntPtr factory);
 
-    private const uint PDH_MORE_DATA = 0x800007D2, PDH_NO_DATA = 0x800007D5;
+    private const uint PDH_MORE_DATA = 0x800007D2, PDH_NO_DATA = 0x800007D5, PDH_INVALID_ARGUMENT = 0xC0000BBD;
     private const uint PDH_FMT_DOUBLE = 0x00000200, PDH_FMT_NOCAP100 = 0x00008000;
 
     [StructLayout(LayoutKind.Sequential)] private struct FmtValue { public uint CStatus; public double Value; }
@@ -26,7 +26,7 @@ internal sealed unsafe class PerfWatch : IDisposable
     [StructLayout(LayoutKind.Sequential)] private struct Item { public IntPtr Name; public FmtValue V; }
 
     /// <summary>Said on the page when Windows gives no counters at all.</summary>
-    public const string NoCounters = "Windows liefert gerade keine Leistungswerte. Meist sind die Leistungsindikatoren beschädigt: „lodctr /R“ in einer Eingabeaufforderung als Administrator repariert sie.";
+    public const string NoCounters = "Windows liefert gerade keine Leistungswerte. Meist sind die Leistungsindikatoren beschädigt: „lodctr /R“ in einer Eingabeaufforderung als Administrator kann sie reparieren.";
 
     /// <summary>The game process this query looks at.</summary>
     public int Pid { get; }
@@ -36,7 +36,7 @@ internal sealed unsafe class PerfWatch : IDisposable
     private readonly object _lock = new();
     private IntPtr _q, _gpu, _mem, _cpu;
     private bool _opened, _primed, _gone, _gpuPart;
-    private int _fails, _gpuEmpty;
+    private int _fails, _gpuEmpty, _blank;
     private IntPtr _buf; private uint _bufLen;
     private Dictionary<string, double>? _vram;   // dedicated VRAM in MB per adapter LUID, as the counters write it
     private readonly List<(string, double)> _items = new();
@@ -62,12 +62,18 @@ internal sealed unsafe class PerfWatch : IDisposable
                 if (++_fails >= 5) Error = NoCounters;   // ten seconds without values: said on the page
                 return null;
             }
-            _fails = 0; Error = null;
+            _fails = 0;
             if (!_primed) { _primed = true; return null; }   // rate counters need two looks
 
             var cpu = PerfWatchLogic.CpuLoad(Read(_cpu));
-            if (cpu is not { } c) return null;
-            double? gpu = null; bool own = false; string? luid = null;
+            if (cpu is not { } c)
+            {
+                // collected, but the processor brings no values: also said on the page after ten seconds, not "comes soon" for ever
+                if (++_blank >= 5) Error = NoCounters;
+                return null;
+            }
+            _blank = 0; Error = null;
+            double? gpu = null, gpuOwn = null; bool own = false; string? luid = null;
             if (_gpu != IntPtr.Zero)
             {
                 var items = Read(_gpu);
@@ -78,8 +84,9 @@ internal sealed unsafe class PerfWatch : IDisposable
                 {
                     PdhRemoveCounter(_gpu); _gpu = all; _gpuPart = false; _primed = false;
                 }
+                // the limit is judged by the whole engine the game draws on (the desktop or a video can take a part of it)
                 var (o, t, l) = PerfWatchLogic.GpuLoad(items, Pid);
-                gpu = o ?? t; own = o != null; luid = l;
+                gpu = t; gpuOwn = o; own = o != null; luid = l;
             }
             double? vramMb = null, vramUsed = null;
             if (_mem != IntPtr.Zero && PerfWatchLogic.AdapterUse(Read(_mem), luid) is { } m)
@@ -91,7 +98,7 @@ internal sealed unsafe class PerfWatch : IDisposable
             }
             var (ramTotal, ramAvail, _) = Native.Memory();
             const double MB = 1024.0 * 1024.0;
-            return new PerfSample(gpu, own, c.core, c.total, vramMb, vramUsed, ramTotal / MB, ramTotal > ramAvail ? (ramTotal - ramAvail) / MB : 0);
+            return new PerfSample(gpu, own, c.core, c.total, vramMb, vramUsed, ramTotal / MB, ramTotal > ramAvail ? (ramTotal - ramAvail) / MB : 0, gpuOwn);
         }
     }
 
@@ -127,9 +134,11 @@ internal sealed unsafe class PerfWatch : IDisposable
         const uint fmt = PDH_FMT_DOUBLE | PDH_FMT_NOCAP100;
         uint size = _bufLen, n;
         uint st = PdhGetFormattedCounterArrayW(counter, fmt, ref size, out n, _buf);
-        if (st == PDH_MORE_DATA)
+        // too small: PDH_MORE_DATA, or on some Windows releases PDH_INVALID_ARGUMENT for a buffer that is not empty but
+        // too small (learn.microsoft.com, PdhGetFormattedCounterArrayW); without this the kept buffer would never grow
+        if (st == PDH_MORE_DATA || (st == PDH_INVALID_ARGUMENT && _buf != IntPtr.Zero))
         {
-            // too small: asked with size 0, PDH tells the size it needs (with a buffer that is too small it may not).
+            // asked with size 0, PDH tells the size it needs (with a buffer that is too small it may not).
             // The buffer is kept for the next looks; it only grows.
             size = 0;
             if (PdhGetFormattedCounterArrayW(counter, fmt, ref size, out n, IntPtr.Zero) != PDH_MORE_DATA || size == 0 || size > 64 << 20) return _items;

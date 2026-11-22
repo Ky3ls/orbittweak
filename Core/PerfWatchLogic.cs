@@ -14,11 +14,14 @@ namespace OrbitTweak.Core;
 // =====================================================================
 
 /// <summary>
-/// One look at the counters (every 2 s), each value the average since the look before. Gpu: the busiest 3D engine of the
-/// game's own process in % (<see cref="Own"/>), else of the whole card; null when Windows gives no GPU values. Core: the
-/// busiest logical processor, Cpu: all of them. VRAM: dedicated memory of the card the game runs on, null when unknown.
+/// One look at the counters (every 2 s), each value the average since the look before. Gpu: the load of the 3D engine
+/// the game draws on in %, all processes on it together as in the Task Manager (<see cref="Own"/>: the game was found
+/// on it, <see cref="GpuOwn"/>: the game's own part), else the busiest 3D engine of all; null when Windows gives no GPU
+/// values. The limit is judged by the whole engine: when the desktop or a video in the browser takes a few percent of
+/// it, the card is still full while the game alone shows less. Core: the busiest logical processor, Cpu: all of them.
+/// VRAM: dedicated memory of the card the game runs on, null when unknown.
 /// </summary>
-internal readonly record struct PerfSample(double? Gpu, bool Own, double Core, double Cpu, double? VramMb, double? VramUsedMb, double RamMb, double RamUsedMb);
+internal readonly record struct PerfSample(double? Gpu, bool Own, double Core, double Cpu, double? VramMb, double? VramUsedMb, double RamMb, double RamUsedMb, double? GpuOwn = null);
 
 internal enum PerfKind { Gpu, Cpu, Cap, Mixed, Unknown }
 
@@ -40,7 +43,7 @@ internal sealed class PerfRound
     public int Cap { get; set; }
     public int Mixed { get; set; }
     public int Unknown { get; set; }
-    /// <summary>Looks with a GPU value, and how many of them were the game's own.</summary>
+    /// <summary>Looks with a GPU value, and how many of them came from the engine the game draws on.</summary>
     public int GpuN { get; set; }
     public int OwnN { get; set; }
     /// <summary>Looks with a known VRAM size, and how many of them found it full.</summary>
@@ -307,9 +310,10 @@ internal sealed record PerfTip(string Text, string? Go, string? Label);
 internal sealed record PerfVerdict(string Key, string Short, string Title, string Text, List<PerfTip> Help, string? NoHelp, List<string> Notes);
 internal sealed record PerfItem(long Id, long Start, long End, double Secs, string? Server, PerfShares Shares, double VramFull, double RamTight,
     PerfLoad Avg, PerfLoad Peak, double? VramGb, double? PeakVramGb, double RamGb, double PeakRamGb, bool Own, PerfVerdict Verdict);
-internal sealed record PerfNow(double? Gpu, bool Own, double Core, double Cpu, double? Vram, double? VramGb, double? VramUsedGb,
+/// <summary>Gpu: the 3D engine the game draws on, all processes together; GpuOwn: the game's part of it (null when not found).</summary>
+internal sealed record PerfNow(double? Gpu, bool Own, double? GpuOwn, double Core, double Cpu, double? Vram, double? VramGb, double? VramUsedGb,
     double Ram, double RamGb, double RamUsedGb, bool VramFull, bool RamTight);
-/// <summary>State: warmup (no values yet), live, paused (the game is not in front).</summary>
+/// <summary>State: warmup (in front, no values yet or none since it came back), live, paused (the game is not in front).</summary>
 internal sealed record PerfLive(long Round, string State, string? Kind, string Title, string Text, PerfNow? Now, long? Since, double Secs, PerfShares? Shares);
 
 internal static class PerfWatchLogic
@@ -323,6 +327,11 @@ internal static class PerfWatchLogic
     public const double NoteShare = .05;
     /// <summary>Rounds shorter than this (measured) get a note that the verdict is rough.</summary>
     public const double ShortSecs = 300;
+    /// <summary>
+    /// The whole processor this busy on average: other programs really take time from the game, so putting them behind
+    /// it can help. Below that it was one core (the game's main thread), and other programs run on the other cores anyway.
+    /// </summary>
+    public const double AllBusyPct = 70;
 
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
     private const string Nb = " ";   // a number never parts from its unit
@@ -340,7 +349,10 @@ internal static class PerfWatchLogic
         double ram = Pos(s.RamMb), ramUsed = Pos(s.RamUsedMb);
         if (ram > 0) ramUsed = Math.Min(ramUsed, ram);
         var gpu = Pct(s.Gpu);
-        return new PerfSample(gpu, s.Own && gpu != null, Pct(s.Core), Pct(s.Cpu), used != null ? total : null, used, ram, ramUsed);
+        bool own = s.Own && gpu != null;
+        // the game's part of the engine is never more than the whole engine
+        double? part = own && Pct(s.GpuOwn) is double o ? Math.Min(o, gpu!.Value) : null;
+        return new PerfSample(gpu, own, Pct(s.Core), Pct(s.Cpu), used != null ? total : null, used, ram, ramUsed, part);
     }
 
     public static double? VramPct(PerfSample s) => s.VramMb is double t && t > 0 && s.VramUsedMb is double u ? Math.Clamp(u / t * 100, 0, 100) : null;
@@ -384,8 +396,8 @@ internal static class PerfWatchLogic
 
     /// <summary>
     /// The 3D load from "\GPU Engine(*)\Utilization Percentage": per engine (adapter, physical GPU, engine) the processes
-    /// add up, as in the Task Manager. own: the busiest 3D engine of process pid (null when it has none), total: the
-    /// busiest 3D engine over all processes, luid: the adapter of the game's busiest engine (else of the busiest one).
+    /// add up, as in the Task Manager. own: the game's part of its busiest 3D engine (null when it has none), total: that
+    /// engine with every process on it (without one of the game: the busiest 3D engine of all), luid: its adapter.
     /// </summary>
     public static (double? own, double? total, string? luid) GpuLoad(IEnumerable<(string name, double value)> items, int pid)
     {
@@ -400,8 +412,10 @@ internal static class PerfWatchLogic
         }
         static KeyValuePair<(string luid, int phys, int eng), double>? Top(Dictionary<(string luid, int phys, int eng), double> d) =>
             d.Count == 0 ? null : d.OrderByDescending(kv => kv.Value).ThenBy(kv => kv.Key.luid, StringComparer.Ordinal).ThenBy(kv => kv.Key.phys).ThenBy(kv => kv.Key.eng).First();
-        var o = Top(own); var t = Top(all);
-        return (o is { } a ? Math.Min(100, a.Value) : null, t is { } b ? Math.Min(100, b.Value) : null, (o ?? t)?.Key.luid);
+        var o = Top(own);
+        if (o is { } a) return (Math.Min(100, a.Value), Math.Min(100, all[a.Key]), a.Key.luid);
+        var t = Top(all);
+        return (null, t is { } b ? Math.Min(100, b.Value) : null, t?.Key.luid);
     }
 
     /// <summary>
@@ -485,7 +499,7 @@ internal static class PerfWatchLogic
         var s = Shares(r);
         double vf = VramShare(r), rt = RamShare(r);
         int known = r.N - r.Unknown;
-        double? avgGpu = Avg(r.SumGpu, r.GpuN), avgCore = Avg(r.SumCore, r.N), avgRam = Avg(r.SumRam, r.N);
+        double? avgGpu = Avg(r.SumGpu, r.GpuN), avgCore = Avg(r.SumCore, r.N), avgCpu = Avg(r.SumCpu, r.N), avgRam = Avg(r.SumRam, r.N);
         string key;
         if (vf >= MemShare) key = "vram";
         else if (rt >= MemShare) key = "ram";
@@ -510,10 +524,15 @@ internal static class PerfWatchLogic
             case "cpu":
                 shortT = "Prozessor"; title = "Dein Prozessor hat gebremst";
                 text = $"In {PctText(s.Cpu)} der Zeit hat die Grafikkarte auf ihn gewartet (Grafikkarte im Schnitt {LoadText(avgGpu)}, stärkster Kern {LoadText(avgCore)}). In FiveM ist das oft ein einzelner Kern, den Skripte, viele Spieler und Autos in der Nähe auslasten.";
-                help.Add(new("„Hintergrund-Apps ausbremsen“ stellt Browser und Launcher hinter das Spiel. Das hilft genau dann, wenn der Prozessor voll ist.", "bgbrake", "Zum Tweak"));
+                // the tweak only helps when the whole processor is busy (its own card says so); one full core is the game's
+                // main thread, and other programs run on the other cores anyway
+                bool all = avgCpu >= AllBusyPct;
+                if (all) help.Add(new($"„Hintergrund-Apps ausbremsen“ stellt Browser und Launcher hinter das Spiel. Dein ganzer Prozessor war im Schnitt zu {LoadText(avgCpu)} ausgelastet, genau dann hilft das.", "bgbrake", "Zum Tweak"));
                 help.Add(new("Bevölkerungsdichte und Distanz-Skalierung im Feintuning runter entlasten den Prozessor etwas. Auf vielen Servern bestimmt der Server die Bevölkerung aber selbst.", "tuning", "Zum Feintuning"));
-                help.Add(new("Schließ, was nebenbei rechnet: Videos im Browser, Streams, Aufnahmen.", null, null));
-                no = "Niedrigere Auflösung, weniger Kantenglättung oder kleinere Texturen bringen hier kaum FPS, sie entlasten nur die Grafikkarte, die ohnehin wartet. Viele Skripte und Spieler auf vollen Servern kosten Prozessorzeit, daran kann kein Tool etwas ändern.";
+                if (all) help.Add(new("Schließ, was nebenbei rechnet: Videos im Browser, Streams, Aufnahmen.", null, null));
+                no = "Niedrigere Auflösung, weniger Kantenglättung oder kleinere Texturen bringen hier kaum FPS, sie entlasten nur die Grafikkarte, die ohnehin wartet. "
+                    + (all ? "" : $"Auch „Hintergrund-Apps ausbremsen“ bringt kaum etwas: Gebremst hat ein einzelner Kern, der ganze Prozessor lag im Schnitt bei {LoadText(avgCpu)}. ")
+                    + "Viele Skripte und Spieler auf vollen Servern kosten Prozessorzeit, daran kann kein Tool etwas ändern.";
                 break;
             case "cap":
                 shortT = "Gedeckelt"; title = "Deine FPS waren gedeckelt";
@@ -525,14 +544,14 @@ internal static class PerfWatchLogic
             case "vram":
                 shortT = "VRAM voll"; title = "Dein Grafikspeicher war voll";
                 text = $"In {PctText(vf)} der Zeit war er zu 95{Nb}% oder mehr belegt (Spitze {GbText(r.PeakVramMb)} von {GbText(r.VramMb)}). Dann muss Windows Texturen in den Arbeitsspeicher auslagern, das gibt oft Nachladeruckler und matschige Texturen.";
-                help.Add(new("Texturbudget eine Stufe runter: FiveM hält dann weniger Texturen im Grafikspeicher.", "tex", "Zum Texturbudget"));
+                help.Add(new("Hast du das Texturbudget erhöht, stell es auf den Vorschlag oder darunter: FiveM hält dann weniger Texturen im Grafikspeicher.", "tex", "Zum Texturbudget"));
                 help.Add(new("Texturen im Feintuning von „Sehr hoch“ auf „Hoch“.", "tuning", "Zum Feintuning"));
                 help.Add(new("Schließ nebenbei Programme, die Grafikspeicher belegen: Browser mit Videos, NVIDIA Broadcast, Aufnahme-Tools.", null, null));
                 no = "„RAM freigeben“ im Cleaner leert den Grafikspeicher nicht.";
                 break;
             case "ram":
                 shortT = "RAM knapp"; title = "Dein Arbeitsspeicher war knapp";
-                text = $"In {PctText(rt)} der Zeit waren 90{Nb}% oder mehr belegt (Spitze {GbText(r.PeakRamMb)} von {GbText(r.RamMb)}). Dann lagert Windows auf die Festplatte aus, das gibt Nachladeruckler.";
+                text = $"In {PctText(rt)} der Zeit waren 90{Nb}% oder mehr belegt (Spitze {GbText(r.PeakRamMb)} von {GbText(r.RamMb)}). Dann lagert Windows eher auf die Festplatte aus, und das kann Nachladeruckler geben.";
                 help.Add(new("Schließ, was nebenbei viel Speicher braucht: Browser mit vielen Tabs, Launcher, Aufnahme-Tools. Im Autostart siehst du, was ungefragt mitläuft.", "autostart", "Zum Autostart"));
                 help.Add(new("„RAM freigeben“ im Cleaner schafft kurz Luft, hält aber nicht lange: Die Programme holen sich den Speicher zurück.", "cleaner", "Zum Cleaner"));
                 if (r.RamMb > 0 && r.RamMb < 14 * 1024)
@@ -541,8 +560,8 @@ internal static class PerfWatchLogic
                 break;
             case "nogpu":
                 shortT = "Ohne GPU-Werte"; title = "Ohne Werte der Grafikkarte kein Urteil";
-                text = $"Windows hat für deine Grafikkarte keine Auslastung geliefert, dafür braucht es einen aktuellen Treiber. Gemessen wurde trotzdem: stärkster Prozessorkern im Schnitt {LoadText(avgCore)}, Arbeitsspeicher {LoadText(avgRam)}.";
-                help.Add(new("Grafiktreiber aktualisieren, dann misst OrbitTweak ab der nächsten Runde auch die Grafikkarte.", "diag", "Zur Diagnose"));
+                text = $"Windows hat für deine Grafikkarte keine Auslastung geliefert. Gemessen wurde trotzdem: stärkster Prozessorkern im Schnitt {LoadText(avgCore)}, Arbeitsspeicher {LoadText(avgRam)}.";
+                help.Add(new("Mit einem aktuellen Grafiktreiber liefert Windows die Werte normalerweise. Wie alt deiner ist, zeigt die Diagnose.", "diag", "Zur Diagnose"));
                 no = null;
                 break;
             default:
@@ -552,7 +571,7 @@ internal static class PerfWatchLogic
                 text = busy
                     ? "Grafikkarte und Prozessor haben beide viel gearbeitet, aber keiner lag lange am Anschlag. Für deine Einstellungen ist dein PC gut im Gleichgewicht."
                     : $"Mal war es die Grafikkarte, mal der Prozessor, keiner von beiden lange genug für ein klares Urteil ({Mix(s)}).";
-                help.Add(new("Hier gibt es keinen einzelnen Hebel. Ruckelt es trotzdem, findet die Diagnose oft die Ursache, etwa einen alten Treiber oder einen vollen Cache.", "diag", "Zur Diagnose"));
+                help.Add(new("Hier gibt es keinen einzelnen Hebel. Ruckelt es trotzdem, schau in die Diagnose: Sie prüft unter anderem, wie alt dein Grafiktreiber ist und wie groß der FiveM-Cache.", "diag", "Zur Diagnose"));
                 no = "Einzelne Tweaks bringen hier selten spürbar etwas.";
                 break;
             }
@@ -560,7 +579,7 @@ internal static class PerfWatchLogic
         if (key is "vram" or "ram" && known > 0 && Mix(s) is { Length: > 0 } mix) notes.Add($"Daneben: {mix}.");
         if (key != "vram" && vf >= NoteShare) notes.Add($"Der Grafikspeicher war zeitweise voll ({PctText(vf)} der Zeit).");
         if (key != "ram" && rt >= NoteShare) notes.Add($"Der Arbeitsspeicher war zeitweise knapp ({PctText(rt)} der Zeit).");
-        if (key != "nogpu" && r.GpuN > 0 && r.OwnN * 2 < r.GpuN) notes.Add("Die Werte der Grafikkarte gelten für die ganze Karte, nicht nur für FiveM.");
+        if (key != "nogpu" && r.GpuN > 0 && r.OwnN * 2 < r.GpuN) notes.Add("FiveM ließ sich meist keiner Grafikkarte zuordnen, die Werte gelten für die am stärksten belastete.");
         if (r.Secs < ShortSecs) notes.Add("Kurze Runde, nimm das Urteil als groben Hinweis.");
         return new PerfVerdict(key, shortT, title, text, help, no, notes);
     }
@@ -585,14 +604,16 @@ internal static class PerfWatchLogic
     public static PerfLive? Live(PerfRecorder p)
     {
         if (p.RoundId == 0) return null;
-        string state = p.Last == null ? "warmup" : !p.Front ? "paused" : "live";
+        // back in front after a pause: the first look only primes the counters, there is no "right now" yet
+        // and while FiveM is not in front nothing is measured, also before the first values (not "comes in a few seconds")
+        string state = !p.Front ? "paused" : p.Now == null ? "warmup" : "live";
         var kind = state == "live" ? p.Now : null;
         var (title, text) = NowText(state, kind);
         PerfNow? now = null;
         if (p.Last is PerfSample s)
         {
             var v = VramPct(s);
-            now = new PerfNow(s.Gpu is double g ? Math.Round(g) : null, s.Own, Math.Round(s.Core), Math.Round(s.Cpu), v is double x ? Math.Round(x) : null,
+            now = new PerfNow(s.Gpu is double g ? Math.Round(g) : null, s.Own, s.GpuOwn is double go ? Math.Round(go) : null, Math.Round(s.Core), Math.Round(s.Cpu), v is double x ? Math.Round(x) : null,
                 v != null ? Gb(s.VramMb!.Value) : null, v != null ? Math.Round(s.VramUsedMb!.Value / 1024, 1) : null,
                 Math.Round(RamPct(s)), Gb(s.RamMb) ?? 0, Math.Round(s.RamUsedMb / 1024, 1), VramFull(s), RamTight(s));
         }
