@@ -1,0 +1,147 @@
+/* =====================================================================
+   ENGPASS-ANALYSE (2.31): the "Leistung" card on the Spielzeit page (perf.js).
+   Luxe tokens from uhq.css. Neutral bars in steps of white, no accent (the page has no main action); amber only where
+   memory ran full. Only transform and opacity move, and only when a value changes; nothing moves for ever.
+   ===================================================================== */
+
+#p-stats .pw-card{grid-column:1/-1;padding:20px 22px 16px}
+#p-stats>.pw-card{margin-top:20px}
+
+/* head: title and one quiet line, the view and the switch on the right */
+#p-stats .pw-h{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px;min-height:36px}
+#p-stats .pw-hl{display:flex;align-items:center;gap:12px;min-width:0}
+#p-stats .pw-hl>div{min-width:0}
+#p-stats .pw-hi{flex:none;width:34px;height:34px;border-radius:11px;display:grid;place-items:center;background:rgba(255,255,255,.05);box-shadow:var(--edge);color:var(--sub)}
+#p-stats .pw-hi svg.i{width:16px;height:16px}
+#p-stats .pw-h b{display:block;font-family:var(--disp);font-size:15.5px;font-weight:580;letter-spacing:-.015em;color:var(--text)}
+#p-stats .pw-h p{margin-top:3px;font-size:12.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#p-stats .pw-hr{flex:none;display:flex;align-items:center;gap:16px}
+#p-stats .pw-seg button{height:28px;padding:0 12px;font-size:12px}
+#p-stats .pw-sw{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--sub);white-space:nowrap}
+#p-stats .pw-sw .tg{flex:none;cursor:pointer}
+#p-stats .pw-sw .tg:focus-visible{outline:2px solid rgba(var(--a-rgb),.75);outline-offset:2px}
+
+/* shared: a headline, its line, the share of the time as one fine bar */
+#p-stats .pw-t{font-family:var(--disp);font-size:21px;font-weight:560;letter-spacing:-.022em;line-height:1.22;color:var(--text);text-wrap:balance}
+#p-stats .pw-p{margin-top:6px;max-width:560px;font-size:13px;line-height:1.55;color:var(--sub);text-wrap:pretty}
+#p-stats .pw-mix{display:flex;gap:2px;height:6px;border-radius:4px;overflow:hidden;background:rgba(255,255,255,.04)}
+#p-stats .pw-mix i{display:block;min-width:2px}
+#p-stats .pw-k-gpu{background:rgba(255,255,255,.78)}
+#p-stats .pw-k-cpu{background:rgba(255,255,255,.46)}
+#p-stats .pw-k-cap{background:rgba(255,255,255,.24)}
+#p-stats .pw-k-mixed{background:rgba(255,255,255,.12)}
+#p-stats .pw-k-unknown{background:repeating-linear-gradient(135deg,rgba(255,255,255,.16) 0 2px,transparent 2px 5px)}
+#p-stats .pw-k-none{background:transparent}
+#p-stats .pw-leg{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px;font-size:12px;color:var(--mute)}
+#p-stats .pw-leg span{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+#p-stats .pw-leg i{width:8px;height:8px;border-radius:2px}
+#p-stats .pw-leg b{font-weight:500;color:var(--sub);font-variant-numeric:tabular-nums}
+
+/* ---------- live: what holds the frame rate right now, and four meters ---------- */
+#p-stats .pw-live{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.12fr);gap:28px;align-items:stretch}
+#p-stats .pw-now{display:flex;flex-direction:column;min-width:0}
+#p-stats .pw-st{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mute);font-variant-numeric:tabular-nums}
+#p-stats .pw-dot{flex:none;width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.22);transition:background .3s,box-shadow .3s}
+#p-stats .pw-dot.on{background:var(--good);box-shadow:0 0 0 4px rgba(95,212,163,.13)}
+#p-stats .pw-now .pw-t{margin-top:12px}
+#p-stats .pw-now .pw-mixw{margin-top:auto;padding-top:18px}
+#p-stats .pw-mixh{display:flex;justify-content:space-between;gap:12px;margin-bottom:8px;font-size:12px;color:var(--mute)}
+#p-stats .pw-mixh b{font-weight:500;color:var(--sub);font-variant-numeric:tabular-nums;white-space:nowrap}
+#p-stats .pw-ms{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+#p-stats .pw-m{min-width:0;padding:14px 16px 13px;border-radius:var(--r-tile);background:rgba(255,255,255,.026);box-shadow:inset 0 0 0 1px rgba(255,255,255,.035);transition:background .3s,box-shadow .3s,opacity .3s}
+#p-stats .pw-mh{display:flex;align-items:baseline;justify-content:space-between;gap:10px;min-width:0}
+#p-stats .pw-mk{display:inline-flex;align-items:center;gap:7px;min-width:0;font-size:12.5px;font-weight:500;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#p-stats .pw-mk svg.i{flex:none;width:14px;height:14px;color:var(--mute)}
+#p-stats .pw-mv{flex:none;font-family:var(--disp);font-size:21px;font-weight:350;letter-spacing:-.03em;color:var(--text);white-space:nowrap;font-variant-numeric:tabular-nums}
+#p-stats .pw-mb{display:block;height:4px;margin-top:12px;border-radius:3px;background:rgba(255,255,255,.06);overflow:hidden}
+#p-stats .pw-mb i{display:block;height:100%;border-radius:3px;background:rgba(255,255,255,.28);transform-origin:left;transform:scaleX(0);transition:transform .6s var(--ease),background .3s}
+#p-stats .pw-mn{display:block;margin-top:8px;font-size:11.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+#p-stats .pw-m.hot{background:rgba(255,255,255,.056);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),inset 0 0 0 1px rgba(255,255,255,.07)}
+#p-stats .pw-m.hot .pw-mk{color:var(--text)}
+#p-stats .pw-m.hot .pw-mk svg.i{color:var(--sub)}
+#p-stats .pw-m.hot .pw-mb i{background:rgba(255,255,255,.86)}
+#p-stats .pw-m.warn .pw-mb i{background:var(--warn)}
+#p-stats .pw-m.warn .pw-mn{color:var(--warn)}
+#p-stats .pw-m.dim{opacity:.55}
+#p-stats .pw-m .pw-sw2{display:none}
+
+/* ---------- after the game: the chosen round's verdict, the rounds next to it ---------- */
+#p-stats .pw-past{display:grid;grid-template-columns:minmax(0,1.32fr) minmax(0,1fr);align-items:start}
+#p-stats .pw-v{min-width:0;padding-right:28px}
+#p-stats .pw-vh{display:flex;align-items:center;gap:10px;min-width:0}
+#p-stats .pw-vh .chip{flex:none}
+#p-stats .pw-when{min-width:0;font-size:12px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#p-stats .pw-v .pw-t{margin-top:12px}
+#p-stats .pw-v .pw-mixw{margin-top:16px}
+#p-stats .pw-sec{margin-top:18px}
+#p-stats .pw-sh{display:flex;align-items:center;gap:7px;margin-bottom:4px;font-size:12px;font-weight:550;color:var(--mute)}
+#p-stats .pw-sh svg.i{width:13px;height:13px}
+#p-stats .pw-tip{display:flex;align-items:center;gap:14px;padding:9px 0;font-size:13px;line-height:1.5;color:var(--sub)}
+#p-stats .pw-tip+.pw-tip{box-shadow:inset 0 1px 0 var(--line)}
+#p-stats .pw-tip span{flex:1;min-width:0;text-wrap:pretty}
+#p-stats .pw-tip .btn{flex:none}
+#p-stats .pw-tip .btn svg.i{width:13px;height:13px;margin:0 -3px 0 1px}
+#p-stats .pw-nope p{padding:5px 0 0;font-size:13px;line-height:1.5;color:var(--sub);text-wrap:pretty}
+#p-stats .pw-notes{list-style:none;display:grid;gap:5px;margin-top:16px}
+#p-stats .pw-notes li{position:relative;padding-left:13px;font-size:12px;line-height:1.5;color:var(--mute);text-wrap:pretty}
+#p-stats .pw-notes li::before{content:'';position:absolute;left:0;top:.72em;width:5px;height:1px;background:currentColor}
+
+#p-stats .pw-list{min-width:0;padding-left:24px;box-shadow:inset 1px 0 0 var(--line)}
+#p-stats .pw-lh{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:6px}
+#p-stats .pw-lh b{font-size:13px;font-weight:550;color:var(--text)}
+#p-stats .pw-lh span{font-size:12px;color:var(--mute)}
+#p-stats .pw-r{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"t k" "s k" "b b";column-gap:12px;row-gap:2px;align-items:center;
+  width:calc(100% + 20px);margin:0 -10px;padding:9px 10px 10px;border-radius:12px;text-align:left;transition:background .2s,box-shadow .2s}
+#p-stats .pw-r+.pw-r{margin-top:2px}
+#p-stats .pw-r:hover{background:rgba(255,255,255,.028)}
+#p-stats .pw-r.on{background:rgba(255,255,255,.052);box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
+#p-stats .pw-r:focus-visible{outline:2px solid rgba(var(--a-rgb),.75);outline-offset:0}
+#p-stats .pw-rt{grid-area:t;font-size:11.5px;color:var(--mute);white-space:nowrap;font-variant-numeric:tabular-nums}
+#p-stats .pw-rs{grid-area:s;min-width:0;font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#p-stats .pw-rs.unk{font-weight:450;color:var(--mute)}
+#p-stats .pw-rk{grid-area:k;height:22px;padding:0 9px;border-radius:99px;display:inline-flex;align-items:center;font-size:11.5px;font-weight:500;background:rgba(255,255,255,.055);color:var(--sub);white-space:nowrap}
+#p-stats .pw-r.on .pw-rk{background:rgba(255,255,255,.085);color:var(--text)}
+#p-stats .pw-rk.w,#p-stats .pw-r.on .pw-rk.w{background:rgba(242,196,107,.1);color:var(--warn)}
+#p-stats .pw-rb{grid-area:b;height:3px;margin-top:7px;gap:1px}
+#p-stats .pw-more{display:flex;justify-content:center;padding-top:8px}
+
+/* ---------- nothing measured yet ---------- */
+#p-stats .pw-empty{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.9fr);gap:36px;align-items:center}
+#p-stats .pw-ghost{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;-webkit-mask:linear-gradient(90deg,#000 35%,transparent);mask:linear-gradient(90deg,#000 35%,transparent)}
+#p-stats .pw-gm{padding:13px 14px 14px;border-radius:var(--r-tile);background:rgba(255,255,255,.02);box-shadow:inset 0 0 0 1px rgba(255,255,255,.035)}
+#p-stats .pw-gm span{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--mute);white-space:nowrap}
+#p-stats .pw-gm span svg.i{width:13px;height:13px}
+#p-stats .pw-gm i{display:block;height:4px;margin-top:12px;border-radius:3px;background:rgba(255,255,255,.1);transform-origin:left;transform:scaleX(var(--v,.5))}
+
+/* ---------- off, no values, not reachable ---------- */
+#p-stats .pw-msg{display:flex;align-items:center;gap:16px;padding:2px 0 4px}
+#p-stats .pw-msg.pw-plain{padding:0 0 2px 46px}
+#p-stats .pw-ei{flex:none;width:42px;height:42px;border-radius:13px;display:grid;place-items:center;background:rgba(255,255,255,.05);box-shadow:var(--edge);color:var(--sub)}
+#p-stats .pw-ei svg.i{width:19px;height:19px}
+#p-stats .pw-msg b{font-size:14px;font-weight:550;color:var(--text)}
+#p-stats .pw-msg p{margin-top:3px;max-width:680px;font-size:12.5px;line-height:1.5;color:var(--mute);text-wrap:pretty}
+
+#p-stats .pw-foot{margin-top:18px;padding-top:12px;box-shadow:inset 0 1px 0 var(--line);font-size:11.5px;line-height:1.5;color:var(--mute)}
+
+/* anime: titles in the rounded face like the rest of the page; numbers stay Geist */
+html.th-anime #p-stats .pw-h b{font-family:var(--head);font-weight:800;letter-spacing:-.004em}
+html.th-anime #p-stats .pw-t{font-family:var(--head);font-weight:800;letter-spacing:-.01em}
+
+@media (max-width:1180px){
+  #p-stats .pw-live{gap:20px}
+  #p-stats .pw-m{padding:13px 14px 12px}
+  #p-stats .pw-mv{font-size:19px}
+  #p-stats .pw-m .pw-lw{display:none}
+  #p-stats .pw-m .pw-sw2{display:inline}
+  #p-stats .pw-v{padding-right:22px}
+  #p-stats .pw-list{padding-left:20px}
+}
+@media (max-width:1000px){
+  #p-stats .pw-live,#p-stats .pw-past,#p-stats .pw-empty{grid-template-columns:minmax(0,1fr)}
+  #p-stats .pw-v{padding-right:0}
+  #p-stats .pw-list{padding:16px 0 0;margin-top:18px;box-shadow:inset 0 1px 0 var(--line)}
+  #p-stats .pw-ghost{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  #p-stats .pw-mb i{transition:none}
+}
