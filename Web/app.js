@@ -1162,10 +1162,7 @@ let logFilter = 'all', logData = { lines: [] };
 const isErr = x => /error|fail|exception|crash/i.test(x);
 async function loadLogs() {
   try { logData = await api('logs'); } catch { }
-  renderLogs();
-  $('#crashList').innerHTML = (logData.crashes || []).length
-    ? logData.crashes.slice(0, 5).map(c => `<div class="svc"><span class="nm" title="${esc(c.name)}">${esc(c.name)}</span><span class="cr-m">${esc(c.date)} · ${bytes(c.size)}</span></div>`).join('')
-    : `<div class="lx-empty ok">${ico('check')}<b>Keine Abstürze</b><span>FiveM ist zuletzt sauber gelaufen</span></div>`;
+  renderLogs();   // the crashes: crashscan.js (Absturz-Analyse, 2.31)
 }
 function renderLogs() {
   const l = (logData.lines || []).filter(x => logFilter === 'all' || isErr(x));

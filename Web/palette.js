@@ -125,6 +125,7 @@
     ['sw:friends', () => swOpen('friends'), 'Freunde online', 'users', 'Server › Freunde in deinen Favoriten finden', 'freunde kumpel spieler online wo spielt name finden mitspieler'],
     ['sw:desk', () => swOpen('desk'), 'Server auf den Desktop', 'sw-desk', 'Server › Verknüpfung, die mit einem Klick verbindet', 'verknüpfung desktop shortcut icon schnellstart lnk direkt verbinden'],
     ['pw:perf', () => pwOpen(), 'Engpass-Analyse', 'pw-neck', 'Spielzeit › Was deine FPS begrenzt', 'engpass bottleneck limit gpu cpu grafikkarte prozessor auslastung vram grafikspeicher leistung fps begrenzt ruckler'],
+    ['dg:crash', () => crsFocus(), 'Absturz-Analyse', 'alert', 'Diagnose › Letzte Abstürze mit Ursache', 'absturz abstürze abgestürzt crash gecrasht ursache warum treiber signatur dump support err'],
   ];
   const SCENE_SUB = { winter: 'Nordlicht, Raureif, Schnee', anime: 'Abendhimmel, Kirschblüten' };
   const SUGGEST = ['ac:boost', 'ac:fivem', 'ac:health', 'ac:ram', 'pg:tweaks', 'pg:clip'];
@@ -183,6 +184,7 @@
     add({ id: 'ac:restore', g: 'action', icon: 'shield', title: 'Wiederherstellungspunkt erstellen', sub: 'Windows-Snapshot, zu dem du jederzeit zurückkannst', kw: 'backup sicherung snapshot wiederherstellen', verb: 'Ausführen', run: () => restorePoint() });
     add({ id: 'ac:revert', g: 'action', icon: 'undo', title: 'Alle Tweaks zurücksetzen', sub: 'Alles, was OrbitTweak geändert hat, auf den Wert davor – mit Rückfrage', kw: 'rückgängig zurück standard reset probleme', verb: 'Ausführen', run: () => revertAll() });
     add({ id: 'ac:wizard', g: 'action', icon: 'sparkle', title: 'Setup-Assistent starten', sub: 'OrbitTweak nochmal von vorne einrichten', kw: 'einrichten assistent setup erste schritte', verb: 'Ausführen', run: () => wizard(0) });
+    if (typeof crsCopyLast === 'function') add({ id: 'ac:crashcopy', g: 'action', icon: 'copy', title: 'Letzten Absturz kopieren', sub: 'Kurzer Text für den Support, ohne deinen Windows-Namen', kw: 'absturz crash support discord kopieren fehler signatur', verb: 'Kopieren', run: () => crsCopyLast() });
     const th = themeKey(S.settings.accent);
     for (const [k, [n, a, b]] of Object.entries(THEMES))
       add({ id: 'th:' + k, g: 'action', sw: [a, b], title: `Design „${n}“`, sub: SCENE_SUB[k] || 'Akzentfarbe der App', kw: 'design theme farbe aussehen wechseln akzent', st: k === th ? 'Aktiv' : '', verb: 'Wählen', run: () => setTheme(k) });

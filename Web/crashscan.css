@@ -1,0 +1,119 @@
+/* =====================================================================
+   ABSTURZ-ANALYSE (2.31, crashscan.js) on the Diagnose page: one wide surface under the checks. Each crash is one row
+   (cause, when, build, how sure); opened, the explanation and the steps sit next to a sunken well with FiveM's own words,
+   the fixes and "Für Support kopieren" below. Luxe tokens of uhq.css only; no accent here – the page's one accent stays
+   "Check starten". Only transforms and opacity move; no backdrop blur.
+   ===================================================================== */
+
+/* the card takes the place of the old crash list and the full width; the connection test moves below it */
+#p-diag .dgrid{grid-template-areas:"chk inst" "crash crash" "net net" "log log"}
+@media (max-width:1100px){
+  #p-diag .dgrid{grid-template-areas:"inst" "chk" "crash" "net" "log"}
+}
+#p-diag .crs-card{grid-area:crash;min-width:0;padding:20px 22px 12px;container:crs/inline-size}
+
+/* ---------- head ---------- */
+#p-diag .crs-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+#p-diag .crs-ht{min-width:0}
+#p-diag .crs-ht p{margin-top:5px;font-size:12.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#p-diag .crs-ha{flex:none;display:flex;align-items:center;gap:8px}
+#p-diag .crs-ha .ib{width:30px;height:30px;border-radius:9px}
+#p-diag .crs-ha .ib svg.i{width:15px;height:15px}
+#p-diag .crs-ha .ib[disabled]{opacity:.45;cursor:default}
+
+/* a pattern over several crashes: one quiet line in the warm tone of a note */
+#p-diag .crs-pat{display:flex;align-items:center;gap:12px;margin:16px 0 2px;padding:11px 14px;border-radius:14px;
+  background:rgba(242,196,107,.055);box-shadow:inset 0 0 0 1px rgba(242,196,107,.09)}
+#p-diag .crs-pat svg.i{flex:none;width:16px;height:16px;color:var(--warn)}
+#p-diag .crs-pat p{font-size:13px;line-height:1.45;color:var(--sub);text-wrap:pretty}
+#p-diag .crs-pat b{font-weight:600;color:var(--text)}
+
+/* ---------- the rows ---------- */
+#p-diag .crs-list{margin:10px -10px 0}
+#p-diag .crs-row{position:relative;border-radius:16px;transition:background .2s}
+#p-diag .crs-row+.crs-row::before{content:'';position:absolute;left:64px;right:14px;top:0;height:1px;background:var(--line);transition:opacity .2s}
+#p-diag .crs-row.open{background:rgba(255,255,255,.022)}
+#p-diag .crs-row.open::before,#p-diag .crs-row.open+.crs-row::before{opacity:0}
+#p-diag .crs-rh{display:flex;align-items:center;gap:14px;width:100%;min-width:0;padding:12px 14px;border:0;border-radius:16px;background:none;
+  color:inherit;font:inherit;text-align:left;cursor:pointer}
+#p-diag .crs-row:not(.open) .crs-rh:hover{background:rgba(255,255,255,.028)}
+#p-diag .crs-rh:focus-visible{outline:2px solid rgba(var(--a-rgb),.55);outline-offset:-2px}
+#p-diag .crs-ic{flex:none;width:36px;height:36px;display:grid;place-items:center;border-radius:50%;background:rgba(255,255,255,.05);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05);color:var(--sub)}
+#p-diag .crs-ic svg.i{width:16px;height:16px}
+#p-diag .crs-rt{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+#p-diag .crs-rt b{font-size:14px;font-weight:550;letter-spacing:-.008em;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#p-diag .crs-rt>span{font-size:12.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+#p-diag .crs-rt>span i{font-style:normal;margin:0 7px;opacity:.55}
+#p-diag .crs-sure{flex:none;height:22px;padding:0 9px;display:inline-flex;align-items:center;border-radius:99px;font-size:11.5px;font-weight:500;
+  background:rgba(255,255,255,.05);color:var(--sub);white-space:nowrap}
+#p-diag .crs-sure.klar{background:rgba(255,255,255,.075);color:var(--text)}
+#p-diag .crs-sure.unklar{background:none;box-shadow:inset 0 0 0 1px var(--line2);color:var(--mute)}
+#p-diag .crs-sure:empty{display:none}
+#p-diag .crs-chev{flex:none;width:15px;height:15px;color:var(--mute);transition:transform .25s var(--ease)}
+#p-diag .crs-row.open .crs-chev{transform:rotate(90deg)}
+
+/* ---------- details ---------- */
+#p-diag .crs-det{padding:0 14px 14px 64px}
+#p-diag .crs-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.08fr);gap:22px;align-items:start}
+#p-diag .crs-why{font-size:13px;line-height:1.55;color:var(--sub);text-wrap:pretty}
+#p-diag .crs-steps{margin:12px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:7px}
+#p-diag .crs-steps li{position:relative;padding-left:16px;font-size:12.5px;line-height:1.5;color:var(--text);text-wrap:pretty}
+#p-diag .crs-steps li::before{content:'';position:absolute;left:3px;top:.6em;width:5px;height:5px;border-radius:50%;background:var(--mute)}
+
+/* what FiveM said: a sunken well, the signature in mono */
+#p-diag .crs-said{min-width:0;padding:12px 14px 13px;border-radius:14px;background:var(--well);box-shadow:var(--well-edge)}
+#p-diag .crs-sh{margin-bottom:9px;font-size:11.5px;font-weight:500;color:var(--mute)}
+#p-diag .crs-f{display:flex;flex-direction:column;gap:3px;min-width:0}
+#p-diag .crs-f+.crs-f{margin-top:10px}
+#p-diag .crs-f>span{font-size:11.5px;color:var(--mute)}
+#p-diag .crs-f p{font-size:12.5px;line-height:1.5;color:var(--text);overflow-wrap:anywhere;user-select:text}
+#p-diag .crs-f p.crs-none{color:var(--sub)}
+#p-diag .crs-sig{font-family:var(--mono);font-size:12px;line-height:1.5;color:var(--text);overflow-wrap:anywhere;user-select:text}
+#p-diag .crs-small{display:flex;flex-wrap:wrap;gap:5px 16px;margin-top:11px;padding-top:10px;box-shadow:inset 0 1px 0 var(--line)}
+#p-diag .crs-small span{display:inline-flex;flex-wrap:wrap;column-gap:6px;max-width:100%;font-size:12px;font-variant-numeric:tabular-nums}
+#p-diag .crs-small em{font-style:normal;color:var(--mute)}
+#p-diag .crs-small b{min-width:0;font-weight:400;color:var(--sub);overflow-wrap:anywhere;user-select:text}
+#p-diag .crs-stk{margin-top:10px}
+#p-diag .crs-stk summary{display:inline-flex;align-items:center;gap:6px;list-style:none;font-size:12px;color:var(--sub);cursor:pointer;border-radius:6px}
+#p-diag .crs-stk summary::-webkit-details-marker{display:none}
+#p-diag .crs-stk summary:hover{color:var(--text)}
+#p-diag .crs-stk summary svg.i{width:12px;height:12px;transition:transform .2s var(--ease)}
+#p-diag .crs-stk[open] summary svg.i{transform:rotate(90deg)}
+#p-diag .crs-stk code{display:block;margin-top:8px;font-family:var(--mono);font-size:11.5px;line-height:1.7;color:var(--sub);white-space:pre-wrap;overflow-wrap:anywhere;user-select:text}
+
+/* fixes on the left, the file and the text for support on the right */
+#p-diag .crs-acts{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:14px}
+#p-diag .crs-gap{flex:1 1 0;min-width:0}
+#p-diag .crs-acts .btn[disabled]{cursor:default}
+#p-diag .crs-acts .btn:not(.crs-done)[disabled]{opacity:.5}
+#p-diag .crs-done,#p-diag .crs-done svg.i,#p-diag .crs-done:hover svg.i{color:var(--good)}
+
+/* narrow card: one column, the details from the left edge */
+@container crs (max-width:720px){
+  #p-diag .crs-cols{grid-template-columns:minmax(0,1fr);gap:14px}
+  #p-diag .crs-det{padding-left:14px}
+}
+@container crs (max-width:520px){
+  #p-diag .crs-sure{display:none}
+}
+
+/* ---------- states ---------- */
+#p-diag .crs-empty{padding:30px 16px 26px}
+#p-diag .crs-empty .btn{margin-top:14px}
+#p-diag .crs-empty.crs-bad>svg.i{background:rgba(242,139,139,.1);color:var(--bad)}
+#p-diag .crs-skel{display:flex;flex-direction:column;gap:8px;margin-top:16px;padding-bottom:8px}
+#p-diag .crs-skel i{display:block;height:54px;border-radius:14px;background:rgba(255,255,255,.035);animation:crs-pulse 1.2s ease-in-out infinite alternate}
+#p-diag .crs-skel i:nth-child(2){animation-delay:.15s}
+#p-diag .crs-skel i:nth-child(3){animation-delay:.3s}
+@keyframes crs-pulse{from{opacity:.4}to{opacity:1}}
+
+/* opened from Strg+K: the card's edge lights up once */
+#p-diag .crs-card::after{display:block;content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;
+  box-shadow:inset 0 0 0 1px rgba(var(--a-rgb),.5)}
+#p-diag .crs-card.crs-flash::after{animation:crs-flash 1.8s ease-out}
+@keyframes crs-flash{0%,35%{opacity:1}100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){
+  #p-diag .crs-skel i{animation:none;opacity:.7}
+  #p-diag .crs-chev,#p-diag .crs-stk summary svg.i{transition:none}
+}

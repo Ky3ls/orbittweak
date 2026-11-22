@@ -19,6 +19,7 @@
 <link rel="stylesheet" href="og.css">
 <link rel="stylesheet" href="serverwatch.css">
 <link rel="stylesheet" href="perf.css">
+<link rel="stylesheet" href="crashscan.css">
 <link rel="stylesheet" href="palette.css">
 <link rel="stylesheet" href="luxe-themes.css">
 </head>
@@ -114,6 +115,9 @@
     <symbol id="sw-desk" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><path d="M9.5 12.5 14 8M10.5 8H14v3.5"/></symbol>
     <symbol id="pw-neck" viewBox="0 0 24 24"><path d="M3 3.5h18"/><path d="M5 3.5c0 5.2 5 6.3 5 9.5v7.5h4V13c0-3.2 5-4.3 5-9.5"/></symbol>
     <symbol id="pw-vram" viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="12" rx="2.5"/><path d="M7 17v3M12 17v3M17 17v3"/><rect x="6" y="8.5" width="5" height="5" rx="1"/><rect x="13" y="8.5" width="5" height="5" rx="1"/></symbol>
+    <symbol id="crs-unknown" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M9.3 9.2a2.8 2.8 0 0 1 5.4 1c0 1.9-2.7 2.4-2.7 4.1M12 17.6h.01"/></symbol>
+    <symbol id="crs-crack" viewBox="0 0 24 24"><rect x="2.5" y="3.5" width="19" height="13.5" rx="2.5"/><path d="M8 21h8M12 17v4M11.2 3.5 9.4 8l3.4 1.9-2.3 4.2 1.4 2.9"/></symbol>
+    <symbol id="crs-repeat" viewBox="0 0 24 24"><path d="M17 2.5 20.5 6 17 9.5"/><path d="M3.5 11.5V10a4 4 0 0 1 4-4h13M7 21.5 3.5 18 7 14.5"/><path d="M20.5 12.5V14a4 4 0 0 1-4 4h-13"/></symbol>
   </defs>
 </svg>
 
@@ -1083,9 +1087,13 @@
           <div class="nt-bars" id="ntBars"></div>
           <div class="lx-nf"><span class="sub" id="ntTxt">20 Messungen, dauert ca. 3 Sekunden</span><button class="btn" id="ntBtn" onclick="netTest()"><svg class="i"><use href="#activity"/></svg>Test starten</button></div>
         </div>
-        <div class="card lx-crash">
-          <div class="lx-ih"><div class="lbl"><svg class="i"><use href="#alert"/></svg>Abstürze</div><button class="btn sm gh" onclick="api('fivem.crashes')"><svg class="i"><use href="#folder"/></svg>Ordner</button></div>
-          <div id="crashList"></div>
+        <!-- Absturz-Analyse (2.31, crashscan.js renders the body) -->
+        <div class="card crs-card" id="crsCard">
+          <div class="crs-head">
+            <div class="crs-ht"><div class="lbl"><svg class="i"><use href="#alert"/></svg>Abstürze</div><p id="crsSub">Wird gelesen…</p></div>
+            <div class="crs-ha"><button class="btn sm gh" type="button" onclick="api('fivem.crashes')"><svg class="i"><use href="#folder"/></svg>Ordner</button><button class="ib" type="button" id="crsReload" title="Neu lesen" aria-label="Abstürze neu lesen"><svg class="i"><use href="#refresh"/></svg></button></div>
+          </div>
+          <div id="crsBody"></div>
         </div>
         <div class="card lx-log">
           <div class="lx-ih"><div class="lbl"><svg class="i"><use href="#file"/></svg>FiveM-Log</div>
@@ -1264,6 +1272,7 @@
 <script src="og-r6.js"></script>
 <script src="serverwatch.js"></script>
 <script src="perf.js"></script>
+<script src="crashscan.js"></script>
 <script src="palette.js"></script>
 </body>
 </html>
