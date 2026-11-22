@@ -1188,7 +1188,7 @@ async function checkUpdate(manual) {
     else {
       S.updAvail = true; $('#updTxt').textContent = 'Neue Version verfügbar';
       $('#updVer').textContent = u.latest; $('#updDate').textContent = u.date || '';
-      $('#updNotes').innerHTML = (u.notes || []).map(n => `<li>${esc(n)}</li>`).join('');
+      $('#updNotes').innerHTML = (u.notes || []).map(n => `<li>${noteHtml(n)}</li>`).join('');
       // kept for the "what is new" window that opens once after this update was installed
       try { if ((u.notes || []).length) localStorage.setItem('orbitNotes', JSON.stringify({ v: u.latest, notes: u.notes })); } catch { }
       $('#updBox').classList.remove('hidden');
@@ -1203,10 +1203,16 @@ async function checkUpdate(manual) {
   } catch { $('#updTxt').textContent = 'Prüfung fehlgeschlagen'; }
   $('#updCheck').disabled = false;
 }
+/** One line of GitHub release notes as safe HTML: escaped, **bold** and `code` from the Markdown shown as such, never as stars. */
+function noteHtml(n) {
+  return esc(String(n)).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/__(.+?)__/g, '<b>$1</b>').replace(/`([^`]+)`/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1');
+}
 function updatePrompt(u) {
+  // the list scrolls on its own (.upd-notes), so long notes never push „Jetzt aktualisieren“ out of the window
   modal(`<div class="m-ic">${ico('download')}</div><div class="kicker">Update verfügbar</div><h1>Version <span class="grad">${esc(u.latest)}</span> ist da</h1>
     <p>Du nutzt Version ${esc(u.current)}. Soll OrbitTweak jetzt aktualisieren? Die App startet danach automatisch neu.</p>
-    ${(u.notes || []).length ? `<ul class="changes m-list">${u.notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
+    ${(u.notes || []).length ? `<ul class="changes m-list upd-notes">${u.notes.map(n => `<li>${noteHtml(n)}</li>`).join('')}</ul>` : ''}
     <div class="bar m-bar hidden" id="mUpdMeter"><i id="mUpdBar" style="width:0"></i></div><div class="m-prog" id="mUpdProg"></div>
     <div class="act" id="mUpdAct"><button class="btn lg" onclick="closeModal()">Später</button><button class="btn p lg" onclick="promptInstall()">${ico('download')}Jetzt aktualisieren</button></div>`);
 }
@@ -3997,7 +4003,7 @@ function whatsNew(version) {
   let list = CHANGES[version];
   if (!list) {
     // no list built in for this version: the notes of the release that were shown before the update
-    try { const n = JSON.parse(localStorage.getItem('orbitNotes') || 'null'); if (n && n.v === version && n.notes.length) list = n.notes.map(t => ['zap', t, '']); } catch { }
+    try { const n = JSON.parse(localStorage.getItem('orbitNotes') || 'null'); if (n && n.v === version && n.notes.length) list = n.notes.map(t => ['zap', noteHtml(t), '']); } catch { }
   }
   if (!list) return;
   modal(`<div class="m-ic">${ico('sparkle')}</div><div class="kicker">Update installiert</div><h1>Das ist neu in <span class="grad">v${esc(version)}</span></h1>
