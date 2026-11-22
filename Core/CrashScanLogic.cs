@@ -142,7 +142,7 @@ public sealed class CrashReport
 }
 
 /// <summary>A fix the page can offer: Kind "health" (health.fix with Arg), "tweakoff" (tweak.set off), "action" (Arg "fmcache":
-/// fivem.cache), "page" (open a page, Arg "page" or "page#tab-or-selector"), "host" (crash.fix with Arg).</summary>
+/// fivem.cache; Arg "netcheck": opens the Netz-Check dialog), "page" (open a page, Arg "page" or "page#tab-or-selector"), "host" (crash.fix with Arg).</summary>
 public sealed record CrashFix(string Id, string Label, string Kind, string Arg);
 
 /// <summary>The likely cause in plain German. Sure: "klar" (FiveM or the module says it), "wahrscheinlich", "unklar".</summary>
@@ -468,6 +468,7 @@ public static class CrashScanLogic
     private static readonly CrashFix ReShadeFix = new("reshade", "ReShade verwalten", "page", "mods#rs");
     private static readonly CrashFix Autostart = new("autostart", "Autostart öffnen", "page", "autostart");
     private static readonly CrashFix Cache = new("cache", "FiveM-Cache leeren", "action", "fmcache");
+    private static readonly CrashFix NetCheck_ = new("netcheck", "Netz-Check öffnen", "action", "netcheck");
     private static CrashFix? Plugins(CrashPc pc) => pc.HasPlugins ? new("plugins", "Plugins-Ordner öffnen", "host", "plugins") : null;
 
     private static CrashFix[] Fx(params CrashFix?[] f) => f.Where(x => x != null).Select(x => x!).ToArray();
@@ -492,7 +493,7 @@ public static class CrashScanLogic
         // FiveM's own words first: they name the cause more precisely than any module could
         if (Regex.IsMatch(title, @"^O\S* \(Error\)$"))
             return new("disconnect", "Vom Server getrennt", "Das war kein Absturz deines PCs: FiveM hat die Verbindung beendet und die Meldung im Absturz-Fenster gezeigt. Der Text unten kommt vom Server oder von FiveM.",
-                new[] { "Passiert es nur auf einem Server, melde den Text dem Server-Team.", "Kommt es auf allen Servern, prüf deine Verbindung im Verbindungstest oben." }, "klar", "wifi", Array.Empty<CrashFix>());
+                new[] { "Passiert es nur auf einem Server, melde den Text dem Server-Team.", "Kommt es auf allen Servern, prüf deine Verbindung mit dem Netz-Check: Er zeigt in einer Minute, ob es am WLAN, beim Anbieter oder am Server hakt." }, "klar", "wifi", Fx(NetCheck_));
 
         if (title.StartsWith("FiveM has stopped responding", StringComparison.Ordinal))
         {

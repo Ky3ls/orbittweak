@@ -174,7 +174,7 @@ function crsDetail(it) {
   </div>`;
 }
 
-const crsFixIcon = f => f.kind === 'host' ? (f.arg === 'plugins' ? 'folder' : 'download') : f.kind === 'page' ? 'chev' : f.id === 'pagefile' ? 'ram' : f.id === 'cache' ? 'trash' : f.id === 'hags' ? 'gpucard' : 'zap';
+const crsFixIcon = f => f.kind === 'host' ? (f.arg === 'plugins' ? 'folder' : 'download') : f.kind === 'page' ? 'chev' : f.id === 'netcheck' ? 'nc-pulse' : f.id === 'pagefile' ? 'ram' : f.id === 'cache' ? 'trash' : f.id === 'hags' ? 'gpucard' : 'zap';
 const crsDoneLabel = f => f.id === 'cache' ? 'Cache geleert' : f.id === 'hags' ? 'Aus nach Neustart' : 'Erledigt';
 const crsItem = id => ((CRS.data && CRS.data.items) || []).find(x => x.id === id);
 
@@ -192,6 +192,7 @@ async function crsFix(id, fixId) {
   if (!f) return;
   const key = id + '|' + f.id;
   if (f.kind === 'page') return crsGo(f.arg);
+  if (f.kind === 'action' && f.arg === 'netcheck') return typeof ncOpen === 'function' ? ncOpen() : undefined;   // a dialog: nothing to mark as done
   CRS.busy.add(key); crsRender();
   let ok = false;
   try {

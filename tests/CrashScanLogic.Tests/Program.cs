@@ -341,6 +341,9 @@ Eq(CrashScanLogic.Analyze(ros, pcNone).Key, "launcher", "Rockstar launcher");
 Eq(CrashScanLogic.Analyze(Dialog("1", "506. Failure connecting to the Rockstar Games Launcher! (ExitCode = 506)", " "), pcNone).Key, "launcher", "launcher exit code");
 var disc = Dialog("1", "O\u0448\u0438\u0431\u043a\u0430 (Error)", "Server shutting down: Server restarting (in 0 seconds).");
 Eq(CrashScanLogic.Analyze(disc, pcNone).Key, "disconnect", "disconnect dialog");
+var cDisc = CrashScanLogic.Analyze(disc, pcNone);
+Check(cDisc.Steps.Any(s => s.Contains("Netz-Check")) && !cDisc.Steps.Any(s => s.Contains(" oben")), "disconnect points to the Netz-Check, not to a card above");
+Check(cDisc.Fixes.Select(f => (f.Id, f.Kind, f.Arg)).SequenceEqual(new[] { ("netcheck", "action", "netcheck") }), "disconnect offers the Netz-Check");
 Check(disc.Text != null && disc.Text.Contains("Server shutting down"), "disconnect message kept");
 Eq(CrashScanLogic.Analyze(Dialog("1", "Early-exit trap", "An error occurred while running FiveM, triggering an early-exit trap."), pcNone).Key, "integrity", "early-exit trap");
 Eq(CrashScanLogic.Analyze(Dialog("1", "Game integrity check failed", "A FiveM integrity check failed and the game had to be terminated."), pcNone).Key, "integrity", "integrity check");
@@ -493,7 +496,7 @@ foreach (var c in allCauses)
         Check(f.Kind switch
         {
             "health" => f.Arg == "tweak:pagefile",
-            "action" => f.Arg == "fmcache",
+            "action" => f.Arg is "fmcache" or "netcheck",
             "tweakoff" => f.Arg == "hags",
             "host" => f.Arg is "plugins" or "driver:nvidia" or "driver:amd" or "driver:intel",
             "page" => pages.Contains(f.Arg.Split('#')[0]),
