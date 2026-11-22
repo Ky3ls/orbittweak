@@ -121,6 +121,8 @@
     ['md:rs', () => { go('mods'); modTab('rs'); }, 'ReShade', 'sparkle', 'Mods & ReShade › Tasten und Optionen', 'reshade shader filter looks preset schärfe'],
     ['md:mm', () => { go('mods'); modTab('mm'); }, 'Eigene Minimap', 'map', 'Mods & ReShade › Aus einem Bild', 'minimap karte map bild logo eigene'],
     ['md:files', () => { go('mods'); modTab('files'); }, 'Meine Mods', 'puzzle', 'Mods & ReShade › Installiert und Downloads', 'installiert downloads dateien entfernen meine'],
+    ['hw:mon', () => window.hwFocus?.('mon'), 'Monitor-Check', 'hw-hz', 'Diagnose › Läuft dein Monitor mit allen Hz?', 'hz hertz 60 75 120 144 165 240 bildwiederholrate refresh rate monitor bildschirm flüssig'],
+    ['hw:ram', () => window.hwFocus?.('ram'), 'RAM-Check', 'hw-chan', 'Diagnose › Dual Channel und XMP/EXPO', 'ram arbeitsspeicher riegel dual single channel kanal xmp expo docp takt mhz bios'],
   ];
   const SCENE_SUB = { winter: 'Nordlicht, Raureif, Schnee', anime: 'Abendhimmel, Kirschblüten' };
   const SUGGEST = ['ac:boost', 'ac:fivem', 'ac:health', 'ac:ram', 'pg:tweaks', 'pg:clip'];

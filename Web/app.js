@@ -1138,7 +1138,8 @@ function renderHealth(h) {
   // an "info" row is a note on a trade-off (memory integrity), not a point to improve: it counts nowhere
   const cnt = st => h.items.filter(i => i.st === st).length, warn = cnt('warn'), worse = cnt('bad'), bad = warn + worse, issue = i => i.st === 'warn' || i.st === 'bad';
   $('#hScoreTxt').textContent = bad ? `${bad} ${bad === 1 ? 'Punkt' : 'Punkte'} verbesserbar` : 'Alles im grünen Bereich';
-  const fixable = h.items.filter(i => i.fix && issue(i)).length, rest = h.items.filter(i => !i.fix && issue(i));
+  // a "guide" row's button explains what to do (in the BIOS, with a screwdriver): it fixes nothing, so it is no „Beheben“
+  const fixable = h.items.filter(i => i.fix && !i.guide && issue(i)).length, rest = h.items.filter(i => (!i.fix || i.guide) && issue(i));
   if ($('#hScoreSub')) $('#hScoreSub').textContent = !bad ? 'FiveM hat hier alles, was es braucht.'
     : fixable === bad ? 'Mit „Beheben“ stellst du sie mit einem Klick richtig.'
     : rest.some(i => i.st === 'bad') ? (fixable ? `${fixable} davon behebst du mit „Beheben“, ${rest.length === 1 ? 'den anderen' : 'die anderen'} musst du selbst angehen.` : 'OrbitTweak kann das nicht selbst beheben, die Liste zeigt, woran es liegt.')
@@ -1148,12 +1149,15 @@ function renderHealth(h) {
   if ($('#hOk')) { $('#hOk').textContent = cnt('ok'); $('#hWarn').textContent = warn; $('#hBad').textContent = worse; }
   // problems first, then hints, then notes, then what is fine
   const order = { bad: 0, warn: 1, info: 2, ok: 3 };
-  $('#hList').innerHTML = h.items.map((i, n) => [i, n]).sort((a, b) => (order[a[0].st] ?? 1) - (order[b[0].st] ?? 1)).map(([i, n]) => `<div class="hc ${i.st}"><div class="st ${i.st}">${ico(i.st === 'ok' ? 'check' : i.st === 'info' ? 'info' : 'alert')}</div><div class="tx"><b>${esc(i.name)}</b><p>${esc(i.value)}</p></div>${i.fix && i.st !== 'ok' ? `<button class="btn sm o" data-fix="${n}">${i.st === 'info' ? 'Ansehen' : 'Beheben'}</button>` : i.st === 'ok' ? '<span class="hc-ok">In Ordnung</span>' : ''}</div>`).join('');
+  $('#hList').innerHTML = h.items.map((i, n) => [i, n]).sort((a, b) => (order[a[0].st] ?? 1) - (order[b[0].st] ?? 1)).map(([i, n]) => `<div class="hc ${i.st}"><div class="st ${i.st}">${ico(i.st === 'ok' ? 'check' : i.st === 'info' ? 'info' : 'alert')}</div><div class="tx"><b>${esc(i.name)}</b><p>${esc(i.value)}</p></div>${i.fix && (i.st !== 'ok' || i.act) ? `<button class="btn sm o" data-fix="${n}">${esc(i.act || (i.st === 'info' ? 'Ansehen' : 'Beheben'))}</button>` : i.st === 'ok' ? '<span class="hc-ok">In Ordnung</span>' : ''}</div>`).join('');
   const hb = $('#hBtn'); if (hb) { hb.classList.remove('p'); hb.querySelector('span').textContent = 'Erneut prüfen'; }
 }
 document.addEventListener('click', async e => {
   const b = e.target.closest('[data-fix]'); if (!b) return;
-  const i = S.health.items[+b.dataset.fix]; b.disabled = true;
+  const i = S.health.items[+b.dataset.fix];
+  // 2.31: a feature file handles its own rows (fix "hw:…" → HEALTH_FIX.hw(item, button))
+  const fx = String(i.fix).split(':')[0], ext = Object.hasOwn(HEALTH_FIX, fx) && HEALTH_FIX[fx]; if (ext) return ext(i, b);
+  b.disabled = true;
   // a note only opens the Windows page that belongs to it: nothing is changed, nothing to check again
   if (i.st === 'info') { const r = await api('health.fix', { fix: i.fix }).catch(() => ({ ok: false })); b.disabled = false; if (!r.ok) toast('Nicht geöffnet', 'Windows-Sicherheit ließ sich nicht öffnen', false); return; }
   const r = await api('health.fix', { fix: i.fix }); toast(r.ok ? 'Behoben' : 'Nicht behoben', i.name, r.ok); await loadTweaks(); runHealth();
@@ -3189,6 +3193,8 @@ const MOCK_EXT = {};
 const PAGE_SHOW = {};
 /** Host events a feature file handles itself: EVENT_EXT[name] = data => {}. */
 const EVENT_EXT = {};
+/** Diagnose rows a feature file handles itself, by the part of the fix before ":": HEALTH_FIX[prefix] = (item, button) => {}. */
+const HEALTH_FIX = {};
 const Mock = {
   settings: { accent: 'inferno', autoInstall: false, restoreBeforeBoost: true, purgeStandby: true, autoUpdate: true, firstRun: false, lastBoost: null, xhairAck: false, xhair: { on: false, onlyGame: false, key: 0x79, offsetX: 0, offsetY: 0, json: null }, display: { on: false, onlyGame: true, vibrance: 0, brightness: 0, contrast: 0, gamma: 100, key: 0 } },
   // the same tweaks as Core/Catalog.cs (names and texts), with made-up states

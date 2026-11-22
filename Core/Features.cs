@@ -414,7 +414,8 @@ internal static class Servers
 // =====================================================================
 internal static class Health
 {
-    private record Item(string name, string value, string st, string? fix = null);
+    /// <summary>act: the button's own label; guide: the button explains, it fixes nothing (2.31, Monitor- und RAM-Check).</summary>
+    private record Item(string name, string value, string st, string? fix = null, string? act = null, bool? guide = null);
 
     public static object Run(List<Tweak> tweaks)
     {
@@ -422,6 +423,7 @@ internal static class Health
         bool T(string id) => tweaks.FirstOrDefault(t => t.Id == id)?.SafeCheck() ?? false;
         // PowerShell takes a moment to start: it reads while the other checks run
         var hvci = Task.Run(MemoryIntegrity);
+        var ram = Task.Run(HwCheck.Ram);   // 2.31 RAM-Check: Win32_PhysicalMemory, PowerShell as well
 
         items.Add(FiveM.Root is { } r ? new("FiveM installiert", r, "ok") : new("FiveM installiert", "Nicht gefunden – Pfad im Launcher wählen", "bad"));
 
@@ -481,6 +483,10 @@ internal static class Health
         var iv = CitizenIni.Read("IVPath");
         if (FiveM.Root != null)
             items.Add(iv != null && Directory.Exists(iv) ? new("GTA V Installation", iv, "ok") : new("GTA V Installation", "Pfad in CitizenFX.ini fehlt oder ungültig", "warn"));
+
+        // 2.31 Monitor-Check und RAM-Check (Core/HwCheck.cs): refresh rate per display, single channel, XMP/EXPO
+        foreach (var hr in HwCheck.MonitorRows().Concat(HwCheck.RamRowsNow(ram.Result)))
+            items.Add(new(hr.Name, hr.Value, hr.St, hr.Fix, hr.Act, hr.Guide ? true : null));
 
         // memory integrity: a security feature Windows 11 updates switch on, with a small cost in games. Only a note with
         // the trade-off and the way to Windows Security, never a fault: OrbitTweak never switches it itself
