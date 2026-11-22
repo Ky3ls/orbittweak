@@ -3891,6 +3891,19 @@ document.addEventListener('click', async e => {
 
 /* ======================= WHAT'S NEW: shown once after an update ======================= */
 const CHANGES = {
+  '2.31.0': [
+    ['sw-bell', 'Platz-Alarm', 'Server voll oder offline? OrbitTweak schaut nach und meldet sich, sobald ein Platz frei ist. Auf Wunsch verbindet es dich selbst.'],
+    ['users', 'Freunde online', 'Zeigt, auf welchem deiner Favoriten deine Freunde gerade spielen, soweit der Server die Namen zeigt.'],
+    ['sw-desk', 'Server auf den Desktop', 'Eine Verknüpfung mit dem Server-Icon, die per Doppelklick mit Boost verbindet.'],
+    ['nc-pulse', 'Netz-Check', 'Eine Minute Test zu Router, Internet und Server: zeigt, ob dein Lag im WLAN, beim Anbieter oder beim Server entsteht.'],
+    ['pw-neck', 'Engpass-Analyse', 'Misst beim Spielen, ob Grafikkarte, Prozessor oder Speicher deine FPS begrenzt, mit Tipps, was hilft und was nicht.'],
+    ['hw-hz', 'Monitor-Check', 'Erkennt, wenn dein Monitor in Windows mit weniger Hz läuft, als er kann, und stellt ihn mit einem Klick um.'],
+    ['hw-chan', 'RAM-Check', 'Erkennt Single-Channel und wahrscheinlich ausgeschaltetes XMP/EXPO, mit Anleitung fürs BIOS.'],
+    ['crs-crack', 'Absturz-Analyse', 'Liest FiveMs Absturzberichte und nennt die wahrscheinliche Ursache und was hilft. „Für Support kopieren“ lässt deinen Windows-Namen weg.'],
+    ['bk-archive', 'Einstellungs-Backup', 'Sichert FiveM-Einstellungen, Tastenbelegung und Grafik mit einem Klick oder täglich automatisch.'],
+    ['twg-alert', 'Tweak-Wächter', 'Merkt, wenn ein Windows- oder Treiber-Update deine Tweaks zurückgesetzt hat, und bietet „Wieder anwenden“ an.'],
+    ['globe', 'Server wieder online', 'Cfx.re hat die alte Adresse der Server-Liste abgeschaltet, deshalb wirkten alle Favoriten offline. OrbitTweak nutzt jetzt die neue.'],
+  ],
   '2.30.1': [
     ['gamestack', 'Echte Spiele-Icons', 'Andere Spiele zeigt Fortnite, Counter-Strike 2 und Rainbow Six Siege jetzt mit dem Icon deines installierten Spiels. Ist ein Spiel nicht da, gibt es eine eigene Kachel statt eines Buchstabens, und jede Einstellung hat ihr eigenes Icon.'],
     ['sparkle', 'Überarbeitete Icons', 'Fadenkreuz, Minigames, Andere Spiele und Cleaner sind in der Seitenleiste jetzt klar zu unterscheiden. Controller, USB, Puzzle, Statistik und weitere Icons sind neu gezeichnet, und jedes Icon steht für genau eine Sache, etwa ein Netzwerkkabel beim LAN-Tweak statt des WLAN-Symbols.'],
