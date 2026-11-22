@@ -17,6 +17,7 @@
 <link rel="stylesheet" href="stats.css">
 <link rel="stylesheet" href="autostart.css">
 <link rel="stylesheet" href="og.css">
+<link rel="stylesheet" href="serverwatch.css">
 <link rel="stylesheet" href="palette.css">
 <link rel="stylesheet" href="luxe-themes.css">
 </head>
@@ -108,6 +109,8 @@
     <symbol id="og-contrast" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" fill-opacity=".7"/></symbol>
     <symbol id="og-buffer" viewBox="0 0 24 24"><path d="M2.5 5.5h19M2.5 18.5h19"/><rect x="3.5" y="9.5" width="5" height="5" rx="1" fill="currentColor"/><rect x="9.5" y="9.5" width="5" height="5" rx="1" fill="currentColor" fill-opacity=".5"/><rect x="15.5" y="9.5" width="5" height="5" rx="1"/></symbol>
     <symbol id="usb" viewBox="0 0 24 24"><path d="M8.5 8V3.5A1.5 1.5 0 0 1 10 2h4a1.5 1.5 0 0 1 1.5 1.5V8M11 5h2"/><rect x="5" y="8" width="14" height="8.5" rx="2.5"/><path d="M10 16.5V18a2 2 0 0 0 4 0v-1.5M12 20v2"/></symbol>
+    <symbol id="sw-bell" viewBox="0 0 24 24"><path d="M6 8.5a6 6 0 0 1 12 0c0 6.2 2.6 8.4 2.6 8.4H3.4S6 14.7 6 8.5z"/><path d="M10.2 20.5a2 2 0 0 0 3.6 0"/></symbol>
+    <symbol id="sw-desk" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><path d="M9.5 12.5 14 8M10.5 8H14v3.5"/></symbol>
   </defs>
 </svg>
 
@@ -289,6 +292,7 @@
       <div class="srv-wrap">
         <div class="srv-main">
           <div class="card cur-srv cs-hero hidden" id="curSrv2"></div>
+          <div class="card sw-alarm hidden" id="swAlarm"></div>
           <div class="card fav-card">
             <div class="fav-h"><h2>Favoriten</h2><span class="fav-n" id="srvCount"></span></div>
             <div class="fav-add">
@@ -306,6 +310,7 @@
             <div class="well-in"><svg class="i"><use href="#link"/></svg><input class="in" id="dcIn" placeholder="IP:Port oder cfx.re/join/…" onkeydown="if(event.key==='Enter')directConnect()"></div>
             <button class="btn p dc-go" onclick="directConnect()"><svg class="i"><use href="#play"/></svg>Verbinden</button>
           </div>
+          <div class="card sw-friends" id="swFriends"></div>
           <div class="card cfx-card">
             <div class="cfx-h"><h2 class="rail-t">Cfx.re-Dienste</h2><span class="sp"></span><button class="ib" title="Neu prüfen" onclick="loadCfx()"><svg class="i"><use href="#refresh"/></svg></button></div>
             <div class="cfx-sum" id="cfxSum"></div>
@@ -1254,6 +1259,7 @@
 <script src="og-fortnite.js"></script>
 <script src="og-cs2.js"></script>
 <script src="og-r6.js"></script>
+<script src="serverwatch.js"></script>
 <script src="palette.js"></script>
 </body>
 </html>

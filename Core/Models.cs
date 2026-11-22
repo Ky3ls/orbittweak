@@ -115,6 +115,8 @@ public class Settings
     public DateTime? LastBoost { get; set; }
     public LaunchCfg Launch { get; set; } = new();
     public List<string> Favorites { get; set; } = new();
+    /// <summary>2.31 Freunde online: names to look for in the favourites' player lists (Core/ServerWatch.cs).</summary>
+    public ServerFriendsCfg SrvFriends { get; set; } = new();
     public CrosshairCfg Xhair { get; set; } = new();
     public bool XhairAck { get; set; }
     public bool AutoBorderless { get; set; }

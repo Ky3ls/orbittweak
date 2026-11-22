@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Checks of the pure logic of Platz-Alarm, Freunde online and Server auf den Desktop (decisions, backoff, names, codes, file names, ICO bytes) that run
+       anywhere, also on Linux. How to run them: see Program.cs -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>OrbitTweak.Tests</RootNamespace>
+    <RollForward>Major</RollForward>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Core/ServerWatchLogic.cs" Link="Core/ServerWatchLogic.cs" />
+  </ItemGroup>
+</Project>

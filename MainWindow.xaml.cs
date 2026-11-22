@@ -98,6 +98,7 @@ public partial class MainWindow : Window
             int dark = 1;
             DwmSetWindowAttribute(h, 20, ref dark, sizeof(int));
             HwndSource.FromHwnd(h)?.AddHook(WndProc);
+            SwInit(h);   // 2.31: Platz-Alarm, Freunde online, --connect from a desktop shortcut (MainWindow.ServerWatch.cs)
             RegisterKeys();
         };
         StateChanged += (_, _) =>
@@ -1391,6 +1392,7 @@ public partial class MainWindow : Window
         if (cmd.StartsWith("stats.", StringComparison.Ordinal)) return await StatsCmd(cmd, a);
         if (cmd.StartsWith("autostart.", StringComparison.Ordinal)) return await AutostartCmd(cmd, a);
         if (cmd.StartsWith("og.", StringComparison.Ordinal)) return await OgCmd(cmd, a);   // 2.30: MainWindow.OtherGames.cs
+        if (cmd.StartsWith("sw.", StringComparison.Ordinal)) return await SwCmd(cmd, a);   // 2.31: MainWindow.ServerWatch.cs
         throw new InvalidOperationException("Unbekannter Befehl: " + cmd);
     }
 

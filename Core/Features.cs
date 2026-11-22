@@ -233,7 +233,7 @@ internal static class Net
     {
         var targets = new (string name, string url)[]
         {
-            ("Server-Liste", "https://servers-frontend.fivem.net/api/servers/"),
+            ("Server-Liste", Servers.CfxApi + "/api/servers/"),   // the host the favourites use (2.31)
             ("Cfx.re Web", "https://cfx.re/"),
             ("Content-CDN", "https://runtime.fivem.net/"),
             ("Cfx.re Forum", "https://forum.cfx.re/"),
@@ -258,6 +258,9 @@ internal static class Net
 internal static class Servers
 {
     private static readonly Dictionary<string, (DateTime at, object data)> Cache = new();
+    /// <summary>The public Cfx.re server API. 2.31: servers-frontend.fivem.net answers every /api/servers/ request with
+    /// 404 now (checked 2026-11-22), the FiveM server browser uses this host.</summary>
+    public const string CfxApi = "https://frontend.cfx-services.net";
 
     /// <summary>Normalizes user input into "cfx:code" or "ip:host:port".</summary>
     public static string Parse(string q)
@@ -288,7 +291,7 @@ internal static class Servers
     {
         try
         {
-            var json = await Net.Http.GetStringAsync($"https://servers-frontend.fivem.net/api/servers/single/{code}");
+            var json = await Net.Http.GetStringAsync($"{CfxApi}/api/servers/single/{code}");
             using var doc = JsonDocument.Parse(json);
             var d = doc.RootElement.GetProperty("Data");
             d.TryGetProperty("vars", out var vars);
@@ -317,7 +320,7 @@ internal static class Servers
                 pure = Str(vars, "sv_pureLevel"),
                 code = "cfx:" + code, connect = "cfx.re/join/" + code, name, desc, tags, locale,
                 players = Int(d, "clients"), max, online = true, ping,
-                icon = iconVer != null ? $"https://servers-live.fivem.net/servers/icon/{code}/{iconVer}.png" : null,
+                icon = iconVer != null ? $"https://servers-live.fivem.net/servers/icon/{code}/{iconVer}.png" : ServerWatchLogic.IconUrl(Str(vars, "icon_url")),
                 banner = Str(vars, "banner_detail") ?? Str(vars, "banner_connecting"),
                 addr = "cfx.re/join/" + code
             };
