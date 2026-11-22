@@ -130,6 +130,9 @@ html.th-anime main::before{top:0;right:0;width:600px;height:360px;
 /* rounded headings: page titles, card titles, dialog titles. Body text stays Inter, numbers stay Geist */
 html.th-anime :is(h1,h2,h3,.brand .wm,.sp-name,.lh-t,.lh-h .lbl,.l-h .lbl,.f8t b,.gl-t b,.gsec b,.preset .pt,.gt-t b,.ot>b,.lbody>b,
   .kc-tx b,.cl-h,.hl-t b,.ke-h b,.pl-t b,.ps-h b,.il-h b,.sp-tx b,.sh b,.scn-c b,.cpl-t b){font-family:var(--head);font-weight:800;letter-spacing:-.004em}
+/* page rules with an id beat the list above, so the same face for those card titles too; sizes stay, numbers stay Geist */
+html.th-anime :is(#p-launcher .lh-h .lbl,#p-launcher .l-h .lbl,#p-gfx .ot>b,#p-display .ot>b,#p-xhair .ot>b,#p-mods .ot>b,#p-f8 .f8t b,#p-og .og-nm h2,#p-cleaner .lx-lh b,#p-diag .lx-lh b,
+  #p-settings .sh b,#p-admin .sh b,#p-settings .sp-tx b,#p-tweaks .twg-t,#p-gfx .preset .pt){font-family:var(--head);font-weight:800;letter-spacing:-.004em}
 html.th-anime .ph h1{font-size:28px;line-height:1.16}   /* page titles only: dialogs and the key card keep their own sizes */
 html.th-anime .brand .wm span{font-weight:800;color:var(--sub)}
 html.th-anime .brand .wm{font-size:14.5px}
