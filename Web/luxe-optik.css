@@ -28,8 +28,16 @@
 #p-mods .vtabs .tab{flex:1 1 auto;padding:0 14px}
 :is(#p-gfx,#p-display,#p-mods) .vtabs .tab>svg.i{grid-row:auto;flex:none}
 :is(#p-gfx,#p-display,#p-mods) .vtabs .vt-s{grid-column:auto;margin-left:auto;padding-left:8px;font-size:12px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-/* four tabs share about 790 px below 1180 px: their short notes would be cut to "Insta…", so only icon and name stay, centred */
-@media (max-width:1180px){#p-mods #modTabs .vt-s{display:none}#p-mods #modTabs .tab{justify-content:center}}
+/* a note never shows cut ("Nicht inst…"): when the four notes miss their room (a longer one such as "Nicht installiert" or
+   "Ausgeschaltet" up to about 1240 px), it wraps onto a hidden second line and icon and name stay, centred. The empty
+   ::before holds the first line at the tab's full height, its margin takes back the gap it adds. */
+#p-mods #modTabs .tab{flex-wrap:wrap;overflow:hidden;justify-content:center}
+#p-mods #modTabs .tab::before{content:'';height:100%;margin-right:-10px}
+#p-mods #modTabs .vt-s{flex:none}
+/* four tabs share about 790 px below 1180 px: their short notes would be cut to "Insta…", so only icon and name stay,
+   centred, in four equal tabs like the Grafik and Clipper tabs (the active pill keeps its size on every switch). Centred, the
+   tabs need no side padding, so a tab never gets narrower than its icon and name and the bar still fits narrow windows. */
+@media (max-width:1180px){#p-mods #modTabs .vt-s{display:none}#p-mods #modTabs .tab{flex:1 1 0;flex-wrap:nowrap;min-width:min-content;padding:0}}
 
 /* the server-rules note: one calm line in warm light, not a yellow box */
 :is(#p-xhair,#p-mods) .xwarn{align-items:center;gap:14px;margin:0 0 24px;padding:12px 18px 12px 12px;border:0;border-radius:16px;font-size:13px;line-height:1.5;color:var(--sub);
