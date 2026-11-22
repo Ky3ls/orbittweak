@@ -149,6 +149,17 @@ Check(oErr == ChangeError(1) && !oBack, "restart wanted: nothing changed now");
 (oErr, oBack) = SwitchOutcome(0, 60, 144, 60);
 Check(oErr == null && !oBack, "the way back is a switch like any other");
 
+// the trial is never stored: a reset, a power-off or a killed OrbitTweak during the countdown starts with the rate before
+Check((TrialFlags & CDS_UPDATEREGISTRY) == 0, "the trial switch is dynamic only, Windows stores nothing");
+Check((TrialFlags & CDS_TEST) == 0 && (SaveFlags & CDS_TEST) == 0, "neither the trial nor the save is only a test");
+Check((SaveFlags & CDS_UPDATEREGISTRY) != 0, "„Behalten“ and the way back of a kept switch are stored");
+Eq(CDS_UPDATEREGISTRY, 1u, "CDS_UPDATEREGISTRY");
+Eq(CDS_TEST, 2u, "CDS_TEST");
+
+Eq(WayBack(null, null, 60), 60, "first switch: back to the rate before it");
+Eq(WayBack(60, 120, 120), 60, "on top of a kept 60 → 120: back to 60, the rate before OrbitTweak");
+Eq(WayBack(60, 120, 100), 100, "the kept switch was changed by hand since: back to the rate before this one");
+
 Check(SameSwitch("DELL S2721DGF", 2560, 1440, "DELL S2721DGF", 2560, 1440), "same monitor, same resolution");
 Check(SameSwitch("DELL S2721DGF", 2560, 1440, "dell s2721dgf ", 2560, 1440), "names compared without case and spaces");
 Check(SameSwitch("DELL S2721DGF", 2560, 1440, "DELL S2721DGF", 1440, 2560), "turned by 90° since");

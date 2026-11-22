@@ -11,8 +11,10 @@ namespace OrbitTweak.Core;
 //  Monitor: the active displays (QueryDisplayConfig for the monitor's name and connection, EnumDisplaySettings for the
 //  modes). A switch changes only that display's refresh rate (ChangeDisplaySettingsEx, tested first with CDS_TEST),
 //  never while FiveM runs, and goes back by itself after 15 seconds unless it is kept, the way Windows' own display
-//  settings do it: a monitor that shows nothing at the new rate cannot be clicked. The rate before is kept in
-//  hwcheck.json next to the settings, so "Zurückstellen" works after a restart too.
+//  settings do it: a monitor that shows nothing at the new rate cannot be clicked. Until "Behalten" the new rate is
+//  dynamic only (Windows stores nothing), so a reset, a power-off or a killed OrbitTweak during the countdown starts
+//  with the rate before. "Behalten" stores it, and hwcheck.json next to the settings keeps the rate before, so
+//  "Zurückstellen" works after a restart too.
 //  RAM: Win32_PhysicalMemory through PowerShell, read once per run (modules do not change while Windows runs).
 //  Nothing here touches FiveM or the game files.
 // =====================================================================
@@ -37,7 +39,7 @@ internal static unsafe class HwCheck
     }
 
     private const int ENUM_CURRENT_SETTINGS = -1;
-    private const uint CDS_UPDATEREGISTRY = 1, CDS_TEST = 2, QDC_ONLY_ACTIVE_PATHS = 2;
+    private const uint QDC_ONLY_ACTIVE_PATHS = 2;
     private const int PathSize = 72, ModeSize = 64, SourceNameSize = 84, TargetNameSize = 420;
 
     /// <summary>How long a new rate waits for "Behalten" before it goes back by itself.</summary>
@@ -204,6 +206,12 @@ internal static unsafe class HwCheck
     private static Switched? Known(Dictionary<string, Switched> store, Display d) =>
         store.TryGetValue(d.Device, out var s) && SameSwitch(s.Name, s.W, s.H, d.Friendly, d.Cur.W, d.Cur.H) ? s : null;
 
+    private static bool IsPending(Pending? p, string device) => p != null && string.Equals(p.Device, device, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The switch shown for a display: the one waiting for "Behalten" (not in the store yet), else the kept one.</summary>
+    private static (int? from, int? to) Shown(Dictionary<string, Switched> store, Display d, Pending? p) =>
+        IsPending(p, d.Device) ? (p!.Before, p.To) : Known(store, d) is { } s ? (s.From, s.To) : (null, null);
+
     // ---------------------------------------------------------------- Diagnose rows ----------------------------------------------------------------
     public static List<Row> MonitorRows()
     {
@@ -212,11 +220,13 @@ internal static unsafe class HwCheck
         {
             var ds = Displays();
             var store = Load();
+            Pending? pend;
+            lock (Gate) pend = _pending;
             for (int i = 0; i < ds.Count; i++)
             {
                 var d = ds[i];
-                var s = Known(store, d);
-                if (MonitorRow(MonitorName(i + 1, ds.Count, d.Friendly, d.Conn), d.Device, d.Cur.Hz, d.Best, d.Conn, s?.From, s?.To) is { } r) rows.Add(r);
+                var (from, to) = Shown(store, d, pend);
+                if (MonitorRow(MonitorName(i + 1, ds.Count, d.Friendly, d.Conn), d.Device, d.Cur.Hz, d.Best, d.Conn, from, to) is { } r) rows.Add(r);
             }
         }
         catch { }
@@ -228,8 +238,8 @@ internal static unsafe class HwCheck
     {
         var ds = Displays();
         var store = Load();
-        string? pendingDev;
-        lock (Gate) pendingDev = _pending?.Device;
+        Pending? pend;
+        lock (Gate) pend = _pending;
         return new
         {
             fivem = FiveM.IsRunning,
@@ -237,7 +247,7 @@ internal static unsafe class HwCheck
             revertIn = RevertSeconds,
             displays = ds.Select((d, i) =>
             {
-                var s = Known(store, d);
+                var (from, to) = Shown(store, d, pend);
                 return new
                 {
                     device = d.Device,
@@ -246,8 +256,8 @@ internal static unsafe class HwCheck
                     primary = d.Primary,
                     w = d.Cur.W, h = d.Cur.H,
                     hz = d.Cur.Hz, best = d.Best,
-                    switchedFrom = s != null && s.To == d.Cur.Hz ? s.From : (int?)null,
-                    pending = string.Equals(pendingDev, d.Device, StringComparison.OrdinalIgnoreCase),
+                    switchedFrom = from != null && to == d.Cur.Hz ? from : null,
+                    pending = IsPending(pend, d.Device),
                 };
             }).ToList(),
         };
@@ -257,13 +267,16 @@ internal static unsafe class HwCheck
     public sealed record HzResult(bool Ok, string? Error, string Device = "", int From = 0, int To = 0);
 
     private static readonly object Gate = new();
-    private sealed record Pending(string Device, int From, int To, System.Threading.Timer Timer, object Token);
+    /// <summary>The switch waiting for "Behalten": the rate before it (the one Windows still has stored) and the record
+    /// hwcheck.json gets once it is kept.</summary>
+    private sealed record Pending(string Device, int Before, int To, Switched Kept, System.Threading.Timer Timer, object Token);
     private static Pending? _pending;
     private static bool _exitHooked;
 
     /// <summary>
-    /// Switches one display to the highest rate Windows offers at its resolution. The switch goes back by itself after
-    /// <see cref="RevertSeconds"/> unless <see cref="Keep"/> is called; then onAutoRevert gets the result.
+    /// Switches one display to the highest rate Windows offers at its resolution, for now only (Windows stores nothing
+    /// yet). The switch goes back by itself after <see cref="RevertSeconds"/> unless <see cref="Keep"/> is called; then
+    /// onAutoRevert gets the result.
     /// </summary>
     public static HzResult SetHz(string device, Action<HzResult> onAutoRevert)
     {
@@ -277,14 +290,13 @@ internal static unsafe class HwCheck
             if (d == null) return new(false, "Diesen Monitor findet Windows gerade nicht. Starte die Prüfung neu.", device);
             if (!WorthSwitching(d.Cur.Hz, d.Best)) return new(false, $"Der Monitor läuft schon mit {d.Cur.Hz} Hz, mehr bietet Windows hier nicht an.", device);
 
-            var err = Apply(d.Device, d.Best);
+            var err = Apply(d.Device, d.Best, TrialFlags);
             if (err != null) return new(false, err, device);
 
-            var store = Load();
-            // switched again on top of an earlier switch: the rate before OrbitTweak's first one stays the way back
-            int from = Known(store, d) is { } prev && prev.To == d.Cur.Hz ? prev.From : d.Cur.Hz;
-            store[d.Device] = new Switched { From = from, To = d.Best, W = d.Cur.W, H = d.Cur.H, Name = Clean(d.Friendly, 64), At = DateTime.Now };
-            Save(store);
+            // hwcheck.json gets the switch only with "Behalten", like Windows: switched again on top of an earlier kept
+            // switch, the rate before OrbitTweak's first one stays the way back
+            var prev = Known(Load(), d);
+            var kept = new Switched { From = WayBack(prev?.From, prev?.To, d.Cur.Hz), To = d.Best, W = d.Cur.W, H = d.Cur.H, Name = Clean(d.Friendly, 64), At = DateTime.Now };
 
             var dev = d.Device;
             var token = new object();   // this switch's own countdown: a callback already on its way for an older one does nothing
@@ -295,35 +307,49 @@ internal static unsafe class HwCheck
                 {
                     if (_pending is not { } pp || !ReferenceEquals(pp.Token, token)) return;
                     pp.Timer.Dispose(); _pending = null;
-                    r = BackLocked(dev);
+                    r = UndoLocked(pp);
                 }
                 try { onAutoRevert(r); } catch { }
             }, null, Timeout.Infinite, Timeout.Infinite);
-            _pending = new(dev, from, d.Best, timer, token);
+            _pending = new(dev, d.Cur.Hz, d.Best, kept, timer, token);
             timer.Change(RevertSeconds * 1000, Timeout.Infinite);
             if (!_exitHooked)
             {
                 _exitHooked = true;
-                // OrbitTweak closed during the countdown: nobody said "Behalten", so the rate goes back as well
+                // OrbitTweak closed during the countdown: nobody said "Behalten", so the rate goes back as well (killed
+                // or crashed, this never runs: then the next restart of Windows brings the stored rate back)
                 AppDomain.CurrentDomain.ProcessExit += (_, _) =>
                 {
-                    try { lock (Gate) if (_pending is { } p) { p.Timer.Dispose(); _pending = null; BackLocked(p.Device); } }
+                    try { lock (Gate) if (_pending is { } p) { p.Timer.Dispose(); _pending = null; UndoLocked(p); } }
                     catch { }
                 };
             }
-            return new(true, null, dev, from, d.Best);
+            return new(true, null, dev, d.Cur.Hz, d.Best);
         }
     }
 
-    /// <summary>"Behalten": the new rate stays. Too late when the countdown has already put the old one back.</summary>
+    /// <summary>"Behalten": the new rate is stored and stays, after a restart too. Too late when the countdown has already
+    /// put the old one back.</summary>
     public static HzResult Keep(string device)
     {
         lock (Gate)
         {
-            if (_pending is not { } p || !string.Equals(p.Device, device, StringComparison.OrdinalIgnoreCase))
+            if (!IsPending(_pending, device))
                 return new(false, "Zu spät: OrbitTweak hat die alte Bildwiederholrate schon wieder eingestellt.", device);
+            var p = _pending!;
             p.Timer.Dispose(); _pending = null;
-            return new(true, null, p.Device, p.From, p.To);
+            if (Current(p.Device) is not { } cur)
+                return new(false, $"Diesen Monitor findet Windows gerade nicht. Gespeichert hat Windows weiter {p.Before} Hz.", p.Device);
+            if (cur.dmDisplayFrequency != p.To)
+                return new(false, $"Der Monitor läuft nicht mehr mit {p.To} Hz, du hast ihn inzwischen anders eingestellt. OrbitTweak lässt ihn so.", p.Device);
+            // the same mode once more, now stored: nothing changes on screen
+            if (Apply(p.Device, p.To, SaveFlags) != null)
+                return new(false, $"Windows hat die {p.To} Hz nicht dauerhaft gespeichert. Bis zum nächsten Neustart bleiben sie, danach läuft der Monitor "
+                    + $"wieder mit {p.Before} Hz. Dauerhaft stellst du die Rate in den Windows-Anzeigeeinstellungen ein.", p.Device);
+            var store = Load();
+            store[p.Device] = p.Kept;
+            Save(store);
+            return new(true, null, p.Device, p.Before, p.To);
         }
     }
 
@@ -333,13 +359,32 @@ internal static unsafe class HwCheck
     {
         lock (Gate)
         {
-            bool pending = _pending is { } p && string.Equals(p.Device, device, StringComparison.OrdinalIgnoreCase);
-            if (!pending && FiveM.IsRunning) return new(false, FiveMRuns, device);
-            if (pending) { _pending!.Timer.Dispose(); _pending = null; }
+            if (IsPending(_pending, device))
+            {
+                var p = _pending!;
+                p.Timer.Dispose(); _pending = null;
+                return UndoLocked(p);
+            }
+            if (FiveM.IsRunning) return new(false, FiveMRuns, device);
             return BackLocked(device);
         }
     }
 
+    /// <summary>The switch nobody kept goes back to the rate before it, again without storing anything: Windows still has
+    /// that one stored, so a restart brings it back too when this fails.</summary>
+    private static HzResult UndoLocked(Pending p)
+    {
+        if (Current(p.Device) is not { } cur)
+            return new(false, $"Diesen Monitor findet Windows gerade nicht. Nach dem nächsten Neustart läuft er wieder mit {p.Before} Hz.", p.Device);
+        // changed by hand during the countdown: that is the user's choice now
+        if (cur.dmDisplayFrequency != p.To)
+            return new(false, $"Der Monitor läuft nicht mehr mit {p.To} Hz, du hast ihn inzwischen anders eingestellt. OrbitTweak lässt ihn so.", p.Device);
+        var err = Apply(p.Device, p.Before, TrialFlags);
+        if (err != null) return new(false, $"{err} Gespeichert hat Windows die {p.To} Hz nicht: nach einem Neustart läuft der Monitor wieder mit {p.Before} Hz.", p.Device);
+        return new(true, null, p.Device, p.To, p.Before);
+    }
+
+    /// <summary>Back from a kept switch (hwcheck.json): the rate before is stored again.</summary>
     private static HzResult BackLocked(string device)
     {
         var store = Load();
@@ -351,15 +396,15 @@ internal static unsafe class HwCheck
             store.Remove(device); Save(store);
             return new(false, $"Der Monitor läuft nicht mehr mit {s.To} Hz, du hast ihn inzwischen anders eingestellt. OrbitTweak lässt ihn so.", device);
         }
-        var err = Apply(device, s.From);
+        var err = Apply(device, s.From, SaveFlags);
         if (err != null) return new(false, err, device);
         store.Remove(device); Save(store);
         return new(true, null, device, s.To, s.From);
     }
 
-    /// <summary>Only the refresh rate changes: resolution, colour depth, position and rotation stay as they are.
-    /// null = done; otherwise the German reason.</summary>
-    private static string? Apply(string device, int hz)
+    /// <summary>Only the refresh rate changes: resolution, colour depth, position and rotation stay as they are. flags:
+    /// <see cref="TrialFlags"/> (for now only) or <see cref="SaveFlags"/> (stored). null = done; otherwise the German reason.</summary>
+    private static string? Apply(string device, int hz, uint flags)
     {
         if (Current(device) is not { } cur) return "Windows liefert für diesen Monitor gerade keine Einstellungen.";
         var dm = cur;
@@ -368,14 +413,15 @@ internal static unsafe class HwCheck
         dm.dmFields = SwitchFields(cur.dmFields);
         int test = ChangeDisplaySettingsExW(device, ref dm, IntPtr.Zero, CDS_TEST, IntPtr.Zero);
         if (test != 0) return ChangeError(test);
-        int r = ChangeDisplaySettingsExW(device, ref dm, IntPtr.Zero, CDS_UPDATEREGISTRY, IntPtr.Zero);
+        int r = ChangeDisplaySettingsExW(device, ref dm, IntPtr.Zero, flags, IntPtr.Zero);
         var (err, restore) = SwitchOutcome(r, hz, cur.dmDisplayFrequency, Current(device)?.dmDisplayFrequency ?? 0);
         if (restore)
         {
             // not done, but the display moved anyway: without a countdown for it, the mode before goes back at once
+            // (stored only when this switch would have been: a trial leaves Windows' stored mode alone)
             var before = cur;
             before.dmFields = SwitchFields(cur.dmFields);
-            err += ChangeDisplaySettingsExW(device, ref before, IntPtr.Zero, CDS_UPDATEREGISTRY, IntPtr.Zero) == 0
+            err += ChangeDisplaySettingsExW(device, ref before, IntPtr.Zero, flags, IntPtr.Zero) == 0
                 ? $" OrbitTweak hat wieder {cur.dmDisplayFrequency} Hz eingestellt."
                 : " Stell die Bildwiederholrate bitte in den Windows-Anzeigeeinstellungen zurück.";
         }

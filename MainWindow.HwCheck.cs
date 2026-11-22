@@ -7,8 +7,9 @@ namespace OrbitTweak;
 /// Monitor-Check und RAM-Check (2.31): the host side of the two Diagnose rows' dialogs (Web/hwcheck.js). The rows
 /// themselves come with "health" (Core/Features.cs); the work is in Core/HwCheck.cs, the rules in Core/HwCheckLogic.cs.
 ///   hw.displays → { fivem, laptop, revertIn, displays: [{ device, name, conn, primary, w, h, hz, best, switchedFrom, pending }] }
-///   hw.hz.set { device } → { ok, error?, device, from, to, revertIn }   (back by itself after revertIn s: event "hwhz")
-///   hw.hz.keep { device } → { ok, error?, device, from, to }
+///   hw.hz.set { device } → { ok, error?, device, from, to, revertIn }   (for now only, Windows stores nothing; back to
+///                          from by itself after revertIn s: event "hwhz")
+///   hw.hz.keep { device } → { ok, error?, device, from, to }   (stores the rate; refused other than "Zu spät…", nothing went back)
 ///   hw.hz.back { device } → { ok, error?, device, from, to }   (from = the rate it ran at, to = the rate it runs at now)
 ///   hw.ram → { ok, error?, laptop, channel, channels, xmp, configured, rated, gen, modules: [{ slot, bank, chan, gb, gen, speed, rated, part, maker }] }
 /// A refused change comes back as ok = false with a German error, never as an exception.

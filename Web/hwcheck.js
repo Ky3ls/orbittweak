@@ -3,7 +3,8 @@
    "health" (Core/HwCheck.cs, rules in Core/HwCheckLogic.cs) and are drawn by renderHealth like every other row; their
    buttons land here through HEALTH_FIX.hw.
      hw:hz:<display>      „Beheben“: that one display to its highest refresh rate, then 15 seconds to keep it (the
-                          host puts the old rate back by itself, the way Windows' own display settings do)
+                          host puts the old rate back by itself, the way Windows' own display settings do; Windows
+                          stores the new one only with „Behalten“)
      hw:hzback:<display>  „Auf 60 Hz zurück“: the rate before OrbitTweak's switch
      hw:ram:chan|xmp|info „Anleitung“ / „Ansehen“: the modules Windows reports and what to do, in the BIOS or with a
                           screwdriver. OrbitTweak never switches XMP itself.
@@ -50,6 +51,7 @@
       <div class="hw-rate"><div><b>${d.hz}</b><span>Hz jetzt</span></div>${ico('chev', 'i hw-to')}<div class="hw-on"><b>${d.best}</b><span>Hz danach</span></div></div>
       <ul class="hw-pts">
         <li>Das Bild wird kurz schwarz. Passt danach alles, bestätigst du. Sonst stellt OrbitTweak nach ${secs} Sekunden von selbst zurück.</li>
+        <li>Gespeichert wird die neue Rate erst mit „Behalten“. Bis dahin bringt auch ein Neustart die ${d.hz} Hz zurück.</li>
         <li>Der Monitor zeigt dann bis zu ${d.best} Bilder pro Sekunde. Flüssiger wird es, soweit FiveM auch so viele FPS schafft.</li>
         ${r.laptop ? '<li>Am Akku braucht ein Bildschirm mit mehr Hz etwas mehr Strom.</li>' : ''}
         <li>Nur dieser Monitor ändert sich. Auflösung und alles andere bleiben, wie sie sind.</li>
@@ -99,7 +101,13 @@
   async function keep() {
     $$('#mbox .hw-m button').forEach(b => b.disabled = true);
     const r = await api('hw.hz.keep', { device: HW.dev }).catch(e => ({ ok: false, error: e.message }));
-    if (!r.ok) return reverted({ ok: true, to: HW.from }, r.error);
+    if (!r.ok) {
+      // „Zu spät“: the countdown has put the old rate back. Anything else went nowhere: changed by hand meanwhile, or
+      // Windows did not store the new rate (it runs until the next restart)
+      if (/^Zu spät/.test(r.error || '')) return reverted({ ok: true, to: HW.from }, r.error);
+      fail('Nicht gespeichert', r.error || 'Windows hat die neue Rate nicht gespeichert.');
+      return runHealth();
+    }
     const name = HW.name, to = HW.to; close();
     toast(`Monitor läuft mit ${to} Hz`, name);
     runHealth();
@@ -267,6 +275,7 @@
   const q = new URLSearchParams(location.search), MON = q.get('hwmon') || 'warn', RAM = q.get('hwram') || 'xmp', ERR = q.get('hwerr') || '';
   const SECS = q.has('hwfast') ? 4 : 15;
   const D1 = '\\\\.\\DISPLAY1', D2 = '\\\\.\\DISPLAY2';
+  // from: a kept switch's rate before (hwcheck.json); a switch waiting for „Behalten“ is in M.pending only, like the host
   const disp = (device, friendly, conn, w, h, hz, best, extra = {}) => ({ device, friendly, conn, primary: device === D1, w, h, hz, best, from: null, ...extra });
   const M = {
     pending: null,
@@ -280,14 +289,15 @@
       none: [],
     }[MON] || [],
   };
+  const shown = d => M.pending?.device === d.device ? M.pending.before : d.from;   // HwCheck.Shown
   const named = (d, i, all) => {
     const head = d.conn === 'internal' && !d.friendly ? 'Laptop-Bildschirm' : 'Monitor';
     return (all.length > 1 ? `${head} ${i + 1}` : head) + (d.friendly ? ` · ${d.friendly}` : '');
   };
   // the same rows as HwCheckLogic.MonitorRow
   function monRow(d, i, all) {
-    const name = named(d, i, all), top = Math.max(d.hz, d.best);
-    if (d.from) return { name, value: `${d.hz} Hz, von OrbitTweak umgestellt`, st: 'ok', fix: 'hw:hzback:' + d.device, act: `Auf ${d.from} Hz zurück` };
+    const name = named(d, i, all), top = Math.max(d.hz, d.best), from = shown(d);
+    if (from) return { name, value: `${d.hz} Hz, von OrbitTweak umgestellt`, st: 'ok', fix: 'hw:hzback:' + d.device, act: `Auf ${from} Hz zurück` };
     if (d.best - d.hz >= 10 && d.best >= d.hz * 1.08) return { name, value: `Läuft mit ${d.hz} Hz, kann aber ${d.best} Hz`, st: 'warn', fix: 'hw:hz:' + d.device };
     if (top <= 75 && d.conn !== 'internal') return { name, value: `${d.hz} Hz, mehr bietet Windows hier nicht an. Kann dein Monitor laut Datenblatt mehr, bremst meist ` + (d.conn === 'hdmi' ? 'das HDMI-Kabel oder der Anschluss (DisplayPort probieren)' : 'Kabel oder Anschluss'), st: 'info' };
     return { name, value: top <= 75 ? `${d.hz} Hz, mehr bietet Windows hier nicht an` : `${d.hz} Hz, das Höchste, was Windows anbietet`, st: 'ok' };
@@ -332,7 +342,7 @@
   MOCK_EXT['hw.displays'] = async () => {
     await sleep(180);
     return { fivem: ERR === 'fivem', laptop: MON === 'laptop', revertIn: SECS,
-      displays: M.displays.map((d, i, all) => ({ device: d.device, name: named(d, i, all), conn: d.conn, primary: d.primary, w: d.w, h: d.h, hz: d.hz, best: d.best, switchedFrom: d.from, pending: M.pending?.device === d.device })) };
+      displays: M.displays.map((d, i, all) => ({ device: d.device, name: named(d, i, all), conn: d.conn, primary: d.primary, w: d.w, h: d.h, hz: d.hz, best: d.best, switchedFrom: shown(d), pending: M.pending?.device === d.device })) };
   };
   MOCK_EXT['hw.hz.set'] = async a => {
     await sleep(700);
@@ -342,24 +352,29 @@
     if (ERR === 'fivem') return { ...no(FIVEM), revertIn: SECS };
     if (M.pending) return { ...no('Ein Monitor wartet noch auf „Behalten“. Bestätige ihn zuerst oder warte, bis OrbitTweak ihn zurückgestellt hat.'), revertIn: SECS };
     if (ERR === 'refuse' || !d) return { ...no('Diesen Modus lehnt Windows für den Monitor ab.'), revertIn: SECS };
-    const from = d.from || d.hz;
-    d.hz = d.best; d.from = from;
-    M.pending = { device: d.device, t: setTimeout(() => { M.pending = null; d.hz = from; d.from = null; onEvent('hwhz', { ok: true, error: null, device: d.device, from: d.best, to: from }); }, SECS * 1000) };
-    return { ok: true, error: null, device: d.device, from, to: d.best, revertIn: SECS };
+    const before = d.hz, origin = d.from || d.hz;   // HwCheckLogic.WayBack
+    d.hz = d.best;
+    M.pending = { device: d.device, before, origin, t: setTimeout(() => { M.pending = null; d.hz = before; onEvent('hwhz', { ok: true, error: null, device: d.device, from: d.best, to: before }); }, SECS * 1000) };
+    return { ok: true, error: null, device: d.device, from: before, to: d.best, revertIn: SECS };
   };
   MOCK_EXT['hw.hz.keep'] = async a => {
     if (!M.pending || M.pending.device !== a.device) return { ok: false, error: 'Zu spät: OrbitTweak hat die alte Bildwiederholrate schon wieder eingestellt.', device: a.device, from: 0, to: 0 };
-    clearTimeout(M.pending.t); M.pending = null;
+    const p = M.pending; clearTimeout(p.t); M.pending = null;
     const d = M.displays.find(x => x.device === a.device);
-    return { ok: true, error: null, device: a.device, from: d.from, to: d.hz };
+    d.from = p.origin;
+    return { ok: true, error: null, device: a.device, from: p.before, to: d.hz };
   };
   MOCK_EXT['hw.hz.back'] = async a => {
     await sleep(500);
     const pending = M.pending?.device === a.device;
     if (ERR === 'fivem' && !pending) return { ok: false, error: FIVEM, device: a.device, from: 0, to: 0 };
     const d = M.displays.find(x => x.device === a.device);
+    if (pending) {
+      const p = M.pending; clearTimeout(p.t); M.pending = null;
+      const was = d.hz; d.hz = p.before;
+      return { ok: true, error: null, device: a.device, from: was, to: d.hz };
+    }
     if (!d || !d.from) return { ok: false, error: 'OrbitTweak hat an diesem Monitor nichts umgestellt.', device: a.device, from: 0, to: 0 };
-    if (pending) { clearTimeout(M.pending.t); M.pending = null; }
     const was = d.hz; d.hz = d.from; d.from = null;
     return { ok: true, error: null, device: a.device, from: was, to: d.hz };
   };

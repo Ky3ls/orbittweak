@@ -141,6 +141,25 @@ internal static class HwCheckLogic
         return size && (a.Length == 0 || b.Length == 0 || string.Equals(a, b, StringComparison.OrdinalIgnoreCase));
     }
 
+    // ChangeDisplaySettingsEx dwflags (winuser.h)
+    public const uint CDS_UPDATEREGISTRY = 1, CDS_TEST = 2;
+
+    /// <summary>
+    /// The trial switch and the undo of a switch nobody kept: dynamic only, Windows stores nothing. A PC that is reset,
+    /// switched off or loses OrbitTweak during the countdown starts again with the rate it had before, like Windows'
+    /// own „Änderungen beibehalten?“.
+    /// </summary>
+    public const uint TrialFlags = 0;
+
+    /// <summary>"Behalten" (the rate that runs is stored for the next start) and "Zurück" from a kept switch.</summary>
+    public const uint SaveFlags = CDS_UPDATEREGISTRY;
+
+    /// <summary>
+    /// The rate "Zurück" goes back to once a switch is kept: the one before OrbitTweak's first switch when this one was
+    /// made on top of an earlier kept one (the display still ran at that one's rate), otherwise the rate before this one.
+    /// </summary>
+    public static int WayBack(int? keptFrom, int? keptTo, int curHz) => keptFrom is int f && keptTo == curHz ? f : curHz;
+
     // =====================================================================
     //  RAM
     // =====================================================================
