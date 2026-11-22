@@ -3897,6 +3897,10 @@ document.addEventListener('click', async e => {
 
 /* ======================= WHAT'S NEW: shown once after an update ======================= */
 const CHANGES = {
+  '2.31.1': [
+    ['download', 'Update-Fenster repariert', 'Lange Update-Hinweise schoben „Jetzt aktualisieren“ aus dem Fenster, und Fettschrift erschien als Sternchen. Die Liste scrollt jetzt für sich, die Buttons bleiben immer sichtbar.'],
+    ['sparkle', 'Nichts verpasst', 'Hast du eine Version übersprungen, zeigt dieses Fenster jetzt auch, was sie Neues gebracht hat.'],
+  ],
   '2.31.0': [
     ['sw-bell', 'Platz-Alarm', 'Server voll oder offline? OrbitTweak schaut nach und meldet sich, sobald ein Platz frei ist. Auf Wunsch verbindet es dich selbst.'],
     ['users', 'Freunde online', 'Zeigt, auf welchem deiner Favoriten deine Freunde gerade spielen, soweit der Server die Namen zeigt.'],
@@ -4006,7 +4010,14 @@ function whatsNew(version) {
     try { const n = JSON.parse(localStorage.getItem('orbitNotes') || 'null'); if (n && n.v === version && n.notes.length) list = n.notes.map(t => ['zap', noteHtml(t), '']); } catch { }
   }
   if (!list) return;
-  modal(`<div class="m-ic">${ico('sparkle')}</div><div class="kicker">Update installiert</div><h1>Das ist neu in <span class="grad">v${esc(version)}</span></h1>
+  // an update that skipped versions (2.30.1 → 2.31.1) also shows what the skipped ones brought, newest first, at most 3
+  const vn = v => String(v).split('.').slice(0, 3).reduce((a, x) => a * 1000 + (parseInt(x, 10) || 0), 0);
+  let since = null;
+  if (seen && vn(seen) < vn(version)) {
+    const skipped = Object.keys(CHANGES).filter(k => vn(k) > vn(seen) && vn(k) < vn(version)).sort((a, b) => vn(b) - vn(a)).slice(0, 3);
+    if (skipped.length) { list = list.concat(...skipped.map(k => CHANGES[k])); since = seen; }
+  }
+  modal(`<div class="m-ic">${ico('sparkle')}</div><div class="kicker">Update installiert</div><h1>${since ? `Das ist neu seit <span class="grad">v${esc(since)}</span>` : `Das ist neu in <span class="grad">v${esc(version)}</span>`}</h1>
     <div class="wn">${list.map(([ic, t, d], i) => `<div class="wn-row" style="--i:${i}"><div class="qi">${ico(ic)}</div><div><b>${t}</b>${d ? `<span>${d}</span>` : ''}</div></div>`).join('')}</div>
     <div class="act"><button class="btn p lg" onclick="closeModal()">${ico('check')}Alles klar</button></div>`);
   $('#mbox').style.width = '620px';
