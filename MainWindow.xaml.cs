@@ -1397,6 +1397,7 @@ public partial class MainWindow : Window
         if (cmd.StartsWith("crash.", StringComparison.Ordinal)) return await CrashCmd(cmd, a);   // 2.31: MainWindow.CrashScan.cs
         if (cmd.StartsWith("hw.", StringComparison.Ordinal)) return await HwCmd(cmd, a);   // 2.31: MainWindow.HwCheck.cs
         if (cmd.StartsWith("netcheck.", StringComparison.Ordinal)) return await NetCheckCmd(cmd, a);   // 2.31: MainWindow.NetCheck.cs
+        if (cmd.StartsWith("bk.", StringComparison.Ordinal)) return await CfgBackupCmd(cmd, a);   // 2.31: MainWindow.CfgBackup.cs
         throw new InvalidOperationException("Unbekannter Befehl: " + cmd);
     }
 
@@ -2139,6 +2140,7 @@ public partial class MainWindow : Window
             _dcFm = fmOpen; _dcGamePid = gamePid; _dcGameStart = gameStart; _dcProbed = true;
             StatsTick(gamePid, gameStart);   // play time: a round starts and ends with the game process
             PerfTick(gamePid);   // 2.31 Engpass-Analyse: what holds the frame rate (MainWindow.PerfWatch.cs)
+            CfgBackupTick(fmOpen);   // 2.31: the automatic settings backup when FiveM starts
         }
         finally { _probing = false; }
     }

@@ -22,6 +22,7 @@
 <link rel="stylesheet" href="crashscan.css">
 <link rel="stylesheet" href="hwcheck.css">
 <link rel="stylesheet" href="netcheck.css">
+<link rel="stylesheet" href="cfgbackup.css">
 <link rel="stylesheet" href="palette.css">
 <link rel="stylesheet" href="luxe-themes.css">
 </head>
@@ -123,6 +124,7 @@
     <symbol id="hw-hz" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4M6.5 7.5h5M9 10h8.5M6.5 12.5h6"/></symbol>
     <symbol id="hw-chan" viewBox="0 0 24 24"><rect x="2.5" y="4" width="19" height="5.5" rx="1.3"/><rect x="2.5" y="13.5" width="19" height="5.5" rx="1.3"/><path d="M6.5 9.5v2M10.5 9.5v2M14.5 9.5v2M18.5 9.5v2M6.5 19v2M10.5 19v2M14.5 19v2M18.5 19v2"/></symbol>
     <symbol id="nc-pulse" viewBox="0 0 24 24"><path d="M2 13h3.2l2.1-5.5 3.4 11 2.6-8.2 1.6 2.7h1.9"/><circle cx="19.6" cy="13" r="2.6"/></symbol>
+    <symbol id="bk-archive" viewBox="0 0 24 24"><rect x="2.5" y="3.5" width="19" height="5" rx="1.5"/><path d="M4.5 8.5v10a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-10"/><path d="M10 12.5h4"/></symbol>
   </defs>
 </svg>
 
@@ -1125,7 +1127,7 @@
           <button class="tab" data-st="design"><svg class="i"><use href="#sparkle"/></svg><span>Design<small>Farbe &amp; Hintergrund</small></span></button>
           <button class="tab" data-st="general"><svg class="i"><use href="#sliders"/></svg><span>Verhalten<small>Leistung &amp; Boost</small></span></button>
           <button class="tab" data-st="updates"><svg class="i"><use href="#download"/></svg><span>Updates<small>Version &amp; Automatik</small></span><em class="c hidden" id="setUpdC">Neu</em></button>
-          <button class="tab" data-st="safety"><svg class="i"><use href="#history"/></svg><span>Sicherheit<small>Wiederherstellen</small></span></button>
+          <button class="tab" data-st="safety"><svg class="i"><use href="#history"/></svg><span>Sicherheit<small>Backup &amp; Wiederherstellen</small></span></button>
           <button class="tab" data-st="about"><svg class="i"><use href="#info"/></svg><span>Über<small>Hinweise &amp; Credits</small></span></button>
         </nav>
         </aside>
@@ -1280,6 +1282,7 @@
 <script src="crashscan.js"></script>
 <script src="hwcheck.js"></script>
 <script src="netcheck.js"></script>
+<script src="cfgbackup.js"></script>
 <script src="palette.js"></script>
 </body>
 </html>
