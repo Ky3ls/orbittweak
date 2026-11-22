@@ -48,10 +48,10 @@ public partial class MainWindow
                 if (_twg.Pending.Count > 0) await TwgRecheck();
                 return TwgState();
 
-            // a look by hand ("Jetzt prüfen") -> state; while a game runs nothing is read (status "paused")
+            // a look by hand ("Jetzt prüfen") -> state; while a game runs nothing is read (status "paused"). Status "busy"
+            // when it did not get to look (the guard was held for 20 s): the event after that work brings the result
             case "twg.check":
-                await TwgLook(true);
-                return TwgState();
+                return await TwgLook(true) ? TwgState() : TwgState(busy: true);
 
             // { ids } -> { done: [{ id, name }], failed: [{ id, name, error }], restart, state }: exactly the asked ones
             // that are pending, each through the path of its own switch
@@ -112,36 +112,38 @@ public partial class MainWindow
         throw new InvalidOperationException("Unbekannter Befehl: " + cmd);
     }
 
-    /// <summary>One full look. byHand waits for a look that is running; a planned one skips when one runs.</summary>
-    private async Task TwgLook(bool byHand)
+    /// <summary>One full look. byHand waits for a look that is running; a planned one skips when one runs. false = it did
+    /// not get to look (another look, "Wieder anwenden" or "So lassen" held the guard).</summary>
+    private async Task<bool> TwgLook(bool byHand)
     {
-        if (!await _twgGate.WaitAsync(byHand ? TimeSpan.FromSeconds(20) : TimeSpan.Zero)) return;
+        if (!await _twgGate.WaitAsync(byHand ? TimeSpan.FromSeconds(20) : TimeSpan.Zero)) return false;
         TG.StepResult? res = null;
         try
         {
-            Emit("twg", TwgState(busy: true));
             var now = DateTime.Now;
             try
             {
-                var r = await Task.Run(() =>
-                {
-                    if (TweakGuard.GameRunning()) return (game: true, looks: (List<TG.Obs>?)null, fps: (string?)null, added: 0);
-                    // a new FiveM build since FiveM last ran with OrbitTweak open: its exes get the per-app graphics fields
-                    // that are switched on (what the next start of FiveM does anyway), so a new build never reads as "reset"
-                    int added = 0;
-                    if (Marks.Has("gpu") || Marks.Has("winopt")) try { added = Catalog.PrefUpkeep(); } catch { }
-                    var looks = TweakGuard.Look(_tweaks);
-                    string? fps = null;
-                    if (TweakGuard.LookFps() is { } f) { looks.Add(f.look); fps = f.detail; }
-                    return (game: false, looks, fps, added);
-                });
-                if (r.game || r.looks == null)
+                // first whether a game runs (process names only): then nothing is read, and the page is not told "busy"
+                // every two minutes of a game
+                if (await Task.Run(TweakGuard.GameRunning))
                 {
                     _twgPaused = true;
                     _twgNext = DateTime.Now + TG.GameRetry;
                 }
                 else
                 {
+                    Emit("twg", TwgState(busy: true));
+                    var r = await Task.Run(() =>
+                    {
+                        // a new FiveM build since FiveM last ran with OrbitTweak open: its exes get the per-app graphics fields
+                        // that are switched on (what the next start of FiveM does anyway), so a new build never reads as "reset"
+                        int added = 0;
+                        if (Marks.Has("gpu") || Marks.Has("winopt")) try { added = Catalog.PrefUpkeep(); } catch { }
+                        var looks = TweakGuard.Look(_tweaks);
+                        string? fps = null;
+                        if (TweakGuard.LookFps() is { } f) { looks.Add(f.look); fps = f.detail; }
+                        return (looks, fps, added);
+                    });
                     if (r.added > 0) Log($"🖥 Grafikeinstellung für {r.added} neue FiveM-Datei(en) übernommen");
                     _twgPaused = false; _twgErr = null; _twgLast = now;
                     res = TG.Step(_twg, r.looks, now);
@@ -161,6 +163,7 @@ public partial class MainWindow
         finally { _twgGate.Release(); }
         if (res is { Confirmed.Count: > 0 }) Log(TG.Announce(res.Confirmed.Select(TwgName).ToList()));
         Emit("twg", TwgState());
+        return true;
     }
 
     /// <summary>The pending ones read again (quick: only those). Skipped while a look runs.</summary>

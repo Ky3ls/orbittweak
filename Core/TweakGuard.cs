@@ -35,8 +35,9 @@ internal static class TweakGuard
     }
 
     /// <summary>
-    /// One look at every tweak of the list. Only the marked ones are read (Check, as the switch reads it; a check that
-    /// throws counts as not readable this time, never as "off"); usability and the condition only for those.
+    /// One look at every tweak of the list (TweakGuardLogic.Observe): only the marked ones are read, with the Check the
+    /// switch uses; usability and the condition only for those. A condition or check that throws counts as not readable
+    /// this time, never as "off" or "gone" (Tweak.IsRecommended would turn a RecWhen that throws into "gone").
     /// </summary>
     public static List<Obs> Look(IReadOnlyList<Tweak> tweaks, Func<Tweak, bool>? only = null)
     {
@@ -45,16 +46,14 @@ internal static class TweakGuard
         foreach (var t in tweaks)
         {
             if (only != null && !only(t)) continue;
-            bool marked = Marks.Has(t.Id);
-            if (!marked) { list.Add(new Obs(t.Id, false, false, Read.Unknown)); continue; }
             // FiveM's own tweaks need FiveM (uninstalled: nothing to put back), the rest what the tweak itself asks for
             bool forFiveM = t.Cat == "fivem";
-            if (forFiveM) fivem ??= FiveM.Root != null;
-            var cond = Condition(t.RecWhen == null ? null : t.IsRecommended, forFiveM, fivem ?? true, Extra(t.Id));
-            if (!TweakGuardLogic.Applies(t.Id, t.IsUsable, cond)) { list.Add(new Obs(t.Id, true, false, Read.Unknown)); continue; }
-            Read st;
-            try { st = t.Check() ? Read.On : Read.Off; } catch { st = Read.Unknown; }
-            list.Add(new Obs(t.Id, true, true, st));
+            list.Add(Observe(t.Id, Marks.Has(t.Id), () => t.IsUsable, () =>
+            {
+                if (forFiveM) fivem ??= FiveM.Root != null;
+                // gone for sure first (FiveM, the adapter), then RecWhen, which may throw: unreadable this time
+                return Condition(null, forFiveM, fivem ?? true, Extra(t.Id)) == false ? false : t.RecWhen?.Invoke();
+            }, t.Check));
         }
         return list;
     }

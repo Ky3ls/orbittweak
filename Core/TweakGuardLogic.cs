@@ -52,6 +52,25 @@ internal static class TweakGuardLogic
     public static bool? Condition(bool? recWhen, bool forFiveM, bool fivemFound, bool? extra = null)
         => (forFiveM && !fivemFound) || extra == false ? false : recWhen;
 
+    /// <summary>
+    /// One look at one tweak from its parts (TweakGuard.Look passes the mark, Usable, the condition and Check). Each part is
+    /// asked only when the one before lets it through: an unmarked tweak or one of OrbitTweak's own settings costs nothing
+    /// more, one that is not usable or whose condition is gone is not checked. A condition or check that throws is "not
+    /// readable this time", never "off" and never "gone": a pending one stays listed, a waiting one starts over.
+    /// </summary>
+    public static Obs Observe(string id, bool marked, Func<bool> usable, Func<bool?> cond, Func<bool> check)
+    {
+        if (!marked) return new(id, false, false, Read.Unknown);
+        if (AppHeld.Contains(id)) return new(id, true, false, Read.Unknown);
+        bool u;
+        try { u = usable(); } catch { u = true; }   // as the page reads it (Tweak.IsUsable)
+        bool? c;
+        try { c = cond(); } catch { return new(id, true, u, Read.Unknown); }
+        if (!Applies(id, u, c)) return new(id, true, false, Read.Unknown);
+        try { return new(id, true, true, check() ? Read.On : Read.Off); }
+        catch { return new(id, true, true, Read.Unknown); }
+    }
+
     /// <summary>What the guard knows between looks. Times are the first "off" look.</summary>
     public sealed class State
     {
@@ -178,9 +197,10 @@ internal static class TweakGuardLogic
     /// <summary>The banner's title: "1 Tweak wurde zurückgesetzt", "2 Tweaks wurden zurückgesetzt".</summary>
     public static string Title(int n) => n == 1 ? "1 Tweak wurde zurückgesetzt" : $"{n} Tweaks wurden zurückgesetzt";
 
-    /// <summary>The line in "Letzte Aktivität" when tweaks were found reset (it does not guess why).</summary>
+    /// <summary>The line in "Letzte Aktivität" when tweaks were found reset (it does not guess why). No count: the FPS
+    /// limit can be among the names, and it is no tweak and still has a value, only not OrbitTweak's.</summary>
     public static string Announce(IReadOnlyList<string> names)
-        => names.Count == 0 ? "" : $"🛡 {(names.Count == 1 ? "Nicht mehr aktiv" : $"{names.Count} Tweaks nicht mehr aktiv")}: {Join(names)} · unter Tweaks wieder anwenden oder so lassen";
+        => names.Count == 0 ? "" : $"🛡 Nicht mehr wie eingestellt: {Join(names)} · unter Tweaks wieder anwenden oder so lassen";
 
     /// <summary>The line in "Letzte Aktivität" after "So lassen".</summary>
     public static string KeptLine(IReadOnlyList<string> names)

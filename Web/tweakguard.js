@@ -10,7 +10,7 @@
 const TWG = {
   st: null,        // the host's state: { status, lastAt, nextAt, confirmAt, error, watched, items: [{ id, name, icon, cat, restart, detail, since, error }] }
   busy: '',        // 'apply' | 'keep' | 'check' while the host works on it
-  done: null,      // { kind: 'apply' | 'keep', names, restart, fps } after a button, until closed or after a few seconds
+  done: null,      // { kind: 'apply' | 'keep', names, restart: [names], fps } after a button, until closed or after a few seconds
   doneT: 0,
   loading: null,
 };
@@ -92,9 +92,13 @@ function twgRowHtml(i) {
   return `<div class="twg-row${i.error ? ' bad' : ''}"><span class="twg-ri">${ico(i.icon || 'zap')}</span><span class="twg-rt"><b>${esc(i.name)}</b>${tag}${sub}</span></div>`;
 }
 function twgDoneHtml(d) {
+  // apply: names are the tweaks only; what needs a restart and the FPS limit (a driver profile, read when the game
+  // starts) are said on their own, so nothing reads as "active" that only comes later
   const one = d.names.length === 1, who = twgJoin(d.names);
   const text = d.kind === 'apply'
-    ? `${who} ${one ? 'ist' : 'sind'} wieder aktiv.${d.restart ? ' Was „Neustart“ trägt, wirkt erst nach einem Neustart des PCs.' : ''}${d.fps ? ' Das FPS-Limit gilt ab dem nächsten Start von FiveM.' : ''}`
+    ? [d.names.length ? `${who} ${one ? 'ist' : 'sind'} wieder eingeschaltet.` : '',
+       (d.restart || []).length ? `${twgJoin(d.restart)} ${d.restart.length === 1 ? 'wirkt' : 'wirken'} erst nach einem Neustart des PCs.` : '',
+       d.fps ? 'Dein FPS-Limit steht wieder im Treiberprofil und gilt ab dem nächsten Start von FiveM.' : ''].filter(Boolean).join(' ')
     : `OrbitTweak fragt bei ${who} nicht mehr nach und ändert nichts. Schaltest du das wieder mit OrbitTweak ein, passt der Wächter dort wieder auf.`;
   return `<div class="twg-ic">${ico(d.kind === 'apply' ? 'check' : 'shield')}</div>
     <div class="twg-tx"><b class="twg-t">${d.kind === 'apply' ? 'Wieder angewendet' : 'Bleibt so'}</b><p class="twg-p">${esc(text)}</p></div>
@@ -111,10 +115,10 @@ function twgLineRender() {
   else if (s.status === 'paused') { text = 'pausiert, solange ein Spiel läuft'; can = false; tip = 'Während FiveM oder ein anderes Spiel läuft, liest der Wächter nichts'; }
   else if (s.status === 'error') { text = 'die letzte Prüfung ging\u00a0nicht'; warn = true; tip = s.error || ''; }
   else if (s.status === 'wait') text = 'schaut gleich zum ersten Mal nach';
-  else if (n) text = `${n} nicht mehr aktiv${last ? ' · geprüft um\u00a0' + last : ''}`;
+  else if (n) text = `${n} nicht mehr aktiv${last ? ' · geprüft\u00a0um\u00a0' + last : ''}`;
   else if (s.confirmAt) text = `schaut um\u00a0${twgTime(s.confirmAt)} noch einmal nach`;
   else if (!s.watched) text = 'passt auf, sobald du Tweaks mit OrbitTweak einschaltest';
-  else text = `${s.watched === 1 ? '1 Tweak' : s.watched + ' Tweaks'} wie eingestellt${last ? ' · geprüft um\u00a0' + last : ''}`;
+  else text = `${s.watched === 1 ? '1 Tweak' : s.watched + ' Tweaks'} wie eingestellt${last ? ' · geprüft\u00a0um\u00a0' + last : ''}`;
   line.classList.toggle('twg-warn', warn);
   line.title = tip;
   line.innerHTML = `${ico(warn ? 'alert' : 'shield')}<b>Tweak-Wächter</b><span>${esc(text)}</span>`
@@ -145,7 +149,8 @@ async function twgCheck() {
     twgSet(r);
     if (r.status === 'paused') toast('Gerade nicht', 'Solange ein Spiel läuft, prüft der Tweak-Wächter nichts', false);
     else if (r.status === 'error') toast('Nicht geprüft', r.error || '', false);
-    else if (!(r.items || []).length && !r.confirmAt) toast('Alles aktiv', r.watched ? 'Deine Tweaks sind so, wie OrbitTweak sie eingestellt hat' : 'Noch keine Tweaks von OrbitTweak eingeschaltet');
+    // "busy": it did not get to look yet (another look or a button held the guard), the event after it brings the result
+    else if (r.status === 'idle' && !(r.items || []).length && !r.confirmAt) toast('Alles aktiv', r.watched ? 'Deine Tweaks sind so, wie OrbitTweak sie eingestellt hat' : 'Noch keine Tweaks von OrbitTweak eingeschaltet');
   } else twgRender();
 }
 async function twgApply() {
@@ -156,7 +161,10 @@ async function twgApply() {
   if (!r || r.error) { twgRender(); return toast('Nicht wieder angewendet', (r && r.error) || '', false); }
   TWG.st = r.state;
   if (r.failed.length) toast(r.done.length ? 'Nicht alles wieder angewendet' : 'Nicht wieder angewendet', r.failed.map(f => `${f.name}: ${f.error}`).join(' · '), false);
-  if (r.done.length && !r.failed.length) twgShowDone({ kind: 'apply', names: r.done.map(d => d.name), restart: r.restart, fps: r.done.some(d => d.id === TWG_FPS) });
+  if (r.done.length && !r.failed.length) twgShowDone({
+    kind: 'apply', names: r.done.filter(d => d.id !== TWG_FPS).map(d => d.name), fps: r.done.some(d => d.id === TWG_FPS),
+    restart: items.filter(i => i.restart && r.done.some(d => d.id === i.id)).map(i => i.name),
+  });
   else { if (r.done.length) toast('Wieder angewendet', twgJoin(r.done.map(d => d.name))); twgRender(); }
   if (r.done.length && typeof loadTweaks === 'function') loadTweaks();
   if (r.done.some(d => d.id === TWG_FPS) && typeof drvLoad === 'function' && curPage === 'gfx') drvLoad();
@@ -270,6 +278,6 @@ MOCK_EXT['twg.keep'] = async a => {
 // the preview's host: its first look found the reset ones (the line in "Letzte Aktivität" as the host writes it)
 if (!HOST) setTimeout(() => {
   const names = TWG_MOCK.st.items.map(i => i.name);
-  if (names.length) onEvent('log', { text: `🛡 ${names.length === 1 ? 'Nicht mehr aktiv' : names.length + ' Tweaks nicht mehr aktiv'}: ${twgJoin(names)} · unter Tweaks wieder anwenden oder so lassen` });
+  if (names.length) onEvent('log', { text: `🛡 Nicht mehr wie eingestellt: ${twgJoin(names)} · unter Tweaks wieder anwenden oder so lassen` });
   onEvent('twg', TWG_MOCK.copy());
 }, 1800);

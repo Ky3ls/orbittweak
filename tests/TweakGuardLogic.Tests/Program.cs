@@ -54,6 +54,50 @@ Check(!Applies("nic", true, Condition(null, false, true, false)), "a new network
 Check(Applies("nic", true, Condition(null, false, true, true)), "the adapter still has them: watched");
 Check(Applies(FpsId, true, null), "the FPS limit is watched");
 
+// ---------- one look at one tweak (TweakGuard.Look) ----------
+{
+    int calls = 0;
+    Func<bool> T(bool v) => () => { calls++; return v; };
+    Func<bool?> C(bool? v) => () => { calls++; return v; };
+    Func<bool> Throw() => () => { calls++; throw new InvalidOperationException("read failed"); };
+    Func<bool?> CThrow() => () => { calls++; throw new InvalidOperationException("RecWhen failed"); };
+
+    calls = 0;
+    Eq(Observe("accel", false, T(true), C(null), T(false)), new Obs("accel", false, false, Read.Unknown), "not marked: not watched");
+    Eq(calls, 0, "not marked: nothing else is read");
+    calls = 0;
+    Eq(Observe("bgbrake", true, T(true), C(null), T(false)), new Obs("bgbrake", true, false, Read.Unknown), "OrbitTweak's own setting: not watched");
+    Eq(calls, 0, "own setting: nothing else is read");
+    calls = 0;
+    Eq(Observe("usb", true, T(false), C(null), T(false)), new Obs("usb", true, false, Read.Unknown), "not usable: not watched");
+    Eq(calls, 2, "not usable: the check is not read");
+    calls = 0;
+    Eq(Observe("gpu", true, T(true), C(false), T(false)), new Obs("gpu", true, false, Read.Unknown), "condition gone: not watched");
+    Eq(calls, 2, "condition gone: the check is not read");
+    Eq(Observe("gpu", true, T(true), C(true), T(false)), Off("gpu"), "condition holds, off: off");
+    Eq(Observe("gpu", true, T(true), C(true), T(true)), On("gpu"), "condition holds, on: on");
+    Eq(Observe("accel", true, T(true), C(null), T(false)), Off("accel"), "no condition, off: off");
+    Eq(Observe("accel", true, T(true), C(null), T(true)), On("accel"), "no condition, on: on");
+    Eq(Observe("accel", true, T(true), C(null), Throw()), Unk("accel"), "a check that throws: unreadable, never off");
+    Eq(Observe("dvr", true, T(true), CThrow(), T(false)), Unk("dvr"), "a condition that throws: unreadable, never gone");
+    calls = 0;
+    Observe("dvr", true, T(true), CThrow(), T(false));
+    Eq(calls, 2, "a condition that throws: the check is not read");
+    Eq(Observe("dvr", true, T(false), CThrow(), T(false)), new Obs("dvr", true, false, Read.Unknown), "not usable wins over a condition that throws");
+    Eq(Observe("hags", true, Throw(), C(null), T(true)), On("hags"), "usable that throws counts as usable, as on the page");
+    Eq(Observe(FpsId, true, T(true), C(null), T(false)), Off(FpsId), "the FPS limit goes the same way");
+    // the guard over such looks: a RecWhen that throws once neither drops a pending tweak nor makes it flicker
+    var s = new State();
+    Step(s, new[] { Observe("dvr", true, T(true), C(true), T(false)) }, t0);
+    Step(s, new[] { Observe("dvr", true, T(true), C(true), T(false)) }, t0.AddMinutes(1));
+    Check(s.Pending.ContainsKey("dvr"), "dvr pending after two looks");
+    var r = Step(s, new[] { Observe("dvr", true, T(true), CThrow(), T(false)) }, t0.AddMinutes(16));
+    Check(s.Pending.ContainsKey("dvr") && r.Cleared.Count == 0, "a RecWhen that throws keeps it pending");
+    Eq(Recheck(s, new[] { Observe("dvr", true, T(true), CThrow(), T(false)) }).Count, 0, "the quick look keeps it too");
+    r = Step(s, new[] { Observe("dvr", true, T(true), C(false), T(false)) }, t0.AddMinutes(31));
+    Seq(r.Cleared, "dvr", "a RecWhen that is really false: cleared");
+}
+
 // ---------- two looks in a row ----------
 {
     var s = new State();
@@ -149,6 +193,46 @@ Check(Applies(FpsId, true, null), "the FPS limit is watched");
     Seq(all, "accel", "over a day: the one that stays off is reported once, the flickering one never");
 }
 
+{
+    // several waiting: the second look is planned for the earliest one
+    var s = new State();
+    Step(s, new[] { Off("gm"), On("vfx") }, t0);
+    Step(s, new[] { Off("gm"), Off("vfx") }, t0.AddSeconds(20));
+    Eq(s.Suspect["gm"], t0, "the first one keeps its time");
+    Eq(s.Suspect["vfx"], t0.AddSeconds(20), "the second one has its own");
+    Eq(Next(s, t0.AddSeconds(20)), t0 + ConfirmAfter, "the second look comes for the earliest one");
+    var r = Step(s, new[] { Off("gm"), Off("vfx") }, t0 + ConfirmAfter);
+    Seq(r.Confirmed, "gm", "only the one that waited long enough");
+    Eq(Next(s, t0 + ConfirmAfter), t0.AddSeconds(20) + ConfirmAfter, "then the next one's second look");
+    r = Step(s, new[] { Off("gm"), Off("vfx") }, t0.AddSeconds(20) + ConfirmAfter);
+    Seq(r.Confirmed, "vfx", "and that one too");
+}
+{
+    // on again after it was pending: a new off needs two looks again (no carry-over)
+    var s = new State();
+    Step(s, new[] { Off("kbd") }, t0);
+    Step(s, new[] { Off("kbd") }, t0.AddMinutes(1));
+    Step(s, new[] { On("kbd") }, t0.AddMinutes(16));
+    var r = Step(s, new[] { Off("kbd") }, t0.AddMinutes(31));
+    Check(r.Confirmed.Count == 0 && !s.Pending.ContainsKey("kbd"), "off again after on: waits for a second look");
+    r = Step(s, new[] { Off("kbd") }, t0.AddMinutes(32));
+    Seq(r.Confirmed, "kbd", "then reported once more");
+    // "So lassen" took the mark; switched on with OrbitTweak later (marked again) and then off: two looks again
+    s.Pending.Remove("kbd");
+    Step(s, new[] { new Obs("kbd", false, false, Read.Unknown) }, t0.AddMinutes(47));
+    r = Step(s, new[] { Off("kbd") }, t0.AddMinutes(62));
+    Check(r.Confirmed.Count == 0 && s.Suspect.ContainsKey("kbd"), "marked again and off: first look only");
+    r = Step(s, new[] { Off("kbd") }, t0.AddMinutes(63));
+    Seq(r.Confirmed, "kbd", "second look: reported");
+}
+{
+    // a look exactly MinGap after the first counts, one tick before does not
+    var s = new State();
+    Step(s, new[] { Off("ducking") }, t0);
+    Check(Step(s, new[] { Off("ducking") }, t0 + MinGap - TimeSpan.FromTicks(1)).Confirmed.Count == 0, "just under the gap: not yet");
+    Seq(Step(s, new[] { Off("ducking") }, t0 + MinGap).Confirmed, "ducking", "exactly the gap: confirmed");
+}
+
 // ---------- the quick look at the pending ones ----------
 {
     var s = new State();
@@ -235,8 +319,10 @@ Eq(Title(1), "1 Tweak wurde zurückgesetzt", "title for one");
 Eq(Title(2), "2 Tweaks wurden zurückgesetzt", "title for two");
 Eq(Title(5), "5 Tweaks wurden zurückgesetzt", "title for five");
 Eq(Announce(Array.Empty<string>()), "", "nothing to announce");
-Eq(Announce(new[] { "Zeigerbeschleunigung aus" }), "🛡 Nicht mehr aktiv: Zeigerbeschleunigung aus · unter Tweaks wieder anwenden oder so lassen", "activity line for one");
-Eq(Announce(new[] { "Zeigerbeschleunigung aus", "Game-Bar-Aufnahme aus" }), "🛡 2 Tweaks nicht mehr aktiv: Zeigerbeschleunigung aus und Game-Bar-Aufnahme aus · unter Tweaks wieder anwenden oder so lassen", "activity line for two");
+Eq(Announce(new[] { "Zeigerbeschleunigung aus" }), "🛡 Nicht mehr wie eingestellt: Zeigerbeschleunigung aus · unter Tweaks wieder anwenden oder so lassen", "activity line for one");
+Eq(Announce(new[] { "Zeigerbeschleunigung aus", "Game-Bar-Aufnahme aus" }), "🛡 Nicht mehr wie eingestellt: Zeigerbeschleunigung aus und Game-Bar-Aufnahme aus · unter Tweaks wieder anwenden oder so lassen", "activity line for two");
+Eq(Announce(new[] { "Zeigerbeschleunigung aus", "FPS-Limit für FiveM" }), "🛡 Nicht mehr wie eingestellt: Zeigerbeschleunigung aus und FPS-Limit für FiveM · unter Tweaks wieder anwenden oder so lassen", "activity line with the FPS limit");
+Check(!Announce(new[] { "Zeigerbeschleunigung aus", "FPS-Limit für FiveM" }).Contains("2 Tweaks"), "the FPS limit is not counted as a tweak");
 Eq(KeptLine(Array.Empty<string>()), "", "nothing kept");
 Eq(KeptLine(new[] { "Spielmodus" }), "🛡 So gelassen: Spielmodus · der Tweak-Wächter fragt dort nicht mehr nach", "line after So lassen");
 foreach (var line in new[] { Announce(new[] { "X" }), Announce(new[] { "X", "Y" }), Title(2) })
