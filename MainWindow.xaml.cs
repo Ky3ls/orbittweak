@@ -1391,6 +1391,7 @@ public partial class MainWindow : Window
         if (cmd.StartsWith("stats.", StringComparison.Ordinal)) return await StatsCmd(cmd, a);
         if (cmd.StartsWith("autostart.", StringComparison.Ordinal)) return await AutostartCmd(cmd, a);
         if (cmd.StartsWith("og.", StringComparison.Ordinal)) return await OgCmd(cmd, a);   // 2.30: MainWindow.OtherGames.cs
+        if (cmd.StartsWith("crash.", StringComparison.Ordinal)) return await CrashCmd(cmd, a);   // 2.31: MainWindow.CrashScan.cs
         throw new InvalidOperationException("Unbekannter Befehl: " + cmd);
     }
 

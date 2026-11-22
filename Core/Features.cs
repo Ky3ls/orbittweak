@@ -473,7 +473,7 @@ internal static class Health
         items.Add(new("FiveM-Cache", SysInfo.Bytes(cache) + (cache > 4L * 1073741824 ? " – leeren empfohlen" : ""), cache > 4L * 1073741824 ? "warn" : "ok", cache > 4L * 1073741824 ? "cache" : null));
 
         var crashes = Crashes().Count(c => c.time > DateTime.Now.AddDays(-7));
-        items.Add(new("Crashes (7 Tage)", crashes == 0 ? "Keine Abstürze" : $"{crashes} Abstürze – Logs prüfen", crashes == 0 ? "ok" : crashes < 3 ? "warn" : "bad"));
+        items.Add(new("Crashes (7 Tage)", crashes == 0 ? "Keine Abstürze" : $"{crashes} {(crashes == 1 ? "Absturz" : "Abstürze")} – Ursachen unten unter „Abstürze“", crashes == 0 ? "ok" : crashes < 3 ? "warn" : "bad"));
 
         var bg = FiveM.BackgroundApps.Sum(n => { var p = Process.GetProcessesByName(n); foreach (var x in p) x.Dispose(); return p.Length; });
         items.Add(new("Hintergrund-Apps", bg == 0 ? "Keine Störenfriede aktiv" : $"{bg} Prozesse (OneDrive, Launcher …)", bg == 0 ? "ok" : "warn", bg == 0 ? null : "killbg"));
@@ -523,7 +523,8 @@ internal static class Health
         if (FiveM.AppDir is not { } a) yield break;
         var dir = Path.Combine(a, "crashes");
         if (!Directory.Exists(dir)) yield break;
-        foreach (var f in new DirectoryInfo(dir).EnumerateFiles().OrderByDescending(f => f.LastWriteTime))
+        // one crash = one <guid>.dmp; its -full.dmp and .dmp.gamelog (FiveM's MiniDump.cpp) are no crashes of their own
+        foreach (var f in new DirectoryInfo(dir).EnumerateFiles("*.dmp").Where(f => !f.Name.EndsWith("-full.dmp", StringComparison.OrdinalIgnoreCase)).OrderByDescending(f => f.LastWriteTime))
             yield return (f.Name, f.LastWriteTime, f.Length);
     }
 
