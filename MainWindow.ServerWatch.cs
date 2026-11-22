@@ -18,6 +18,7 @@ public partial class MainWindow
     private readonly ServerWatcher _sw = new();
     private readonly FriendScan _swScan = new();
     private bool _swInit, _swConnecting, _swBgBusy;
+    private int _swNoted;   // the friends round whose "came online" notes are done
     private string? _swPending; private string _swPendingSrc = ""; private DateTime _swPendingAt;
     private DateTime _swBgAt;
     private DispatcherTimer? _swTimer;
@@ -28,13 +29,17 @@ public partial class MainWindow
     {
         if (_swInit) return;
         _swInit = true;
-        HwndSource.FromHwnd(hwnd)?.AddHook(SwWndProc);
-        _sw.Changed += () => Emit("swWatch", new { watches = _sw.Views() });
-        _sw.Fired += w => Dispatcher.InvokeAsync(() => SwFired(w));
-        if (ConnectArg(Environment.GetCommandLineArgs()) is { } code) SwQueue(code, "desktop");
-        _swTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-        _swTimer.Tick += (_, _) => SwTick();
-        _swTimer.Start();
+        try
+        {
+            HwndSource.FromHwnd(hwnd)?.AddHook(SwWndProc);
+            _sw.Changed += () => Emit("swWatch", new { watches = _sw.Views() });
+            _sw.Fired += w => Dispatcher.InvokeAsync(() => SwFired(w));
+            if (ConnectArg(Environment.GetCommandLineArgs()) is { } code) SwQueue(code, "desktop");
+            _swTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            _swTimer.Tick += (_, _) => SwTick();
+            _swTimer.Start();
+        }
+        catch { }   // runs in SourceInitialized before the hotkeys are registered: nothing here may stop that
     }
 
     /// <summary>A second start (desktop shortcut) handed its join code over. Only a valid code is taken.</summary>
@@ -271,7 +276,7 @@ public partial class MainWindow
     {
         var f = S.SrvFriends;
         var (codes, ip) = SwFavs();
-        if (round && f.Names.Count > 0 && codes.Count > 0 && await _swScan.Round(codes) && f.Notify) SwNoteFresh(codes);
+        if (round) await SwFriendsRound(codes);
         var (servers, error, last) = _swScan.Snapshot();
         var now = DateTime.UtcNow;
         var found = new List<object>();
@@ -299,6 +304,19 @@ public partial class MainWindow
     }
 
     private static long Ms(DateTime? t) => t is DateTime d ? new DateTimeOffset(DateTime.SpecifyKind(d, DateTimeKind.Utc)).ToUnixTimeMilliseconds() : 0;
+
+    /// <summary>A round over the favourites when one may run (FriendScan keeps it to one per 60 s), then the "came
+    /// online" notes, once per round: the page and the background look can join the same round, and a second pass
+    /// would count a friend who is missing once as gone twice (and bring a second note on their return).</summary>
+    private async Task SwFriendsRound(List<string> codes)
+    {
+        var f = S.SrvFriends;
+        if (f.Names.Count == 0 || codes.Count == 0 || !await _swScan.Round(codes)) return;
+        int round = _swScan.Rounds;
+        if (!f.Notify || round == _swNoted) return;
+        _swNoted = round;
+        SwNoteFresh(codes);
+    }
 
     /// <summary>Who came online since the last rounds: page event, and (while OrbitTweak is not the window in use and
     /// nobody plays) a note on the desktop. More than two at once make one note.</summary>
@@ -333,7 +351,7 @@ public partial class MainWindow
         {
             var (_, game) = await Task.Run(ServerWatcher.FiveMState);
             if (game) return;   // nobody is disturbed while playing; the next look after the game
-            await SwFriendsView(true);
+            await SwFriendsRound(SwFavs().cfx);   // only the lists: no ping to anyone's server for a note
         }
         catch { }
         finally { _swBgBusy = false; _swBgAt = DateTime.UtcNow; }

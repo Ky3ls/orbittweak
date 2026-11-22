@@ -37,7 +37,8 @@ internal static class CfxProbe
     private const int MaxBytes = 4 * 1024 * 1024;
 
     /// <summary>The server's state, from an answer at most <paramref name="maxAge"/> old or a new request. Never throws
-    /// (except when <paramref name="ct"/> is cancelled).</summary>
+    /// (except when <paramref name="ct"/> is cancelled). Reading and parsing run on a pool thread (ConfigureAwait(false)),
+    /// never on the UI thread of a host command: a big server's answer is up to a megabyte of JSON.</summary>
     public static async Task<CfxSnapshot> Get(string code, TimeSpan maxAge, CancellationToken ct = default)
     {
         var now = DateTime.UtcNow;
@@ -46,13 +47,13 @@ internal static class CfxProbe
         var cool = new DateTime(Interlocked.Read(ref _coolUntil), DateTimeKind.Utc);
         if (now < cool) return Limited((int)Math.Ceiling((cool - now).TotalSeconds), now);
 
-        await Gate.WaitAsync(ct);
+        await Gate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromSeconds(12));
             using var req = new HttpRequestMessage(HttpMethod.Get, $"{Servers.CfxApi}/api/servers/single/{code}");
-            using var r = await Net.Http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+            using var r = await Net.Http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cts.Token).ConfigureAwait(false);
             now = DateTime.UtcNow;
             if ((int)r.StatusCode == 429)
             {
@@ -66,16 +67,16 @@ internal static class CfxProbe
             if (!r.IsSuccessStatusCode)
                 return Fail($"Cfx.re antwortet mit Fehler {(int)r.StatusCode}", now);
             if (r.Content.Headers.ContentLength > MaxBytes) return Fail("Antwort von Cfx.re zu groß", now);
-            using var body = await r.Content.ReadAsStreamAsync(cts.Token);
+            using var body = await r.Content.ReadAsStreamAsync(cts.Token).ConfigureAwait(false);
             using var ms = new MemoryStream();
             var buf = new byte[81920]; int n;
-            while ((n = await body.ReadAsync(buf, cts.Token)) > 0)
+            while ((n = await body.ReadAsync(buf, cts.Token).ConfigureAwait(false)) > 0)
             {
                 if (ms.Length + n > MaxBytes) return Fail("Antwort von Cfx.re zu groß", now);
                 ms.Write(buf, 0, n);
             }
             ms.Position = 0;
-            using var doc = await JsonDocument.ParseAsync(ms, cancellationToken: cts.Token);
+            using var doc = await JsonDocument.ParseAsync(ms, cancellationToken: cts.Token).ConfigureAwait(false);
             return Recent[code] = Parse(doc.RootElement, code, now);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested) { return Fail("Cfx.re antwortet nicht (Zeitüberschreitung)", DateTime.UtcNow); }
@@ -123,7 +124,7 @@ internal static class CfxProbe
             ep = eps[0].GetString();
         // the icon: the old versioned address when Cfx.re still names a version, else the server's icon_url on Cfx.re's
         // metadata host (IconUrl refuses every other host)
-        var icon = Str(d, "iconVersion") is { } iv && Regex.IsMatch(iv, @"^\d{1,12}$")
+        var icon = Str(d, "iconVersion") is { } iv && Regex.IsMatch(iv, @"^[0-9]{1,12}\z")
             ? IconUrl($"https://servers-live.fivem.net/servers/icon/{code}/{iv}.png") : IconUrl(Str(vars, "icon_url"));
         var name = Str(vars, "sv_projectName") ?? Str(d, "hostname");
         return new(ProbeKind.Ok, players, max, name, names.ToArray(), ep, icon, null, null, now);
@@ -322,13 +323,16 @@ internal sealed class FriendScan
     private readonly object _lock = new();
     private readonly Dictionary<string, Srv> _srv = new();
     private readonly Dictionary<string, (DateTime at, int? ms)> _ping = new();
-    private int _offset;
+    private int _offset, _rounds;
     private DateTime? _last;
     private Task? _running;
     private string? _error;
 
     public DateTime? Last { get { lock (_lock) return _last; } }
     public bool Busy { get { lock (_lock) return _running != null; } }
+    /// <summary>Finished rounds so far: who joins a running round sees the same number as who started it, so the
+    /// "came online" notes are worked out once per round (MainWindow.SwFriendsRound).</summary>
+    public int Rounds { get { lock (_lock) return _rounds; } }
     public FriendSeen Seen { get; } = new();
 
     /// <summary>Runs a round when one may run (never twice within 60 s; a running round is joined). True when a round ran.</summary>
@@ -384,18 +388,16 @@ internal sealed class FriendScan
             if (err == null && asked > 0 && failed == asked) err = "Cfx.re ist gerade nicht erreichbar.";
         }
         catch (Exception ex) { err = "Suche fehlgeschlagen: " + ex.Message; }
-        finally { lock (_lock) { _running = null; _last = DateTime.UtcNow; _error = err; } }
+        finally { lock (_lock) { _running = null; _last = DateTime.UtcNow; _error = err; _rounds++; } }
     }
 
     /// <summary>The user's own ping to a server with a friend on it (TCP handshake to its public address, like the
-    /// favourites), kept for a minute. Null for private servers whose address Cfx.re does not show.</summary>
+    /// favourites), kept for a minute. Null when Cfx.re shows no public IPv4 address for it (<see cref="PingTarget"/>).</summary>
     public async Task<int?> Ping(string? endpoint)
     {
-        if (endpoint == null) return null;
-        var m = Regex.Match(endpoint, @"^([\d\.]{7,15}):(\d{2,5})$");
-        if (!m.Success) return null;
+        if (PingTarget(endpoint) is not { } t || endpoint == null) return null;
         lock (_lock) if (_ping.TryGetValue(endpoint, out var p) && DateTime.UtcNow - p.at < TimeSpan.FromMinutes(1)) return p.ms;
-        var ms = await Net.TcpPing(m.Groups[1].Value, int.Parse(m.Groups[2].Value), 1500);
+        var ms = await Net.TcpPing(t.host, t.port, 1500);
         lock (_lock) _ping[endpoint] = (DateTime.UtcNow, ms);
         return ms;
     }

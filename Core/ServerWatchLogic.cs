@@ -111,7 +111,8 @@ public static class ServerWatchLogic
     // =====================================================================
     //  names: servers, friends, players
     // =====================================================================
-    private static readonly Regex Colour = new(@"\^\d", RegexOptions.CultureInvariant);
+    // [0-9], not \d: in .NET \d also matches Arabic, Devanagari … digits, and FiveM only knows ^0 to ^9
+    private static readonly Regex Colour = new(@"\^[0-9]", RegexOptions.CultureInvariant);
     private static readonly Regex GtaColour = new(@"~[a-zA-Z]~", RegexOptions.CultureInvariant);
     private static readonly Regex Spaces = new(@"\s+", RegexOptions.CultureInvariant);
 
@@ -166,7 +167,7 @@ public static class ServerWatchLogic
         return k.Length > 0 && names.RemoveAll(n => Key(n) == k) > 0;
     }
 
-    private static readonly Regex Placeholder = new(@"^(?:Player|Anon\d+)$", RegexOptions.CultureInvariant);
+    private static readonly Regex Placeholder = new(@"^(?:Player|Anon[0-9]+)\z", RegexOptions.CultureInvariant);
 
     /// <summary>The stand-in names Cfx.re shows instead of the real ones on most servers ("Player", "Anon0", "Anon1" …).</summary>
     public static bool IsPlaceholder(string? name) => Placeholder.IsMatch(Plain(name));
@@ -218,6 +219,27 @@ public static class ServerWatchLogic
         start = ((start % count) + count) % count;
         var pick = Enumerable.Range(0, per).Select(i => (start + i) % count).ToArray();
         return (pick, (start + per) % count);
+    }
+
+    /// <summary>Where the user's ping to a server with a friend on it is measured: its first connect address, but only
+    /// a plain public IPv4 address with a port ("1.2.3.4:30120"). Null for proxy addresses (most big servers list
+    /// "https://…"), host names, IPv6 and every address that is not public (loopback, private networks, link-local,
+    /// carrier-grade NAT, documentation and multicast ranges): that would not be the server's ping, and a server's list
+    /// entry must never make OrbitTweak knock on devices in the user's own network.</summary>
+    public static (string host, int port)? PingTarget(string? endpoint)
+    {
+        if (endpoint == null) return null;
+        var m = Regex.Match(endpoint, @"^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3}):([0-9]{1,5})\z", RegexOptions.CultureInvariant);
+        if (!m.Success) return null;
+        var b = new int[4];
+        for (int i = 0; i < 4; i++) if ((b[i] = int.Parse(m.Groups[i + 1].Value, CultureInfo.InvariantCulture)) > 255) return null;
+        int port = int.Parse(m.Groups[5].Value, CultureInfo.InvariantCulture);
+        if (port is < 1 or > 65535) return null;
+        bool local = b[0] is 0 or 10 or 127 or >= 224
+            || (b[0] == 100 && b[1] is >= 64 and <= 127) || (b[0] == 169 && b[1] == 254) || (b[0] == 172 && b[1] is >= 16 and <= 31)
+            || (b[0] == 192 && b[1] == 168) || (b[0] == 192 && b[1] == 0 && b[2] is 0 or 2) || (b[0] == 198 && b[1] is 18 or 19)
+            || (b[0] == 198 && b[1] == 51 && b[2] == 100) || (b[0] == 203 && b[1] == 0 && b[2] == 113);
+        return local ? null : ($"{b[0]}.{b[1]}.{b[2]}.{b[3]}", port);
     }
 
     /// <summary>Whether a new friends round may run: never twice within <paramref name="every"/>.</summary>

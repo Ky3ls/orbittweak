@@ -128,19 +128,20 @@ internal static class Notify
         try { w.Close(); } catch { }
     }
 
-    /// <summary>Newest at the bottom, older ones above it, 16 px from the work area's edge (the window has 14 px of room
-    /// for its shadow).</summary>
+    /// <summary>Newest at the bottom, older ones above it with 10 px between the cards, each card 16 px from the work
+    /// area's right and bottom edge (the window has 14 px of transparent room around the card for its shadow).</summary>
     private static void Restack()
     {
+        const double room = 14, edge = 16, gap = 10;
         var wa = SystemParameters.WorkArea;
-        double bottom = wa.Bottom + 2;
+        double bottom = wa.Bottom - edge + room;
         for (int i = Open.Count - 1; i >= 0; i--)
         {
             var x = Open[i];
             if (x.ActualHeight <= 0) continue;
-            x.Left = wa.Right - x.ActualWidth + 2;
+            x.Left = wa.Right - edge + room - x.ActualWidth;
             x.Top = bottom - x.ActualHeight;
-            bottom = x.Top + 22;
+            bottom = x.Top + 2 * room - gap;
         }
     }
 

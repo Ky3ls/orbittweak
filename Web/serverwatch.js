@@ -141,10 +141,12 @@ async function swFriends(force) {
   if (!SW.names.length || SW.frBusy) return;
   if (!force && SW.fr && SW.fr.next && Date.now() < SW.fr.next) return;   // the host never searches more often either
   SW.frBusy = true; swRenderFriends();
-  try { SW.fr = await api('sw.friends'); SW.frErr = ''; }
-  catch (e) { SW.frErr = e.message || 'Fehler'; }
+  try { SW.fr = swFrOk(await api('sw.friends')); SW.frErr = ''; }
+  catch (e) { SW.frErr = e.message || 'Fehler'; if (SW.fr) SW.fr = { ...SW.fr, error: SW.frErr }; }
   finally { SW.frBusy = false; swRenderFriends(); }
 }
+/** The host answers a failed command with { ok: false, error } instead of the view: that is an error, not "no favourites". */
+function swFrOk(r) { if (!r || r.ok === false || !Array.isArray(r.servers)) throw new Error(r?.error || 'Die Suche hat nicht geklappt.'); return r; }
 // only while the Server page is shown (the host looks at most every 60 s, ten servers per round)
 setInterval(() => { if (curPage === 'servers' && !document.hidden) swFriends(false); }, 10000);
 
@@ -160,12 +162,12 @@ function swCoverage(fr) {
   if (fr.ip) parts.push(fr.ip === 1 ? 'IP-Server nicht durchsuchbar' : `${fr.ip} IP-Server nicht durchsuchbar`);
   const named = (fr.servers || []).filter(s => s.listing === 'names').map(s => swPlain(s.name));
   const blind = (fr.servers || []).filter(s => s.listing === 'anon' || s.listing === 'hidden').map(s => swPlain(s.name));
-  const why = c.anon + c.hidden ? `<details class="sw-why"${!c.names ? ' open' : ''}><summary>Warum keine Namen?</summary><p>Cfx.re zeigt bei den meisten Servern statt echter Namen nur „Player“ oder „Anon1“, manche Server verstecken ihre Liste ganz (Stand November 2026: bei 17 von 18 geprüften Servern). Dort kann OrbitTweak niemanden finden, auch wenn deine Freunde gerade spielen.</p>${blind.length ? `<p><b>Ohne Namen:</b> ${esc(blind.join(', '))}</p>` : ''}${named.length ? `<p><b>Mit Namen:</b> ${esc(named.join(', '))}</p>` : ''}</details>` : '';
+  const why = c.anon + c.hidden ? `<details class="sw-why"${!c.names ? ' open' : ''}><summary>Warum keine Namen?</summary><p>Cfx.re zeigt bei den meisten Servern statt echter Namen nur „Player“ oder „Anon1“ (Stand November 2026: bei 17 von 18 geprüften Servern), und eine leere Liste trotz Spielern verrät auch niemanden. Dort kann OrbitTweak niemanden finden, auch wenn deine Freunde gerade spielen.</p>${blind.length ? `<p><b>Ohne Namen:</b> ${esc(blind.join(', '))}</p>` : ''}${named.length ? `<p><b>Mit Namen:</b> ${esc(named.join(', '))}</p>` : ''}</details>` : '';
   return `<p class="sw-cov">${esc(parts.join(' · '))}</p>${why}`;
 }
 function swFriendRow(f) {
   const alias = swPlain(f.player).toLowerCase() !== swPlain(f.friend).toLowerCase() ? ` <small>als ${esc(f.player)}</small>` : '';
-  const ping = f.ping == null ? '' : `<span class="sw-ping ${f.ping < 50 ? 'g' : f.ping < 100 ? 'w' : 'r'}" title="Dein Ping zu diesem Server">${f.ping} ms</span> · `;
+  const ping = f.ping == null ? '' : `<span class="sw-ping${f.ping < 50 ? '' : f.ping < 100 ? ' sw-pw' : ' sw-pr'}" title="Dein Ping zu diesem Server">${f.ping} ms</span> · `;
   return `<div class="sw-f">
     <div class="sw-fa">${esc((swPlain(f.friend)[0] || '?').toUpperCase())}</div>
     <div class="sw-fx"><b>${esc(swPlain(f.friend))}${alias}</b><span title="${esc(swPlain(f.server))}">${ping}${esc(swPlain(f.server))}</span></div>
@@ -177,7 +179,7 @@ function swRenderFriends() {
   const fr = SW.fr, n = SW.names.length;
   const cool = fr && fr.next && Date.now() < fr.next;
   let body;
-  if (!n) body = '<p class="sw-fp">Trag die FiveM-Namen deiner Freunde ein. OrbitTweak sucht sie in den öffentlichen Spielerlisten deiner Favoriten.</p>';
+  if (!n) body = '<p class="sw-fp">Trag die FiveM-Namen deiner Freunde ein. OrbitTweak sucht sie in den öffentlichen Spielerlisten deiner Favoriten. Viele Server zeigen dort aber keine echten Namen, dann findet OrbitTweak niemanden.</p>';
   else if (fr && !fr.total) body = `<p class="sw-fp">Füg zuerst Server mit Join-Code (cfx.re/join/…) zu den Favoriten hinzu: Nur die haben eine öffentliche Spielerliste.${fr.ip ? ' IP-Server lassen sich nicht durchsuchen.' : ''}</p>`;
   else if (!fr && SW.frErr) body = `<p class="sw-ferr">${ico('alert')}<span>${esc(SW.frErr)}</span></p>`;
   else if (!fr || (!fr.at && (SW.frBusy || fr.busy))) body = `<div class="sw-fl"><div class="sw-f sw-skel"><div class="sw-fa"></div><div class="sw-fx"><i></i><i></i></div></div></div><p class="sw-cov">Suche in deinen Favoriten…</p>`;
@@ -275,7 +277,7 @@ EVENT_EXT.swConnect = d => {
 };
 EVENT_EXT.swFriend = d => {
   toast(`${swPlain(d.friend)} ist online`, 'auf ' + swPlain(d.server));
-  if (curPage === 'servers') api('sw.friends').then(r => { SW.fr = r; swRenderFriends(); }).catch(() => { });
+  if (curPage === 'servers') api('sw.friends').then(r => { SW.fr = swFrOk(r); swRenderFriends(); }).catch(() => { });
 };
 { const before = PAGE_SHOW.servers; PAGE_SHOW.servers = () => { before?.(); swLoad().then(() => swFriends(false)); }; }
 

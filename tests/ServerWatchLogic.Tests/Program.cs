@@ -115,6 +115,10 @@ Eq(Plain("Max ^^1 Power"), "Max ^ Power", "a lone caret stays");
 Eq(Plain("^0^1^2^3^4^5^6^7^8^9X"), "X", "all ten codes");
 Eq(Plain(null), "", "null is empty");
 Eq(Plain("Max^"), "Max^", "a caret at the end stays");
+Eq(Plain("^\u0661Max"), "^\u0661Max", "an Arabic-Indic digit after ^ is no colour code (FiveM knows ^0 to ^9 only)");
+Eq(Plain("^\uFF11Max"), "^\uFF11Max", "a full-width digit after ^ is no colour code");
+Eq(ServerName("^\u0967Nova", "x"), "^\u0967Nova", "server name: a Devanagari digit after ^ stays");
+Eq(FileName("^\u0661Nova", "abc123"), "^\u0661Nova", "file name: a non-ASCII digit after ^ stays");
 Eq(Key("^3MAX"), "max", "key is lower case");
 Eq(Key(" Max "), Key("max"), "key ignores outer spaces and case");
 Eq(Key("Jose\u0301"), Key("José"), "key: decomposed accent equals precomposed");
@@ -167,6 +171,9 @@ Check(!IsPlaceholder("player"), "lower-case player is a real name");
 Check(!IsPlaceholder("Anon"), "Anon without a number is a real name");
 Check(!IsPlaceholder("PlayerOne") && !IsPlaceholder("Anonymous"), "names that only start like a stand-in are real");
 Check(!IsPlaceholder("Anon12x"), "Anon with more after the number is real");
+Check(!IsPlaceholder("Anon\u0661"), "Anon with a non-ASCII digit is real");
+Check(IsPlaceholder("Player\n"), "a stand-in with a trailing line break (trimmed) is still one");
+Check(!IsPlaceholder("Player\nMax"), "a line break inside makes it a real name");
 
 string[] Many(string n, int c) => Enumerable.Repeat(n, c).ToArray();
 Eq(Classify(0, Array.Empty<string>()), Listing.Empty, "nobody on: empty");
@@ -222,6 +229,35 @@ Eq(Rotate(12, 10, -1).pick[0], 11, "a negative start wraps");
 var seenAll = new HashSet<int>(); int st = 0;
 for (int r = 0; r < 3; r++) { var (pk, nx) = Rotate(27, ServersPerRound, st); foreach (var i in pk) seenAll.Add(i); st = nx; Check(pk.Length == 10 && pk.Distinct().Count() == 10, $"round {r}: ten different servers"); }
 Eq(seenAll.Count, 27, "three rounds cover 27 favourites");
+
+// the ping target: only a public IPv4 address with a port (connectEndPoints[0], seen live: "147.50.229.236:30120" or
+// "https://gta.bay.life/")
+Eq(PingTarget("147.50.229.236:30120"), ((string, int)?)("147.50.229.236", 30120), "public IPv4 with port (seen live)");
+Eq(PingTarget("220.48.96.137:30320"), ((string, int)?)("220.48.96.137", 30320), "another port (seen live)");
+Eq(PingTarget("https://gta.bay.life/"), ((string, int)?)null, "proxy URL: no ping (seen live)");
+Eq(PingTarget("https://private-placeholder.cfx.re/"), ((string, int)?)null, "private placeholder: no ping (seen live)");
+Eq(PingTarget(null), ((string, int)?)null, "no endpoint");
+Eq(PingTarget(""), ((string, int)?)null, "empty endpoint");
+Eq(PingTarget("1.2.3.4"), ((string, int)?)null, "no port");
+Eq(PingTarget("1.2.3.4:0"), ((string, int)?)null, "port 0 refused");
+Eq(PingTarget("1.2.3.4:65535"), ((string, int)?)("1.2.3.4", 65535), "port 65535 ok");
+Eq(PingTarget("1.2.3.4:65536"), ((string, int)?)null, "port 65536 refused");
+Eq(PingTarget("1.2.3.4:99999"), ((string, int)?)null, "port 99999 refused");
+Eq(PingTarget("256.1.1.1:30120"), ((string, int)?)null, "octet over 255 refused");
+Eq(PingTarget("1.2.3:30120"), ((string, int)?)null, "three octets refused");
+Eq(PingTarget("1.2.3.4.5:30120"), ((string, int)?)null, "five octets refused");
+Eq(PingTarget("001.002.003.004:30120"), ((string, int)?)("1.2.3.4", 30120), "leading zeros are read as decimal");
+Eq(PingTarget("1.2.3.4:30120\n"), ((string, int)?)null, "a trailing line break refused");
+Eq(PingTarget(" 1.2.3.4:30120"), ((string, int)?)null, "a leading space refused");
+Eq(PingTarget("\u0661.2.3.4:30120"), ((string, int)?)null, "a non-ASCII digit refused (int.Parse would throw)");
+Eq(PingTarget("[2001:db8::1]:30120"), ((string, int)?)null, "IPv6 refused");
+Eq(PingTarget("example.com:30120"), ((string, int)?)null, "host names refused");
+foreach (var lan in new[] { "127.0.0.1:1234", "10.0.0.5:30120", "192.168.1.10:30120", "172.16.0.1:30120", "172.31.255.255:30120",
+    "169.254.1.1:30120", "100.64.0.1:30120", "100.127.1.1:30120", "0.0.0.0:30120", "224.0.0.1:30120", "255.255.255.255:30120",
+    "192.0.2.1:30120", "198.51.100.1:30120", "203.0.113.1:30120", "198.18.0.1:30120", "192.0.0.1:30120" })
+    Eq(PingTarget(lan), ((string, int)?)null, $"not public: {lan}");
+foreach (var pub in new[] { "172.15.0.1:30120", "172.32.0.1:30120", "100.63.0.1:30120", "100.128.0.1:30120", "11.0.0.1:30120", "192.169.0.1:30120", "223.255.255.254:30120" })
+    Check(PingTarget(pub) != null, $"public: {pub}");
 
 var tm = new DateTime(2026, 11, 22, 20, 0, 0);
 Check(MayRound(null, tm, FriendEvery), "the first round may run");
