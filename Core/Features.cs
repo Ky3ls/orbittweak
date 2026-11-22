@@ -186,9 +186,18 @@ internal static class Net
 {
     public static readonly HttpClient Http = CreateHttp();
 
+    /// <summary>Asks for gzip/Brotli: a big server's Cfx.re JSON shrinks about 9x, which matters for the polling of
+    /// Platz-Alarm and Freunde online on metered connections. Buffered reads (GetStringAsync, plain GetAsync) are capped
+    /// at 16 MB of decompressed data, so a compression bomb from a server's info.json cannot fill the memory; the
+    /// streaming reads (CfxProbe, server icon) keep their own smaller caps.</summary>
     private static HttpClient CreateHttp()
     {
-        var h = new HttpClient { Timeout = TimeSpan.FromSeconds(6) };
+        var handler = new SocketsHttpHandler
+        {
+            AutomaticDecompression = System.Net.DecompressionMethods.All,
+            PooledConnectionLifetime = TimeSpan.FromMinutes(10),
+        };
+        var h = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(6), MaxResponseContentBufferSize = 16 * 1024 * 1024 };
         h.DefaultRequestHeaders.UserAgent.ParseAdd("OrbitTweak/2.0");
         return h;
     }
