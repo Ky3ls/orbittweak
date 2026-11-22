@@ -1391,6 +1391,7 @@ public partial class MainWindow : Window
         if (cmd.StartsWith("stats.", StringComparison.Ordinal)) return await StatsCmd(cmd, a);
         if (cmd.StartsWith("autostart.", StringComparison.Ordinal)) return await AutostartCmd(cmd, a);
         if (cmd.StartsWith("og.", StringComparison.Ordinal)) return await OgCmd(cmd, a);   // 2.30: MainWindow.OtherGames.cs
+        if (cmd.StartsWith("twg.", StringComparison.Ordinal)) return await TwgCmd(cmd, a);   // 2.31: Tweak-Wächter, MainWindow.TweakGuard.cs
         throw new InvalidOperationException("Unbekannter Befehl: " + cmd);
     }
 
@@ -2029,6 +2030,7 @@ public partial class MainWindow : Window
         });
         if (_tick % 2 == 0 && !_probing) _ = ProbeFiveM();
         if (_tick % 2 == 1) DiscordTick();
+        TwgTick();   // 2.31: Tweak-Wächter (MainWindow.TweakGuard.cs), a look when one is due
     }
 
     private async Task ProbeFiveM()

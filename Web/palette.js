@@ -179,6 +179,7 @@
     add({ id: 'ac:restore', g: 'action', icon: 'shield', title: 'Wiederherstellungspunkt erstellen', sub: 'Windows-Snapshot, zu dem du jederzeit zurückkannst', kw: 'backup sicherung snapshot wiederherstellen', verb: 'Ausführen', run: () => restorePoint() });
     add({ id: 'ac:revert', g: 'action', icon: 'undo', title: 'Alle Tweaks zurücksetzen', sub: 'Alles, was OrbitTweak geändert hat, auf den Wert davor – mit Rückfrage', kw: 'rückgängig zurück standard reset probleme', verb: 'Ausführen', run: () => revertAll() });
     add({ id: 'ac:wizard', g: 'action', icon: 'sparkle', title: 'Setup-Assistent starten', sub: 'OrbitTweak nochmal von vorne einrichten', kw: 'einrichten assistent setup erste schritte', verb: 'Ausführen', run: () => wizard(0) });
+    if (typeof twgPalItem === 'function') add(twgPalItem());   // 2.31 Tweak-Wächter (tweakguard.js)
     const th = themeKey(S.settings.accent);
     for (const [k, [n, a, b]] of Object.entries(THEMES))
       add({ id: 'th:' + k, g: 'action', sw: [a, b], title: `Design „${n}“`, sub: SCENE_SUB[k] || 'Akzentfarbe der App', kw: 'design theme farbe aussehen wechseln akzent', st: k === th ? 'Aktiv' : '', verb: 'Wählen', run: () => setTheme(k) });

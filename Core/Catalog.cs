@@ -781,6 +781,8 @@ internal static class Catalog
     }
 
     private static bool NicOwned() => Reg.Is(OWN, "NicTuned", 1) || Nics().Any(p => Reg.ValueNames(NicBk(p)).Length > 0);
+    /// <summary>The adapter still has one of these power modes (a new driver can drop them all): the Tweak-Wächter's condition.</summary>
+    public static bool NicAny() => NicTargets().Any();
 
     // ---------- accessibility shortcuts ----------
     /// <summary>name, SPI get/set, struct size in DWORDs, "feature on" bit. Sticky, toggle and filter keys count for Check; mouse keys only get their shortcut off.</summary>
