@@ -30,11 +30,11 @@ public partial class MainWindow
                 if (q.Length > 300) q = "";
                 try
                 {
-                    var (gw, wifi, link) = await Task.Run(NetCheck.Route);
+                    var (gw, wifi, link, tunnel) = await Task.Run(NetCheck.Route);
                     if (link.Length == 0) return new { ok = false, error = "Keine Netzwerkverbindung gefunden. Prüf, ob dein PC per WLAN oder Kabel verbunden ist." };
                     var srv = q.Length > 0 ? await NetCheck.Server(q, Str(a, "name"), CancellationToken.None) : null;
                     if (gen != _ncGen) return new { ok = false, error = "Abgebrochen" };
-                    var run = new NetCheckRun(gen, gw, wifi, srv, d => Emit("netcheck", d), r => Log($"📶 Netz-Check: {r.Title}"));
+                    var run = new NetCheckRun(gen, gw, wifi, tunnel, srv, d => Emit("netcheck", d), r => Log($"📶 Netz-Check: {r.Title}"));
                     _nc = run;
                     run.Begin();
                     return new { ok = true, run = run.Id, seconds = NetCheckLogic.Seconds, wifi, link, targets = run.Plan() };

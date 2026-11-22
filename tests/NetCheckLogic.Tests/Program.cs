@@ -163,10 +163,14 @@ var noisy = Keep("router noisy", Run(Gw(Gen(3, 1, new[] { 5, 15, 25, 35, 45, 55,
 Eq(noisy.Kind, "ok", "a router that answers pings unevenly while everything behind it is calm: no problem");
 Check(noisy.Notes.Any(n => n.Contains("Router beantwortet Pings unruhig") && n.Contains("Ping-Spitzen")), "router noise is explained");
 Eq(noisy.Targets[0].Level, "bad", "the router row still shows its own numbers honestly");
+Eq(noisy.Targets[0].Holds, "ok", "but nothing of it holds up to the server (the row's chip follows the verdict)");
+Eq(string.Join(",", home.Targets.Select(t => t.Holds)), "bad,bad,bad", "a WLAN problem holds on every stage");
+Eq(string.Join(",", prov.Targets.Select(t => t.Holds)), "ok,bad,bad", "provider: holds from the internet on");
 
 var netOnly = Keep("anchor only", Run(Gw(Gen(2, seed: 4)), Net(Gen(12, 1, new[] { 5, 25, 45, 65, 85, 105 }, 150, seed: 12)), Srv(Gen(28, seed: 10)), false));
 Eq(netOnly.Kind, "ok", "only 1.1.1.1 wobbles, the server is calm: ok for FiveM");
 Check(netOnly.Notes.Any(n => n.StartsWith("Nur bis 1.1.1.1 gab es")), "anchor note");
+Check(netOnly.Targets[1].Level == "bad" && netOnly.Targets[1].Holds == "ok", "anchor row: bad on its own, holds nothing");
 var netDead = Keep("anchor silent", Run(Gw(Gen(2, seed: 4)), Net(Silent()), Srv(Gen(28, seed: 10)), false));
 Eq(netDead.Kind, "ok", "1.1.1.1 blocked but the server answers: ok");
 Check(netDead.Notes.Any(n => n.Contains("antwortet in deinem Netz nicht auf Ping")), "blocked anchor note");
@@ -208,6 +212,7 @@ Eq(mild.Title, "Dein WLAN schwankt leicht", "mild WLAN title"); Has(mild.Text, "
 var provPlus = Keep("provider + router wobble", Run(Gw(Wob(2, 1)), Net(wNet), Srv(wSrv), true));
 Eq(provPlus.Kind, "provider", "bad from the internet on, a wobble before");
 Check(provPlus.Notes.Any(n => n.StartsWith("Leicht schwankt es schon bis zum Router")), "the smaller home wobble is noted");
+Eq(provPlus.Targets[0].Holds, "warn", "the router's wobble holds up to the server");
 
 var noSrv = Keep("no server", Run(Gw(wGw), Net(wNet), null, true, x => new NcInput { Gw = x.Gw, Net = x.Net, Wifi = x.Wifi, When = x.When, User = x.User, NoServer = true }));
 Eq(noSrv.Kind, "home", "WLAN problem without a server"); Has(noSrv.Text, "bis ins Internet durch", "names the internet as the end");
@@ -216,7 +221,7 @@ var hidden = Keep("hidden", Run(Gw(Gen(2, seed: 4)), Net(Gen(12, seed: 9)), Srv(
 Check(hidden.Notes.Any(n => n.Contains("hält seine Adresse geheim")), "hidden server note"); Eq(hidden.Targets[2].Level, "none", "server row not measured");
 Has(hidden.Text, "bis ins Internet", "hidden: judged up to the internet");
 Check(hidden.Advice.Any(a => a.Contains("ohne Server nicht")) && !hidden.Advice.Any(a => a.StartsWith("Ruckelt FiveM trotzdem, liegt es eher am Server")), "calm without a server: does not blame the server");
-Has(hidden.Report, "nicht gemessen", "report: server not measured");
+Has(hidden.Report, "nicht gemessen", "report: server not measured"); Eq(hidden.Targets[2].Holds, "none", "a server that was not measured holds nothing");
 var skipped = Keep("skipped", Run(Gw(Gen(2, seed: 4)), Net(Gen(12, seed: 9)), Srv(new List<NcSample>(), measured: false), false, x => new NcInput { Gw = x.Gw, Net = x.Net, Srv = x.Srv, Wifi = x.Wifi, When = x.When, User = x.User, SrvSkipped = "Cfx.re kennt diesen Server nicht" }));
 Check(skipped.Notes.Contains("Cfx.re kennt diesen Server nicht, deshalb wurden nur Router und Internet gemessen."), "skip reason note");
 var proxy = Keep("proxy", Run(Gw(Gen(2, seed: 4)), Net(Gen(12, seed: 9)), Srv(Gen(20, seed: 10)), false, x => new NcInput { Gw = x.Gw, Net = x.Net, Srv = x.Srv, Wifi = x.Wifi, When = x.When, User = x.User, SrvProxy = true, SrvProxyHost = "play.example.com" }));
@@ -225,6 +230,42 @@ var far = Keep("far", Run(Gw(Gen(2, seed: 4)), Net(Gen(12, seed: 9)), Srv(Gen(14
 Check(far.Kind == "ok" && far.Notes.Any(n => n.Contains("im Mittel 140 ms") && n.Contains("Entfernung")), "far server: distance note");
 var noGw = Keep("no gateway", Run(Gw(new List<NcSample>(), measured: false), Net(Gen(12, seed: 9)), Srv(Gen(28, seed: 10)), false));
 Check(noGw.Kind == "ok" && noGw.Notes.Any(n => n.StartsWith("Kein Router gefunden")), "no gateway note");
+
+// 1.1.1.1 blocked in this network while the server answers: the anchor says nothing, provider and server cannot be told apart
+var srvBad = Gen(33, 2, wSp, 180, wLost, seed: 3);
+var blind = Keep("anchor blind, server bad", Run(Gw(Gen(2, seed: 4)), Net(Silent()), Srv(srvBad), false));
+Eq(blind.Kind, "server", "anchor blocked, server bad: judged from the server on"); Eq(blind.Start, "srv", "start = the first stage that shows it");
+Eq(blind.Title, "Das Problem fängt hinter deinem Router an", "anchor blocked: behind the router, nothing more");
+Has(blind.Text, "lässt sich nicht trennen, ob es an der Strecke deines Anbieters oder am Server liegt", "says provider and server cannot be told apart");
+Hasnt(blind.Text, "das ist die Strecke deines Internetanbieters", "does not blame the provider");
+Hasnt(blind.Text, "Bis ins Internet ist alles ruhig", "does not claim the internet stage was calm");
+Check(blind.Advice.Any(a => a.Contains("andere Spieler")) && blind.Advice.Any(a => a.Contains("Server-Admins oder deinem Anbieter")), "anchor blocked: advice for both sides");
+Check(!blind.Notes.Any(n => n.Contains("antwortet in deinem Netz nicht auf Ping")), "the text says it, no second note");
+Eq(blind.Targets[1].Level, "silent", "internet row: no answer"); Eq(blind.Targets[1].Holds, "silent", "a blocked anchor holds nothing it could say"); Check(!blind.Targets[1].Start, "the silent anchor is not marked as the start");
+var blindW = Keep("anchor and router blind", Run(Gw(Silent()), Net(Silent()), Srv(srvBad), true));
+Eq(blindW.Kind, "server", "router and anchor blocked, server bad"); Eq(blindW.Title, "Auf dem Weg zum Server hakt es", "nothing before the server answers: no place named");
+Has(blindW.Text, "lässt sich nicht sagen, wo auf dem Weg es anfängt", "router and anchor blocked: where it starts is unknown");
+Check(blindW.Advice.Any(a => a.Contains("mit LAN-Kabel")), "WLAN: a cable test tells the home part apart");
+var blindM = Keep("anchor blind, server wobbles", Run(Gw(Gen(2, seed: 4)), Net(Silent()), Srv(Wob(30, 3)), false));
+Check(blindM.Kind == "server" && blindM.Mild && blindM.Title == "Leichte Schwankungen hinter deinem Router", "anchor blocked, a wobble at the server: mild");
+var blindH = Keep("anchor blind, wifi bad", Run(Gw(wGw), Net(Silent()), Srv(srvBad), true));
+Eq(blindH.Kind, "home", "anchor blocked, WLAN bad up to the server: still the WLAN");
+Check(blindH.Notes.Any(n => n.StartsWith("1.1.1.1 antwortet in deinem Netz nicht auf Ping")), "home verdict: the blocked anchor is a note");
+Eq(Run(Gw(Gen(2, seed: 4)), Net(Silent()), null, false).Title, "Hinter deinem Router kommt nichts an", "anchor silent without a server: nothing gets through");
+
+// a server measured by ping is the last stage: nothing behind it confirms it, so the verdict says so
+Check(srvP.Notes.Any(n => n.StartsWith("Dein Server wurde per Ping gemessen")), "server verdict by ping: caveat note");
+var tcpBad = Keep("server tcp bad", Run(Gw(Gen(2, seed: 4)), Net(Gen(12, seed: 9)), Srv(Gen(35, 1, lost: new[] { 3, 20, 40 }, n: 57, interval: 1000, seed: 6), "tcp", 1000), false, x => new NcInput { Gw = x.Gw, Net = x.Net, Srv = x.Srv, Wifi = x.Wifi, When = x.When, User = x.User, ServerAddr = x.ServerAddr, SrvSwitched = true }));
+Eq(tcpBad.Kind, "server", "port measurements with loss: server");
+Check(!tcpBad.Notes.Any(n => n.StartsWith("Dein Server wurde per Ping gemessen")), "measured by its port: no ping caveat");
+Check(!srvDead.Notes.Any(n => n.StartsWith("Dein Server wurde per Ping gemessen")) && !ok.Notes.Any(n => n.StartsWith("Dein Server wurde per Ping")), "no caveat for a silent server or a calm verdict");
+
+// the way to the internet through another connection (a VPN)
+var vpn = Keep("vpn provider", Run(Gw(Gen(2.5, seed: 4)), Net(wNet), Srv(wSrv), false, x => new NcInput { Gw = x.Gw, Net = x.Net, Srv = x.Srv, Wifi = x.Wifi, When = x.When, User = x.User, ServerAddr = x.ServerAddr, Tunnel = true }));
+Eq(vpn.Kind, "provider", "VPN: the verdict stays the same"); Has(vpn.Text, "die Strecke deines Anbieters und deines VPN.", "VPN: the provider text names the VPN too");
+Check(vpn.Notes.Any(n => n.Contains("zum Beispiel ein VPN") && n.Contains("teste einmal ohne VPN")), "VPN note");
+Check(!prov.Notes.Any(n => n.Contains("VPN")), "no VPN note without a tunnel");
+Check(!Run(Gw(Silent()), Net(Silent()), Srv(Silent()), false, x => new NcInput { Gw = x.Gw, Net = x.Net, Srv = x.Srv, Wifi = x.Wifi, When = x.When, User = x.User, Tunnel = true }).Notes.Any(n => n.Contains("VPN")), "no VPN note without any answer");
 
 // every verdict: honest copy, no placebo, German sentences
 foreach (var (name, r) in all)
@@ -251,6 +292,14 @@ Has(home.Report, "Gemessen: zwei Pings pro Sekunde je Strecke", "report explains
 var named = Run(Gw(Gen(2, seed: 4)), Net(Gen(12, seed: 9)), Srv(Gen(28, seed: 10), name: "Max RP"), false);
 Has(named.Report, "Server <Nutzer> RP", "user name in a server name is replaced");
 Eq(NetCheckLogic.Redact("Maximal MAX max. C:\\Users\\Max\\x", "Max"), "Maximal <Nutzer> <Nutzer>. C:\\Users\\<Nutzer>\\x", "redact: whole words, any case");
+// the fixed wording is never touched: only server names, addresses and host names are the user's to share
+var pcUser = NetCheckLogic.Evaluate(new NcInput { Gw = Gw(wGw), Net = Net(wNet), Srv = Srv(wSrv, name: "PC Arena"), Wifi = true, When = when, User = "PC", ServerAddr = "pc.example.com:30120" });
+Has(pcUser.Report, "Schon zwischen deinem PC und deinem Router", "a user called PC keeps the sentence");
+Has(pcUser.Report, "Server <Nutzer> Arena (<Nutzer>.example.com:30120 · 46.203.182.16)", "but not in the server name and address");
+var proxyUser = NetCheckLogic.Evaluate(new NcInput { Gw = Gw(Gen(2, seed: 4)), Net = Net(Gen(12, seed: 9)), Srv = Srv(Gen(20, seed: 10)), Wifi = false, When = when, User = "kevin", SrvProxy = true, SrvProxyHost = "kevin-rp.example.com" });
+Check(proxyUser.Notes.Any(n => n.Contains("über <Nutzer>-rp.example.com erreichbar")) && !proxyUser.Report.Contains("kevin"), "a host name in a note is redacted too");
+var skipUser = NetCheckLogic.Evaluate(new NcInput { Gw = Gw(Gen(2, seed: 4)), Net = Net(Gen(12, seed: 9)), Srv = Srv(new List<NcSample>(), measured: false), Wifi = false, When = when, User = "kevin", SrvSkipped = "Die Adresse kevin.example.com ließ sich nicht auflösen" });
+Check(!skipUser.Report.Contains("kevin") && skipUser.Notes.Any(n => n.Contains("<Nutzer>.example.com")), "a host name in the skip reason is redacted");
 Eq(NetCheckLogic.Redact("Mr. X", "X"), "Mr. X", "redact: a one-letter user name is left alone");
 Eq(NetCheckLogic.Redact("a (b) c", "(b)"), "a <Nutzer> c", "redact: regex characters are escaped");
 Eq(NetCheckLogic.Redact("Jörg spielt", "jörg"), "<Nutzer> spielt", "redact: umlauts");
@@ -272,6 +321,10 @@ Eq(NetCheckLogic.CleanName("  a \t\n b  "), "a b", "spaces squeezed");
 Eq(NetCheckLogic.CleanName(new string('x', 80)).Length, 60, "long names are cut to 60");
 Check(NetCheckLogic.CleanName(new string('x', 80)).EndsWith('…'), "cut names end with an ellipsis");
 Eq(NetCheckLogic.CleanName(null), "", "no name");
+var emo = NetCheckLogic.CleanName(new string('x', 58) + "🔥🔥 Serious RP");
+Check(!emo.Any(char.IsSurrogate) || emo.Where(char.IsHighSurrogate).Count() == emo.Where(char.IsLowSurrogate).Count(), "a cut never splits an emoji");
+Check(emo.EndsWith('…') && !char.IsHighSurrogate(emo[^2]), "a cut name with an emoji at the cut ends cleanly");
+Eq(NetCheckLogic.CleanName(new string('x', 57) + "🔥🔥 Serious RP"), new string('x', 57) + "🔥…", "an emoji before the cut stays whole");
 Eq(NetCheckLogic.CleanName("a\u0007b"), "ab", "control characters out");
 
 // ---------- German numbers ----------

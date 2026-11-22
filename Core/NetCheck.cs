@@ -28,25 +28,47 @@ internal static class NetCheck
     private static DateTime _cfxQuietUntil;   // after a 429 from Cfx.re: no request before this moment
 
     /// <summary>The router (default gateway) of the connection the PC uses, and whether that is WLAN. link "" = no
-    /// connection at all.</summary>
-    public static (IPAddress? gw, bool? wifi, string link) Route()
+    /// connection at all; tunnel = the way to the internet runs through another connection than the one to the router
+    /// (a VPN). The adapter is the one Windows really sends 1.1.1.1's packets through (with cable and WLAN both
+    /// connected that is usually the cable), found by asking Windows for the route; when that adapter is no LAN or WLAN
+    /// card with a router (a VPN, a PPPoE dial-up on the PC), the router comes from the existing rule (NetLink).</summary>
+    public static (IPAddress? gw, bool? wifi, string link, bool tunnel) Route()
     {
-        var nic = NetLink.DefaultRoute();
-        if (nic == null) return (null, null, "");
-        List<IPAddress> gws;
+        NetworkInterface? via = null;
         try
         {
-            gws = nic.GetIPProperties().GatewayAddresses.Select(g => g.Address)
-                .Where(a => a != null && !a.Equals(IPAddress.Any) && !a.Equals(IPAddress.IPv6Any)).ToList();
+            // connect() on a UDP socket sends nothing: Windows only picks the route and the local address for it
+            using var u = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            u.Connect(new IPEndPoint(IPAddress.Parse(NetCheckLogic.Anchor), 53));
+            if (u.LocalEndPoint is IPEndPoint lep && !lep.Address.Equals(IPAddress.Any))
+                via = NetworkInterface.GetAllNetworkInterfaces().FirstOrDefault(n => n.OperationalStatus == OperationalStatus.Up
+                    && n.GetIPProperties().UnicastAddresses.Any(a => a.Address.Equals(lep.Address)));
         }
-        catch { gws = new(); }
-        var gw = gws.FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork) ?? gws.FirstOrDefault();
+        catch { }   // no route to the internet (or no IPv4): the existing rule decides
+        var nic = via != null && Card(via) && Gateway(via) != null ? via : NetLink.DefaultRoute();
+        bool tunnel = via != null && nic != null && !Card(via) && via.Id != nic.Id;
+        if (nic == null) return (null, null, via != null ? "Netzwerk" : "", false);   // a way out, but no router (PPPoE on the PC)
+        var gw = Gateway(nic);
         return nic.NetworkInterfaceType switch
         {
-            NetworkInterfaceType.Wireless80211 => (gw, true, "WLAN"),
-            NetworkInterfaceType.Ethernet or NetworkInterfaceType.GigabitEthernet or NetworkInterfaceType.FastEthernetT or NetworkInterfaceType.FastEthernetFx => (gw, false, "Kabel"),
-            _ => (gw, null, "Netzwerk"),
+            NetworkInterfaceType.Wireless80211 => (gw, true, "WLAN", tunnel),
+            NetworkInterfaceType.Ethernet or NetworkInterfaceType.GigabitEthernet or NetworkInterfaceType.FastEthernetT or NetworkInterfaceType.FastEthernetFx => (gw, false, "Kabel", tunnel),
+            _ => (gw, null, "Netzwerk", tunnel),
         };
+    }
+
+    private static bool Card(NetworkInterface n) => n.NetworkInterfaceType is NetworkInterfaceType.Wireless80211 or NetworkInterfaceType.Ethernet
+        or NetworkInterfaceType.GigabitEthernet or NetworkInterfaceType.FastEthernetT or NetworkInterfaceType.FastEthernetFx;
+
+    private static IPAddress? Gateway(NetworkInterface n)
+    {
+        try
+        {
+            var gws = n.GetIPProperties().GatewayAddresses.Select(g => g.Address)
+                .Where(a => a != null && !a.Equals(IPAddress.Any) && !a.Equals(IPAddress.IPv6Any)).ToList();
+            return gws.FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork) ?? gws.FirstOrDefault();
+        }
+        catch { return null; }
     }
 
     /// <summary>Looks up where a server is. Never throws: a server that cannot be measured comes back with Skipped
@@ -156,7 +178,7 @@ internal static class NetCheck
             return Math.Round(sw.Elapsed.TotalMilliseconds, 1);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested) { return null; }   // the timeout
-        catch (SocketException) { return null; }
+        catch (Exception ex) when (ex is not OperationCanceledException) { return null; }        // refused, unreachable: no answer
         finally { try { if (s.Connected) s.Shutdown(SocketShutdown.Both); } catch { } }
     }
 }
@@ -174,21 +196,22 @@ internal sealed class NetCheckRun
         public readonly List<NcSample> Samples = new(), Fresh = new();
         public bool Measured => Ip != null;
         public NcTarget Target() { lock (this) return new() { Id = Id, Label = Label, Name = Name, Host = Host, Mode = Mode, Port = Port, IntervalMs = IntervalMs, Measured = Measured, Samples = Samples.OrderBy(s => s.At).ToList() }; }
-        public NcStats Stats() { lock (this) return NetCheckLogic.Stats(Samples, IntervalMs); }
+        // (in the order they were sent: a late answer comes in after the next one, and jitter compares neighbours)
+        public NcStats Stats() { lock (this) return NetCheckLogic.Stats(Samples.OrderBy(s => s.At).ToList(), IntervalMs); }
         public int Answered() { lock (this) return Samples.Count(s => s.Ms != null); }
     }
 
     public int Id { get; }
     private readonly Probe _gw, _net; private readonly Probe? _srv;
-    private readonly bool? _wifi; private readonly NcServer? _server; private readonly bool _noServer;
+    private readonly bool? _wifi; private readonly bool _tunnel; private readonly NcServer? _server; private readonly bool _noServer;
     private readonly Action<object> _emit; private readonly Action<NcResult> _done;
     private readonly CancellationTokenSource _cts = new();
     private readonly Stopwatch _clock = new();
     private volatile bool _switched;
 
-    public NetCheckRun(int id, IPAddress? gw, bool? wifi, NcServer? server, Action<object> emit, Action<NcResult> done)
+    public NetCheckRun(int id, IPAddress? gw, bool? wifi, bool tunnel, NcServer? server, Action<object> emit, Action<NcResult> done)
     {
-        Id = id; _wifi = wifi; _server = server; _noServer = server == null; _emit = emit; _done = done;
+        Id = id; _wifi = wifi; _tunnel = tunnel; _server = server; _noServer = server == null; _emit = emit; _done = done;
         _gw = new Probe { Id = "gw", Label = "Router", Name = "Router", Ip = gw, Host = gw?.ToString() ?? "", Note = gw == null ? "Kein Router gefunden" : "" };
         _net = new Probe { Id = "net", Label = "Internet", Name = "Internet", Ip = IPAddress.Parse(NetCheckLogic.Anchor), Host = NetCheckLogic.Anchor };
         if (server != null)
@@ -225,7 +248,7 @@ internal sealed class NetCheckRun
             ct.ThrowIfCancellationRequested();
             var r = NetCheckLogic.Evaluate(new NcInput
             {
-                Gw = _gw.Target(), Net = _net.Target(), Srv = _srv?.Target(), Wifi = _wifi, SrvSwitched = _switched,
+                Gw = _gw.Target(), Net = _net.Target(), Srv = _srv?.Target(), Wifi = _wifi, Tunnel = _tunnel, SrvSwitched = _switched,
                 SrvProxy = _server?.Proxy == true, SrvProxyHost = _server?.ProxyHost ?? "", SrvHidden = _server?.Hidden == true,
                 SrvSkipped = _server?.Skipped ?? "", NoServer = _noServer, ServerAddr = _server?.Addr ?? "",
                 When = DateTime.Now, User = Environment.UserName,
@@ -238,6 +261,7 @@ internal sealed class NetCheckRun
         catch (Exception ex)
         {
             if (!ct.IsCancellationRequested) _emit(new { run = Id, phase = "error", error = "Der Netz-Check wurde unterbrochen: " + ex.Message });
+            _cts.Cancel();   // the page shows the error: the stages stop measuring too
         }
         // (the token source is not disposed: measurements that are still under way may still look at their token)
     }

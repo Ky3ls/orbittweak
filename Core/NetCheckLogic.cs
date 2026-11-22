@@ -45,13 +45,16 @@ public sealed class NcInput
     public bool SrvHidden { get; init; }
     public string SrvSkipped { get; init; } = ""; // why a chosen server could not be measured (German, ends without a dot)
     public bool NoServer { get; init; }          // measured without a server on purpose
+    public bool Tunnel { get; init; }            // the way to the internet is another connection than the one to the router (a VPN)
     public string ServerAddr { get; init; } = ""; // how the user knows it: cfx.re/join/… or IP:Port
     public DateTime When { get; init; }
     public string User { get; init; } = "";      // the Windows user name: never in the copied text
 }
 
+/// <summary>One stage in the result. Level = its own numbers; Holds = how much of that stays visible on every stage after
+/// it (what the verdict counts: a router that answers pings unevenly while the rest is calm has Level bad, Holds ok).</summary>
 public sealed record NcTargetResult(string Id, string Label, string Name, string Host, string Mode, int Port, bool Measured,
-    string Level, string Why, bool Start, NcStats Stats, List<double?[]> Trace);
+    string Level, string Why, bool Start, string Holds, NcStats Stats, List<double?[]> Trace);
 
 public sealed record NcResult(string Kind, bool Mild, string Start, string Title, string Text, List<string> Advice, List<string> Notes,
     bool? Wifi, double Seconds, List<NcTargetResult> Targets, string Report);
@@ -189,7 +192,10 @@ public static class NetCheckLogic
         // (a server measured by its port started a few seconds later: its own minute is shorter, the run is not)
         double seconds = Math.Round(Math.Min(Seconds, Math.Max(gw.s.Seconds, Math.Max(net.s.Seconds, hasSrv ? srv.s.Seconds : 0))), 1);
 
-        int? gL = Rank("gw", gw.level), nL = Rank("net", net.level), sL = hasSrv ? Rank("srv", srv.level) : null;
+        // 1.1.1.1 does not answer pings in this network while the server does: like a router that ignores pings, it then
+        // says nothing about where a problem starts (and it is not "nothing gets through behind the router")
+        bool netBlind = net.level == "silent" && hasSrv && srv.s.Answered > 0;
+        int? gL = Rank("gw", gw.level), nL = netBlind ? null : Rank("net", net.level), sL = hasSrv ? Rank("srv", srv.level) : null;
         // a problem counts where it starts and on every stage after it
         int? home = gL is int g ? Min(g, nL, sL) : null;
         int? prov = nL is int n ? Min(n, sL) : null;
@@ -255,7 +261,7 @@ public static class NetCheckLogic
                 title = mild ? "Leichte Schwankungen hinter deinem Router" : gwKnown ? "Das Problem fängt hinter deinem Router an" : "Das Problem liegt bei deinem Anschluss";
                 var nw = net.level == "silent" ? srv.why : net.why;
                 text = gwKnown
-                    ? $"Bis zu deinem Router ist alles ruhig, erst dahinter gab es {nw}: das ist die Strecke deines Internetanbieters." + (mild ? " Noch kein großes Problem." : "")
+                    ? $"Bis zu deinem Router ist alles ruhig, erst dahinter gab es {nw}: das ist die Strecke deines " + (x.Tunnel ? "Anbieters und deines VPN." : "Internetanbieters.") + (mild ? " Noch kein großes Problem." : "")
                     : $"Dein Router antwortet nicht auf Ping, deshalb lässt sich nicht trennen, ob es schon in deinem Heimnetz anfängt. Ab dem Internet gab es {nw}.";
                 if (!gwKnown && wifi) advice.Add("Du bist per WLAN verbunden: teste einmal mit LAN-Kabel. Bleibt es dann gleich, liegt es nicht am WLAN.");
                 advice.Add("Läuft gerade ein großer Download, Upload oder Stream, auch auf einem anderen Gerät bei dir? Der füllt die Leitung, und der Ping steigt.");
@@ -269,6 +275,21 @@ public static class NetCheckLogic
                     text = $"Router und Internet antworten, dein Server aber weder auf Ping noch auf einen Verbindungsaufbau zu Port {srvT!.Port}. Er ist offline, überlastet oder blockt solche Anfragen.";
                     advice.Add("Schau im Discord des Servers, ob er gerade neu startet oder gewartet wird.");
                     advice.Add("Auf deinem PC kannst du daran nichts ändern.");
+                    break;
+                }
+                if (netBlind)
+                {
+                    // the anchor between router and server is unknown: provider and server cannot be told apart
+                    title = gwKnown ? (mild ? "Leichte Schwankungen hinter deinem Router" : "Das Problem fängt hinter deinem Router an")
+                        : mild ? "Leichte Schwankungen auf dem Weg zum Server" : "Auf dem Weg zum Server hakt es";
+                    text = gwKnown
+                        ? $"Bis zu deinem Router ist alles ruhig, erst dahinter gab es {srv.why}. Weil {Anchor} in deinem Netz nicht auf Ping antwortet, lässt sich nicht trennen, ob es an der Strecke deines Anbieters oder am Server liegt."
+                        : $"Auf dem Weg zum Server gab es {srv.why}. Weil weder dein Router noch {Anchor} auf Ping antworten, lässt sich nicht sagen, wo auf dem Weg es anfängt.";
+                    if (mild) text += " Das ist noch kein großes Problem.";
+                    if (!gwKnown && wifi) advice.Add("Du bist per WLAN verbunden: teste einmal mit LAN-Kabel. Bleibt es dann gleich, liegt es nicht am WLAN.");
+                    advice.Add("Laggen andere Spieler auf dem Server auch, liegt es am Server. Hast nur du den Lag, liegt es eher an der Strecke deines Anbieters.");
+                    advice.Add("Teste zu einer anderen Uhrzeit noch einmal: abends ist die Leitung bei vielen Anbietern voller.");
+                    advice.Add("Schick dieses Ergebnis den Server-Admins oder deinem Anbieter (Ergebnis kopieren).");
                     break;
                 }
                 title = mild ? "Leichte Schwankungen auf dem Weg zum Server" : "Das Problem liegt beim Server oder auf dem Weg dorthin";
@@ -289,10 +310,14 @@ public static class NetCheckLogic
         // ---- notes: how it was measured first, then what the numbers do not say on their own
         var notes = new List<string>();
         if (hasSrv && x.SrvSwitched) notes.Add($"Dein Server antwortet nicht auf Ping. Gemessen wurde deshalb der Verbindungsaufbau zu Port {srvT!.Port}, einmal pro Sekunde.");
-        if (hasSrv && x.SrvProxy && !x.SrvHidden) notes.Add($"Der Server ist über {x.SrvProxyHost} erreichbar (ein Proxy oder Schutzdienst davor): gemessen wurde der Weg bis dorthin.");
+        // (server names and addresses are the only text here that does not come from this file: the Windows user name is
+        // taken out of them, so a note can be copied as it is)
+        if (hasSrv && x.SrvProxy && !x.SrvHidden) notes.Add($"Der Server ist über {Redact(x.SrvProxyHost, x.User)} erreichbar (ein Proxy oder Schutzdienst davor): gemessen wurde der Weg bis dorthin.");
         if (x.SrvHidden) notes.Add("Der Server hält seine Adresse geheim, deshalb wurden nur Router und Internet gemessen.");
-        else if (!hasSrv && x.SrvSkipped.Length > 0) notes.Add(x.SrvSkipped + ", deshalb wurden nur Router und Internet gemessen.");
+        else if (!hasSrv && x.SrvSkipped.Length > 0) notes.Add(Redact(x.SrvSkipped, x.User) + ", deshalb wurden nur Router und Internet gemessen.");
         else if (!hasSrv && x.NoServer) notes.Add("Ohne Server gemessen: der Test zeigt nur Router und Internet.");
+        if (x.Tunnel && kind is not ("short" or "none"))
+            notes.Add("Dein Verkehr ins Internet läuft über eine zweite Verbindung, zum Beispiel ein VPN. Ab „Internet“ ist ihr Weg mit drin: fängt es dort an, teste einmal ohne VPN.");
         if (!x.Gw.Measured) notes.Add("Kein Router gefunden: deine Verbindung hat kein Standard-Gateway.");
         else if (gw.level == "silent" && kind != "none") notes.Add("Dein Router antwortet nicht auf Ping. Das machen manche Router so, es ist kein Fehler.");
         if (kind is not ("short" or "none"))
@@ -300,16 +325,22 @@ public static class NetCheckLogic
             if (gL >= 1 && home < gL)
                 notes.Add($"Dein Router beantwortet Pings unruhig ({gw.why}), die Strecke dahinter ist aber ruhiger. Router beantworten Pings nur nebenbei, das allein ist kein Problem.");
             if (hasSrv && nL >= 1 && prov < nL)
-                notes.Add(netSilent ? $"{Anchor} antwortet in deinem Netz nicht auf Ping, dein Server schon: für FiveM zählt der Weg zum Server."
-                    : $"Nur bis {Anchor} gab es {net.why}, zum Server nicht: für FiveM zählt der Weg zum Server.");
+                notes.Add($"Nur bis {Anchor} gab es {net.why}, zum Server nicht: für FiveM zählt der Weg zum Server.");
+            if (netBlind && kind != "server")
+                notes.Add($"{Anchor} antwortet in deinem Netz nicht auf Ping, dein Server schon: für FiveM zählt der Weg zum Server.");
+            // the last stage has nothing behind it that could confirm it: a server (or the protection in front of it) may
+            // answer pings only on the side, like a router
+            if (kind == "server" && !srvSilent && srvT!.Mode == "icmp")
+                notes.Add("Dein Server wurde per Ping gemessen. Manche Server und ihre Schutzdienste beantworten Pings nur nebenbei: merkst du im Spiel nichts davon, sagt das allein wenig.");
             if (kind != "home" && home == 1 && worst == 2) notes.Add($"Leicht schwankt es schon bis zum Router ({gw.why}).");
             if (hasSrv && !srvSilent && srv.s.Median is double sm && sm >= 100 && kind != "server")
                 notes.Add($"Zum Server sind es im Mittel {Ms(sm)}: das ist vor allem Entfernung, kein Fehler.");
             if (kind == "ok" && wifi) notes.Add("Du bist per WLAN verbunden, im Test war es ruhig. Schwankt es zu anderen Zeiten, bleibt ein LAN-Kabel die stabilste Lösung.");
         }
 
-        var targets = new List<NcTargetResult> { Result(x.Gw, gw, start == "gw"), Result(x.Net, net, start == "net") };
-        if (x.Srv != null) targets.Add(Result(x.Srv, hasSrv ? srv : (Stats(Array.Empty<NcSample>()), "none", ""), start == "srv"));
+        static string Holds(int? rank, string own) => rank switch { 0 => "ok", 1 => "warn", 2 => "bad", _ => own };
+        var targets = new List<NcTargetResult> { Result(x.Gw, gw, start == "gw", Holds(home, gw.level)), Result(x.Net, net, start == "net", Holds(prov, net.level)) };
+        if (x.Srv != null) targets.Add(hasSrv ? Result(x.Srv, srv, start == "srv", Holds(serv, srv.level)) : Result(x.Srv, (Stats(Array.Empty<NcSample>()), "none", ""), false, "none"));
         var res = new NcResult(kind, mild, start, title, text, advice, notes, x.Wifi, seconds, targets, "");
         return res with { Report = Report(res, x) };
     }
@@ -327,16 +358,18 @@ public static class NetCheckLogic
         return a;
     }
 
-    private static NcTargetResult Result(NcTarget t, (NcStats s, string level, string why) j, bool start)
-        => new(t.Id, t.Label, t.Name, t.Host, t.Mode, t.Port, t.Measured, j.level, j.why, start, j.s,
+    private static NcTargetResult Result(NcTarget t, (NcStats s, string level, string why) j, bool start, string holds)
+        => new(t.Id, t.Label, t.Name, t.Host, t.Mode, t.Port, t.Measured, j.level, j.why, start, holds, j.s,
             t.Samples.Select(s => new double?[] { Math.Round(s.At, 2), s.Ms is double v ? Math.Round(v, 1) : null }).ToList());
 
     // ---------------------------------------------------------------- the copied text ----------------------------------------------------------------
 
-    /// <summary>The result as plain text for the provider, the server admins or a support channel. Holds no user name
-    /// (it is replaced, also inside a server name) and no path.</summary>
+    /// <summary>The result as plain text for the provider, the server admins or a support channel. Holds no user name and
+    /// no path: the Windows user name is taken out of everything that does not come from this file (server name, address,
+    /// the notes' host names). The fixed wording itself is left alone, so a user called "PC" keeps "deinem PC".</summary>
     public static string Report(NcResult r, NcInput x)
     {
+        string R(string s) => Redact(s, x.User);
         var b = new StringBuilder();
         string link = r.Wifi == true ? "WLAN" : r.Wifi == false ? "Kabel" : "unbekannt";
         b.Append("OrbitTweak Netz-Check · ").Append(x.When.ToString("dd.MM.yyyy, HH:mm", CultureInfo.InvariantCulture)).Append(" Uhr · ")
@@ -346,8 +379,8 @@ public static class NetCheckLogic
         {
             string head = t.Id switch
             {
-                "srv" => "Server" + (t.Name.Length > 0 && t.Name != "Server" ? " " + t.Name : "") + (x.ServerAddr.Length > 0 ? $" ({x.ServerAddr}" + (t.Host.Length > 0 && t.Host != x.ServerAddr ? $" · {t.Host}" : "") + ")" : t.Host.Length > 0 ? $" ({t.Host})" : ""),
-                _ => t.Label + (t.Host.Length > 0 ? $" ({t.Host})" : ""),
+                "srv" => "Server" + (t.Name.Length > 0 && t.Name != "Server" ? " " + R(t.Name) : "") + (x.ServerAddr.Length > 0 ? $" ({R(x.ServerAddr)}" + (t.Host.Length > 0 && t.Host != x.ServerAddr ? $" · {R(t.Host)}" : "") + ")" : t.Host.Length > 0 ? $" ({R(t.Host)})" : ""),
+                _ => t.Label + (t.Host.Length > 0 ? $" ({R(t.Host)})" : ""),
             };
             b.Append(head).Append(": ");
             if (!t.Measured || t.Level == "none") { b.Append("nicht gemessen\n"); continue; }
@@ -362,7 +395,7 @@ public static class NetCheckLogic
         if (r.Notes.Count > 0) { b.Append('\n'); foreach (var n in r.Notes) b.Append("Hinweis: ").Append(n).Append('\n'); }
         b.Append("\nGemessen: zwei Pings pro Sekunde je Strecke (Server ohne Ping-Antwort: ein Verbindungsaufbau pro Sekunde), Zeitlimit ")
          .Append(TimeoutMs).Append(" ms. Jitter = mittlerer Unterschied aufeinanderfolgender Pings, Spitze = mehr als doppelter Median und mindestens 30 ms darüber.");
-        return Redact(b.ToString(), x.User);
+        return b.ToString();
     }
 
     /// <summary>The Windows user name out of a text that is shared (as a whole word, any case).</summary>
@@ -418,7 +451,9 @@ public static class NetCheckLogic
         var s = Regex.Replace(name ?? "", @"\^\d", "");
         s = Regex.Replace(s, @"[\u0000-\u001F\u007F]", "");
         s = Regex.Replace(s, @"\s+", " ").Trim();
-        return s.Length > 60 ? s[..59].TrimEnd() + "…" : s;
+        if (s.Length <= 60) return s;
+        int cut = char.IsHighSurrogate(s[58]) ? 58 : 59;   // never half an emoji (server names are full of them)
+        return s[..cut].TrimEnd() + "…";
     }
 
     // ---------------------------------------------------------------- German numbers ----------------------------------------------------------------
