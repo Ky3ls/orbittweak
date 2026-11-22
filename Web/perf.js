@@ -187,7 +187,9 @@ function pwLiveFill() {
     // long and short words: the short ones where the meters get narrow (perf.css)
     if (!el.firstChild) el.innerHTML = `<div class="pw-mh"><span class="pw-mk" title="${name[0]}">${ico(icon)}<span class="pw-lw">${name[0]}</span><span class="pw-sw2">${name[1]}</span></span><b class="pw-mv"></b></div><span class="pw-mb"><i></i></span><span class="pw-mn"></span>`;
     el.classList.toggle('hot', isHot); el.classList.toggle('warn', warn); el.classList.toggle('dim', paused || warm);
-    el.querySelector('.pw-mv').textContent = val;
+    // the unit small and muted next to the number, like everywhere else in the app; only written when it changed
+    const mv = el.querySelector('.pw-mv');
+    if (mv.dataset.v !== val) { mv.dataset.v = val; mv.innerHTML = esc(val).replace(/\s(%|GB)$/, '<small>$1</small>'); }
     el.querySelector('.pw-mb i').style.transform = `scaleX(${Math.max(0, Math.min(1, pct / 100)).toFixed(3)})`;
     const [lw, sw] = Array.isArray(sub) ? sub : [sub, sub];
     el.querySelector('.pw-mn').innerHTML = lw === sw ? esc(lw) : `<span class="pw-lw">${esc(lw)}</span><span class="pw-sw2">${esc(sw)}</span>`;

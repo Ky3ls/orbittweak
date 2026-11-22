@@ -28,6 +28,8 @@
 #p-mods .vtabs .tab{flex:1 1 auto;padding:0 14px}
 :is(#p-gfx,#p-display,#p-mods) .vtabs .tab>svg.i{grid-row:auto;flex:none}
 :is(#p-gfx,#p-display,#p-mods) .vtabs .vt-s{grid-column:auto;margin-left:auto;padding-left:8px;font-size:12px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* four tabs share about 790 px below 1180 px: their short notes would be cut to "Insta…", so only icon and name stay, centred */
+@media (max-width:1180px){#p-mods #modTabs .vt-s{display:none}#p-mods #modTabs .tab{justify-content:center}}
 
 /* the server-rules note: one calm line in warm light, not a yellow box */
 :is(#p-xhair,#p-mods) .xwarn{align-items:center;gap:14px;margin:0 0 24px;padding:12px 18px 12px 12px;border:0;border-radius:16px;font-size:13px;line-height:1.5;color:var(--sub);

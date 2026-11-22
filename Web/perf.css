@@ -53,6 +53,7 @@
 #p-stats .pw-mk{display:inline-flex;align-items:center;gap:7px;min-width:0;font-size:12.5px;font-weight:500;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #p-stats .pw-mk svg.i{flex:none;width:14px;height:14px;color:var(--mute)}
 #p-stats .pw-mv{flex:none;font-family:var(--disp);font-size:21px;font-weight:350;letter-spacing:-.03em;color:var(--text);white-space:nowrap;font-variant-numeric:tabular-nums}
+#p-stats .pw-mv small{font-size:13px;font-weight:400;letter-spacing:0;color:var(--mute);margin-left:3px}
 #p-stats .pw-mb{display:block;height:4px;margin-top:12px;border-radius:3px;background:rgba(255,255,255,.06);overflow:hidden}
 #p-stats .pw-mb i{display:block;height:100%;border-radius:3px;background:rgba(255,255,255,.28);transform-origin:left;transform:scaleX(0);transition:transform .6s var(--ease),background .3s}
 #p-stats .pw-mn{display:block;margin-top:8px;font-size:11.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
@@ -131,6 +132,7 @@ html.th-anime #p-stats .pw-t{font-family:var(--head);font-weight:800;letter-spac
   #p-stats .pw-live{gap:20px}
   #p-stats .pw-m{padding:13px 14px 12px}
   #p-stats .pw-mv{font-size:19px}
+  #p-stats .pw-mv small{font-size:12px}
   #p-stats .pw-m .pw-lw{display:none}
   #p-stats .pw-m .pw-sw2{display:inline}
   #p-stats .pw-v{padding-right:22px}
