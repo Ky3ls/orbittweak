@@ -1391,6 +1391,7 @@ public partial class MainWindow : Window
         if (cmd.StartsWith("stats.", StringComparison.Ordinal)) return await StatsCmd(cmd, a);
         if (cmd.StartsWith("autostart.", StringComparison.Ordinal)) return await AutostartCmd(cmd, a);
         if (cmd.StartsWith("og.", StringComparison.Ordinal)) return await OgCmd(cmd, a);   // 2.30: MainWindow.OtherGames.cs
+        if (cmd.StartsWith("bk.", StringComparison.Ordinal)) return await CfgBackupCmd(cmd, a);   // 2.31: MainWindow.CfgBackup.cs
         throw new InvalidOperationException("Unbekannter Befehl: " + cmd);
     }
 
@@ -2132,6 +2133,7 @@ public partial class MainWindow : Window
             });
             _dcFm = fmOpen; _dcGamePid = gamePid; _dcGameStart = gameStart; _dcProbed = true;
             StatsTick(gamePid, gameStart);   // play time: a round starts and ends with the game process
+            CfgBackupTick(fmOpen);   // 2.31: the automatic settings backup when FiveM starts
         }
         finally { _probing = false; }
     }
