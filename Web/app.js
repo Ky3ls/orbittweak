@@ -3837,7 +3837,7 @@ setInterval(() => {
     document.documentElement.style.setProperty('--dir', to >= from ? 1 : -1);
     const r = go2.apply(this, arguments);
     side.querySelectorAll('.nav-h.cl').forEach(h => groupOf(h).forEach(n => n.classList.toggle('gone', !n.classList.contains('active'))));
-    setTimeout(moveInd, 370);
+    setTimeout(() => { moveInd(); navReveal(); }, 370);   // a row in a folded group only gets its height now
     return r;
   }; window.go = go;
 }
