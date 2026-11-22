@@ -1398,6 +1398,7 @@ public partial class MainWindow : Window
         if (cmd.StartsWith("hw.", StringComparison.Ordinal)) return await HwCmd(cmd, a);   // 2.31: MainWindow.HwCheck.cs
         if (cmd.StartsWith("netcheck.", StringComparison.Ordinal)) return await NetCheckCmd(cmd, a);   // 2.31: MainWindow.NetCheck.cs
         if (cmd.StartsWith("bk.", StringComparison.Ordinal)) return await CfgBackupCmd(cmd, a);   // 2.31: MainWindow.CfgBackup.cs
+        if (cmd.StartsWith("twg.", StringComparison.Ordinal)) return await TwgCmd(cmd, a);   // 2.31: Tweak-Wächter, MainWindow.TweakGuard.cs
         throw new InvalidOperationException("Unbekannter Befehl: " + cmd);
     }
 
@@ -2036,6 +2037,7 @@ public partial class MainWindow : Window
         });
         if (_tick % 2 == 0 && !_probing) _ = ProbeFiveM();
         if (_tick % 2 == 1) DiscordTick();
+        TwgTick();   // 2.31: Tweak-Wächter (MainWindow.TweakGuard.cs), a look when one is due
     }
 
     private async Task ProbeFiveM()
