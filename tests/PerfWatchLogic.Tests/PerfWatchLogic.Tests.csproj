@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Checks of the pure logic of the Engpass-Analyse (classifying a look, counter instances, round totals, the verdict,
+       perf.json) that run anywhere, also on Linux. How to run them: see Program.cs -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>OrbitTweak.Tests</RootNamespace>
+    <RollForward>Major</RollForward>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Core/PerfWatchLogic.cs" Link="Core/PerfWatchLogic.cs" />
+  </ItemGroup>
+</Project>

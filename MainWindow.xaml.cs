@@ -1393,6 +1393,7 @@ public partial class MainWindow : Window
         if (cmd.StartsWith("autostart.", StringComparison.Ordinal)) return await AutostartCmd(cmd, a);
         if (cmd.StartsWith("og.", StringComparison.Ordinal)) return await OgCmd(cmd, a);   // 2.30: MainWindow.OtherGames.cs
         if (cmd.StartsWith("sw.", StringComparison.Ordinal)) return await SwCmd(cmd, a);   // 2.31: MainWindow.ServerWatch.cs
+        if (cmd.StartsWith("perf.", StringComparison.Ordinal)) return await PerfCmd(cmd, a);   // 2.31: MainWindow.PerfWatch.cs
         throw new InvalidOperationException("Unbekannter Befehl: " + cmd);
     }
 
@@ -2134,6 +2135,7 @@ public partial class MainWindow : Window
             });
             _dcFm = fmOpen; _dcGamePid = gamePid; _dcGameStart = gameStart; _dcProbed = true;
             StatsTick(gamePid, gameStart);   // play time: a round starts and ends with the game process
+            PerfTick(gamePid);   // 2.31 Engpass-Analyse: what holds the frame rate (MainWindow.PerfWatch.cs)
         }
         finally { _probing = false; }
     }

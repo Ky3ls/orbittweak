@@ -124,6 +124,7 @@
     ['sw:alarm', () => swOpen('alarm'), 'Platz-Alarm', 'sw-bell', 'Server › Bescheid, sobald ein Platz frei ist', 'voll server platz frei slot warteschlange queue alarm benachrichtigung wieder online offline'],
     ['sw:friends', () => swOpen('friends'), 'Freunde online', 'users', 'Server › Freunde in deinen Favoriten finden', 'freunde kumpel spieler online wo spielt name finden mitspieler'],
     ['sw:desk', () => swOpen('desk'), 'Server auf den Desktop', 'sw-desk', 'Server › Verknüpfung, die mit einem Klick verbindet', 'verknüpfung desktop shortcut icon schnellstart lnk direkt verbinden'],
+    ['pw:perf', () => pwOpen(), 'Engpass-Analyse', 'pw-neck', 'Spielzeit › Was deine FPS begrenzt', 'engpass bottleneck limit gpu cpu grafikkarte prozessor auslastung vram grafikspeicher leistung fps begrenzt ruckler'],
   ];
   const SCENE_SUB = { winter: 'Nordlicht, Raureif, Schnee', anime: 'Abendhimmel, Kirschblüten' };
   const SUGGEST = ['ac:boost', 'ac:fivem', 'ac:health', 'ac:ram', 'pg:tweaks', 'pg:clip'];
