@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Checks of the pure logic of the Monitor-Check and RAM-Check (refresh rates, RAM channels from slot labels, rated
+       speeds from part numbers, the Diagnose rows) that run anywhere, also on Linux. How to run them: see Program.cs -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>OrbitTweak.Tests</RootNamespace>
+    <RollForward>Major</RollForward>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Core/HwCheckLogic.cs" Link="Core/HwCheckLogic.cs" />
+  </ItemGroup>
+</Project>

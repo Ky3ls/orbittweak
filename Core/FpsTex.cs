@@ -519,9 +519,9 @@ internal static unsafe class FpsLimit
         return new string(n < 0 ? c : c[..n]);
     }
 
-    // ---------- the monitor ----------
+    // ---------- the monitor (DEVMODE is shared with the Monitor-Check, Core/HwCheck.cs) ----------
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    private struct DEVMODE
+    internal struct DEVMODE
     {
         [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmDeviceName;
         public short dmSpecVersion, dmDriverVersion, dmSize, dmDriverExtra;

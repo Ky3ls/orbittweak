@@ -126,6 +126,8 @@
     ['sw:desk', () => swOpen('desk'), 'Server auf den Desktop', 'sw-desk', 'Server › Verknüpfung, die mit einem Klick verbindet', 'verknüpfung desktop shortcut icon schnellstart lnk direkt verbinden'],
     ['pw:perf', () => pwOpen(), 'Engpass-Analyse', 'pw-neck', 'Spielzeit › Was deine FPS begrenzt', 'engpass bottleneck limit gpu cpu grafikkarte prozessor auslastung vram grafikspeicher leistung fps begrenzt ruckler'],
     ['dg:crash', () => crsFocus(), 'Absturz-Analyse', 'alert', 'Diagnose › Letzte Abstürze mit Ursache', 'absturz abstürze abgestürzt crash gecrasht ursache warum treiber signatur dump support err'],
+    ['hw:mon', () => window.hwFocus?.('mon'), 'Monitor-Check', 'hw-hz', 'Diagnose › Läuft dein Monitor mit allen Hz?', 'hz hertz 60 75 120 144 165 240 bildwiederholrate refresh rate monitor bildschirm flüssig'],
+    ['hw:ram', () => window.hwFocus?.('ram'), 'RAM-Check', 'hw-chan', 'Diagnose › Dual Channel und XMP/EXPO', 'ram arbeitsspeicher riegel dual single channel kanal xmp expo docp takt mhz bios'],
   ];
   const SCENE_SUB = { winter: 'Nordlicht, Raureif, Schnee', anime: 'Abendhimmel, Kirschblüten' };
   const SUGGEST = ['ac:boost', 'ac:fivem', 'ac:health', 'ac:ram', 'pg:tweaks', 'pg:clip'];
