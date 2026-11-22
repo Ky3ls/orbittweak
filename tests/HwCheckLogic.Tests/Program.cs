@@ -117,6 +117,47 @@ foreach (var code in new[] { 1, -1, -2, -3, -4, -5, -6 })
 }
 Check(ChangeError(-4).Contains("-4"), "an unknown code is named");
 
+// the fields of a switch: size, depth, rate and progressive flags always; position and rotation only as the driver
+// reported them; nothing of DEVMODE's printer half (DM_ORIENTATION 0x1, DM_PAPERSIZE 0x2, DM_COPIES 0x100 …)
+const int Base = DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFLAGS | DM_DISPLAYFREQUENCY;
+Eq(SwitchFields(0), Base, "nothing reported: the five a refresh rate switch needs");
+Eq(SwitchFields(0x5C0000), Base, "the usual current-mode fields: the same five");
+Eq(SwitchFields(0x5C0000 | DM_POSITION | DM_DISPLAYORIENTATION), Base | DM_POSITION | DM_DISPLAYORIENTATION, "a second or turned monitor keeps its place and rotation");
+Eq(SwitchFields(DM_POSITION), Base | DM_POSITION, "position alone");
+Eq(SwitchFields(0x1 | 0x2 | 0x100 | 0x20000000), Base, "printer fields and the scaling mode are not passed on");
+Check((SwitchFields(-1) & DM_DISPLAYFREQUENCY) != 0 && (SwitchFields(-1) & 0x1) == 0, "every bit set: still the rate, never a printer field");
+Eq(Base, 0x7C0000, "the five are the wingdi.h values");
+Eq(DM_INTERLACED, 2, "DM_INTERLACED");
+
+Eq(SwitchOutcome(0, 144, 60, 144), ((string?)null, false), "done");
+var (oErr, oBack) = SwitchOutcome(-2, 144, 60, 60);
+Check(oErr == ChangeError(-2) && !oBack, "refused and nothing moved: the reason, nothing to put back");
+(oErr, oBack) = SwitchOutcome(-1, 144, 60, 144);
+Check(oErr == ChangeError(-1) && oBack, "refused but the display moved anyway: put the rate before back");
+(oErr, oBack) = SwitchOutcome(-3, 144, 60, 144);
+Check(oErr == ChangeError(-3) && oBack, "switched but not saved: put back, there is no countdown for it");
+(oErr, oBack) = SwitchOutcome(0, 144, 60, 60);
+Check(oErr != null && oErr.Contains("weiter mit 60 Hz") && !oBack, "taken but still at the rate before: say so, nothing to put back");
+(oErr, oBack) = SwitchOutcome(0, 144, 60, 120);
+Check(oErr != null && oErr.Contains("120 statt 144") && oBack, "a third rate: say so and put the rate before back");
+(oErr, oBack) = SwitchOutcome(0, 144, 60, 0);
+Check(oErr != null && !oBack, "rate not readable afterwards: no claim, nothing blind put back");
+(oErr, oBack) = SwitchOutcome(-1, 144, 60, 0);
+Check(oErr == ChangeError(-1) && !oBack, "refused, rate not readable: nothing blind put back");
+(oErr, oBack) = SwitchOutcome(1, 144, 60, 60);
+Check(oErr == ChangeError(1) && !oBack, "restart wanted: nothing changed now");
+(oErr, oBack) = SwitchOutcome(0, 60, 144, 60);
+Check(oErr == null && !oBack, "the way back is a switch like any other");
+
+Check(SameSwitch("DELL S2721DGF", 2560, 1440, "DELL S2721DGF", 2560, 1440), "same monitor, same resolution");
+Check(SameSwitch("DELL S2721DGF", 2560, 1440, "dell s2721dgf ", 2560, 1440), "names compared without case and spaces");
+Check(SameSwitch("DELL S2721DGF", 2560, 1440, "DELL S2721DGF", 1440, 2560), "turned by 90° since");
+Check(!SameSwitch("DELL S2721DGF", 2560, 1440, "DELL S2721DGF", 1920, 1080), "another resolution: the switch is no longer the one on screen");
+Check(!SameSwitch("DELL S2721DGF", 2560, 1440, "LG ULTRAGEAR", 2560, 1440), "another monitor under the same GDI name: not its switch");
+Check(SameSwitch("", 1920, 1080, "LG ULTRAGEAR", 1920, 1080), "name not known then: the resolution decides");
+Check(SameSwitch("LG ULTRAGEAR", 1920, 1080, "", 1920, 1080), "name not known now (GDI fallback): the resolution decides");
+Check(SameSwitch(null, 1920, 1080, null, 1920, 1080), "no names at all");
+
 // =====================================================================
 //  RAM: reading the PowerShell answer
 // =====================================================================
@@ -223,6 +264,55 @@ Check(Channels(new[] { M("ChannelA-DIMM0", ff: 12), M("ChannelB-DIMM0", ff: 12) 
 Check(Channels(Enumerable.Range(0, 8).Select(i => M($"Controller{i / 4}-Channel{(char)('A' + i % 4)}", gb: 2, type: 35, ff: 0)).ToList()).state == ChanState.Unknown, "LPDDR5 entries: not guessed");
 Check(Channels(new[] { M("ChannelA-DIMM0", type: 24), M("ChannelB-DIMM0", type: 24) }).state == ChanState.Multi, "DDR3 dual channel");
 Check(Channels(new[] { M("ChannelA-DIMM0", type: 26), M("ChannelB-DIMM0", type: 0) }).state == ChanState.Unknown, "one module of unknown type: not guessed");
+
+// two CPU sockets each have their own channel A and their own channel count: no claim, neither single nor dual
+Eq(SocketOf("P1-DIMMA1", "P0_Node0_Channel0_Dimm0"), "1", "Supermicro: the socket from the slot label first");
+Eq(SocketOf("P2-DIMMA1", ""), "2", "Supermicro: the second CPU");
+Eq(SocketOf("CPU1_DIMM_A1", "NODE 1"), "1", "ASUS workstation: CPU1_DIMM_A1");
+Eq(SocketOf("DIMM 0", "P0 CHANNEL A"), "0", "AMD: the bank label's P0");
+Eq(SocketOf("", "P1_Node1_Channel0_Dimm0"), "1", "a socket in the bank label");
+Eq(SocketOf("ChannelA-DIMM0", "BANK 0"), null, "Intel desktop: no socket");
+Eq(SocketOf("DIMM_A1", ""), null, "ASUS desktop: no socket");
+Eq(SocketOf("P1", ""), null, "P1 alone is no socket label");
+Eq(SocketOf("PROC 1 DIMM 1", ""), null, "PROC 1: not a known style, no socket");
+Eq(SocketOf(null, null), null, "null");
+Check(Channels(new[] { M("P1-DIMMA1"), M("P2-DIMMA1") }).state == ChanState.Unknown, "two sockets, channel A each: no single-channel claim");
+Check(Channels(new[] { M("P1-DIMMA1"), M("P1-DIMMB1"), M("P2-DIMMA1"), M("P2-DIMMB1") }).state == ChanState.Unknown, "two sockets, A and B each: no dual-channel claim either");
+Check(Channels(new[] { M("CPU0_DIMM_A1"), M("CPU1_DIMM_A1") }).state == ChanState.Unknown, "CPU0/CPU1: no claim");
+Check(Channels(new[] { M("", "P0_Node0_Channel0_Dimm0"), M("", "P1_Node1_Channel0_Dimm0") }).state == ChanState.Unknown, "bank labels of two sockets: no claim");
+Check(RamRows(new[] { M("P1-DIMMA1"), M("P2-DIMMA1") }, false).All(r => r.Name != "RAM-Kanäle"), "two sockets: no channel row");
+Check(Channels(new[] { M("P1-DIMMA1"), M("P1-DIMMA2") }).state == ChanState.Single, "one socket, both in channel A: single channel");
+Check(Channels(new[] { M("P1-DIMMA1"), M("P1-DIMMB1") }).state == ChanState.Multi, "one socket, A and B");
+Check(Channels(new[] { M("DIMM 0", "P0 CHANNEL A"), M("DIMM 1", "P0 CHANNEL A") }).state == ChanState.Single, "AMD desktop P0 only: still single channel");
+Check(Channels(new[] { M("DIMM_A2", "P0 CHANNEL A"), M("DIMM_B2", "P0 CHANNEL B") }) == (ChanState.Multi, 2), "ASUS AMD: still dual channel with the socket in the bank label");
+
+// more board and laptop label styles seen in Win32_PhysicalMemory
+Eq(K("ChannelB-DIMM0", "BANK 2"), "B", "Lenovo/Dell laptop: ChannelB-DIMM0");
+Eq(K("Controller1-ChannelA", "BANK 0"), "C1-A", "Intel DDR5 without the DIMM part");
+Eq(K("DIMM_A0", "BANK 0"), "A", "DIMM_A0");
+Eq(K("CHANNEL A DIMM0", "BANK 0"), "A", "CHANNEL A DIMM0");
+Eq(K("Top - on board", "BANK 0"), null, "a laptop's soldered row: not guessed");
+Eq(K("Channel-A DIMM1", ""), "A", "Channel-A DIMM1");
+Eq(K("DIMM1 ", "CHANNEL B "), "B", "spaces around the labels");
+Eq(K("Node0_Dimm0", "BANK 0"), null, "Node0_Dimm0 without a channel: not guessed");
+Check(Channels(new[] { M("ChannelA-DIMM0", ff: 12), M("Top - on board", ff: 0) }).state == ChanState.Unknown, "soldered row next to an SO-DIMM without a channel: not guessed");
+
+// a laptop with one SO-DIMM: single channel is a real point there too (the guide says when a second slot exists)
+var lapOne = RamRows(new[] { M("ChannelA-DIMM0", "BANK 0", gb: 8, ff: 12, cfg: 3200, part: "KF432S20IB/8") }, true);
+Check(Find(lapOne, "RAM-Kanäle") is { St: "warn", Guide: true, Act: "Anleitung" }, "laptop single channel: a warning with the guide");
+Check(Find(lapOne, "RAM-Takt") is { St: "ok" }, "laptop at its rated speed: fine");
+var lapOff = RamRows(new[] { M("ChannelA-DIMM0", ff: 12, cfg: 2666, part: "KF432S20IBK2/32"), M("ChannelB-DIMM0", ff: 12, cfg: 2666, part: "KF432S20IBK2/32") }, false);
+Check(Find(lapOff, "RAM-Takt") is { St: "info", Guide: false, Act: null }, "SO-DIMMs below their speed: a plain note, no guide");
+
+// PowerShell's answer around the lines that count: an error or a warning before, other line endings, padded fields
+var noisy = "WARNUNG: irgendwas\r\n" + Line(8589934592, 3200, 3200, 26, 8, " ChannelA-DIMM0 ", " BANK 0 ", "  F4-3200C16-8GVKB  ", " 04CD ") + "\n"
+          + Line(8589934592, 3200, 3200, 26, 8, "ChannelB-DIMM0", "BANK 2", "F4-3200C16-8GVKB", "04CD") + "\ncount=2";
+var np = ParseModules(noisy);
+Check(np != null && np.Count == 2 && np[0].Locator == "ChannelA-DIMM0" && np[0].Bank == "BANK 0" && np[0].Part == "F4-3200C16-8GVKB" && np[0].Maker == "04CD", "other lines ignored, fields trimmed");
+Eq(ParseModules(two.Replace("count=2", "count=x")), null, "a count that is no number: no answer");
+Eq(ParseModules(two.Replace("count=2", "count=-2")), null, "a negative count: no answer");
+Eq(ParseModules(Line("17179869184", "3200", "2133.5", 26, 8, "A", "B", "C", "D") + "\ncount=1")?[0].Configured, 0, "a speed that is no whole number reads as unknown");
+Eq(ParseModules(Line("1.6E10", 3200, 3200, 26, 8, "A", "B", "C", "D") + "\ncount=1"), null, "a capacity that is no whole number: no module");
 
 Eq(Sizes(new[] { M("a", gb: 16) }), "16 GB", "one module");
 Eq(Sizes(new[] { M("a", gb: 16), M("b", gb: 16) }), "2 × 16 GB", "two the same");
@@ -400,7 +490,7 @@ Eq(Find(lower, "RAM-Takt")?.St, "info", "set lower by hand: a note");
 Check(Find(lower, "RAM-Takt")!.Value.Contains("3466") && Find(lower, "RAM-Takt")!.Value.Contains("3600"), "the note names both speeds");
 var ddr5 = RamRows(new[] { D5(4800, "CMK32GX5M2B6000C36", "Controller0-ChannelA-DIMM1"), D5(4800, "CMK32GX5M2B6000C36", "Controller1-ChannelA-DIMM1") }, false);
 Eq(Find(ddr5, "RAM-Kanäle")?.St, "ok", "Intel DDR5 dual channel");
-Eq(Find(ddr5, "RAM-Takt")?.Value, "XMP wahrscheinlich aus: 4800 statt 6000 MT/s", "DDR5 XMP off");
+Eq(Find(ddr5, "RAM-Takt")?.Value, "XMP/EXPO wahrscheinlich aus: 4800 statt 6000 MT/s", "DDR5: XMP or EXPO (AMD kits often have only EXPO)");
 Eq(RamRows(null, false).Count, 0, "no modules read: no rows");
 Eq(RamRows(Array.Empty<Module>(), false).Count, 0, "no modules: no rows");
 Eq(RamRows(new[] { M("DIMM 0", type: 0, cfg: 0) }, false).Count, 0, "a virtual machine: no rows");

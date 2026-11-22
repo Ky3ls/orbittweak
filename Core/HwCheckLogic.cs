@@ -102,6 +102,45 @@ internal static class HwCheckLogic
         _ => $"Windows hat den Wechsel abgelehnt (Code {code}).",
     };
 
+    // DEVMODE dmFields (wingdi.h)
+    public const int DM_POSITION = 0x20, DM_DISPLAYORIENTATION = 0x80, DM_BITSPERPEL = 0x40000, DM_PELSWIDTH = 0x80000, DM_PELSHEIGHT = 0x100000,
+        DM_DISPLAYFLAGS = 0x200000, DM_DISPLAYFREQUENCY = 0x400000, DM_INTERLACED = 2;
+
+    /// <summary>
+    /// The dmFields of a switch that changes only the refresh rate: size, colour depth, rate and the display flags
+    /// (progressive), plus the position and the rotation the driver reported for the mode it runs now, so a second or a
+    /// turned monitor stays where and how it is. The printer half of DEVMODE is never passed on.
+    /// </summary>
+    public static int SwitchFields(int current) =>
+        (current & (DM_POSITION | DM_DISPLAYORIENTATION)) | DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFLAGS | DM_DISPLAYFREQUENCY;
+
+    /// <summary>
+    /// What a switch came to, from ChangeDisplaySettingsEx's result and the rate the display runs at afterwards (0 =
+    /// not readable). error null = done. restore = the display runs at another rate than before although the switch is
+    /// not done (refused half-way, or a third rate): the mode before has to be put back, there is no countdown for it.
+    /// </summary>
+    public static (string? error, bool restore) SwitchOutcome(int result, int wantHz, int beforeHz, int nowHz)
+    {
+        if (result == 0 && nowHz == wantHz) return (null, false);
+        bool moved = nowHz > 1 && nowHz != beforeHz;
+        if (result != 0) return (ChangeError(result), moved);
+        return (nowHz > 1 && !moved ? $"Windows hat den Wechsel angenommen, der Monitor läuft aber weiter mit {nowHz} Hz."
+            : nowHz > 1 ? $"Windows hat den Wechsel angenommen, der Monitor lief danach aber mit {nowHz} statt {wantHz} Hz."
+            : "Windows hat den Wechsel angenommen, verrät aber nicht, wie der Monitor jetzt läuft.", moved);
+    }
+
+    /// <summary>
+    /// A switch in the store belongs to the display it was found under: the same resolution (either way round), and the
+    /// same monitor when both names are known (after a driver update Windows can hand \\.\DISPLAY1 to another monitor).
+    /// </summary>
+    public static bool SameSwitch(string? storedName, int storedW, int storedH, string? friendly, int w, int h)
+    {
+        bool size = (storedW == w && storedH == h) || (storedW == h && storedH == w);
+        var a = Clean(storedName, 64);
+        var b = Clean(friendly, 64);
+        return size && (a.Length == 0 || b.Length == 0 || string.Equals(a, b, StringComparison.OrdinalIgnoreCase));
+    }
+
     // =====================================================================
     //  RAM
     // =====================================================================
@@ -180,18 +219,31 @@ internal static class HwCheckLogic
         return null;
     }
 
+    // "P1-DIMMA1", "CPU1_DIMM_A1" (slot labels of two-socket boards), "P0 CHANNEL A", "P0_Node0_Channel1_Dimm0" (bank labels)
+    private static readonly Regex SocketRx = new(@"^(?:P|CPU)\s*(\d)(?=[\s_-])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    /// <summary>The CPU socket a module belongs to by its labels (slot label first); null when they do not say it. Two
+    /// sockets each have their own channel A (and their own channel count): there no claim is made.</summary>
+    public static string? SocketOf(string? locator, string? bank)
+    {
+        foreach (var s in new[] { locator, bank })
+            if (SocketRx.Match((s ?? "").Trim()) is { Success: true } m) return m.Groups[1].Value;
+        return null;
+    }
+
     public enum ChanState { Unknown, Single, Multi }
 
     /// <summary>
     /// Single: one plugged module (DIMM or SO-DIMM), or several that all sit in one channel. Multi: modules in at least
-    /// two channels (count = how many). Unknown: soldered or unknown memory types, or a slot label that does not name
-    /// its channel.
+    /// two channels (count = how many). Unknown: soldered or unknown memory types, a slot label that does not name
+    /// its channel, or modules on two CPU sockets.
     /// </summary>
     public static (ChanState state, int channels) Channels(IReadOnlyList<Module> mods)
     {
         if (mods.Count == 0 || mods.Any(m => Gen(m.Type) == 0)) return (ChanState.Unknown, 0);
         if (mods.Count == 1)
             return mods[0].FormFactor is 8 or 12 && !Soldered(mods[0]) ? (ChanState.Single, 1) : (ChanState.Unknown, 0);
+        if (mods.Select(m => SocketOf(m.Locator, m.Bank)).Distinct().Count() > 1) return (ChanState.Unknown, 0);
         var keys = mods.Select(m => ChannelKey(m.Locator, m.Bank)).ToList();
         if (keys.Any(k => k == null)) return (ChanState.Unknown, 0);
         int n = keys.Distinct().Count();
@@ -342,7 +394,8 @@ internal static class HwCheckLogic
                 rows.Add(new("RAM-Takt", $"{cfg} MT/s {ddr}, wie auf den Riegeln angegeben", "ok"));
                 break;
             case XmpState.Off when !laptop:
-                rows.Add(new("RAM-Takt", $"XMP wahrscheinlich aus: {cfg} statt {rated} MT/s", "warn", "hw:ram:xmp", "Anleitung", true));
+                // DDR4 kits only have XMP; DDR5 kits come with XMP, EXPO (AMD) or both
+                rows.Add(new("RAM-Takt", $"{(gen == 5 ? "XMP/EXPO" : "XMP")} wahrscheinlich aus: {cfg} statt {rated} MT/s", "warn", "hw:ram:xmp", "Anleitung", true));
                 break;
             case XmpState.Off:
                 rows.Add(new("RAM-Takt", $"{cfg} MT/s {ddr}, die Riegel können {rated}. Laptops bieten XMP im BIOS aber meist nicht an", "info", "hw:ram:xmp"));

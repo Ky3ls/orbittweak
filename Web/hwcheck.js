@@ -14,7 +14,11 @@
   const CONN = { hdmi: 'HDMI', displayport: 'DisplayPort', dvi: 'DVI', vga: 'VGA' };
 
   const open = () => $('#modal').classList.contains('show') && !!$('#mbox .hw-m');
-  const view = (html, cls = '') => modal(`<div class="hw-m ${cls}">${html}</div>`);
+  /** A dialog view; focus goes to its button `focus` (keyboard users start in the dialog, not on the page behind it). */
+  const view = (html, cls = '', focus = '#hwOk') => {
+    modal(`<div class="hw-m ${cls}">${html}</div>`);
+    requestAnimationFrame(() => { if (open()) $(focus)?.focus({ preventScroll: true }); });
+  };
   const head = (icon, kicker, title, tone = '') =>
     `<div class="hw-hd"><span class="hw-ic ${tone}">${ico(icon)}</span><div><div class="kicker">${esc(kicker)}</div><h1>${esc(title)}</h1></div></div>`;
   function stop() { clearInterval(HW.tick); clearTimeout(HW.wait); HW.tick = HW.wait = 0; }
@@ -24,7 +28,7 @@
   function fail(title, text) {
     stop();
     view(`${head('alert', 'Monitor-Check', title, 'hw-bad')}<p>${esc(text)}</p>
-      <div class="act"><button class="btn p lg" id="hwOk">Schließen</button></div>`);
+      <div class="act"><button class="btn p lg" id="hwOk" data-esc>Schließen</button></div>`);
     $('#hwOk').onclick = close;
   }
 
@@ -35,6 +39,9 @@
     if (r.error) return fail('Nicht umgestellt', r.error);
     const d = (r.displays || []).find(x => x.device === dev);
     if (!d) return fail('Monitor nicht gefunden', 'Diesen Monitor findet Windows gerade nicht. Starte die Prüfung neu.');
+    // the countdown of this display still runs (its window was replaced meanwhile): back to it, not a second switch
+    if (d.pending && HW.dev === d.device && HW.until > Date.now()) return live();
+    if (d.pending) return fail('Wartet noch auf „Behalten“', 'Dieser Monitor wurde gerade umgestellt und stellt sich in ein paar Sekunden von selbst zurück. Danach kannst du es noch einmal versuchen.');
     if (r.fivem) return fail('Erst FiveM schließen', FIVEM);
     if (d.best <= d.hz) return fail('Nichts umzustellen', `Der Monitor läuft schon mit ${d.hz} Hz, mehr bietet Windows hier nicht an.`);
     const secs = r.revertIn || 15, conn = CONN[d.conn];
@@ -47,7 +54,7 @@
         ${r.laptop ? '<li>Am Akku braucht ein Bildschirm mit mehr Hz etwas mehr Strom.</li>' : ''}
         <li>Nur dieser Monitor ändert sich. Auflösung und alles andere bleiben, wie sie sind.</li>
       </ul>
-      <div class="act"><button class="btn lg" id="hwNo">Abbrechen</button><button class="btn p lg" id="hwGo">${ico('hw-hz')}Auf ${d.best} Hz stellen</button></div>`);
+      <div class="act"><button class="btn lg" id="hwNo" data-esc>Abbrechen</button><button class="btn p lg" id="hwGo">${ico('hw-hz')}Auf ${d.best} Hz stellen</button></div>`, '', '#hwGo');
     $('#hwNo').onclick = close;
     $('#hwGo').onclick = () => switchHz(d);
   }
@@ -57,16 +64,19 @@
     go.innerHTML = `${ico('hw-hz')}Wird umgestellt…`;   // (not lastChild: the click ripple is a child of the button too)
     const r = await api('hw.hz.set', { device: d.device }).catch(e => ({ ok: false, error: e.message }));
     if (!r.ok) return fail(/FiveM/.test(r.error || '') ? 'Erst FiveM schließen' : 'Nicht umgestellt', r.error || 'Windows hat den Wechsel abgelehnt.');
-    Object.assign(HW, { dev: d.device, name: d.name, from: r.from, to: r.to, until: Date.now() + (r.revertIn || 15) * 1000 });
-    live(r.revertIn || 15);
+    // the host's countdown started before its answer got here: the page ends half a second early, never late
+    Object.assign(HW, { dev: d.device, name: d.name, from: r.from, to: r.to, until: Date.now() + (r.revertIn || 15) * 1000 - 500 });
+    live();
   }
 
-  /** The new rate is on screen: keep it, or go back; the bar runs out with the host's own countdown. */
-  function live(secs) {
+  /** The new rate is on screen: keep it, or go back; the bar runs out with the host's own countdown. Escape and a
+   *  blind Enter go back (the picture may be black), like Windows' own „Änderungen beibehalten?“. */
+  function live() {
+    const secs = Math.max(0, Math.ceil((HW.until - Date.now()) / 1000));
     view(`${head('hw-hz', 'Monitor-Check', 'Passt das Bild?')}
       <p>Dein Monitor läuft jetzt mit ${HW.to} Hz. Ohne Bestätigung stellt OrbitTweak in <b class="hw-left" id="hwLeft">${secs}</b> Sekunden auf ${HW.from} Hz zurück.</p>
       <div class="hw-bar"><i id="hwBar"></i></div>
-      <div class="act"><button class="btn lg" id="hwBack">${ico('undo')}Zurück auf ${HW.from} Hz</button><button class="btn p lg" id="hwKeep">${ico('check')}Behalten</button></div>`, 'hw-live');
+      <div class="act"><button class="btn lg" id="hwBack" data-esc>${ico('undo')}Zurück auf ${HW.from} Hz</button><button class="btn p lg" id="hwKeep">${ico('check')}Behalten</button></div>`, 'hw-live', '#hwBack');
     // one transition over the whole time (transform only), the number follows the clock
     const bar = $('#hwBar');
     requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.transitionDuration = Math.max(0, HW.until - Date.now()) + 'ms'; bar.classList.add('hw-run'); }));
@@ -109,7 +119,7 @@
     view(`${head('undo', 'Monitor-Check', ok ? `Wieder auf ${d.to || HW.from} Hz` : 'Nicht zurückgestellt', ok ? '' : 'hw-bad')}
       <p>${!ok ? esc(d.error || '') : why ? esc(why)
         : `Du hast nicht bestätigt, deshalb läuft der Monitor wieder wie vorher. War das Bild mit ${HW.to} Hz schwarz oder hat geflackert, liegt es meist an Kabel oder Anschluss.`}</p>
-      <div class="act"><button class="btn p lg" id="hwOk">Schließen</button></div>`);
+      <div class="act"><button class="btn p lg" id="hwOk" data-esc>Schließen</button></div>`);
     HW.dev = null;
     $('#hwOk').onclick = close;
     runHealth();
@@ -169,8 +179,8 @@
       };
     }
     if (r.xmp === 'off' && !r.laptop) return {
-      title: 'XMP ist wahrscheinlich aus',
-      intro: `Deine Riegel laufen mit ${r.configured} MT/s. Laut Teilenummer sind sie für ${r.rated} MT/s gebaut. Diesen Takt erreichen sie erst mit ihrem Speicherprofil, XMP bei Intel oder EXPO bei AMD. Ab Werk startet jedes Mainboard mit dem langsameren Standard.`,
+      title: r.gen === 5 ? 'XMP/EXPO ist wahrscheinlich aus' : 'XMP ist wahrscheinlich aus',
+      intro: `Deine Riegel laufen mit ${r.configured} MT/s. Laut Teilenummer sind sie für ${r.rated} MT/s gebaut. Diesen Takt erreichen sie erst mit ihrem Speicherprofil, XMP bei Intel oder EXPO bei AMD. Ab Werk starten Mainboards meist mit dem langsameren Standard.`,
       html: sect('Was das in FiveM kostet', `<p>${COST}</p>`)
         + sect('So schaltest du es im BIOS ein', steps([
           'Starte den PC neu und drück beim Start mehrmals Entf oder F2, bis das BIOS erscheint.',
@@ -201,25 +211,32 @@
   async function ram(kind, btn) {
     btn && (btn.disabled = true);
     view(`${head('ram', 'RAM-Check', 'Deine RAM-Riegel')}<div class="hw-wait">${ico('ram')}<b>Lese deine Riegel</b><span>Windows fragt die Steckplätze ab</span></div>
-      <div class="act"><button class="btn lg" id="hwOk">Schließen</button></div>`, 'hw-wide');
+      <div class="act"><button class="btn lg" id="hwOk" data-esc>Schließen</button></div>`, 'hw-wide');
     $('#hwOk').onclick = close;
     const r = await api('hw.ram').catch(e => ({ ok: false, error: e.message }));
     btn && (btn.disabled = false);
     if (!open()) return;
     if (!r.ok || !(r.modules || []).length) {
       view(`${head('alert', 'RAM-Check', 'Riegel nicht lesbar', 'hw-bad')}<p>${esc(r.error || 'Windows meldet keine RAM-Riegel.')}</p>
-        <div class="act"><button class="btn p lg" id="hwOk">Schließen</button></div>`);
+        <div class="act"><button class="btn p lg" id="hwOk" data-esc>Schließen</button></div>`);
       $('#hwOk').onclick = close;
       return;
     }
     const b = ramBody(kind, r);
     view(`${head(kind === 'chan' ? 'hw-chan' : 'ram', 'RAM-Check', b.title)}
       <div class="hw-body"><p>${b.intro}</p>${modList(r)}${b.html}</div>
-      <div class="act"><button class="btn p lg" id="hwOk">Verstanden</button></div>`, 'hw-wide');
+      <div class="act"><button class="btn p lg" id="hwOk" data-esc>Verstanden</button></div>`, 'hw-wide');
     $('#hwOk').onclick = close;
   }
 
   /* ------------------------------------------------------------ hooks ------------------------------------------------------------ */
+  // Escape: the dialog's way out (Abbrechen, Zurück, Schließen). The palette takes its own keys before this runs.
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape' || e.defaultPrevented || !open()) return;
+    const b = $('#mbox .hw-m [data-esc]');
+    if (b && !b.disabled) { e.preventDefault(); b.click(); }
+  });
+
   HEALTH_FIX.hw = (item, btn) => {
     const [, kind, ...rest] = String(item.fix).split(':'), arg = rest.join(':');
     if (kind === 'hz') return monitor(arg, btn);
@@ -283,7 +300,7 @@
       rows: [{ name: 'RAM-Kanäle', value: 'Single Channel: nur ein Riegel (16 GB)', st: 'warn', fix: 'hw:ram:chan', act: 'Anleitung', guide: true }, { name: 'RAM-Takt', value: '3200 MT/s DDR4, wie auf den Riegeln angegeben', st: 'ok' }] },
     same: { laptop: false, channel: 'single', channels: 1, xmp: 'off', configured: 4800, rated: 6000, gen: 5,
       modules: [mod('Controller0-ChannelA-DIMM0', 'BANK 0', 16, 5, 4800, 'CMK32GX5M2B6000C36', 'Corsair', 'C0-A', 6000), mod('Controller0-ChannelA-DIMM1', 'BANK 0', 16, 5, 4800, 'CMK32GX5M2B6000C36', 'Corsair', 'C0-A', 6000)],
-      rows: [{ name: 'RAM-Kanäle', value: 'Single Channel: beide Riegel im selben Kanal', st: 'warn', fix: 'hw:ram:chan', act: 'Anleitung', guide: true }, { name: 'RAM-Takt', value: 'XMP wahrscheinlich aus: 4800 statt 6000 MT/s', st: 'warn', fix: 'hw:ram:xmp', act: 'Anleitung', guide: true }] },
+      rows: [{ name: 'RAM-Kanäle', value: 'Single Channel: beide Riegel im selben Kanal', st: 'warn', fix: 'hw:ram:chan', act: 'Anleitung', guide: true }, { name: 'RAM-Takt', value: 'XMP/EXPO wahrscheinlich aus: 4800 statt 6000 MT/s', st: 'warn', fix: 'hw:ram:xmp', act: 'Anleitung', guide: true }] },
     ok: { laptop: false, channel: 'multi', channels: 2, xmp: 'on', configured: 6000, rated: 6000, gen: 5,
       modules: [mod('Controller0-ChannelA-DIMM1', 'BANK 0', 16, 5, 6000, 'CMK32GX5M2B6000C36', 'Corsair', 'C0-A', 6000), mod('Controller1-ChannelA-DIMM1', 'BANK 0', 16, 5, 6000, 'CMK32GX5M2B6000C36', 'Corsair', 'C1-A', 6000)],
       rows: [{ name: 'RAM-Kanäle', value: 'Dual Channel · 2 × 16 GB', st: 'ok' }, { name: 'RAM-Takt', value: '6000 MT/s DDR5, wie auf den Riegeln angegeben', st: 'ok' }] },
@@ -318,28 +335,31 @@
   MOCK_EXT['hw.hz.set'] = async a => {
     await sleep(700);
     const d = M.displays.find(x => x.device === a.device);
-    if (ERR === 'fivem') return { ok: false, error: FIVEM, device: a.device };
-    if (ERR === 'refuse' || !d) return { ok: false, error: 'Diesen Modus lehnt Windows für den Monitor ab.', device: a.device };
+    // the same shapes as MainWindow.HwCheck.cs (HzResult: ok, error, device, from, to; set adds revertIn)
+    const no = error => ({ ok: false, error, device: a.device, from: 0, to: 0 });
+    if (ERR === 'fivem') return { ...no(FIVEM), revertIn: SECS };
+    if (M.pending) return { ...no('Ein Monitor wartet noch auf „Behalten“. Bestätige ihn zuerst oder warte, bis OrbitTweak ihn zurückgestellt hat.'), revertIn: SECS };
+    if (ERR === 'refuse' || !d) return { ...no('Diesen Modus lehnt Windows für den Monitor ab.'), revertIn: SECS };
     const from = d.from || d.hz;
     d.hz = d.best; d.from = from;
-    clearTimeout(M.pending?.t);
-    M.pending = { device: d.device, t: setTimeout(() => { M.pending = null; d.hz = from; d.from = null; onEvent('hwhz', { ok: true, device: d.device, from: d.best, to: from }); }, SECS * 1000) };
-    return { ok: true, device: d.device, from, to: d.best, revertIn: SECS };
+    M.pending = { device: d.device, t: setTimeout(() => { M.pending = null; d.hz = from; d.from = null; onEvent('hwhz', { ok: true, error: null, device: d.device, from: d.best, to: from }); }, SECS * 1000) };
+    return { ok: true, error: null, device: d.device, from, to: d.best, revertIn: SECS };
   };
   MOCK_EXT['hw.hz.keep'] = async a => {
-    if (!M.pending || M.pending.device !== a.device) return { ok: false, error: 'Zu spät: OrbitTweak hat die alte Bildwiederholrate schon wieder eingestellt.', device: a.device };
+    if (!M.pending || M.pending.device !== a.device) return { ok: false, error: 'Zu spät: OrbitTweak hat die alte Bildwiederholrate schon wieder eingestellt.', device: a.device, from: 0, to: 0 };
     clearTimeout(M.pending.t); M.pending = null;
     const d = M.displays.find(x => x.device === a.device);
-    return { ok: true, device: a.device, from: d.from, to: d.hz };
+    return { ok: true, error: null, device: a.device, from: d.from, to: d.hz };
   };
   MOCK_EXT['hw.hz.back'] = async a => {
     await sleep(500);
-    if (ERR === 'fivem') return { ok: false, error: FIVEM, device: a.device };
+    const pending = M.pending?.device === a.device;
+    if (ERR === 'fivem' && !pending) return { ok: false, error: FIVEM, device: a.device, from: 0, to: 0 };
     const d = M.displays.find(x => x.device === a.device);
-    if (!d || !d.from) return { ok: false, error: 'OrbitTweak hat an diesem Monitor nichts umgestellt.', device: a.device };
-    if (M.pending?.device === a.device) { clearTimeout(M.pending.t); M.pending = null; }
+    if (!d || !d.from) return { ok: false, error: 'OrbitTweak hat an diesem Monitor nichts umgestellt.', device: a.device, from: 0, to: 0 };
+    if (pending) { clearTimeout(M.pending.t); M.pending = null; }
     const was = d.hz; d.hz = d.from; d.from = null;
-    return { ok: true, device: a.device, from: was, to: d.hz };
+    return { ok: true, error: null, device: a.device, from: was, to: d.hz };
   };
   MOCK_EXT['hw.ram'] = async () => {
     await sleep(420);
