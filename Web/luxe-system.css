@@ -104,6 +104,9 @@
    only the instrument keeps the small label */
 #p-diag :is(.crs-ht,.lx-net>.lx-ih,.lx-log>.lx-ih) .lbl{font-family:var(--disp);font-size:15.5px;font-weight:580;letter-spacing:-.015em;color:var(--text);gap:10px}
 #p-diag :is(.crs-ht,.lx-net>.lx-ih,.lx-log>.lx-ih) .lbl svg.i{width:16px;height:16px;color:var(--mute)}
+/* anime: rounded card titles; "Prüfpunkte" (and "Bereiche" on the Cleaner, the same list head) go with them,
+   so the page does not show two title faces (the base rules carry an id, the theme's own list cannot reach them) */
+html.th-anime :is(#p-cleaner,#p-diag) .lx-lh b,
 html.th-anime #p-diag :is(.crs-ht,.lx-net>.lx-ih,.lx-log>.lx-ih) .lbl{font-family:var(--head);font-weight:800;letter-spacing:-.004em}
 
 /* the checks: problems first; a round status mark, the value below the name */
