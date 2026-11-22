@@ -22,7 +22,10 @@ namespace OrbitTweak.Core;
 //                       (the exe name after its first "_", cut to 14: "b3258_GTAProce" = FiveM_b3258_GTAProcess.exe,
 //                       "    DumpServer", "    GTAProcess" on builds without a number in the name, "         FiveM"), the
 //                       thread name or id (20 wide) and the text. Logs from 2019 and older have only "[%10lld] %s". The
-//                       first line of a session is "--- BEGIN LOGGING AT %c ---" with fmt::gmtime, so also UTC.
+//                       first line of a session is "--- BEGIN LOGGING AT %c ---" with fmt::gmtime, so also UTC. The
+//                       ticks count from the moment in the file name (TickCountData.h: GetTickCount64 + GetSystemTime).
+//                       InitLogging deletes every log whose name is more than 7 days old when FiveM starts, so the logs
+//                       only reach back a week while the dumps (newest 10) can be older.
 //  The crash itself     MiniDump.cpp, after the dump is written: trace("Process crash captured. Crash dialog content:\n%s\n
 //                       %s\n", headline, content) from the DumpServer process. Each line of the dialog becomes its own
 //                       log line with the same process, thread and (nearly) the same tick. The headline is
@@ -54,15 +57,32 @@ namespace OrbitTweak.Core;
 //                       - "O\u0448\u0438\u0431\u043a\u0430 (Error)" for a disconnect (crashometry kill_network_msg), the
 //                         content is then the disconnect message.
 //                       The same process later logs "Crash report service returned si-<hex>" (the report ID Cfx.re
-//                       support asks for) or "Error uploading crash: HTTP …". FatalErrors are also logged by the failing
-//                       process as "Error: <text>".
+//                       support asks for) or "Error uploading crash: HTTP …" – but FiveM uploads only about one crash in
+//                       20 (shouldUpload = dist(rd) < 5), so most crashes have no report ID. FatalErrors are also logged
+//                       by the failing process as "Error: <text>".
+//  Translated dialogs   MiniDump.cpp runs the dialog's own sentences through gettext (shared/CfxLocale.h, Boost.Locale with
+//                       data/client/citizen/locales/<lang>/cfx.mo, language from HKCU\Software\CitizenFX "Global Locale"
+//                       that FiveM's menu sets). With FiveM in German the log says "Ein Fehler bei <sig> hat verursacht,
+//                       dass FiveM nicht mehr funktioniert. Ein Absturzbericht wird an die FiveM Entwickler
+//                       hochgeladen.", "Alter crash hash: …", "FiveM ist abgestürzt... aber wir sind dran!" and
+//                       "Fehlerinformationen: …"; "Stack trace:" stays English in German, Hungarian translates even that.
+//                       Not translated: signatures and frames, "Exception, unhandled!", "An unhandled exception (of type
+//                       X)", every FatalError text, the blame lines. So the rules below read English and German by
+//                       their words and every other language by shape: the "caused" sentence is the line that names
+//                       FiveM twice (all 20 translations keep both %s), a crash hash is three lowercase words with
+//                       dashes after a colon, a stack is the run of frame-shaped lines after a line ending in ":".
 //  Crashometry          data\cache\crashometry: records of [uint32 key length][uint32 value length][key][value], appended
 //                       by AddCrashometry (shared/Utils.Win32.cpp) and deleted by the launcher at every start
 //                       (launcher/Main.cpp), so it only belongs to the newest session. Keys used here: last_server_url,
-//                       last_server (net/NetLibrary.cpp). RockstarId is also in there and is never read out.
-//  FiveM's own blame    the DLL names FiveM itself blames (nvwgf, nvppex, guard64, .asi, atidxx/amdxx) and the overlays
-//                       it calls out (citicore/FileMapping.Win32.cpp: NVIDIA Share nvspcap "high correlation with
-//                       ERR_GFX_D3D_INIT", discordhook64, Overwolf) are the basis of the module table below.
+//                       last_server (net/NetLibrary.cpp). RockstarId is also in there and is never read out. An empty
+//                       value is written as a key with length 0 for the value (FiveM's own reader then loses its place;
+//                       ours skips the record).
+//  FiveM's own blame    the DLL names FiveM itself blames (nvwgf, nvppex, guard64, .asi, atidxx/amdxx) and the hooks it
+//                       keeps out of the game (citicore/FileMapping.Win32.cpp blocks loading discordhook64, nvspcap –
+//                       "high correlation with ERR_GFX_D3D_INIT" –, nvppex, Overwolf on RedM …) are the basis of the
+//                       module table below; a crash in a blocked one is rare today but still clear.
+//  Not fatal            a crash of a libcef.dll or Chrome-OOM subprocess, or nvwgf2 in Chrome's GPU process, does not end
+//                       the game (MiniDump.cpp shouldTerminate = false) but is logged with the same dialog.
 //
 //  This file holds only the pure rules (no Windows calls); Core/CrashScan.cs reads the files, tests/CrashScanLogic.Tests
 //  checks the rules with samples in exactly these formats.
@@ -111,6 +131,8 @@ public sealed class CrashReport
     public string? LegacyHash { get; set; }
     public string? ReportId { get; set; }
     public string? ExceptionType { get; set; }
+    /// <summary>FiveM's "FiveM crashed... but we're on it!" (in any language): citizen/crash-data.json knows this crash.</summary>
+    public bool Known { get; set; }
     public List<string> Stack { get; } = new();
     /// <summary>File name of the .dmp in FiveM.app\crashes, when one belongs to it.</summary>
     public string? Dump { get; set; }
@@ -126,8 +148,8 @@ public sealed record CrashFix(string Id, string Label, string Kind, string Arg);
 /// <summary>The likely cause in plain German. Sure: "klar" (FiveM or the module says it), "wahrscheinlich", "unklar".</summary>
 public sealed record CrashCause(string Key, string Title, string Why, string[] Steps, string Sure, string Icon, CrashFix[] Fixes);
 
-/// <summary>What the PC looks like right now, for which fixes still make sense.</summary>
-public sealed record CrashPc(string? GpuVendor = null, bool PagefileOk = true, bool HagsOn = false, bool TexRaised = false, bool HasPlugins = false);
+/// <summary>What the PC looks like right now, for which fixes still make sense (and the time now, for how old a crash is).</summary>
+public sealed record CrashPc(string? GpuVendor = null, bool PagefileOk = true, bool HagsOn = false, bool TexRaised = false, bool HasPlugins = false, DateTime? NowUtc = null);
 
 public static class CrashScanLogic
 {
@@ -245,10 +267,24 @@ public static class CrashScanLogic
     private static readonly Regex Anchor = new(@"<a\s+href=""[^""]*"">(.*?)</a>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex SigShape = new(@"^(?:[\w.\- ]+\.(?:exe|dll|asi)(?:_unloaded)?[!+]|(?:GTA5|FiveM|RedM)\+[0-9A-Fa-f]+\b|0x[0-9a-fA-F]{4,}$)", RegexOptions.Compiled);
     private static readonly Regex ModuleShape = new(@"^([\w.\- ]+?\.(?:exe|dll|asi))(?:_unloaded)?[!+]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex ErrorAt = new(@"An error at (.+?) caused ", RegexOptions.Compiled);
-    private static readonly Regex Legacy = new(@"^Legacy crash hash: ([a-z0-9]+(?:-[a-z0-9]+){2})\s*$", RegexOptions.Compiled);
+    // English and German (FiveM's de locale: "Ein Fehler bei %s" + "%s hat verursacht, dass %s nicht mehr funktioniert …")
+    private static readonly Regex ErrorAt = new(@"(?:An error at|Ein Fehler bei) (.+?) (?:caused |hat verursacht)", RegexOptions.Compiled);
+    // "Legacy crash hash: a-b-c", German "Alter crash hash: …", French "Héritage du hash de crash : …" and so on
+    private static readonly Regex Legacy = new(@"^[^:]{2,48}:\s?([a-z0-9]+(?:-[a-z0-9]+){2})\s*$", RegexOptions.Compiled);
     private static readonly Regex ExType = new(@"An unhandled exception \(of type (.+?)\)", RegexOptions.Compiled);
     private static readonly Regex Codes = new(@"\b(ERR_[A-Z0-9_]{3,}|DXGI_ERROR_[A-Z_]+|E_OUTOFMEMORY)\b", RegexOptions.Compiled);
+    // a signature inside a sentence: "GTA5_b3258.exe!sub_1413A8C10 (0x4c)", "nvwgf2umx.dll+A3C0F1"
+    private static readonly Regex SigToken = new(@"(?<![\w.\-])[\w.\-]+\.(?:exe|dll|asi)(?:_unloaded)?(?:![^\s()]+(?: \(0x[0-9a-fA-F]+\))?|\+[0-9A-Fa-f]+\b)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex FiveMWord = new(@"\bFiveM\b", RegexOptions.Compiled);
+    private static readonly Regex LineDetail = new(@" \([^()]*:\d+\)$", RegexOptions.Compiled);
+    private static readonly string[] KnownTitles = { "FiveM crashed... but we're on it!", "FiveM ist abgestürzt... aber wir sind dran!" };
+
+    /// <summary>The dialog's "&lt;cause&gt; caused FiveM to stop working. A crash report is being uploaded to the FiveM
+    /// developers." in any language: every translation keeps both product names, and the cause is "An error[ at …]", an
+    /// unhandled exception or a signature.</summary>
+    private static bool IsCaused(string x) =>
+        ErrorAt.IsMatch(x)
+        || (FiveMWord.Matches(x).Count >= 2 && (x.StartsWith("An error", StringComparison.Ordinal) || x.StartsWith("An unhandled exception (of type", StringComparison.Ordinal) || SigToken.IsMatch(x)));
 
     /// <summary>Text of a dialog line as plain text: FiveM's &lt;A HREF&gt; links become their text.</summary>
     public static string Plain(string s) => Anchor.Replace(s, "$1").Trim();
@@ -274,7 +310,11 @@ public static class CrashScanLogic
         r.Title = lines.Count > 0 ? lines[0] : "";
         var body = lines.Skip(1).ToList();
 
+        // "Stack trace:" (also in German); in other languages a line ending in ":" with a frame after it
         int st = body.FindIndex(x => x == "Stack trace:");
+        if (st < 0)
+            for (int i = 0; i + 1 < body.Count; i++)
+                if (body[i].EndsWith(':') && LooksLikeSignature(body[i + 1]) && !Legacy.IsMatch(body[i])) { st = i; break; }
         if (st >= 0)
         {
             foreach (var f in body.Skip(st + 1))
@@ -284,14 +324,29 @@ public static class CrashScanLogic
             }
             body = body.Take(st).ToList();
         }
-        foreach (var x in body)
-            if (Legacy.Match(x) is { Success: true } lm) r.LegacyHash = lm.Groups[1].Value;
-        body.RemoveAll(x => x.StartsWith("Legacy crash hash:", StringComparison.Ordinal));
+
+        int caused = body.FindIndex(IsCaused);
+        if (caused >= 0)
+        {
+            // only the crash path of the dialog has a crash hash, after the caused sentence (a disconnect or error text could
+            // hold anything); FiveM's English or German label first, any other label of the same shape after that
+            int lh = body.FindIndex(caused + 1, x => x.StartsWith("Legacy crash hash:", StringComparison.Ordinal) || x.StartsWith("Alter crash hash:", StringComparison.Ordinal));
+            if (lh < 0) lh = body.FindIndex(caused + 1, x => Legacy.IsMatch(x) && !x.StartsWith("Exception details", StringComparison.Ordinal) && !x.StartsWith("Fehlerinformationen", StringComparison.Ordinal));
+            if (lh > caused && Legacy.Match(body[lh]) is { Success: true })
+            {
+                r.LegacyHash = Legacy.Match(body[lh]).Groups[1].Value;
+                body.RemoveAt(lh);
+            }
+        }
 
         string all = string.Join("\n", lines);
         if (LooksLikeSignature(r.Title)) r.Signature = r.Title;
-        else if (body.Select(x => ErrorAt.Match(x)).FirstOrDefault(m => m.Success) is { } em) r.Signature = em.Groups[1].Value;
-        else if (r.Title == "Exception, unhandled!" && r.Stack.Count > 0) r.Signature = r.Stack.FirstOrDefault(f => !IsSystem(ModuleOf(f))) ?? r.Stack[0];
+        else if (caused >= 0 && SigIn(body[caused], r.Stack) is { } sig) r.Signature = sig;
+        else if (r.Title == "Exception, unhandled!" && r.Stack.Count > 0) r.Signature = Frame(r.Stack.FirstOrDefault(f => !IsSystem(ModuleOf(f))) ?? r.Stack[0]);
+        // crash-data.json's explanation stands before the caused sentence, under a headline that is no signature
+        r.Known = KnownTitles.Contains(r.Title)
+            || (caused > 0 && !LooksLikeSignature(r.Title) && r.Title is not ("Exception, unhandled!" or "FiveM has stopped working")
+                && body.Take(caused).Any(x => x.Length > 0) && !r.Title.EndsWith(" encountered an error", StringComparison.Ordinal));
         if (ExType.Match(all) is { Success: true } xm) r.ExceptionType = xm.Groups[1].Value;
         r.Module = ModuleOf(r.Signature);
         if (r.Signature != null && BuildExe.Match(r.Signature) is { Success: true } bx) r.Build = "b" + bx.Groups[1].Value;
@@ -303,9 +358,8 @@ public static class CrashScanLogic
         foreach (var raw in body)
         {
             var x = Unboiler(raw);
-            if (x.Length == 0 || Boiler(x)) continue;
-            if (ErrorAt.IsMatch(x) && r.Title != "FiveM crashed... but we're on it!") continue;
-            said.Add(ErrorAt.IsMatch(x) ? "" : x);
+            if (x.Length == 0 || Boiler(x) || IsCaused(x)) continue;
+            said.Add(x);
         }
         if (r.ExceptionType != null) said.Insert(0, "Unhandled exception: " + r.ExceptionType);
         said.RemoveAll(x => x.Length == 0 || x == "Exception, unhandled!" || x.StartsWith("An unhandled exception (of type", StringComparison.Ordinal));
@@ -313,6 +367,18 @@ public static class CrashScanLogic
         r.Text = text.Length == 0 ? null : text.Length > 420 ? text[..417].TrimEnd() + "…" : text;
         return r;
     }
+
+    /// <summary>The signature named in the caused sentence: by FiveM's English or German words, else the first frame of the
+    /// stack (the signature is that frame), else the first signature-shaped token.</summary>
+    private static string? SigIn(string line, List<string> stack)
+    {
+        if (ErrorAt.Match(line) is { Success: true } m) return m.Groups[1].Value;
+        if (stack.Count > 0 && Frame(stack[0]) is { Length: > 0 } f0 && line.Contains(f0, StringComparison.Ordinal)) return f0;
+        return SigToken.Match(line) is { Success: true } t ? t.Value : null;
+    }
+
+    /// <summary>A stack frame without its " (Main.cpp:1027)" source line: the form FiveM uses as signature.</summary>
+    private static string Frame(string f) => LineDetail.Replace(f.Trim(), "");
 
     private static readonly string[] BoilerTails = { " When asking for help", " If you require immediate support" };
 
@@ -416,8 +482,12 @@ public static class CrashScanLogic
         var vendor = pc.GpuVendor;
 
         if (!r.FromLog)
-            return new("nolog", "Keine Details im Log", "FiveM hat einen Crash-Dump geschrieben, aber im passenden Log steht nichts dazu – das Log ist gelöscht oder stammt aus einer anderen Sitzung. Woran es lag, lässt sich so nicht sagen.",
-                new[] { "Tritt es wieder auf, steht die Ursache im neuen Log – OrbitTweak liest es dann mit.", "Für den Support: den Dump über „Dump zeigen“ finden und mitschicken." }, "unklar", "crs-unknown", Array.Empty<CrashFix>());
+            return new("nolog", "Keine Details im Log", "FiveM hat einen Crash-Dump geschrieben, aber in seinen Logs steht nichts dazu. "
+                + (r.TimeUtc is { } t && pc.NowUtc is { } now && now - t > TimeSpan.FromDays(7)
+                    ? "Das Log ist schon weg: FiveM löscht Logs nach sieben Tagen, die letzten zehn Dumps behält es länger."
+                    : "Entweder wurde das Log gelöscht (auch der Cleaner räumt FiveM-Logs auf), oder FiveM kam nicht mehr dazu, die Meldung zu schreiben.")
+                + " Woran es lag, lässt sich so nicht sagen.",
+                new[] { "Tritt es wieder auf, steht FiveMs Meldung im neuen Log – OrbitTweak liest sie dann mit.", "Für den Support: den Dump über „Dump zeigen“ finden und mitschicken." }, "unklar", "crs-unknown", Array.Empty<CrashFix>());
 
         // FiveM's own words first: they name the cause more precisely than any module could
         if (Regex.IsMatch(title, @"^O\S* \(Error\)$"))
@@ -430,17 +500,17 @@ public static class CrashScanLogic
                 return new("freeze-script", "Eingefroren: Server-Skript", "Das Spiel hat zu lange nicht reagiert, weil ein Skript des Servers in einer Endlosschleife hing – das liegt nicht an deinem PC.",
                     new[] { "Melde es dem Server-Team mit dem Text unten.", "Passiert es auf mehreren Servern, entferne testweise eigene Mods." }, "klar", "terminal", Fx(Mods_));
             if (title.Contains("(DirectX query)"))
-                return new("freeze-gpu", "Eingefroren: Grafikkarte hing", "Das Spiel hat auf die Grafikkarte gewartet, die nicht mehr antwortete. Laut FiveM liegt das oft an fehlerhaften Server-Inhalten oder Grafik-Mods, sonst an Treiber oder Übertaktung.",
+                return new("freeze-gpu", "Eingefroren: Grafikkarte hing", "Das Spiel hat auf die Grafikkarte gewartet, die nicht mehr antwortete. Laut FiveM können fehlerhafte Spiel-Inhalte (etwa vom Server) oder Grafik-Mods dahinterstecken, sonst Treiber oder Übertaktung.",
                     new[] { "Grafik-Mods wie ReShade testweise entfernen.", "Grafiktreiber aktualisieren.", OcNote }, "wahrscheinlich", "gpucard", Fx(Mods_, Driver(vendor), HagsOff(pc)));
             if (title.Contains("(NVIDIA drivers)"))
-                return new("gpu-driver", "NVIDIA-Grafiktreiber", "FiveM hat beim Einfrieren eine NVIDIA-Treiberversion mit einem bekannten Fehler erkannt.",
-                    new[] { "Grafiktreiber aktualisieren – FiveM rät sonst zu Version 471.68 oder älter.", "Overlays wie das Steam-Overlay testweise ausschalten." }, "klar", "gpucard", Fx(Driver("nvidia")));
+                return new("gpu-driver", "NVIDIA-Grafiktreiber", "FiveM hat beim Einfrieren eine NVIDIA-Treiberversion erkannt, die einen bekannten Fehler hat.",
+                    new[] { "Grafiktreiber aktualisieren: Betroffen sind laut FiveM die Versionen 472 bis 497.10, FiveM selbst rät zu 471.68 oder älter.", "Overlays wie das Steam-Overlay testweise ausschalten." }, "klar", "gpucard", Fx(Driver("nvidia")));
             return new("freeze", "Spiel eingefroren", "Das Spiel hat zu lange nicht reagiert und wurde beendet. Woran es hing, sagt FiveM in diesem Fall nicht.",
                 new[] { "Achte darauf, ob es immer an derselben Stelle oder auf demselben Server passiert.", "Für den Support: Text unten kopieren und den Dump mitschicken." }, "unklar", "timer", Array.Empty<CrashFix>());
         }
 
         if (title == "Game integrity check failed" || title == "Early-exit trap")
-            return new("integrity", "FiveM-Integritätsprüfung", "FiveM hat eine Veränderung am laufenden Spiel bemerkt und es beendet. Cfx.re nennt als Gründe Programme, die sich ins Spiel einklinken: Cheats und Injectoren, aber auch manche Overlays oder Sicherheitssoftware.",
+            return new("integrity", "FiveM-Integritätsprüfung", "FiveM hat bei seiner Prüfung eine Veränderung am laufenden Spiel bemerkt und es beendet. Laut FiveM kann das an kürzlichen Änderungen an deinem PC liegen; typisch sind Programme, die sich ins Spiel einklinken.",
                 new[] { "Programme schließen, die sich ins Spiel einklinken (Overlays, Mod-Menüs, Injectoren).", "Cfx.re-Hilfe: aka.cfx.re/integrity-check-failed" }, "klar", "shield", Array.Empty<CrashFix>());
 
         if (title.EndsWith(" encountered an error", StringComparison.Ordinal) && !title.StartsWith("FiveM", StringComparison.Ordinal))
@@ -454,7 +524,7 @@ public static class CrashScanLogic
             if (title.Contains(".asi")) return Asi(pc, "klar");
         }
 
-        if (title == "FiveM crashed... but we're on it!")
+        if (r.Known)
             return new("known", "Bekannter FiveM-Fehler", "Cfx.re kennt diesen Absturz schon und hat eine Erklärung hinterlegt (unten auf Englisch). Meist hilft nur warten, bis FiveM ihn behebt.",
                 new[] { "FiveM aktuell halten – Updates kommen beim nächsten Start von selbst.", "Steht in der Erklärung ein Auslöser (etwa ein Auto-Mod), meide ihn." }, "klar", "info", Array.Empty<CrashFix>());
 
@@ -470,11 +540,9 @@ public static class CrashScanLogic
         {
             if (code.StartsWith("ERR_MEM", StringComparison.Ordinal) || code == "E_OUTOFMEMORY") return Memory(pc, "klar", code);
             if (code is "ERR_GFX_D3D_INIT")
-                return new("gpu-init", "DirectX ließ sich nicht starten", "GTA V konnte die Grafikkarte nicht einrichten. FiveM nennt das NVIDIA-Overlay (ShadowPlay) als häufigen Auslöser, sonst sind es Treiber, Übertaktung oder Grafik-Mods im GTA-V-Ordner.",
+                return new("gpu-init", "DirectX ließ sich nicht starten", "GTA V konnte die Grafikkarte nicht einrichten. Häufige Gründe sind Overlays, die sich in die Grafik einklinken, der Treiber, eine Übertaktung oder Grafik-Mods im GTA-V-Ordner.",
                     new[] { "Overlays testweise ausschalten (NVIDIA-Overlay, Steam, Discord, RivaTuner).", "Grafiktreiber aktualisieren und den PC neu starten.", OcNote }, "wahrscheinlich", "gpucard", Fx(Driver(vendor), ReShadeFix));
-            if (Regex.IsMatch(code, "^ERR_GFX_.*(MEM|ALLOC)"))
-                return new("vram", "Grafikspeicher voll", "GTA V bekam von der Grafikkarte keinen Speicher mehr. Meist ist der Grafikspeicher (VRAM) voll – durch hohe Einstellungen, ein hohes Texturbudget oder viele Add-on-Inhalte des Servers.",
-                    new[] { "Texturqualität oder Auflösung im Spiel eine Stufe senken.", "Ist dein Texturbudget erhöht, senk es testweise.", "Grafiktreiber aktuell halten." }, "wahrscheinlich", "gpucard", Fx(Tex(pc), Driver(vendor)));
+            if (Regex.IsMatch(code, "^ERR_GFX_.*(MEM|ALLOC)")) return Vram(pc);
             if (code == "ERR_GFX_DRAW_DATA")
                 return new("assets", "Fehlerhafte Spiel-Inhalte", "GTA V stieß beim Zeichnen auf kaputte Modell-Daten. Das kommt meist von Server-Inhalten (Autos, Kleidung, MLOs) oder eigenen Mods.",
                     new[] { "Passiert es nur auf einem Server, melde es dort.", "Eigene Mods testweise entfernen." }, "wahrscheinlich", "puzzle", Fx(Mods_));
@@ -526,7 +594,7 @@ public static class CrashScanLogic
                 return new("script", "Server-Skript", $"Der Absturz passierte in der Skript-Laufzeit ({module}). Das ist meist ein Fehler in einem Skript des Servers, nicht an deinem PC.",
                     new[] { "Passiert es nur auf einem Server, melde es dem Server-Team mit dem Text unten.", "Kommt es überall vor, FiveM neu starten und den Cache leeren." }, sure, "terminal", Array.Empty<CrashFix>());
             case "nui":
-                return new("nui", "Server-Oberfläche (NUI)", "Abgestürzt ist der eingebaute Browser, der Menüs und HUDs der Server zeigt. Laut Cfx.re steckt oft voller Arbeitsspeicher dahinter, etwa durch eine Server-Oberfläche, die immer mehr Speicher belegt. Das Spiel läuft danach manchmal weiter.",
+                return new("nui", "Server-Oberfläche (NUI)", "Abgestürzt ist der eingebaute Browser, der Menüs und HUDs der Server zeigt. Das kann an vollem Arbeitsspeicher liegen, etwa durch eine Server-Oberfläche, die immer mehr Speicher belegt, oder an der Oberfläche selbst. Das Spiel läuft danach manchmal weiter.",
                     new[] { "Im Task-Manager beobachten, ob der Arbeitsspeicher vor dem Absturz voll läuft.", "Passiert es nur auf einem Server, melde es dort." }, sure, "globe", Fx(Pagefile(pc)));
             case "fivem":
                 return new("fivem", "In FiveM selbst", $"Der Fehler liegt in einem Teil von FiveM ({module}). Selbst beheben lässt sich das kaum.",
@@ -546,8 +614,14 @@ public static class CrashScanLogic
             new[] { "Treiber aktualisieren – kam der Fehler nach einem Update, eine Version zurück.", OcNote, "PC neu starten, dann FiveM." }, sure, "gpucard", Fx(Driver(vendor), HagsOff(pc)));
     }
 
+    private static CrashCause Vram(CrashPc pc) =>
+        new("vram", "Grafikspeicher voll", "GTA V bekam von der Grafikkarte keinen Speicher mehr. Meist ist der Grafikspeicher (VRAM) voll – durch hohe Einstellungen, ein hohes Texturbudget oder viele Add-on-Inhalte des Servers.",
+            new[] { "Texturqualität oder Auflösung im Spiel eine Stufe senken.", "Ist dein Texturbudget erhöht, senk es testweise.", "Grafiktreiber aktuell halten." }, "wahrscheinlich", "gpucard", Fx(Tex(pc), Driver(pc.GpuVendor)));
+
     private static CrashCause Device(CrashReport r, CrashPc pc, string all)
     {
+        // RenderHooks.cpp: "GetDeviceRemovedReason returned E_OUTOFMEMORY - …" – the card ran out of video memory
+        if (all.Contains("returned E_OUTOFMEMORY", StringComparison.Ordinal)) return Vram(pc);
         // RenderHooks.cpp marks graphics mods in the GTA folder: (R) ReShade, (E) ENBSeries, (R+E) both, (M) another one
         if (Regex.IsMatch(r.Title ?? "", @"unrecoverable error \((R|E|R\+E|M)\)") || all.Contains("graphics mods were found", StringComparison.Ordinal))
             return new("gfxmod", "Grafik-Mod im GTA-V-Ordner", "Die Grafikkarte ist ausgestiegen, und FiveM hat dabei einen Grafik-Mod im GTA-V-Ordner gefunden (ReShade, ENB oder ähnlich). Solche Mods sind laut FiveM ein häufiger Grund.",
@@ -581,7 +655,7 @@ public static class CrashScanLogic
             "ReShade" => Fx(ReShadeFix),
             _ => Array.Empty<CrashFix>(),
         };
-        return new("overlay", name, where + " Programme, die sich ins Spiel einklinken, bringen es immer wieder zum Absturz.", new[] { how, "Danach FiveM neu starten." }, sure, "layers", fixes);
+        return new("overlay", name, where + " Solche Programme klinken sich ins Spiel ein und können es zum Absturz bringen.", new[] { how, "Danach FiveM neu starten." }, sure, "layers", fixes);
     }
 
     private static CrashCause Asi(CrashPc pc, string sure, string? module = null) =>
@@ -645,7 +719,9 @@ public static class CrashScanLogic
         {
             uint kl = BitConverter.ToUInt32(data, p), vl = BitConverter.ToUInt32(data, p + 4);
             p += 8;
-            if (kl == 0 || vl == 0 || kl > 256 || vl > 4096 || p + kl + vl > data.Length) break;
+            if (kl > 256 || vl > 4096 || p + kl + vl > data.Length) break;
+            // AddCrashometry writes an empty value as a value length of 0: nothing to keep, the next record follows
+            if (kl == 0 || vl == 0) { p += (int)(kl + vl); continue; }
             var k = Encoding.UTF8.GetString(data, p, (int)kl);
             var v = Encoding.UTF8.GetString(data, p + (int)kl, (int)vl);
             p += (int)(kl + vl);

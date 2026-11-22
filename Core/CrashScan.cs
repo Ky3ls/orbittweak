@@ -12,7 +12,8 @@ namespace OrbitTweak.Core;
 /// </summary>
 internal static class CrashScan
 {
-    /// <summary>Newest session logs looked at (FiveM keeps every session's log until the Cleaner removes them).</summary>
+    /// <summary>Newest session logs looked at. FiveM itself deletes logs older than 7 days at every start
+    /// (Console.Logging.cpp InitLogging); older ones are only left when FiveM has not run since.</summary>
     private const int MaxLogs = 40;
     private static readonly TimeSpan MaxAge = TimeSpan.FromDays(90);
     /// <summary>The BEGIN line and the first build tags are at the start of a log …</summary>
@@ -108,31 +109,29 @@ internal static class CrashScan
         return n == buf.Length ? buf : buf[..n];
     }
 
-    /// <summary>The log's lines; of a huge log only the first 64 KB and the last 16 MB (whole lines only).</summary>
-    private static List<string> Lines(string path)
+    /// <summary>The log's lines, streamed (a busy server's log can be hundreds of MB, nothing of it is kept but the crash
+    /// dialogs); of a huge log only the first 64 KB and the last 16 MB, whole lines only. An IOException while reading
+    /// reaches the caller through the enumeration.</summary>
+    private static IEnumerable<string> Lines(string path)
     {
         using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-        var lines = new List<string>();
-        if (fs.Length <= HeadBytes + TailBytes)
+        long len = fs.Length;
+        if (len <= HeadBytes + TailBytes)
         {
             using var sr = new StreamReader(fs, Encoding.UTF8, true);
-            while (sr.ReadLine() is { } l) lines.Add(l);
-            return lines;
+            while (sr.ReadLine() is { } l) yield return l;
+            yield break;
         }
-        lines.AddRange(Chunk(fs, 0, HeadBytes, dropFirst: false));
-        lines.AddRange(Chunk(fs, fs.Length - TailBytes, TailBytes, dropFirst: true));
-        return lines;
-    }
-
-    private static IEnumerable<string> Chunk(FileStream fs, long at, int count, bool dropFirst)
-    {
-        var buf = new byte[count];
-        fs.Seek(at, SeekOrigin.Begin);
+        // the head: whole lines of the first 64 KB (the last one may be cut)
+        var buf = new byte[HeadBytes];
         int n = 0;
-        while (n < count && fs.Read(buf, n, count - n) is var k and > 0) n += k;
-        var parts = Encoding.UTF8.GetString(buf, 0, n).Split('\n');
-        // a cut line at either end is no line
-        int from = dropFirst ? 1 : 0, to = parts.Length - 1;
-        for (int i = from; i < to; i++) yield return parts[i].TrimEnd('\r');
+        while (n < buf.Length && fs.Read(buf, n, buf.Length - n) is var k and > 0) n += k;
+        var head = Encoding.UTF8.GetString(buf, 0, n).Split('\n');
+        for (int i = 0; i < head.Length - 1; i++) yield return head[i].TrimEnd('\r');
+        // the tail: from 16 MB before the end, the first (cut) line dropped; lines written meanwhile are read too
+        fs.Seek(len - TailBytes, SeekOrigin.Begin);
+        using var tr = new StreamReader(fs, Encoding.UTF8, false);
+        tr.ReadLine();
+        while (tr.ReadLine() is { } l) yield return l;
     }
 }

@@ -11,6 +11,7 @@ const CRS = {
   busy: new Set(),    // fix buttons waiting for the host ("id|fix")
   done: new Set(),    // fixes that went through, shown as done until the list is read again
   copied: '',         // the crash whose text was just copied
+  fk: null,           // the focused control of the card ([data key, value, crash id]) while it renders again
 };
 const CRS_SURE = { klar: 'Klarer Hinweis', wahrscheinlich: 'Wahrscheinlich', unklar: 'Unklar' };
 const CRS_DAY = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'short' });
@@ -63,10 +64,38 @@ function crsEmpty(kind, icon, title, text, extra = '') {
   return `<div class="lx-empty crs-empty ${kind}">${ico(icon)}<b>${esc(title)}</b><span>${esc(text)}</span>${extra}</div>`;
 }
 
+const CRS_FK = ['crsrow', 'crsfix', 'crscopy', 'crsrev', 'crsretry', 'crsgo'];
+
+/** The card re-renders with innerHTML: the control that had the keyboard focus gets it back (also after it was
+ *  disabled for a moment while a fix ran), so Tab and Enter keep working in the list. */
+function crsKeepFocus(body) {
+  const a = document.activeElement;
+  if (a && body.contains(a)) { const k = CRS_FK.find(x => a.dataset[x] !== undefined); CRS.fk = k ? [k, a.dataset[k], a.dataset.crsfor || ''] : null; }
+  else if (a && a !== document.body) CRS.fk = null;   // the user went on elsewhere
+  return () => {
+    if (!CRS.fk) return;
+    const [k, v, f] = CRS.fk, attr = k.replace(/^crs/, 'data-crs');
+    let el = body.querySelector(`[${attr}="${CSS.escape(v)}"]${f ? `[data-crsfor="${CSS.escape(f)}"]` : ''}`);
+    if (el && el.disabled && k === 'crsfix' && CRS.busy.has(f + '|' + v)) return;   // back on it once the fix is through
+    // a fix that is done stays disabled: its crash's row takes the focus
+    if ((!el || el.disabled) && f) el = body.querySelector(`[data-crsrow="${CSS.escape(f)}"]`);
+    if (!el || el.disabled) el = body.querySelector('[data-crsrow],[data-crsretry],[data-crsgo]');
+    if (!el) return;   // skeleton while reading: the next render tries again
+    el.focus({ preventScroll: true });
+    CRS.fk = null;
+  };
+}
+
 function crsRender() {
   const body = $('#crsBody'), sub = $('#crsSub'), rel = $('#crsReload');
   if (!body) return;
+  const refocus = crsKeepFocus(body);
+  crsPaint(body, sub);
+  refocus();
   if (rel) rel.disabled = !!CRS.loading;
+}
+
+function crsPaint(body, sub) {
   const d = CRS.data;
   if (CRS.err) {
     sub.textContent = 'Nicht gelesen';
@@ -85,7 +114,7 @@ function crsRender() {
   }
   const items = d.items || [];
   if (!items.length) {
-    sub.textContent = 'FiveMs Logs der letzten 90 Tage und der Crash-Ordner';
+    sub.textContent = 'Aus FiveMs Logs (FiveM behält sie sieben Tage) und dem Crash-Ordner';
     body.innerHTML = crsEmpty('ok', 'check', 'Keine Abstürze', 'In FiveMs Logs und im Crash-Ordner steht kein Absturz. Wenn doch mal einer passiert, steht hier, woran es lag.');
     return;
   }
@@ -116,7 +145,7 @@ function crsDetail(it) {
   if (it.text) said.push(`<div class="crs-f"><span>Fehler</span><p>${esc(it.text)}</p></div>`);
   if (!it.signature && !it.text) said.push(`<div class="crs-f"><span>Gemeldet</span><p class="crs-none">Im Log steht nichts zu diesem Absturz, nur der Dump ist da.</p></div>`);
   const small = [['Build', it.build || 'unbekannt'], ['Server', it.server], ['Crash-Hash', it.legacyHash], ['Report-ID', it.reportId]].filter(x => x[1]);
-  const stack = (it.stack || []).length ? `<details class="crs-stk"><summary>${ico('chev')}Stapel, ${it.stack.length} ${it.stack.length === 1 ? 'Zeile' : 'Zeilen'}</summary><code>${it.stack.map(esc).join('\n')}</code></details>` : '';
+  const stack = (it.stack || []).length ? `<details class="crs-stk"><summary>${ico('chev')}Stacktrace, ${it.stack.length} ${it.stack.length === 1 ? 'Zeile' : 'Zeilen'}</summary><code>${it.stack.map(esc).join('\n')}</code></details>` : '';
   const fixes = (it.fixes || []).map(f => {
     const key = it.id + '|' + f.id, done = CRS.done.has(key), busy = CRS.busy.has(key);
     return `<button class="btn sm crs-fix${done ? ' crs-done' : ''}" type="button" data-crsfix="${esc(f.id)}" data-crsfor="${esc(it.id)}"${done || busy ? ' disabled' : ''}>${ico(done ? 'check' : crsFixIcon(f))}${esc(done ? crsDoneLabel(f) : f.label)}</button>`;
@@ -177,7 +206,7 @@ async function crsFix(id, fixId) {
       if (ok && typeof loadTweaks === 'function') loadTweaks();
     } else if (f.kind === 'tweakoff') {
       const r = await api('tweak.set', { id: f.arg, on: false });
-      ok = !r.applied && !r.error;
+      ok = !r.error;   // "applied" can stay true until the restart when Windows' own default takes over again
       toast(ok ? 'GPU-Planung ausgeschaltet' : 'Nicht ausgeschaltet', ok ? 'Wirkt nach einem Neustart' : (r.error || ''), ok);
       if (typeof loadTweaks === 'function') loadTweaks();
     } else if (f.kind === 'action' && f.arg === 'fmcache') {
@@ -258,7 +287,7 @@ function crsMockList() {
       fixes: [{ id: 'tex', label: 'Texturbudget ansehen', kind: 'page', arg: 'gfx#texCard' }] },
     { id: 'm3', time: at(74, 5), build: 'b3258', server: null, title: 'rtsshooks64.dll+1F2A', signature: 'rtsshooks64.dll+1F2A', module: 'rtsshooks64.dll', code: null, text: null, legacyHash: null, reportId: null,
       stack: ['rtsshooks64.dll+1F2A', 'dxgi.dll!CDXGISwapChain::Present (0x3b)', 'GTA5_b3258.exe!sub_14002A3B4 (0x30)'], dump: '9a1e44c0-2f6b-4d8e-8c3a-5e7f9b1d2c40.dmp', log: 'CitizenFX_log_2026-11-19T081133.log',
-      cause: { key: 'overlay', title: 'RivaTuner (MSI Afterburner)', why: 'Der Absturz passierte in rtsshooks64.dll, einem Teil von RivaTuner (MSI Afterburner) – nicht von FiveM. Programme, die sich ins Spiel einklinken, bringen es immer wieder zum Absturz.', steps: ['Das Overlay in RivaTuner für FiveM abschalten oder RivaTuner vor dem Spielen beenden.', 'Danach FiveM neu starten.'], sure: 'klar', icon: 'layers' },
+      cause: { key: 'overlay', title: 'RivaTuner (MSI Afterburner)', why: 'Der Absturz passierte in rtsshooks64.dll, einem Teil von RivaTuner (MSI Afterburner) – nicht von FiveM. Solche Programme klinken sich ins Spiel ein und können es zum Absturz bringen.', steps: ['Das Overlay in RivaTuner für FiveM abschalten oder RivaTuner vor dem Spielen beenden.', 'Danach FiveM neu starten.'], sure: 'klar', icon: 'layers' },
       fixes: [{ id: 'autostart', label: 'Autostart öffnen', kind: 'page', arg: 'autostart' }] },
     { id: 'm4', time: at(96, 48), build: 'b3258', server: null, title: 'RAGE error: ERR_STR_FAILURE', signature: null, module: null, code: 'ERR_STR_FAILURE',
       text: 'RAGE error: ERR_STR_FAILURE – A game error (at 0000000141087d3c) caused the game to stop working.', legacyHash: null, reportId: null, stack: [],
@@ -276,7 +305,7 @@ function crsMockList() {
       fixes: [nv] },
     { id: 'm7', time: at(220, 12), build: null, server: null, title: null, signature: null, module: null, code: null, text: null, legacyHash: null, reportId: null, stack: [],
       dump: 'e7f1a2b3-c4d5-4e6f-a7b8-c9d0e1f2a3b4.dmp', log: null,
-      cause: { key: 'nolog', title: 'Keine Details im Log', why: 'FiveM hat einen Crash-Dump geschrieben, aber im passenden Log steht nichts dazu – das Log ist gelöscht oder stammt aus einer anderen Sitzung. Woran es lag, lässt sich so nicht sagen.', steps: ['Tritt es wieder auf, steht die Ursache im neuen Log – OrbitTweak liest es dann mit.', 'Für den Support: den Dump über „Dump zeigen“ finden und mitschicken.'], sure: 'unklar', icon: 'crs-unknown' },
+      cause: { key: 'nolog', title: 'Keine Details im Log', why: 'FiveM hat einen Crash-Dump geschrieben, aber in seinen Logs steht nichts dazu. Das Log ist schon weg: FiveM löscht Logs nach sieben Tagen, die letzten zehn Dumps behält es länger. Woran es lag, lässt sich so nicht sagen.', steps: ['Tritt es wieder auf, steht FiveMs Meldung im neuen Log – OrbitTweak liest sie dann mit.', 'Für den Support: den Dump über „Dump zeigen“ finden und mitschicken.'], sure: 'unklar', icon: 'crs-unknown' },
       fixes: [] },
   ];
   items.forEach(it => { it.support = support(it); });

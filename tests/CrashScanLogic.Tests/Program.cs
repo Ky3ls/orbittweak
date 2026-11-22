@@ -176,6 +176,8 @@ Eq(known.Signature, "GTA5_b2944.exe!sub_1413A8C10 (0x4c)", "signature out of 'An
 Eq(known.Build, "b2944", "build from that signature");
 Check(known.Text != null && known.Text.Contains("bad cloth data"), "FiveM's explanation is the error text");
 Eq(CrashScanLogic.Analyze(known, pcNone).Key, "known", "known FiveM crash");
+Check(known.Known && !known.Text!.Contains("caused FiveM"), "known flag; the caused sentence is no error text");
+Check(!r1.Known, "a plain crash is no known crash");
 
 var botan = One(
     "[      1344] [    DumpServer]                 5984/ Process crash captured. Crash dialog content:",
@@ -189,6 +191,7 @@ var botan = One(
     "[      1344] [    DumpServer]                 5984/ ",
     "[      4391] [    DumpServer]                 5984/ Crash report service returned si-6f2424cb9eb64950aa4976c0a48f5a56");
 Eq(botan.ExceptionType, "Botan::Decoding_Error", "exception type");
+Check(!botan.Known, "an exception is no known crash");
 Eq(botan.Signature, "legitimacy.dll+6B9A7", "signature: the first frame outside Windows");
 Eq(botan.Text, "Unhandled exception: Botan::Decoding_Error", "exception as error text");
 var cBotan = CrashScanLogic.Analyze(botan, pcNone);
@@ -224,6 +227,51 @@ var mono = One(
 Eq(CrashScanLogic.Analyze(mono, pcNone).Key, "script", "C# script runtime");
 Eq(CrashScanLogic.Analyze(Dialog("1", "citizen-scripting-lua54.dll!lua_settop (0x1f)", "An error at citizen-scripting-lua54.dll!lua_settop (0x1f) caused FiveM to stop working. A crash report is being uploaded to the FiveM developers."), pcNone).Key, "script", "Lua runtime is a script, not FiveM itself");
 
+// no crash hash: FiveM's default headline and "An error caused …" (MiniDump.cpp: cuz = "An error")
+var plain = Dialog("1", "FiveM has stopped working", "An error caused FiveM to stop working. A crash report is being uploaded to the FiveM developers.");
+Check(plain.Signature == null && !plain.Known && plain.Text == "FiveM has stopped working", "default headline: no signature, the caused sentence is boilerplate");
+Eq(CrashScanLogic.Analyze(plain, pcNone).Key, "unknown", "default headline without a stack stays unknown");
+
+// ---------- dialogs in FiveM's other languages (exact strings of data/client/citizen/locales/<lang>/cfx.po) ----------
+var deSig = Dialog("1", "GTA5_b3258.exe!sub_141322F74 (0x1a)",
+    "Ein Fehler bei GTA5_b3258.exe!sub_141322F74 (0x1a) hat verursacht, dass FiveM nicht mehr funktioniert. Ein Absturzbericht wird an die FiveM Entwickler hochgeladen.",
+    "", "Alter crash hash: violet-network-nitrogen", "Stack trace:", "  GTA5_b3258.exe!sub_141322F74 (0x1a)", "  GTA5_b3258.exe!sub_14132A0B8 (0x6d)", "");
+Eq(deSig.Signature, "GTA5_b3258.exe!sub_141322F74 (0x1a)", "German: signature");
+Eq(deSig.LegacyHash, "violet-network-nitrogen", "German: 'Alter crash hash'");
+Eq(deSig.Stack.Count, 2, "German: stack");
+Check(deSig.Text == null, "German: the caused sentence is boilerplate, no error text: " + deSig.Text);
+Eq(CrashScanLogic.Analyze(deSig, pcNone).Key, "game", "German: game code");
+var deKnown = Dialog("1", "FiveM ist abgestürzt... aber wir sind dran!", "A crash in vehicle sound code occurred. This appears to be caused by bad cloth data in a car mod that is loaded.", "",
+    "Ein Fehler bei GTA5_b3258.exe!sub_1413A8C10 (0x4c) hat verursacht, dass FiveM nicht mehr funktioniert. Ein Absturzbericht wird an die FiveM Entwickler hochgeladen.", "", "Alter crash hash: tennis-stairway-seven",
+    "Stack trace:", "  GTA5_b3258.exe!sub_1413A8C10 (0x4c)", "");
+Check(deKnown.Known && deKnown.Signature == "GTA5_b3258.exe!sub_1413A8C10 (0x4c)" && deKnown.LegacyHash == "tennis-stairway-seven", "German known crash: flag, signature, hash");
+Check(deKnown.Text != null && deKnown.Text.Contains("bad cloth data") && !deKnown.Text.Contains("hat verursacht"), "German known crash: FiveM's explanation without the caused sentence");
+Eq(CrashScanLogic.Analyze(deKnown, pcNone).Key, "known", "German known crash");
+var deEx = Dialog("1", "Exception, unhandled!", "An unhandled exception (of type std::bad_alloc) hat verursacht, dass FiveM nicht mehr funktioniert. Ein Absturzbericht wird an die FiveM Entwickler hochgeladen.", "", "Fehlerinformationen: bad allocation");
+Check(deEx.ExceptionType == "std::bad_alloc" && deEx.Text == "Unhandled exception: std::bad_alloc – Fehlerinformationen: bad allocation" && deEx.LegacyHash == null, "German exception: " + deEx.Text);
+Eq(CrashScanLogic.Analyze(deEx, pcNone).Key, "memory", "German bad_alloc");
+var deBotan = One(L(0, D, "5984", CrashScanLogic.CaptureMarker), L(0, D, "5984", "Exception, unhandled!"),
+    L(0, D, "5984", "An unhandled exception (of type Botan::Decoding_Error) hat verursacht, dass FiveM nicht mehr funktioniert. Ein Absturzbericht wird an die FiveM Entwickler hochgeladen."),
+    L(0, D, "5984", "Stack trace:"), L(0, D, "5984", "  KERNELBASE.dll!RaiseException (0x8a)"), L(0, D, "5984", "  VCRUNTIME140.dll!_CxxThrowException (0x8f) (<A HREF=\"https://sourcegraph.com/x\">throw.cpp:74</A>)"),
+    L(0, D, "5984", "  CoreRT.dll!fx::ResourceManagerImpl::Tick (0x5d) (ResourceManager.cpp:206)"), L(0, D, "5984", ""));
+Eq(deBotan.Signature, "CoreRT.dll!fx::ResourceManagerImpl::Tick (0x5d)", "exception signature: the first frame outside Windows, without its source line");
+Eq(deBotan.Stack[1], "VCRUNTIME140.dll!_CxxThrowException (0x8f) (throw.cpp:74)", "a frame's source link becomes plain text");
+var frKnown = Dialog("1", "FiveM a cessé de fonctionner... mais nous sommes dessus !", "A crash in network object cloning occurred (missing R* null pointer check). This only seems to happen after game reloading.", "",
+    "Une erreur à GTA5_b3258.exe!sub_14109D8D8 (0x2b) a provoqué l'arrêt de FiveM. Un rapport de crash est en cours de téléchargement vers les développeurs FiveM.", "",
+    "Héritage du hash de crash : asparagus-king-thirteen", "Stack trace:", "  GTA5_b3258.exe!sub_14109D8D8 (0x2b)", "  GTA5_b3258.exe!sub_1410A0000 (0x11)", "");
+Check(frKnown.Known && frKnown.Signature == "GTA5_b3258.exe!sub_14109D8D8 (0x2b)" && frKnown.LegacyHash == "asparagus-king-thirteen", "French known crash by shape: flag, signature from the first frame, hash");
+Check(frKnown.Text != null && frKnown.Text.Contains("network object cloning") && !frKnown.Text.Contains("provoqué"), "French: explanation without the caused sentence");
+var huSig = Dialog("1", "nvwgf2umx.dll+A3C0F1",
+    "Egy hiba a(z) nvwgf2umx.dll+A3C0F1 okozott FiveM a folyamat leállásában. Az összeomlási jelentést feltöltjük a FiveM fejlesztőknek.", "", "Memória lefoglalása:", "  nvwgf2umx.dll+A3C0F1", "  d3d11.dll!CContext::Draw (0x41)", "");
+Check(huSig.Stack.Count == 2 && huSig.Text == null, "Hungarian: translated stack header found by shape, caused sentence dropped");
+Eq(CrashScanLogic.Analyze(huSig, new CrashPc("nvidia")).Key, "gpu-driver", "Hungarian: NVIDIA driver");
+var frSigOnly = Dialog("1", "FiveM a cessé de fonctionner... mais nous sommes dessus !", "Some explanation.", "", "Une erreur à menu.asi+3F00 a provoqué l'arrêt de FiveM. Un rapport de crash est en cours de téléchargement vers les développeurs FiveM.");
+Eq(frSigOnly.Signature, "menu.asi+3F00", "no stack: the signature-shaped word of the caused sentence");
+var asiBlame = Dialog("1", "a third-party game plugin (scripthookv.asi+1A2B) encountered an error", "FiveM crashed due to a third-party game plugin (scripthookv.asi+1A2B).", "Please try removing the above file from the \"plugins\" folder in your FiveM installation and restarting the game.");
+Check(!asiBlame.Known && asiBlame.Signature == null && asiBlame.Text!.Contains("FiveM crashed due to"), "a blame names FiveM once per line: no caused sentence, its text is kept");
+var discHash = Dialog("1", "Oшибка (Error)", "Kicked: alpha-beta-gamma");
+Check(discHash.LegacyHash == null && discHash.Text!.Contains("alpha-beta-gamma"), "a disconnect text is never read as a crash hash");
+
 // ---------- RAGE errors and DirectX ----------
 var gfxInit = One(
     L(0, "FiveM", "MainThrd", "--- BEGIN LOGGING AT Fri Nov 20 18:00:00 2026 ---"),
@@ -241,7 +289,8 @@ Eq(gfxInit.Text, "RAGE error: ERR_GFX_D3D_INIT – A game error (at 000000014119
 Eq(gfxInit.Build, "b3095", "build from the game's own Error: line");
 var cInit = CrashScanLogic.Analyze(gfxInit, new CrashPc("amd"));
 Eq(cInit.Key, "gpu-init", "ERR_GFX_D3D_INIT");
-Check(cInit.Why.Contains("NVIDIA-Overlay") && cInit.Fixes.Any(f => f.Id == "driver:amd") && cInit.Fixes.Any(f => f.Id == "reshade"), "D3D init: overlays named, the PC's driver and ReShade offered");
+Check(cInit.Why.Contains("Overlays") && cInit.Steps[0].Contains("NVIDIA-Overlay") && cInit.Fixes.Any(f => f.Id == "driver:amd") && cInit.Fixes.Any(f => f.Id == "reshade"), "D3D init: overlays named, the PC's driver and ReShade offered");
+Check(!cInit.Why.Contains("FiveM nennt"), "D3D init does not claim FiveM says so (only a source comment does, and FiveM blocks nvspcap)");
 
 var memErr = Dialog("1", "RAGE error: ERR_MEM_EMBEDDEDALLOC_ALLOC", "A game error (at 00000001400a2b44) caused the game to stop working.", "", "Out of memory in the game heap.");
 var cMem = CrashScanLogic.Analyze(memErr, pcNone);
@@ -268,6 +317,10 @@ Check(cRem.Steps.Any(s => s.Contains("Übertaktung")), "device removed names ove
 var rs = Dialog("1", "DirectX encountered an unrecoverable error (R): DXGI_ERROR_DEVICE_HUNG - The GPU will not respond to more commands.", "", "The following graphics mods were found in your GTA V installation:", "- ReShade 6.3.3.1915", "", "Please contact the author of these mods to see if the issue may be related to them.");
 var cRs = CrashScanLogic.Analyze(rs, pcNone);
 Check(cRs.Key == "gfxmod" && cRs.Fixes.Any(f => f.Id == "reshade" && f.Arg == "mods#rs"), "graphics mod marker (R)");
+var oomDev = Dialog("1", "DirectX encountered an unrecoverable error: DXGI_ERROR_DEVICE_REMOVED - The video card has been physically removed from the system, or a driver upgrade for the video card has occurred. ",
+    "GetDeviceRemovedReason returned E_OUTOFMEMORY - Ran out of memory ");
+var cOom = CrashScanLogic.Analyze(oomDev, new CrashPc(TexRaised: true));
+Check(cOom.Key == "vram" && cOom.Fixes.Any(f => f.Id == "tex"), "device removed for lack of memory is video memory");
 
 // ---------- freezes, pools, launcher, disconnects, integrity ----------
 var dead = Dialog("1", "FiveM has stopped responding (script deadloop)", "The game stopped responding for too long and needs to be restarted. When asking for help, please click 'Save information' and upload the file that is saved when you click the button.", "", "Scripts were running: myresource: event esx:playerLoaded");
@@ -353,6 +406,10 @@ Eq(merged[1].Dump, "11111111-2222-3333-4444-555555555555.dmp", "dump 2 min away 
 Eq(merged[2].Dump, (string?)null, "no dump near the third crash");
 Check(!merged[3].FromLog && merged[3].Dump == "99999999-2222-3333-4444-555555555555.dmp", "a dump without a log is a crash of its own, at the end (oldest)");
 Eq(CrashScanLogic.Analyze(merged[3], pcNone).Key, "nolog", "a dump alone: no details");
+var nologOld = CrashScanLogic.Analyze(merged[3], new CrashPc(NowUtc: T(15, 12, 0).AddDays(9)));
+var nologNew = CrashScanLogic.Analyze(merged[3], new CrashPc(NowUtc: T(15, 12, 0).AddDays(2)));
+Check(nologOld.Why.Contains("nach sieben Tagen") && !nologOld.Why.Contains("Entweder"), "a dump older than a week: FiveM deleted its log (Console.Logging.cpp)");
+Check(nologNew.Why.Contains("Entweder") && !nologNew.Why.Contains("nach sieben Tagen"), "a recent dump: no claim about the seven days");
 var many = CrashScanLogic.Merge(Enumerable.Range(0, 14).Select(i => Logged(T(1, 0, 0).AddHours(i), "x.dll+" + i)), Array.Empty<(string, DateTime)>());
 Eq(many.Count, CrashScanLogic.MaxCrashes, "at most ten");
 Eq(many[0].Signature, "x.dll+13", "newest first");
@@ -376,6 +433,10 @@ var cut = cm.Take(cm.Length - 3).ToArray();
 Check(CrashScanLogic.ParseCrashometry(cut).ContainsKey("last_server") && !CrashScanLogic.ParseCrashometry(cut).ContainsKey("onesync_enabled"), "a cut-off file gives what was readable");
 Eq(CrashScanLogic.ParseCrashometry(new byte[] { 255, 255, 255, 255, 1, 0, 0, 0 }).Count, 0, "a broken length stops");
 Eq(CrashScanLogic.ParseCrashometry(null).Count, 0, "no file");
+var cmEmpty = Rec("last_server_ver", "").Concat(Rec("last_server", "203.0.113.24:30120")).ToArray();
+Eq(cmEmpty.Length, 8 + 15 + 8 + 11 + 18, "an empty value is written as length 0 (AddCrashometry)");
+var cmE = CrashScanLogic.ParseCrashometry(cmEmpty);
+Check(!cmE.ContainsKey("last_server_ver") && cmE.GetValueOrDefault("last_server") == "203.0.113.24:30120", "an empty value is skipped, the next record is still read");
 
 // ---------- privacy ----------
 Eq(CrashScanLogic.Redact(@"Could not load C:\Users\Max\AppData\Local\FiveM\FiveM.app\plugins\x.asi", "Max"), @"Could not load C:\Users\<Nutzer>\AppData\Local\FiveM\FiveM.app\plugins\x.asi", "user folder in a path");

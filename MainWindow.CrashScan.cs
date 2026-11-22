@@ -72,7 +72,8 @@ public partial class MainWindow
             PagefileOk: _tweaks.FirstOrDefault(t => t.Id == "pagefile") is not { } pf || pf.SafeCheck(),
             HagsOn: _tweaks.FirstOrDefault(t => t.Id == "hags") is { } hg && hg.SafeCheck(),
             TexRaised: TexRaised(),
-            HasPlugins: CrashScan.PluginDir is { } pd && Directory.Exists(pd));
+            HasPlugins: CrashScan.PluginDir is { } pd && Directory.Exists(pd),
+            NowUtc: DateTime.UtcNow);
         var res = CrashScan.Read();
         string user = Environment.UserName, profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         var rows = res.Crashes.Select(r => (r, c: CrashScanLogic.Analyze(r, pc))).ToList();
