@@ -9,7 +9,7 @@
                           screwdriver. OrbitTweak never switches XMP itself.
    Nothing changes without a click. */
 (() => {
-  const HW = { dev: null, name: '', from: 0, to: 0, until: 0, tick: 0, wait: 0 };
+  const HW = { dev: null, name: '', from: 0, to: 0, until: 0, total: 0, tick: 0, wait: 0 };
   const FIVEM = 'FiveM läuft gerade. Ein Wechsel der Bildwiederholrate wirft das Spiel aus dem Vollbild oder lässt das Bild kurz schwarz werden: schließ FiveM zuerst.';
   const CONN = { hdmi: 'HDMI', displayport: 'DisplayPort', dvi: 'DVI', vga: 'VGA' };
 
@@ -65,7 +65,8 @@
     const r = await api('hw.hz.set', { device: d.device }).catch(e => ({ ok: false, error: e.message }));
     if (!r.ok) return fail(/FiveM/.test(r.error || '') ? 'Erst FiveM schließen' : 'Nicht umgestellt', r.error || 'Windows hat den Wechsel abgelehnt.');
     // the host's countdown started before its answer got here: the page ends half a second early, never late
-    Object.assign(HW, { dev: d.device, name: d.name, from: r.from, to: r.to, until: Date.now() + (r.revertIn || 15) * 1000 - 500 });
+    const total = (r.revertIn || 15) * 1000 - 500;
+    Object.assign(HW, { dev: d.device, name: d.name, from: r.from, to: r.to, until: Date.now() + total, total });
     live();
   }
 
@@ -74,16 +75,17 @@
   function live() {
     const secs = Math.max(0, Math.ceil((HW.until - Date.now()) / 1000));
     view(`${head('hw-hz', 'Monitor-Check', 'Passt das Bild?')}
-      <p>Dein Monitor läuft jetzt mit ${HW.to} Hz. Ohne Bestätigung stellt OrbitTweak in <b class="hw-left" id="hwLeft">${secs}</b> Sekunden auf ${HW.from} Hz zurück.</p>
+      <p>Dein Monitor läuft jetzt mit ${HW.to} Hz. Ohne Bestätigung stellt OrbitTweak in <b class="hw-left" id="hwLeft">${secs}</b> <span id="hwUnit">${secs === 1 ? 'Sekunde' : 'Sekunden'}</span> auf ${HW.from} Hz zurück.</p>
       <div class="hw-bar"><i id="hwBar"></i></div>
       <div class="act"><button class="btn lg" id="hwBack" data-esc>${ico('undo')}Zurück auf ${HW.from} Hz</button><button class="btn p lg" id="hwKeep">${ico('check')}Behalten</button></div>`, 'hw-live', '#hwBack');
-    // one transition over the whole time (transform only), the number follows the clock
+    // one transition over the time left (transform only), from the share still left (a resumed countdown is not full)
     const bar = $('#hwBar');
-    requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.transitionDuration = Math.max(0, HW.until - Date.now()) + 'ms'; bar.classList.add('hw-run'); }));
+    bar.style.transform = `scaleX(${Math.min(1, Math.max(0, HW.until - Date.now()) / (HW.total || 1))})`;
+    requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.transitionDuration = Math.max(0, HW.until - Date.now()) + 'ms'; bar.style.transform = ''; bar.classList.add('hw-run'); }));
     stop();
     HW.tick = setInterval(() => {
       const left = Math.max(0, Math.ceil((HW.until - Date.now()) / 1000)), el = $('#hwLeft');
-      if (el) el.textContent = left;
+      if (el) { el.textContent = left; $('#hwUnit').textContent = left === 1 ? 'Sekunde' : 'Sekunden'; }
       if (left > 0) return;
       clearInterval(HW.tick); HW.tick = 0;
       // the host puts the old rate back now and says so (event "hwhz"); if that word gets lost, the page still moves on
@@ -202,7 +204,7 @@
     return {
       title: 'Deine RAM-Riegel',
       intro: r.xmp === 'unknown'
-        ? `Sie laufen mit ${r.configured} MT/s. Ob sie mehr können, verrät ihre Teilenummer nicht: OrbitTweak kennt die Nummern von Corsair, G.Skill, Kingston, Crucial, TeamGroup, Patriot und ADATA. Riegel, die ab Werk in Komplett-PCs und Laptops stecken, laufen meist schon mit ihrem vollen Takt.`
+        ? `Sie laufen mit ${r.configured} MT/s. Ob sie mehr können, verrät ihre Teilenummer nicht: OrbitTweak kennt die Nummern der Gaming-Riegel von Corsair, G.Skill, Kingston, Crucial, TeamGroup, Patriot und ADATA. Riegel, die ab Werk in Komplett-PCs und Laptops stecken, laufen meist schon mit ihrem vollen Takt.`
         : 'So meldet Windows deine Riegel.',
       html: '',
     };
