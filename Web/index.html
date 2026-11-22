@@ -21,6 +21,7 @@
 <link rel="stylesheet" href="perf.css">
 <link rel="stylesheet" href="crashscan.css">
 <link rel="stylesheet" href="hwcheck.css">
+<link rel="stylesheet" href="netcheck.css">
 <link rel="stylesheet" href="palette.css">
 <link rel="stylesheet" href="luxe-themes.css">
 </head>
@@ -121,6 +122,7 @@
     <symbol id="crs-repeat" viewBox="0 0 24 24"><path d="M17 2.5 20.5 6 17 9.5"/><path d="M3.5 11.5V10a4 4 0 0 1 4-4h13M7 21.5 3.5 18 7 14.5"/><path d="M20.5 12.5V14a4 4 0 0 1-4 4h-13"/></symbol>
     <symbol id="hw-hz" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4M6.5 7.5h5M9 10h8.5M6.5 12.5h6"/></symbol>
     <symbol id="hw-chan" viewBox="0 0 24 24"><rect x="2.5" y="4" width="19" height="5.5" rx="1.3"/><rect x="2.5" y="13.5" width="19" height="5.5" rx="1.3"/><path d="M6.5 9.5v2M10.5 9.5v2M14.5 9.5v2M18.5 9.5v2M6.5 19v2M10.5 19v2M14.5 19v2M18.5 19v2"/></symbol>
+    <symbol id="nc-pulse" viewBox="0 0 24 24"><path d="M2 13h3.2l2.1-5.5 3.4 11 2.6-8.2 1.6 2.7h1.9"/><circle cx="19.6" cy="13" r="2.6"/></symbol>
   </defs>
 </svg>
 
@@ -297,7 +299,7 @@
     <section class="page" id="p-servers">
       <div class="ph">
         <div><div class="kicker">Server Hub</div><h1>Deine <span class="grad">Server</span></h1><p class="pd">Speichere deine Server und verbinde dich mit einem Klick. Mit Spielerzahl und Ping.</p></div>
-        <div class="ph-r"><button class="btn" onclick="loadServers(true)"><svg class="i"><use href="#refresh"/></svg>Aktualisieren</button></div>
+        <div class="ph-r"><button class="btn" id="nc-srvgo" type="button" onclick="ncOpen()" title="Netz-Check: zeigt in einer Minute, ob ein Lag im WLAN, bei deinem Anbieter oder beim Server anfängt"><svg class="i"><use href="#nc-pulse"/></svg>Verbindung testen</button><button class="btn" onclick="loadServers(true)"><svg class="i"><use href="#refresh"/></svg>Aktualisieren</button></div>
       </div>
       <div class="srv-wrap">
         <div class="srv-main">
@@ -1277,6 +1279,7 @@
 <script src="perf.js"></script>
 <script src="crashscan.js"></script>
 <script src="hwcheck.js"></script>
+<script src="netcheck.js"></script>
 <script src="palette.js"></script>
 </body>
 </html>
