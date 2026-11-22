@@ -3937,6 +3937,18 @@ document.addEventListener('click', async e => {
 
 /* ======================= WHAT'S NEW: shown once after an update ======================= */
 const CHANGES = {
+  '2.32.0': [
+    ['heart', 'Diagnose auf einen Blick', 'Die Punktzahl steht jetzt direkt unter „System-Zustand“. Im normalen Fenster siehst du sie samt „Erneut prüfen“ ohne Scrollen.'],
+    ['info', 'Ruhigere Meldungen', 'Höchstens zwei Meldungen auf einmal, lange bleiben länger. Maus drauf hält sie an, Klick schließt sie. Warnungen sind gelb statt grün.'],
+    ['square', 'Sanftere Dialoge', 'Dialoge blenden jetzt weich aus und scrollen in niedrigen Fenstern, statt ihre Buttons unten abzuschneiden.'],
+    ['mouse', 'Spürbare Klicks', 'Buttons, Tabs und die Seitenleiste geben beim Klicken ein kurzes, ruhiges Feedback, auch der Haupt-Button jeder Seite.'],
+    ['eye', 'Seitenleiste folgt dir', 'In niedrigen Fenstern scrollt die Seitenleiste zur offenen Seite mit, damit sie immer markiert zu sehen ist.'],
+    ['layers', 'Einheitliche Kartentitel', 'Abstürze, Verbindungstest, FiveM-Log, die Einstellungen und der Tweak-Wächter haben jetzt dieselben Kartentitel wie der Rest der App.'],
+    ['chart', 'Ruhigere Leistungswerte', 'In den Leistungs-Kacheln unter Spielzeit stehen % und GB jetzt klein neben der Zahl, wie überall sonst in der App.'],
+    ['puzzle', 'Mods-Tabs im kleinen Fenster', 'Im schmalen Fenster zeigen die Tabs unter Mods & ReShade nur Icon und Name statt abgeschnittener Zusatztexte.'],
+    ['sliders', 'Dunkle Zahlenfelder', 'Zahlenfelder wie das eigene FPS-Limit zeigen ihre Pfeile jetzt dunkel statt als weißen Block über dem Text.'],
+    ['brush', 'Anime-Theme: runde Titel', 'Im Anime-Theme stehen jetzt alle Kartentitel in der runden Schrift, auch unter Launcher, Fadenkreuz, Cleaner und Diagnose.'],
+  ],
   '2.31.1': [
     ['download', 'Update-Fenster repariert', 'Lange Update-Hinweise schoben „Jetzt aktualisieren“ aus dem Fenster, und Fettschrift erschien als Sternchen. Die Liste scrollt jetzt für sich, die Buttons bleiben immer sichtbar.'],
     ['sparkle', 'Nichts verpasst', 'Hast du eine Version übersprungen, zeigt dieses Fenster jetzt auch, was sie Neues gebracht hat.'],
